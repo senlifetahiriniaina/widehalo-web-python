@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import environ
@@ -215,6 +216,15 @@ CORE_STANDARD_ROLES = [
 ]
 CORE_MFA_REQUIRED_ROLES = {"admin", "direction", "comptable", "rh"}
 CORE_SIMPLE_MODE_ROLES = {"collaborateur", "magasinier", "chef_atelier"}
+
+# --- CRM : plafonds de remise par role (RG-CRM-3), etape C2 du Lot 2 ---
+# Un role absent de ce mapping (direction, admin...) reste illimite par
+# conception — seuls les roles explicitement plafonnes ci-dessous
+# declenchent une demande de validation au-dela du seuil.
+CRM_DISCOUNT_CAP_BY_ROLE = {
+    "commercial": Decimal(10),
+    "resp_commercial": Decimal(25),
+}
 
 # --- Garde-fous d'architecture (etape 2) ---
 BUDGET_MAX_MODELS = 180
