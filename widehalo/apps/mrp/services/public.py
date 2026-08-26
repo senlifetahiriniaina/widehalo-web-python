@@ -64,3 +64,11 @@ def open_conformity_incident(
     )
     cri_id: UUID = cri.id
     return cri_id
+
+
+def list_active_boms_for_product(product_template_id: Any) -> list[dict[str, Any]]:
+    """PAT-ECO1 : nomenclatures actives derivees d'un produit — utilise par
+    `patronage.services.eco` pour l'analyse d'impact lors d'un changement
+    de version de patron."""
+    boms = MrpBom.objects.filter(product_template_id=product_template_id, state=MrpBom.STATE_ACTIVE)
+    return [{"id": bom.id, "code": bom.code, "version": bom.version} for bom in boms]

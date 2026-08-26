@@ -26,6 +26,7 @@ from apps.core.errors import register_exception_handlers  # noqa: E402
 from apps.crm.api import router as crm_router  # noqa: E402
 from apps.mrp.api import router as mrp_router  # noqa: E402
 from apps.partners.api import router as partners_router  # noqa: E402
+from apps.patronage.api import router as patronage_router  # noqa: E402
 
 api.add_router("/auth", auth_router)
 api.add_router("", accounting_router)
@@ -33,6 +34,7 @@ api.add_router("", chat_router)
 api.add_router("", crm_router)
 api.add_router("", mrp_router)
 api.add_router("", partners_router)
+api.add_router("", patronage_router)
 api.add_router("", catalog_router)
 api.add_router("/health", health_router)
 api.add_router("", meta_router)
