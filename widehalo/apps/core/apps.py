@@ -16,6 +16,7 @@ class CoreConfig(AppConfig):
 
     def ready(self) -> None:
         from apps.core import events  # noqa: F401
+        from apps.core.audit_signals import connect_audit_signals
         from apps.core.workflows import connect_workflow_signals
 
         # Pas de filtre `sender` : on veut reappliquer RLS apres la migration
@@ -23,3 +24,4 @@ class CoreConfig(AppConfig):
         # pas seulement core. apply_rls() est idempotent.
         post_migrate.connect(_apply_rls)
         connect_workflow_signals()
+        connect_audit_signals()

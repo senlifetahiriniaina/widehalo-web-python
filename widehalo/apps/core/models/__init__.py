@@ -1,7 +1,10 @@
+from apps.core.models.audit import AuditLog
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
+from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.rbac import RoleProfile
+from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParameter
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
@@ -21,9 +24,13 @@ __all__ = [
     "BaseModel",
     "ReferenceMixin",
     "TenantManager",
+    "AuditLog",
+    "Document",
     "EventLog",
     "IdempotencyKey",
     "RoleProfile",
+    "CountryDefaultsProfile",
+    "RegulatoryParameter",
     "Sequence",
     "Tenant",
     "User",

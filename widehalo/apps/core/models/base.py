@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -8,14 +10,22 @@ from apps.core.context import get_current_tenant_id
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.user import User
 
+_M = TypeVar("_M", bound=models.Model)
 
-class TenantManager(models.Manager["BaseModel"]):
+
+class TenantManager(models.Manager[_M]):
     """Filtre systematiquement sur le tenant courant (contextvar alimentee
     par TenantMiddleware). Renvoie un queryset vide si aucun tenant n'est
     positionne (deny-by-default), jamais toutes les lignes de tous les
-    tenants."""
+    tenants.
 
-    def get_queryset(self) -> models.QuerySet[BaseModel]:
+    Generique sur `_M` (et non fige sur BaseModel) : le plugin mypy de
+    django-stubs specialise automatiquement `TenantManager[Self]` pour
+    chaque sous-classe concrete — ne PAS annoter explicitement
+    `objects: TenantManager[...]` dans les sous-classes, l'annotation
+    manuelle entre en conflit avec cette specialisation automatique."""
+
+    def get_queryset(self) -> models.QuerySet[_M]:
         qs = super().get_queryset()
         tenant_id = get_current_tenant_id()
         if not tenant_id:
@@ -53,7 +63,7 @@ class BaseModel(models.Model):
     archived_at = models.DateTimeField(null=True, blank=True)
 
     objects = TenantManager()
-    all_objects = models.Manager["BaseModel"]()  # noqa: DJ012 (deuxieme manager volontaire)
+    all_objects = models.Manager()  # noqa: DJ012 (deuxieme manager volontaire)
 
     class Meta:
         abstract = True

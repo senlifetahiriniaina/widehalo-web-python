@@ -21,9 +21,7 @@ class StateTransitionLog(models.Model):
     field_name = models.CharField(max_length=100)
     from_state = models.CharField(max_length=100)
     to_state = models.CharField(max_length=100)
-    performed_by = models.ForeignKey(
-        "core.User", null=True, blank=True, on_delete=models.SET_NULL
-    )
+    performed_by = models.ForeignKey("core.User", null=True, blank=True, on_delete=models.SET_NULL)
     was_refused = models.BooleanField(default=False)
     comment = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

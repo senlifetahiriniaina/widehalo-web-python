@@ -1,38 +1,31 @@
 """SmartDefaults : preconfigure un tenant a sa creation selon le pays
-(devise, TVA, fuseau, moyens de paiement...). Jeu Madagascar livre ce lot ;
-mecanisme generique pour d'autres pays en V2.
-
-Version complete (CountryDefaultsProfile en base + fixture) livree a
-l'etape 10. Le jeu Madagascar est fige ici en constante pour que
-`create_tenant --country MG` fonctionne des l'etape 3.
-"""
+(devise, TVA, fuseau, moyens de paiement...), lu depuis
+`CountryDefaultsProfile` en base (jamais en dur dans le code) — extensible
+a d'autres pays que Madagascar par simple ajout de donnees, sans
+modification du code applicatif ni des futurs modules metier."""
 
 from __future__ import annotations
 
-from typing import Any
-
+from apps.core.models.regulatory import CountryDefaultsProfile
 from apps.core.models.tenant import Tenant
-
-COUNTRY_DEFAULTS: dict[str, dict[str, Any]] = {
-    "MG": {
-        "base_currency": "MGA",
-        "default_language": "fr",
-        "timezone": "Indian/Antananarivo",
-        "vat_rate": "20.00",
-        "chart_of_accounts_code": "PCG2005",
-        "payment_methods": ["cash", "bank_transfer", "mvola", "orange_money", "airtel_money"],
-    }
-}
 
 
 def apply_country_defaults(tenant: Tenant, country_code: str) -> Tenant:
-    defaults = COUNTRY_DEFAULTS.get(country_code.upper())
-    if not defaults:
+    profile = CountryDefaultsProfile.objects.filter(country_code=country_code.upper()).first()
+    if profile is None:
         return tenant
-    tenant.base_currency = defaults["base_currency"]
-    tenant.default_language = defaults["default_language"]
-    tenant.timezone = defaults["timezone"]
+
+    tenant.base_currency = profile.base_currency
+    tenant.default_language = profile.default_language
+    tenant.timezone = profile.timezone
     tenant.retention_policy = tenant.retention_policy or {}
-    tenant.retention_policy.setdefault("country_defaults", defaults)
+    tenant.retention_policy.setdefault(
+        "country_defaults",
+        {
+            "vat_rate": str(profile.vat_rate) if profile.vat_rate is not None else None,
+            "chart_of_accounts_code": profile.chart_of_accounts_code,
+            "payment_methods": profile.payment_methods,
+        },
+    )
     tenant.save(update_fields=["base_currency", "default_language", "timezone", "retention_policy"])
     return tenant

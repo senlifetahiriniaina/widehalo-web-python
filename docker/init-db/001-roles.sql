@@ -1,6 +1,11 @@
 -- Le role applicatif Django est deja cree via POSTGRES_USER (widehalo_app) par l'image postgres.
--- Ce script documente les GRANTs additionnels appliques plus tard (etape 3 et 10) :
---   - RLS FORCE sur toutes les tables heritant BaseModel (voir apps/core/management/commands/apply_rls.py)
---   - REVOKE UPDATE/DELETE sur core_audit_log (voir migration dediee, etape 10)
+-- Les protections suivantes sont appliquees automatiquement par les migrations Django
+-- (pas par ce script), car elles doivent survivre a une reinitialisation de la base :
+--   - RLS FORCE sur toutes les tables heritant BaseModel, reappliquee a chaque migrate
+--     (apps/core/management/commands/apply_rls.py, signal post_migrate).
+--   - Immuabilite de core_audit_log via un TRIGGER Postgres (pas un simple REVOKE de
+--     privileges, inefficace contre le proprietaire de la table) : voir la migration
+--     core.0010_audit_log_immutable — le trigger rejette tout UPDATE/DELETE, y compris
+--     pour le role proprietaire.
 -- Rien a executer ici pour l'instant : cree pour que le point de montage /docker-entrypoint-initdb.d
 -- existe et soit versionne des le squelette du depot.
