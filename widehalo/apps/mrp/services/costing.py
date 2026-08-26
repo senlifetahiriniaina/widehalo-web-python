@@ -18,6 +18,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
 from apps.mrp.models import MrpOrder, MrpOrderComponent
+from apps.mrp.services.cra import real_labor_cost
 
 DEFAULT_VARIANCE_THRESHOLD_PCT = Decimal(5)
 
@@ -69,12 +70,14 @@ def compute_planned_cost(
 def compute_real_cost(
     order: MrpOrder, *, component_unit_costs: dict[UUID, Decimal], overhead_rate_pct: Decimal
 ) -> dict[str, Any]:
-    """A n'appeler qu'a la cloture (RG-MRP-6) — seul un CRA valide entre
-    dans ce calcul (filtre applique par l'appelant, cf. services/cra.py)."""
+    """A n'appeler qu'a la cloture (RG-MRP-6). Le cout facon reel derive
+    des seuls CRA `validated` (test d'acceptance n°4 : un CRA non valide
+    n'entre pas dans le cout reel) — jamais de la duree brute saisie sur
+    l'ordre de travail, cf. `services/cra.py::real_labor_cost()`."""
     material = _material_cost(
         order, qty_field="qty_consumed", component_unit_costs=component_unit_costs
     )
-    labor = _labor_cost(order, duration_field="duration_real_min")
+    labor = real_labor_cost(order)
     overhead = labor * overhead_rate_pct / Decimal(100)
     total = material + labor + overhead
 

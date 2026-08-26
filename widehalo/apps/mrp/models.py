@@ -400,3 +400,137 @@ class MrpSubcontractOrder(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.order} — sous-traitance {self.partner_id}"
+
+
+class MrpCra(BaseModel, ReferenceMixin):
+    """Compte rendu d'activite (RG-MRP-9) : saisi par employe et par jour,
+    circuit de validation draft->submitted->validated/rejected. Seul un CRA
+    `validated` alimente le cout facon reel (cf. services/costing.py)."""
+
+    STATE_DRAFT = "draft"
+    STATE_SUBMITTED = "submitted"
+    STATE_VALIDATED = "validated"
+    STATE_REJECTED = "rejected"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_SUBMITTED, "Soumis"),
+        (STATE_VALIDATED, "Valide"),
+        (STATE_REJECTED, "Rejete"),
+    ]
+
+    date = models.DateField()
+    employee = models.ForeignKey("core.User", on_delete=models.PROTECT, related_name="+")
+    workshop = models.ForeignKey(MrpWorkshop, on_delete=models.PROTECT, related_name="cra_entries")
+    work_order = models.ForeignKey(
+        MrpWorkOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="cra_entries"
+    )
+    order = models.ForeignKey(
+        MrpOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="cra_entries"
+    )
+    hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    qty_done = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    qty_rejected = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    activity_type = models.CharField(max_length=64, blank=True)
+    comment = models.TextField(blank=True)
+    state = FSMField(default=STATE_DRAFT, choices=STATE_CHOICES)
+    validated_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    validated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "mrp_cra"
+
+    def __str__(self) -> str:
+        return self.reference or f"CRA {self.employee} {self.date}"
+
+    @transition(field=state, source=STATE_DRAFT, target=STATE_SUBMITTED)
+    def submit(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_SUBMITTED, target=STATE_VALIDATED)
+    def validate(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_SUBMITTED, target=STATE_REJECTED)
+    def reject(self) -> None:
+        pass
+
+
+class MrpCri(BaseModel, ReferenceMixin):
+    """Compte rendu d'intervention (RG-MRP-10) : evenement non productif
+    (panne/reglage/incident qualite/formation/audit)."""
+
+    TYPE_MAINTENANCE = "maintenance"
+    TYPE_ADJUSTMENT = "reglage"
+    TYPE_QUALITY_INCIDENT = "incident_qualite"
+    TYPE_BREAKDOWN = "panne"
+    TYPE_TRAINING = "formation"
+    TYPE_AUDIT = "audit"
+    TYPE_CHOICES = [
+        (TYPE_MAINTENANCE, "Maintenance"),
+        (TYPE_ADJUSTMENT, "Reglage"),
+        (TYPE_QUALITY_INCIDENT, "Incident qualite"),
+        (TYPE_BREAKDOWN, "Panne"),
+        (TYPE_TRAINING, "Formation"),
+        (TYPE_AUDIT, "Audit"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Ouvert"),
+        (STATE_CLOSED, "Cloture"),
+    ]
+
+    date = models.DateField()
+    type = models.CharField(max_length=24, choices=TYPE_CHOICES)
+    workcenter = models.ForeignKey(
+        MrpWorkcenter, on_delete=models.PROTECT, related_name="cri_entries"
+    )
+    order = models.ForeignKey(
+        MrpOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="cri_entries"
+    )
+    # Intervenant interne (employe) OU externe (sous-traitant/prestataire,
+    # jamais de FK vers `partners`).
+    intervenant_user = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    intervenant_partner_id = models.UUIDField(null=True, blank=True)
+    duration_min = models.PositiveIntegerField(default=0)
+    description = models.TextField(blank=True)
+    cause = models.TextField(blank=True)
+    action_taken = models.TextField(blank=True)
+    cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    downtime_min = models.PositiveIntegerField(default=0)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    # Documents joints : references generiques vers `core.Document`, jamais
+    # de FK directe (couplage generique deja etabli au Lot 1).
+    attachments = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "mrp_cri"
+
+    def __str__(self) -> str:
+        return self.reference or f"CRI {self.workcenter} {self.date}"
+
+
+class MrpScrap(BaseModel):
+    """RG-MRP-12 : toute quantite rebutee genere un mouvement de stock vers
+    un emplacement « rebut » (futur module `stocks`) et une charge
+    analytique (futur module `accounting` — analytique deja livre en Lot 2,
+    a brancher via `accounting.services.public` le moment venu)."""
+
+    order = models.ForeignKey(MrpOrder, on_delete=models.CASCADE, related_name="scraps")
+    variant_id = models.UUIDField(null=True, blank=True)
+    qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    reason = models.CharField(max_length=255)
+    cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    date = models.DateField()
+    declared_by = models.ForeignKey("core.User", on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "mrp_scrap"
+
+    def __str__(self) -> str:
+        return f"{self.order} — rebut {self.qty}"

@@ -12,6 +12,7 @@ from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
 from apps.mrp.services.costing import compute_planned_cost, compute_real_cost, consume_component
+from apps.mrp.services.cra import create_cra, submit_cra, validate_cra
 from apps.mrp.services.orders import (
     confirm_order,
     create_order,
@@ -69,7 +70,7 @@ def test_planned_cost_computes_material_labor_overhead(costing_setup) -> None:
 
 
 def test_real_cost_computes_variance_against_planned(costing_setup) -> None:
-    tenant, _user, order, work_order, component_id = costing_setup
+    tenant, user, order, work_order, component_id = costing_setup
     with use_tenant(tenant.id):
         compute_planned_cost(
             order, component_unit_costs={component_id: Decimal(1000)}, overhead_rate_pct=Decimal(10)
@@ -83,11 +84,25 @@ def test_real_cost_computes_variance_against_planned(costing_setup) -> None:
         work_order.save(update_fields=["duration_real_min"])
         done_work_order(work_order, qty_done=Decimal(10))
 
+        cra = create_cra(
+            tenant=tenant,
+            employee=user,
+            workshop=order.workshop,
+            date=order.created_at.date(),
+            hours=Decimal(2),
+            work_order=work_order,
+            order=order,
+        )
+        submit_cra(cra, user)
+        validate_cra(cra, user)
+
         costs = compute_real_cost(
             order, component_unit_costs={component_id: Decimal(1000)}, overhead_rate_pct=Decimal(10)
         )
         assert costs["material"] == Decimal(21000)
         assert costs["variance_material"] == Decimal(1000)
+        # 2h de CRA valide x 6000 Ar/h = 12000 Ar de facon reelle
+        assert costs["labor"] == Decimal(12000)
 
 
 def test_consumption_variance_within_threshold_needs_no_reason(costing_setup) -> None:
