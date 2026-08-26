@@ -29,6 +29,7 @@ def create_cri(
     action_taken: str = "",
     cost_mga: Decimal = Decimal(0),
     downtime_min: int = 0,
+    pattern_id: UUID | None = None,
 ) -> MrpCri:
     reference = next_reference(tenant, "MRP-CRI", timezone.now().year)
     return MrpCri.objects.create(
@@ -46,6 +47,7 @@ def create_cri(
         action_taken=action_taken,
         cost_mga=cost_mga,
         downtime_min=downtime_min,
+        pattern_id=pattern_id,
     )
 
 

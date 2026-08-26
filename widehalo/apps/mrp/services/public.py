@@ -4,13 +4,16 @@ tests/architecture/test_module_boundaries.py)."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
-from apps.mrp.models import MrpBom, MrpBomLine
+from apps.mrp.models import MrpBom, MrpBomLine, MrpWorkcenter
+from apps.mrp.services.interventions import create_cri
 
 
 def set_bom_line_qty_by_size(
@@ -36,3 +39,28 @@ def set_bom_line_qty_by_size(
     line.qty_by_size = {size: str(qty) for size, qty in qty_by_size.items()}
     line.save(update_fields=["qty_by_size"])
     return True
+
+
+def open_conformity_incident(
+    *,
+    workcenter_id: Any,
+    pattern_id: Any,
+    date: dt.date,
+    description: str,
+    cause: str = "",
+) -> UUID:
+    """RG-PAT-8 : un incident de conformite constate en production ouvre un
+    CRI rattache au patron d'origine, pour identifier les patrons generant
+    le plus de reprises."""
+    workcenter = MrpWorkcenter.objects.get(id=workcenter_id)
+    cri = create_cri(
+        tenant=workcenter.tenant,
+        type="incident_qualite",
+        workcenter=workcenter,
+        date=date,
+        description=description,
+        cause=cause,
+        pattern_id=pattern_id,
+    )
+    cri_id: UUID = cri.id
+    return cri_id

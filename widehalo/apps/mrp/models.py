@@ -507,6 +507,11 @@ class MrpCri(BaseModel, ReferenceMixin):
     # Documents joints : references generiques vers `core.Document`, jamais
     # de FK directe (couplage generique deja etabli au Lot 1).
     attachments = models.JSONField(default=list, blank=True)
+    # RG-PAT-8 : un incident de conformite constate en production ouvre un
+    # CRI rattache au patron d'origine — UUID simple vers
+    # `apps.patronage.models.PatPattern`, jamais de FK (patronage depend de
+    # mrp, jamais l'inverse).
+    pattern_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "mrp_cri"

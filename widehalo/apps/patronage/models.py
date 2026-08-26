@@ -319,3 +319,22 @@ class PatMarker(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.pattern.code} — plan de coupe"
+
+
+class PatTechPack(BaseModel):
+    """RG-PAT-7 : dossier technique PDF consolide (croquis, tableau de
+    mesures gradees, nomenclature matiere, fournitures, instructions de
+    montage, controles qualite), bilingue FR/EN. Reutilise `core.Document`
+    (stockage deduplique/antivirus deja en place au Lot 1) plutot que de
+    reinventer un stockage de fichier."""
+
+    pattern = models.ForeignKey(PatPattern, on_delete=models.CASCADE, related_name="tech_packs")
+    version = models.PositiveIntegerField()
+    document = models.ForeignKey("core.Document", on_delete=models.PROTECT, related_name="+")
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pat_tech_pack"
+
+    def __str__(self) -> str:
+        return f"{self.pattern.code} v{self.version} — dossier technique"

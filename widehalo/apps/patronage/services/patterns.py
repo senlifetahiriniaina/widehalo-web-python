@@ -56,6 +56,7 @@ def add_pattern_piece(
     material_variant_id: UUID | None = None,
     seam_allowance_mm: Decimal = Decimal(10),
     is_lining: bool = False,
+    notes: str = "",
 ) -> PatPatternPiece:
     if pattern.state != PatPattern.STATE_DRAFT:
         raise ValidationError(_("Un patron valide est fige — creer une nouvelle version."))
@@ -69,6 +70,7 @@ def add_pattern_piece(
         material_variant_id=material_variant_id,
         seam_allowance_mm=seam_allowance_mm,
         is_lining=is_lining,
+        notes=notes,
     )
 
 
