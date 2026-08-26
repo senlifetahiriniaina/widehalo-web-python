@@ -137,3 +137,35 @@ class CrmLeadLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.description} x{self.qty}"
+
+
+class CrmActivity(BaseModel):
+    TYPE_CALL = "call"
+    TYPE_VISIT = "visit"
+    TYPE_EMAIL = "email"
+    TYPE_FOLLOW_UP = "follow_up"
+    TYPE_MEETING = "meeting"
+    TYPE_CHOICES = [
+        (TYPE_CALL, "Appel"),
+        (TYPE_VISIT, "Visite"),
+        (TYPE_EMAIL, "Email"),
+        (TYPE_FOLLOW_UP, "Relance"),
+        (TYPE_MEETING, "Reunion"),
+    ]
+
+    lead = models.ForeignKey(CrmLead, on_delete=models.CASCADE, related_name="activities")
+    activity_type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    subject = models.CharField(max_length=200)
+    notes = models.TextField(blank=True)
+    due_at = models.DateTimeField(null=True, blank=True)
+    done_at = models.DateTimeField(null=True, blank=True)
+    assigned_to = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "crm_activity"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.get_activity_type_display()} — {self.subject}"
