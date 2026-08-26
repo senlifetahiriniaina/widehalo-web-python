@@ -251,10 +251,17 @@ class MrpOrder(BaseModel, ReferenceMixin):
     sale_order_line_id = models.UUIDField(null=True, blank=True)
     qty_produced = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     qty_scrapped = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # RG-MRP-6 : cout reel (consomme a la cloture). Le cout planifie (a
+    # l'ouverture) est conserve separement pour exposer l'ecart par
+    # composante (matiere/facon/frais generaux), cf. services/costing.py.
     cost_material_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_labor_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_overhead_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_total_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cost_material_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cost_labor_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cost_overhead_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cost_total_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     suspend_reason = models.TextField(blank=True)
     cancel_reason = models.TextField(blank=True)
 
@@ -310,6 +317,9 @@ class MrpOrderComponent(BaseModel):
     uom_code = models.CharField(max_length=16, blank=True)
     lot = models.CharField(max_length=64, blank=True)
     state = models.CharField(max_length=32, default="planned")
+    # RG-MRP-11 : motif obligatoire quand l'ecart planifie/reel depasse le
+    # seuil parametrable (defaut 5%).
+    variance_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = "mrp_order_component"
