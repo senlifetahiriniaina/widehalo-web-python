@@ -2,6 +2,7 @@
 ruff>=0.7
 mypy>=1.13
 django-stubs[compatible-mypy]>=5.1
+types-python-dateutil>=2.9
 pytest>=8.3
 pytest-django>=4.9
 pytest-asyncio>=0.24

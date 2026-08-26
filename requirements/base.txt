@@ -23,3 +23,4 @@ django-htmx>=1.19
 uuid6>=2024.7.10
 redis>=5.1
 requests>=2.32
+python-dateutil>=2.9

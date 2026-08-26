@@ -189,6 +189,90 @@ class AccMove(BaseModel, ReferenceMixin):
         return self.reference or f"(brouillon) {self.id}"
 
 
+class AccTax(BaseModel):
+    """RG-ACC-5 : sur un tenant au regime synthetique, aucune AccTax n'est
+    proposee ni appliquee (masquage cote service/API, cf.
+    services/taxes.py)."""
+
+    TYPE_SALE = "sale"
+    TYPE_PURCHASE = "purchase"
+    TYPE_CHOICES = [
+        (TYPE_SALE, "Vente"),
+        (TYPE_PURCHASE, "Achat"),
+    ]
+
+    code = models.CharField(max_length=16)
+    name = models.CharField(max_length=120)
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    rate = models.DecimalField(max_digits=6, decimal_places=3)
+    is_included = models.BooleanField(default=False)
+    account_collected = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    account_deductible = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "acc_tax"
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.rate}%)"
+
+
+class AccPaymentTerm(BaseModel):
+    name = models.CharField(max_length=120)
+
+    class Meta:
+        db_table = "acc_payment_term"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class AccPaymentTermLine(BaseModel):
+    VALUE_TYPE_PERCENT = "percent"
+    VALUE_TYPE_FIXED = "fixed"
+    VALUE_TYPE_BALANCE = "balance"
+    VALUE_TYPE_CHOICES = [
+        (VALUE_TYPE_PERCENT, "Pourcentage"),
+        (VALUE_TYPE_FIXED, "Montant fixe"),
+        (VALUE_TYPE_BALANCE, "Solde"),
+    ]
+
+    term = models.ForeignKey(AccPaymentTerm, on_delete=models.CASCADE, related_name="lines")
+    sequence = models.PositiveSmallIntegerField(default=0)
+    value_type = models.CharField(max_length=16, choices=VALUE_TYPE_CHOICES)
+    value = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    days = models.PositiveIntegerField(default=0)
+    day_of_month = models.PositiveSmallIntegerField(null=True, blank=True)
+    month_offset = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "acc_payment_term_line"
+        ordering = ["sequence"]
+
+
+class AccExchangeRate(BaseModel):
+    currency = models.CharField(max_length=3)
+    date = models.DateField()
+    rate_to_mga = models.DecimalField(max_digits=18, decimal_places=6)
+    source = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        db_table = "acc_exchange_rate"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "currency", "date"], name="uniq_exchange_rate"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.currency}@{self.date} = {self.rate_to_mga} MGA"
+
+
 class AccMoveLine(BaseModel):
     move = models.ForeignKey(AccMove, on_delete=models.CASCADE, related_name="lines")
     account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
@@ -198,6 +282,9 @@ class AccMoveLine(BaseModel):
     credit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     amount_currency = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     currency = models.CharField(max_length=3, default="MGA")
+    tax = models.ForeignKey(
+        AccTax, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
     tax_base = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     analytic_distribution = models.JSONField(default=dict, blank=True)
     due_date = models.DateField(null=True, blank=True)

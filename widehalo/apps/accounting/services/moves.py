@@ -14,7 +14,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils.translation import gettext as _
 
-from apps.accounting.models import AccAccount, AccJournal, AccMove, AccMoveLine, AccPeriod
+from apps.accounting.models import AccAccount, AccJournal, AccMove, AccMoveLine, AccPeriod, AccTax
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 
@@ -55,6 +55,8 @@ def add_line(
     partner_id: UUID | None = None,
     analytic_distribution: dict[str, Any] | None = None,
     due_date: Any = None,
+    tax: AccTax | None = None,
+    tax_base: Decimal | None = None,
 ) -> AccMoveLine:
     if move.state != AccMove.STATE_DRAFT:
         raise ValidationError(_("Impossible d'ajouter une ligne a une ecriture non brouillon."))
@@ -68,6 +70,8 @@ def add_line(
         partner_id=partner_id,
         analytic_distribution=analytic_distribution or {},
         due_date=due_date,
+        tax=tax,
+        tax_base=tax_base,
     )
 
 
@@ -136,6 +140,8 @@ def reverse_move(move: AccMove, *, motif: str) -> AccMove:
             partner_id=line.partner_id,
             analytic_distribution=line.analytic_distribution,
             due_date=line.due_date,
+            tax=line.tax,
+            tax_base=line.tax_base,
         )
 
     return post_move(reversal)
