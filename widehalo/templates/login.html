@@ -1,0 +1,27 @@
+{% load i18n %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% trans "Connexion" %} — WideHalo</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <main style="max-width:400px; margin:4rem auto;">
+    <h1>WideHalo</h1>
+    {% if error %}<p role="alert">{% trans "Identifiants invalides." %}</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="email">{% trans "Adresse e-mail" %}</label>
+        <input id="email" type="email" name="email" required autofocus>
+      </div>
+      <div class="form-field">
+        <label for="password">{% trans "Mot de passe" %}</label>
+        <input id="password" type="password" name="password" required>
+      </div>
+      <button type="submit">{% trans "Se connecter" %}</button>
+    </form>
+  </main>
+</body>
+</html>

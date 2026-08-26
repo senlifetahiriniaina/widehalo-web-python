@@ -1,0 +1,8 @@
+{% load i18n %}
+<ul>
+  {% for message in messages %}
+    <li>{{ message.body }}</li>
+  {% empty %}
+    <li>{% trans "Aucun message." %}</li>
+  {% endfor %}
+</ul>

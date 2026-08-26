@@ -1,0 +1,90 @@
+"""SmartTable : composant transversal de liste server-side (tri, filtre,
+pagination, colonnes masquables, vues sauvegardees, export) — reutilise par
+tous les ecrans de liste des modules metier. Rendu par HTMX : une requete
+HTMX ne renvoie que le fragment (`_smart_table.html`), jamais la page
+complete, pour respecter la contrainte « aucune interaction ne recharge la
+page complete »."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, cast
+
+from django.core.paginator import Paginator
+from django.db.models import Q, QuerySet
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render
+
+from apps.core.models.ui import SavedTableView
+from apps.core.models.user import User
+from apps.core.services.export import export_queryset
+
+DEFAULT_PAGE_SIZE = 20
+
+
+@dataclass
+class Column:
+    key: str
+    label: str
+    searchable: bool = True
+
+
+def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) -> QuerySet[Any]:
+    if not query:
+        return queryset
+    condition = Q()
+    for column in columns:
+        if column.searchable:
+            condition |= Q(**{f"{column.key}__icontains": query})
+    return queryset.filter(condition) if condition else queryset
+
+
+def smart_table_response(
+    request: HttpRequest,
+    *,
+    table_key: str,
+    columns: list[Column],
+    queryset: QuerySet[Any],
+    page_template: str,
+    page_context: dict[str, Any] | None = None,
+) -> HttpResponse:
+    query = request.GET.get("q", "")
+    sort = request.GET.get("sort", "")
+    hidden = set(request.GET.getlist("hide"))
+    page_number = request.GET.get("page", "1")
+
+    queryset = _apply_search(queryset, columns, query)
+    queryset = queryset.order_by(sort) if sort else queryset.order_by("-created_at")
+
+    if request.GET.get("export") == "csv":
+        field_names = [c.key for c in columns]
+        csv_bytes = export_queryset(queryset, field_names, format="csv")
+        response = HttpResponse(csv_bytes, content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{table_key}.csv"'
+        return response
+
+    paginator = Paginator(queryset, DEFAULT_PAGE_SIZE)
+    page_obj = paginator.get_page(page_number)
+
+    visible_columns = [c for c in columns if c.key not in hidden]
+    # SmartTable est toujours servi derriere `@login_required` dans les vues
+    # appelantes ; ce cast satisfait django-stubs (`request.user` est type
+    # `User | AnonymousUser` par defaut).
+    saved_views = SavedTableView.objects.filter(table_key=table_key, owner=cast(User, request.user))
+
+    context = {
+        "table_key": table_key,
+        "columns": visible_columns,
+        "all_columns": columns,
+        "hidden_columns": hidden,
+        "page_obj": page_obj,
+        "query": query,
+        "sort": sort,
+        "saved_views": saved_views,
+        **(page_context or {}),
+    }
+
+    fragment = "components/_smart_table.html"
+    if getattr(request, "htmx", False):
+        return render(request, fragment, context)
+    return render(request, page_template, context)

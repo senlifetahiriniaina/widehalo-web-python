@@ -1,0 +1,32 @@
+{% load i18n static %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WideHalo{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
+  <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="app-logo" href="/">WideHalo</a>
+    <nav aria-label="{% trans 'Menu principal' %}">
+      <ul class="app-menu">
+        <li><a href="/dashboard/">{% trans "Tableau de bord" %}</a></li>
+        <li><a href="/partners/">{% trans "Partenaires" %}</a></li>
+        <li><a href="/catalog/templates/">{% trans "Catalogue" %}</a></li>
+        <li><a href="/chat/">{% trans "Messagerie" %}</a></li>
+        <li><a href="/search/">{% trans "Recherche" %}</a></li>
+        <li><a href="/documents/">{% trans "Documents" %}</a></li>
+        <li class="app-menu-disabled" aria-disabled="true">{% trans "Comptabilite" %} <span class="app-badge">{% trans "bientot" %}</span></li>
+        <li class="app-menu-disabled" aria-disabled="true">{% trans "Ventes" %} <span class="app-badge">{% trans "bientot" %}</span></li>
+        <li><a href="/settings/">{% trans "Parametres" %}</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{% load i18n %}
+<input type="hidden" name="step" value="2">
+<h1>{% trans "Nouveau partenaire" %} — {% trans "Etape 2 sur 2" %}</h1>
+<div class="form-field">
+  <label for="roles">{% trans "Roles" %}</label>
+  <select id="roles" name="roles" multiple>
+    <option value="client">{% trans "Client" %}</option>
+    <option value="supplier">{% trans "Fournisseur" %}</option>
+    <option value="carrier">{% trans "Transporteur" %}</option>
+    <option value="subcontractor">{% trans "Sous-traitant" %}</option>
+  </select>
+</div>
+<div class="form-field">
+  <label for="credit_limit_mga">{% trans "Plafond credit (MGA)" %}</label>
+  <input id="credit_limit_mga" type="number" name="credit_limit_mga" value="0" min="0">
+</div>
+<button type="submit">{% trans "Creer le partenaire" %}</button>

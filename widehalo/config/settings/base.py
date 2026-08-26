@@ -90,6 +90,8 @@ DATABASES = {
 }
 
 AUTH_USER_MODEL = "core.User"
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/dashboard/"
 
 AUTHENTICATION_BACKENDS = [
     # AxesBackend doit etre EN PREMIER : il intercepte les tentatives et

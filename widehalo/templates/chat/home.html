@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Messagerie" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Messagerie" %}</h1>
+  <div style="display:flex; gap:2rem;">
+    <ul style="flex:1;">
+      {% for channel in channels %}
+        <li><a href="/chat/{{ channel.id }}/">{{ channel.title|default:channel.kind }}</a></li>
+      {% empty %}
+        <li>{% trans "Aucun canal." %}</li>
+      {% endfor %}
+    </ul>
+    <div style="flex:2;">
+      {% if active_channel_id %}
+        <div id="chat-messages"
+             hx-get="/chat/{{ active_channel_id }}/messages/"
+             hx-trigger="load, every 10s"
+             hx-swap="innerHTML"></div>
+      {% else %}
+        <p>{% trans "Selectionnez un canal." %}</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -9,6 +9,7 @@ from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParame
 from apps.core.models.search import SearchDocument
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
+from apps.core.models.ui import SavedTableView
 from apps.core.models.user import User, UserTenantMembership
 from apps.core.models.workflow import (
     ApprovalDelegation,
@@ -37,6 +38,7 @@ __all__ = [
     "RegulatoryParameter",
     "SearchDocument",
     "Sequence",
+    "SavedTableView",
     "Tenant",
     "User",
     "UserTenantMembership",

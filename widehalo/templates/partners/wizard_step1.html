@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau partenaire" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau partenaire" %} — {% trans "Etape 1 sur 2" %}</h1>
+  <form hx-post="{% url 'partners:wizard' %}" hx-target="#wizard-container" hx-swap="innerHTML">
+    <div id="wizard-container">
+      <input type="hidden" name="step" value="1">
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="nif">{% trans "NIF" %}</label>
+        <input id="nif" type="text" name="nif">
+      </div>
+      <button type="submit">{% trans "Suivant" %}</button>
+    </div>
+  </form>
+{% endblock %}
