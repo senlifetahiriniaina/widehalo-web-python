@@ -45,5 +45,8 @@ django_settings_module = "config.settings.test"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py", "tests_*.py"]
-addopts = "-ra"
+addopts = "-ra -m 'not slow'"
 pythonpath = ["widehalo"]
+markers = [
+    "slow: tests longs (ex. portabilité tenant) exécutés en nightly, pas en CI standard",
+]

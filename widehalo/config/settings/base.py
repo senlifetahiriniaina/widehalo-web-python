@@ -188,6 +188,12 @@ NINJA_JWT = {
 # --- Antivirus (etape 10) ---
 CLAMAV_ENABLED = env.bool("CLAMAV_ENABLED", default=False)
 
+# --- WhatsApp Business API (etape 11) ---
+WHATSAPP_ENABLED = env.bool("WHATSAPP_ENABLED", default=False)
+WHATSAPP_PHONE_NUMBER_ID = env.str("WHATSAPP_PHONE_NUMBER_ID", default="")
+WHATSAPP_ACCESS_TOKEN = env.str("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = env.str("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default="")
+
 # --- Roles standards (etape 5) ---
 CORE_STANDARD_ROLES = [
     "admin",
