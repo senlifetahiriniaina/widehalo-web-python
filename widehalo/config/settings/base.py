@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     "apps.chat",
     "apps.partners",
     "apps.catalog",
+    # Modules metier du Lot 2 (Madagascar)
+    "apps.accounting",
 ]
 
 MIDDLEWARE = [

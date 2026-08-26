@@ -1,0 +1,47 @@
+[
+  {"code": "101", "name": "Capital social", "name_en": "Share capital", "account_class": 1, "type": "equity"},
+  {"code": "106", "name": "Reserves", "name_en": "Reserves", "account_class": 1, "type": "equity"},
+  {"code": "110", "name": "Report a nouveau", "name_en": "Retained earnings", "account_class": 1, "type": "equity"},
+  {"code": "120", "name": "Resultat de l'exercice", "name_en": "Net income for the year", "account_class": 1, "type": "equity"},
+  {"code": "164", "name": "Emprunts aupres des etablissements de credit", "name_en": "Bank loans", "account_class": 1, "type": "liability"},
+
+  {"code": "211", "name": "Terrains", "name_en": "Land", "account_class": 2, "type": "asset"},
+  {"code": "213", "name": "Constructions", "name_en": "Buildings", "account_class": 2, "type": "asset"},
+  {"code": "215", "name": "Installations techniques, materiel et outillage", "name_en": "Plant and equipment", "account_class": 2, "type": "asset"},
+  {"code": "218", "name": "Autres immobilisations corporelles", "name_en": "Other tangible fixed assets", "account_class": 2, "type": "asset"},
+  {"code": "281", "name": "Amortissements des immobilisations corporelles", "name_en": "Accumulated depreciation", "account_class": 2, "type": "asset"},
+
+  {"code": "311", "name": "Matieres premieres", "name_en": "Raw materials", "account_class": 3, "type": "stock"},
+  {"code": "355", "name": "Produits finis", "name_en": "Finished goods", "account_class": 3, "type": "stock"},
+  {"code": "371", "name": "Marchandises", "name_en": "Goods for resale", "account_class": 3, "type": "stock"},
+
+  {"code": "401", "name": "Fournisseurs", "name_en": "Trade payables", "account_class": 4, "type": "payable"},
+  {"code": "409", "name": "Fournisseurs debiteurs, avances et acomptes verses", "name_en": "Supplier advances", "account_class": 4, "type": "payable"},
+  {"code": "411", "name": "Clients", "name_en": "Trade receivables", "account_class": 4, "type": "receivable"},
+  {"code": "419", "name": "Clients crediteurs, avances et acomptes recus", "name_en": "Customer advances", "account_class": 4, "type": "receivable"},
+  {"code": "421", "name": "Personnel, remunerations dues", "name_en": "Payroll payable", "account_class": 4, "type": "payable"},
+  {"code": "431", "name": "CNaPS", "name_en": "Social security payable", "account_class": 4, "type": "payable"},
+  {"code": "432", "name": "OSTIE", "name_en": "Health insurance payable", "account_class": 4, "type": "payable"},
+  {"code": "441", "name": "Etat, IRSA", "name_en": "State, income tax withheld", "account_class": 4, "type": "tax"},
+  {"code": "4451", "name": "Etat, TVA collectee", "name_en": "VAT collected", "account_class": 4, "type": "tax"},
+  {"code": "4452", "name": "Etat, TVA deductible", "name_en": "VAT deductible", "account_class": 4, "type": "tax"},
+  {"code": "4457", "name": "Etat, TVA a decaisser", "name_en": "VAT payable", "account_class": 4, "type": "tax"},
+
+  {"code": "512", "name": "Banques", "name_en": "Banks", "account_class": 5, "type": "bank"},
+  {"code": "530", "name": "Caisse", "name_en": "Cash", "account_class": 5, "type": "cash"},
+  {"code": "585", "name": "Virements internes", "name_en": "Internal transfers", "account_class": 5, "type": "bank"},
+
+  {"code": "601", "name": "Achats de matieres premieres", "name_en": "Purchases of raw materials", "account_class": 6, "type": "expense"},
+  {"code": "607", "name": "Achats de marchandises", "name_en": "Purchases of goods", "account_class": 6, "type": "expense"},
+  {"code": "613", "name": "Locations", "name_en": "Rent expense", "account_class": 6, "type": "expense"},
+  {"code": "624", "name": "Transports", "name_en": "Freight and transport", "account_class": 6, "type": "expense"},
+  {"code": "627", "name": "Frais bancaires", "name_en": "Bank charges", "account_class": 6, "type": "expense"},
+  {"code": "635", "name": "Impots et taxes", "name_en": "Taxes and duties", "account_class": 6, "type": "expense"},
+  {"code": "641", "name": "Remunerations du personnel", "name_en": "Salaries expense", "account_class": 6, "type": "expense"},
+  {"code": "645", "name": "Charges sociales", "name_en": "Social contributions expense", "account_class": 6, "type": "expense"},
+  {"code": "681", "name": "Dotations aux amortissements", "name_en": "Depreciation expense", "account_class": 6, "type": "expense"},
+
+  {"code": "701", "name": "Ventes de produits finis", "name_en": "Sales of finished goods", "account_class": 7, "type": "income"},
+  {"code": "707", "name": "Ventes de marchandises", "name_en": "Sales of goods", "account_class": 7, "type": "income"},
+  {"code": "708", "name": "Produits des activites annexes", "name_en": "Other operating income", "account_class": 7, "type": "income"}
+]

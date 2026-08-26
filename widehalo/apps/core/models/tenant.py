@@ -10,6 +10,15 @@ class Tenant(models.Model):
     """Une societe/tenant. Racine de l'isolation multi-tenant (discriminant
     + Row-Level Security PostgreSQL, cf. apps/core/models/base.py)."""
 
+    FISCAL_REGIME_SYNTHETIC = "synthetique"
+    FISCAL_REGIME_REAL_NO_VAT = "reel_sans_tva"
+    FISCAL_REGIME_REAL_WITH_VAT = "reel_avec_tva"
+    FISCAL_REGIME_CHOICES = [
+        (FISCAL_REGIME_SYNTHETIC, _("Synthétique (impôt forfaitaire)")),
+        (FISCAL_REGIME_REAL_NO_VAT, _("Réel, sans assujettissement TVA")),
+        (FISCAL_REGIME_REAL_WITH_VAT, _("Réel, avec assujettissement TVA")),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     code = models.CharField(max_length=32, unique=True)
     name = models.CharField(_("raison sociale"), max_length=255)
@@ -19,6 +28,9 @@ class Tenant(models.Model):
     default_language = models.CharField(max_length=5, default="fr")
     timezone = models.CharField(max_length=64, default="Indian/Antananarivo")
     retention_policy = models.JSONField(default=dict, blank=True)
+    fiscal_regime = models.CharField(
+        max_length=16, choices=FISCAL_REGIME_CHOICES, default=FISCAL_REGIME_REAL_WITH_VAT
+    )
 
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(
