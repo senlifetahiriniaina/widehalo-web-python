@@ -11,6 +11,7 @@ from ninja_jwt.authentication import JWTAuth
 
 api = NinjaAPI(title="WideHalo API", version="v1", urls_namespace="api-v1", auth=JWTAuth())
 
+from apps.accounting.api import router as accounting_router  # noqa: E402
 from apps.catalog.api import router as catalog_router  # noqa: E402
 from apps.chat.api import router as chat_router  # noqa: E402
 from apps.core.api_auth import router as auth_router  # noqa: E402
@@ -25,6 +26,7 @@ from apps.core.errors import register_exception_handlers  # noqa: E402
 from apps.partners.api import router as partners_router  # noqa: E402
 
 api.add_router("/auth", auth_router)
+api.add_router("", accounting_router)
 api.add_router("", chat_router)
 api.add_router("", partners_router)
 api.add_router("", catalog_router)
