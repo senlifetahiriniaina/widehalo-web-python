@@ -58,6 +58,7 @@ def confirm_order(order: MrpOrder, user: User) -> MrpOrder:
     """Confirme l'ordre puis materialise les composants planifies
     (RG-MRP-2/3/4) via l'eclatement de la nomenclature."""
     attempt_transition(order, "confirm", user)
+    order.save(update_fields=["state"])
 
     for row in explode(order.bom, order.qty):
         MrpOrderComponent.objects.create(
@@ -73,6 +74,7 @@ def confirm_order(order: MrpOrder, user: User) -> MrpOrder:
 
 def reserve_order(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "reserve", user)
+    order.save(update_fields=["state"])
     for component in order.components.all():
         component.state = "reserved"
         component.save(update_fields=["state"])
@@ -82,7 +84,7 @@ def reserve_order(order: MrpOrder, user: User) -> MrpOrder:
 def start_order(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "start", user)
     order.date_start = timezone.now()
-    order.save(update_fields=["date_start"])
+    order.save(update_fields=["state", "date_start"])
     return order
 
 
@@ -91,17 +93,19 @@ def suspend_order(order: MrpOrder, user: User, *, reason: str) -> MrpOrder:
         raise ValidationError(_("Un motif est obligatoire pour suspendre un ordre de fabrication."))
     attempt_transition(order, "suspend", user, comment=reason)
     order.suspend_reason = reason
-    order.save(update_fields=["suspend_reason"])
+    order.save(update_fields=["state", "suspend_reason"])
     return order
 
 
 def resume_order(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "resume", user)
+    order.save(update_fields=["state"])
     return order
 
 
 def send_to_quality_control(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "send_to_quality_control", user)
+    order.save(update_fields=["state"])
     return order
 
 
@@ -112,12 +116,13 @@ def finish_order(
     order.qty_produced = qty_produced
     order.qty_scrapped = qty_scrapped
     order.date_end = timezone.now()
-    order.save(update_fields=["qty_produced", "qty_scrapped", "date_end"])
+    order.save(update_fields=["state", "qty_produced", "qty_scrapped", "date_end"])
     return order
 
 
 def close_order(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "close", user)
+    order.save(update_fields=["state"])
     return order
 
 
@@ -126,7 +131,7 @@ def cancel_order(order: MrpOrder, user: User, *, reason: str) -> MrpOrder:
         raise ValidationError(_("Un motif est obligatoire pour annuler un ordre de fabrication."))
     attempt_transition(order, "cancel", user, comment=reason)
     order.cancel_reason = reason
-    order.save(update_fields=["cancel_reason"])
+    order.save(update_fields=["state", "cancel_reason"])
     return order
 
 
