@@ -57,6 +57,8 @@ def add_line(
     due_date: Any = None,
     tax: AccTax | None = None,
     tax_base: Decimal | None = None,
+    amount_currency: Decimal | None = None,
+    currency: str = "MGA",
 ) -> AccMoveLine:
     if move.state != AccMove.STATE_DRAFT:
         raise ValidationError(_("Impossible d'ajouter une ligne a une ecriture non brouillon."))
@@ -68,6 +70,8 @@ def add_line(
         debit=debit,
         credit=credit,
         partner_id=partner_id,
+        amount_currency=amount_currency,
+        currency=currency,
         analytic_distribution=analytic_distribution or {},
         due_date=due_date,
         tax=tax,

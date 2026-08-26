@@ -22,6 +22,7 @@ from django.db.models import QuerySet
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import AccAccount, AccJournal, AccMove, AccPeriod
+from apps.accounting.services.currency import get_rate
 from apps.accounting.services.moves import add_line, create_draft_move, post_move
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
@@ -86,11 +87,21 @@ def create_invoice(
     partner_id: UUID | None,
     receivable_account: AccAccount,
     income_lines: list[dict[str, Any]],
+    currency: str = "MGA",
 ) -> AccMove:
     """`income_lines` : liste de {"account": AccAccount, "amount": Decimal,
-    "label": str}. La ligne client (debit) est calculee automatiquement en
-    somme des lignes de produit (credit)."""
+    "label": str}, montants exprimes dans `currency`. La ligne client
+    (debit) est calculee automatiquement en somme des lignes de produit
+    (credit). RG-ACC-7 : si `currency` differe de la devise de base du
+    tenant, les lignes sont enregistrees converties en MGA au taux du jour
+    de la facture (`amount_currency`/`currency` conservent le montant
+    d'origine pour reference)."""
     total = sum((line["amount"] for line in income_lines), Decimal(0))
+    is_foreign = currency != tenant.base_currency
+    rate = get_rate(tenant, currency, date) if is_foreign else Decimal(1)
+
+    def _mga(amount: Decimal) -> Decimal:
+        return (amount * rate).quantize(Decimal("0.0001")) if is_foreign else amount
 
     move = create_draft_move(
         tenant=tenant,
@@ -99,12 +110,27 @@ def create_invoice(
         date=date,
         move_type=AccMove.TYPE_CUSTOMER_INVOICE,
         partner_id=partner_id,
+        currency=currency,
+        exchange_rate=rate,
     )
     add_line(
-        move, account=receivable_account, label=_("Client"), debit=total, partner_id=partner_id
+        move,
+        account=receivable_account,
+        label=_("Client"),
+        debit=_mga(total),
+        partner_id=partner_id,
+        amount_currency=total if is_foreign else None,
+        currency=currency,
     )
     for line in income_lines:
-        add_line(move, account=line["account"], label=line.get("label", ""), credit=line["amount"])
+        add_line(
+            move,
+            account=line["account"],
+            label=line.get("label", ""),
+            credit=_mga(line["amount"]),
+            amount_currency=line["amount"] if is_foreign else None,
+            currency=currency,
+        )
 
     return move
 

@@ -379,3 +379,70 @@ class AccMoveLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.label} D{self.debit}/C{self.credit}"
+
+
+class AccPayment(BaseModel, ReferenceMixin):
+    DIRECTION_INBOUND = "inbound"
+    DIRECTION_OUTBOUND = "outbound"
+    DIRECTION_CHOICES = [
+        (DIRECTION_INBOUND, "Encaissement"),
+        (DIRECTION_OUTBOUND, "Decaissement"),
+    ]
+
+    METHOD_CASH = "especes"
+    METHOD_TRANSFER = "virement"
+    METHOD_CHECK = "cheque"
+    METHOD_MOBILE_MONEY = "mobile_money"
+    METHOD_PROMISSORY_NOTE = "traite"
+    METHOD_COMPENSATION = "compensation"
+    METHOD_CHOICES = [
+        (METHOD_CASH, "Especes"),
+        (METHOD_TRANSFER, "Virement"),
+        (METHOD_CHECK, "Cheque"),
+        (METHOD_MOBILE_MONEY, "Mobile money"),
+        (METHOD_PROMISSORY_NOTE, "Traite"),
+        (METHOD_COMPENSATION, "Compensation"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_POSTED = "posted"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_POSTED, "Publie"),
+    ]
+
+    partner_id = models.UUIDField(null=True, blank=True)
+    journal = models.ForeignKey(AccJournal, on_delete=models.PROTECT, related_name="payments")
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    currency = models.CharField(max_length=3, default="MGA")
+    direction = models.CharField(max_length=16, choices=DIRECTION_CHOICES)
+    method = models.CharField(max_length=16, choices=METHOD_CHOICES)
+    reference_external = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_payment"
+
+    def __str__(self) -> str:
+        return self.reference or f"(brouillon) {self.id}"
+
+
+class AccPaymentAllocation(BaseModel):
+    """Lettrage : montant de `payment` affecte a `move_line` (la ligne
+    creance/dette soldee). RG-ACC-8 : le lettrage partiel est autorise, le
+    solde residuel se lit en comparant `move_line.debit`/`credit` a la
+    somme des allocations."""
+
+    payment = models.ForeignKey(AccPayment, on_delete=models.CASCADE, related_name="allocations")
+    move_line = models.ForeignKey(AccMoveLine, on_delete=models.PROTECT, related_name="allocations")
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+
+    class Meta:
+        db_table = "acc_payment_allocation"
+
+    def __str__(self) -> str:
+        return f"{self.payment} -> {self.move_line} : {self.amount}"
