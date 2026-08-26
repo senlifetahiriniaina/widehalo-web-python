@@ -5,6 +5,7 @@ ajoutes a l'etape A3 (le champ `tax` d'AccMoveLine y sera ajoute)."""
 from __future__ import annotations
 
 from django.db import models
+from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
 
@@ -164,6 +165,30 @@ class AccMove(BaseModel, ReferenceMixin):
         (TYPE_SUPPLIER_CREDIT_NOTE, "Avoir fournisseur"),
     ]
 
+    # Statut METIER de la facture (§5.1.5) — INDEPENDANT du `state`
+    # comptable ci-dessus : `state` regit l'immuabilite/numerotation
+    # (RG-ACC-1..4), `invoice_state` continue d'evoluer (paiements) meme
+    # une fois la facture publiee (`state="posted"`). Le trigger
+    # d'immuabilite (migration 0005) l'autorise explicitement.
+    INVOICE_STATE_DRAFT = "draft"
+    INVOICE_STATE_TO_VALIDATE = "to_validate"
+    INVOICE_STATE_VALIDATED = "validated"
+    INVOICE_STATE_PAID_PARTIALLY = "paid_partially"
+    INVOICE_STATE_PAID = "paid"
+    INVOICE_STATE_CANCELLED = "cancelled"
+    INVOICE_STATE_OVERDUE = "overdue"
+    INVOICE_STATE_IN_DISPUTE = "in_dispute"
+    INVOICE_STATE_CHOICES = [
+        (INVOICE_STATE_DRAFT, "Brouillon"),
+        (INVOICE_STATE_TO_VALIDATE, "A valider"),
+        (INVOICE_STATE_VALIDATED, "Validee"),
+        (INVOICE_STATE_PAID_PARTIALLY, "Payee partiellement"),
+        (INVOICE_STATE_PAID, "Payee"),
+        (INVOICE_STATE_CANCELLED, "Annulee"),
+        (INVOICE_STATE_OVERDUE, "En retard"),
+        (INVOICE_STATE_IN_DISPUTE, "En contentieux"),
+    ]
+
     journal = models.ForeignKey(AccJournal, on_delete=models.PROTECT, related_name="moves")
     period = models.ForeignKey(AccPeriod, on_delete=models.PROTECT, related_name="moves")
     date = models.DateField()
@@ -172,6 +197,7 @@ class AccMove(BaseModel, ReferenceMixin):
     partner_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
     move_type = models.CharField(max_length=24, choices=TYPE_CHOICES, default=TYPE_ENTRY)
+    invoice_state = FSMField(default=INVOICE_STATE_DRAFT, choices=INVOICE_STATE_CHOICES)
     narration = models.TextField(blank=True)
     currency = models.CharField(max_length=3, default="MGA")
     exchange_rate = models.DecimalField(max_digits=18, decimal_places=6, default=1)
@@ -184,9 +210,63 @@ class AccMove(BaseModel, ReferenceMixin):
     class Meta:
         db_table = "acc_move"
         indexes = [models.Index(fields=["journal", "period", "state"])]
+        permissions = [
+            ("validate_accmove", "Peut valider une ecriture/facture"),
+            ("cancel_accmove", "Peut annuler une facture avant paiement"),
+        ]
 
     def __str__(self) -> str:
         return self.reference or f"(brouillon) {self.id}"
+
+    @transition(field=invoice_state, source=INVOICE_STATE_DRAFT, target=INVOICE_STATE_TO_VALIDATE)
+    def submit_for_validation(self) -> None:
+        pass
+
+    @transition(
+        field=invoice_state,
+        source=INVOICE_STATE_TO_VALIDATE,
+        target=INVOICE_STATE_VALIDATED,
+        permission="accounting.validate_accmove",
+    )
+    def validate(self) -> None:
+        pass
+
+    @transition(
+        field=invoice_state,
+        source=[INVOICE_STATE_DRAFT, INVOICE_STATE_TO_VALIDATE],
+        target=INVOICE_STATE_CANCELLED,
+        permission="accounting.cancel_accmove",
+    )
+    def cancel(self) -> None:
+        pass
+
+    @transition(
+        field=invoice_state,
+        source=[INVOICE_STATE_VALIDATED, INVOICE_STATE_OVERDUE],
+        target=INVOICE_STATE_PAID_PARTIALLY,
+    )
+    def mark_paid_partially(self) -> None:
+        pass
+
+    @transition(
+        field=invoice_state,
+        source=[INVOICE_STATE_VALIDATED, INVOICE_STATE_PAID_PARTIALLY, INVOICE_STATE_OVERDUE],
+        target=INVOICE_STATE_PAID,
+    )
+    def mark_paid(self) -> None:
+        pass
+
+    @transition(
+        field=invoice_state,
+        source=[INVOICE_STATE_VALIDATED, INVOICE_STATE_PAID_PARTIALLY],
+        target=INVOICE_STATE_OVERDUE,
+    )
+    def mark_overdue(self) -> None:
+        pass
+
+    @transition(field=invoice_state, source=INVOICE_STATE_OVERDUE, target=INVOICE_STATE_IN_DISPUTE)
+    def mark_in_dispute(self) -> None:
+        pass
 
 
 class AccTax(BaseModel):
