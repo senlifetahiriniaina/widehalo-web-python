@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from apps.core.models.base import BaseModel
+from apps.core.models.base import BaseModel, ReferenceMixin
 
 
 class PatSizeChart(BaseModel):
@@ -156,3 +156,108 @@ class PatGradingRule(BaseModel):
             f"{self.size_chart.code}:{self.measurement_point.code} "
             f"[{self.from_size}-{self.to_size}]"
         )
+
+
+class PatPattern(BaseModel, ReferenceMixin):
+    """§5.4.2 : PAS un logiciel de CAO. RG-PAT-6 : un patron valide se fige,
+    toute modification cree une nouvelle version."""
+
+    STATE_DRAFT = "draft"
+    STATE_VALIDATED = "validated"
+    STATE_IN_PRODUCTION = "in_production"
+    STATE_OBSOLETE = "obsolete"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_VALIDATED, "Valide"),
+        (STATE_IN_PRODUCTION, "En production"),
+        (STATE_OBSOLETE, "Obsolete"),
+    ]
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=150)
+    # Reference vers `catalog.ProductTemplate` — UUID simple.
+    product_template_id = models.UUIDField(null=True, blank=True)
+    size_chart = models.ForeignKey(PatSizeChart, on_delete=models.PROTECT, related_name="patterns")
+    version = models.PositiveIntegerField(default=1)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    designer = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    season = models.CharField(max_length=64, blank=True)
+    collection = models.CharField(max_length=64, blank=True)
+    date_created = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    parent_pattern = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="versions"
+    )
+
+    class Meta:
+        db_table = "pat_pattern"
+
+    def __str__(self) -> str:
+        return f"{self.code} v{self.version}"
+
+
+class PatPatternPiece(BaseModel):
+    pattern = models.ForeignKey(PatPattern, on_delete=models.CASCADE, related_name="pieces")
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=150)
+    qty_per_garment = models.PositiveSmallIntegerField(default=1)
+    # Reference vers `catalog.ProductVariant` (matiere) — UUID simple.
+    material_variant_id = models.UUIDField(null=True, blank=True)
+    grain_direction = models.CharField(max_length=32, blank=True)
+    seam_allowance_mm = models.DecimalField(max_digits=6, decimal_places=2, default=10)
+    is_lining = models.BooleanField(default=False)
+    is_interfacing = models.BooleanField(default=False)
+    symmetry = models.CharField(max_length=16, blank=True)
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        db_table = "pat_pattern_piece"
+
+    def __str__(self) -> str:
+        return f"{self.pattern.code}:{self.code}"
+
+
+class PatPieceGeometry(BaseModel):
+    """RG-PAT-3 : geometrie SVG par taille. Peut etre dessinee (import),
+    importee, ou generee depuis un gabarit parametrique simple (cf.
+    `services/patterns.py::generate_piece_geometry`) — explicitement pas un
+    rendu de patronage professionnel."""
+
+    piece = models.ForeignKey(PatPatternPiece, on_delete=models.CASCADE, related_name="geometries")
+    size = models.CharField(max_length=16)
+    svg_path = models.TextField(blank=True)
+    points = models.JSONField(default=list, blank=True)
+    area_cm2 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    perimeter_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    bounding_box = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "pat_piece_geometry"
+        constraints = [
+            models.UniqueConstraint(fields=["piece", "size"], name="uniq_pat_piece_geometry")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.piece} — {self.size}"
+
+
+class PatPieceMeasure(BaseModel):
+    piece = models.ForeignKey(PatPatternPiece, on_delete=models.CASCADE, related_name="measures")
+    measurement_point = models.ForeignKey(
+        PatMeasurementPoint, on_delete=models.PROTECT, related_name="+"
+    )
+    size = models.CharField(max_length=16)
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = "pat_piece_measure"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["piece", "measurement_point", "size"], name="uniq_pat_piece_measure"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.piece} — {self.measurement_point.code}:{self.size}"
