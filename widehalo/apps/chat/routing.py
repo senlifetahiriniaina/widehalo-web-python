@@ -1,3 +1,9 @@
-"""Routing websocket de l'app chat. Consumers ajoutes a l'etape 12."""
+"""Routing websocket de l'app chat."""
 
-websocket_urlpatterns: list = []
+from django.urls import re_path
+
+from apps.chat.consumers import ChatConsumer
+
+websocket_urlpatterns = [
+    re_path(r"^ws/chat/(?P<channel_id>[0-9a-f-]+)/$", ChatConsumer.as_asgi()),
+]

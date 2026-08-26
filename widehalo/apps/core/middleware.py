@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from django.db import connection
+from django.db import connection, transaction
 from django.http import HttpRequest, HttpResponse
 
 from apps.core.context import clear_current_tenant, set_current_tenant
@@ -28,10 +28,16 @@ class TenantMiddleware:
     def __call__(self, request: HttpRequest) -> HttpResponse:
         tenant_id = self._resolve_tenant_id(request)
         set_current_tenant(tenant_id)
-        if tenant_id and connection.vendor == "postgresql":
-            with connection.cursor() as cursor:
-                cursor.execute("SET LOCAL app.tenant_id = %s", [str(tenant_id)])
         try:
+            if tenant_id and connection.vendor == "postgresql":
+                # `SET LOCAL` ne tient que pour la transaction en cours : sans
+                # ATOMIC_REQUESTS, chaque requete SQL serait sinon sa propre
+                # transaction implicite et perdrait le reglage avant la
+                # prochaine requete (cf. apps/core/tenant_context.py). On
+                # englobe donc toute la vue dans un bloc atomique explicite.
+                with transaction.atomic(), connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL app.tenant_id = %s", [str(tenant_id)])
+                    return self.get_response(request)
             return self.get_response(request)
         finally:
             clear_current_tenant()
