@@ -1,4 +1,5 @@
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
+from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.rbac import RoleProfile
 from apps.core.models.sequence import Sequence
@@ -20,6 +21,7 @@ __all__ = [
     "BaseModel",
     "ReferenceMixin",
     "TenantManager",
+    "EventLog",
     "IdempotencyKey",
     "RoleProfile",
     "Sequence",
