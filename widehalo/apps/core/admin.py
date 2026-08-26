@@ -1,6 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
+from apps.core.models.rbac import RoleProfile
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
 
@@ -20,3 +21,8 @@ class UserAdmin(ModelAdmin):
 @admin.register(UserTenantMembership)
 class UserTenantMembershipAdmin(ModelAdmin):
     list_display = ("user", "tenant", "is_default")
+
+
+@admin.register(RoleProfile)
+class RoleProfileAdmin(ModelAdmin):
+    list_display = ("code", "group", "simple_mode_default")

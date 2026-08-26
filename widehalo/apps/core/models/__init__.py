@@ -1,4 +1,5 @@
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
+from apps.core.models.rbac import RoleProfile
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
@@ -12,6 +13,7 @@ __all__ = [
     "BaseModel",
     "ReferenceMixin",
     "TenantManager",
+    "RoleProfile",
     "Sequence",
     "Tenant",
     "User",
