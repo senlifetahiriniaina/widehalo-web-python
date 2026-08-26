@@ -1,12 +1,12 @@
 """Coeur comptable (Lot 2, phase 1) : plan comptable PCG 2005, exercices et
-periodes, journaux. Les ecritures (AccMove/AccMoveLine) sont ajoutees a
-l'etape A2, la TVA/regimes fiscaux a l'etape A3."""
+periodes, journaux, ecritures en partie double. La TVA/regimes fiscaux sont
+ajoutes a l'etape A3 (le champ `tax` d'AccMoveLine y sera ajoute)."""
 
 from __future__ import annotations
 
 from django.db import models
 
-from apps.core.models.base import BaseModel
+from apps.core.models.base import BaseModel, ReferenceMixin
 
 
 class AccFiscalYear(BaseModel):
@@ -132,3 +132,83 @@ class AccJournal(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+
+class AccMove(BaseModel, ReferenceMixin):
+    """Une ecriture comptable. `reference` (cf. `ReferenceMixin`) reste vide
+    tant que l'ecriture est en brouillon — RG-ACC-3 : elle n'est attribuee
+    qu'a la publication, jamais au brouillon. Immuable en base une fois
+    `state=posted` (trigger Postgres, cf. migration 0002) : toute correction
+    passe par une nouvelle ecriture d'extourne (`reverses`), jamais par une
+    modification de l'ecriture d'origine (RG-ACC-2)."""
+
+    STATE_DRAFT = "draft"
+    STATE_POSTED = "posted"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_POSTED, "Publiee"),
+        (STATE_CANCELLED, "Annulee"),
+    ]
+
+    TYPE_ENTRY = "entry"
+    TYPE_CUSTOMER_INVOICE = "customer_invoice"
+    TYPE_CUSTOMER_CREDIT_NOTE = "customer_credit_note"
+    TYPE_SUPPLIER_INVOICE = "supplier_invoice"
+    TYPE_SUPPLIER_CREDIT_NOTE = "supplier_credit_note"
+    TYPE_CHOICES = [
+        (TYPE_ENTRY, "Ecriture diverse"),
+        (TYPE_CUSTOMER_INVOICE, "Facture client"),
+        (TYPE_CUSTOMER_CREDIT_NOTE, "Avoir client"),
+        (TYPE_SUPPLIER_INVOICE, "Facture fournisseur"),
+        (TYPE_SUPPLIER_CREDIT_NOTE, "Avoir fournisseur"),
+    ]
+
+    journal = models.ForeignKey(AccJournal, on_delete=models.PROTECT, related_name="moves")
+    period = models.ForeignKey(AccPeriod, on_delete=models.PROTECT, related_name="moves")
+    date = models.DateField()
+    # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
+    # couplage n°1) — un tiers est reference par son UUID uniquement.
+    partner_id = models.UUIDField(null=True, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    move_type = models.CharField(max_length=24, choices=TYPE_CHOICES, default=TYPE_ENTRY)
+    narration = models.TextField(blank=True)
+    currency = models.CharField(max_length=3, default="MGA")
+    exchange_rate = models.DecimalField(max_digits=18, decimal_places=6, default=1)
+    total_debit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    total_credit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    reverses = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="reversed_by_set"
+    )
+
+    class Meta:
+        db_table = "acc_move"
+        indexes = [models.Index(fields=["journal", "period", "state"])]
+
+    def __str__(self) -> str:
+        return self.reference or f"(brouillon) {self.id}"
+
+
+class AccMoveLine(BaseModel):
+    move = models.ForeignKey(AccMove, on_delete=models.CASCADE, related_name="lines")
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    partner_id = models.UUIDField(null=True, blank=True)
+    label = models.CharField(max_length=255, blank=True)
+    debit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    credit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    amount_currency = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    currency = models.CharField(max_length=3, default="MGA")
+    tax_base = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    analytic_distribution = models.JSONField(default=dict, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    reconciled_with = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    matching_number = models.CharField(max_length=32, blank=True, db_index=True)
+
+    class Meta:
+        db_table = "acc_move_line"
+        indexes = [models.Index(fields=["account"]), models.Index(fields=["matching_number"])]
+
+    def __str__(self) -> str:
+        return f"{self.label} D{self.debit}/C{self.credit}"
