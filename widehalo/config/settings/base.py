@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     # Modules metier du Lot 2 (Madagascar)
     "apps.accounting",
+    "apps.crm",
 ]
 
 MIDDLEWARE = [
