@@ -1,0 +1,59 @@
+"""Référentiel partenaires : une entité tiers unique peut cumuler plusieurs
+rôles (client, fournisseur, transporteur, sous-traitant) — pas une table par
+rôle — pour éviter de dupliquer la même entreprise plusieurs fois selon la
+relation commerciale."""
+
+from __future__ import annotations
+
+from django.contrib.postgres.fields import ArrayField
+from django.db import models
+
+from apps.core.models.base import BaseModel, ReferenceMixin
+
+
+class Partner(BaseModel, ReferenceMixin):
+    ROLE_CLIENT = "client"
+    ROLE_SUPPLIER = "supplier"
+    ROLE_CARRIER = "carrier"
+    ROLE_SUBCONTRACTOR = "subcontractor"
+    ROLE_CHOICES = [
+        (ROLE_CLIENT, "Client"),
+        (ROLE_SUPPLIER, "Fournisseur"),
+        (ROLE_CARRIER, "Transporteur"),
+        (ROLE_SUBCONTRACTOR, "Sous-traitant"),
+    ]
+
+    name = models.CharField(max_length=200)
+    roles = ArrayField(models.CharField(max_length=20, choices=ROLE_CHOICES), default=list)
+    nif = models.CharField(max_length=32, blank=True, db_index=True)
+
+    credit_limit_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+
+    # Fusion de doublons : conserve une trace du partenaire absorbe (soft-delete
+    # applique dessus) plutot que de le supprimer physiquement — l'audit du
+    # rattachement des FK reste dans core_audit_log via les save() individuels.
+    merged_into = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="absorbed"
+    )
+
+    class Meta:
+        db_table = "partners_partner"
+        indexes = [models.Index(fields=["nif"])]
+
+    def __str__(self) -> str:
+        return f"{self.reference} — {self.name}"
+
+
+class DuplicateAlert(BaseModel):
+    """Alerte non bloquante levee quand deux partenaires du meme tenant
+    partagent le meme NIF — l'utilisateur reste libre de creer volontairement
+    plusieurs fiches (succursales distinctes, erreur de saisie a corriger
+    plus tard...), on ne bloque jamais silencieusement la creation."""
+
+    partner = models.ForeignKey(Partner, on_delete=models.CASCADE, related_name="+")
+    duplicate_of = models.ForeignKey(Partner, on_delete=models.CASCADE, related_name="+")
+    matched_field = models.CharField(max_length=32, default="nif")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "partners_duplicate_alert"
