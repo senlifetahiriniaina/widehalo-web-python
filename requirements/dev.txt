@@ -1,0 +1,15 @@
+-r base.txt
+ruff>=0.7
+mypy>=1.13
+django-stubs[compatible-mypy]>=5.1
+pytest>=8.3
+pytest-django>=4.9
+pytest-cov>=5.0
+pytest-xdist>=3.6
+factory_boy>=3.3
+hypothesis>=6.115
+freezegun>=1.5
+beautifulsoup4>=4.12
+pre-commit>=4.0
+django-debug-toolbar>=4.4
+ipython>=8.28

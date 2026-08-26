@@ -1,0 +1,49 @@
+[project]
+name = "widehalo"
+version = "0.1.0"
+description = "WideHalo ERP - nouvelle generation (Python/Django)"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "DJ", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101", "S106"]
+"*/tests_*.py" = ["S101", "S106"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+mypy_path = "widehalo"
+namespace_packages = true
+explicit_package_bases = true
+ignore_missing_imports = true
+strict = false
+
+[[tool.mypy.overrides]]
+module = "apps.*.services.*"
+strict = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "apps.*.schemas"
+strict = true
+disallow_untyped_defs = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py", "tests_*.py"]
+addopts = "-ra"
+pythonpath = ["widehalo"]
