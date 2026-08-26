@@ -261,3 +261,61 @@ class PatPieceMeasure(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.piece} — {self.measurement_point.code}:{self.size}"
+
+
+class PatConsumption(BaseModel):
+    """RG-PAT-4 : consommation matiere estimee par taille = surface totale
+    des pieces x (1 + taux de chute) / laize. Mode `placement` (RG-PAT-4,
+    plus precis) calcule un rendement de plan de coupe pour un ratio de
+    tailles donne (cf. `PatMarker`)."""
+
+    METHOD_CALCULATION = "calcul"
+    METHOD_MANUAL = "saisie"
+    METHOD_PLACEMENT = "placement"
+    METHOD_CHOICES = [
+        (METHOD_CALCULATION, "Calcul"),
+        (METHOD_MANUAL, "Saisie"),
+        (METHOD_PLACEMENT, "Placement"),
+    ]
+
+    pattern = models.ForeignKey(PatPattern, on_delete=models.CASCADE, related_name="consumptions")
+    size = models.CharField(max_length=16)
+    # Reference vers `catalog.ProductVariant` (matiere) — UUID simple.
+    material_variant_id = models.UUIDField()
+    length_m = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    width_cm = models.DecimalField(max_digits=10, decimal_places=2)
+    area_m2 = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    waste_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    computed_at = models.DateTimeField(auto_now=True)
+    method = models.CharField(max_length=16, choices=METHOD_CHOICES, default=METHOD_CALCULATION)
+
+    class Meta:
+        db_table = "pat_consumption"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["pattern", "size", "material_variant_id"], name="uniq_pat_consumption"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pattern.code}:{self.size} — {self.length_m}m"
+
+
+class PatMarker(BaseModel):
+    """Plan de coupe (mode `placement`, RG-PAT-4)."""
+
+    pattern = models.ForeignKey(PatPattern, on_delete=models.CASCADE, related_name="markers")
+    fabric_width_cm = models.DecimalField(max_digits=10, decimal_places=2)
+    # {"S": 2, "M": 3, "L": 3, "XL": 2} — nombre de pieces par taille dans
+    # le plan de coupe.
+    size_ratio = models.JSONField(default=dict)
+    length_m = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    efficiency_pct = models.DecimalField(max_digits=5, decimal_places=2, default=85)
+    svg = models.TextField(blank=True)
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pat_marker"
+
+    def __str__(self) -> str:
+        return f"{self.pattern.code} — plan de coupe"
