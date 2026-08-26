@@ -4,6 +4,12 @@ from apps.core.models.rbac import RoleProfile
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
+from apps.core.models.workflow import (
+    ApprovalDelegation,
+    ApprovalRequest,
+    ApprovalRule,
+    StateTransitionLog,
+)
 
 # Modele reserve aux tests d'architecture/isolation (jamais expose en API ni
 # en ecran) : importe ici uniquement pour que Django le decouvre et genere
@@ -20,5 +26,9 @@ __all__ = [
     "Tenant",
     "User",
     "UserTenantMembership",
+    "ApprovalDelegation",
+    "ApprovalRequest",
+    "ApprovalRule",
+    "StateTransitionLog",
     "SampleTenantScopedRecord",
 ]

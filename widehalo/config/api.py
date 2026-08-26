@@ -18,6 +18,7 @@ from apps.core.api_meta import router as meta_router  # noqa: E402
 from apps.core.api_notifications import router as notifications_router  # noqa: E402
 from apps.core.api_search import router as search_router  # noqa: E402
 from apps.core.api_tenants import router as tenants_router  # noqa: E402
+from apps.core.api_workflow import router as workflow_router  # noqa: E402
 from apps.core.errors import register_exception_handlers  # noqa: E402
 
 api.add_router("/auth", auth_router)
@@ -27,5 +28,6 @@ api.add_router("", tenants_router)
 api.add_router("", search_router)
 api.add_router("", notifications_router)
 api.add_router("", export_import_router)
+api.add_router("", workflow_router)
 
 register_exception_handlers(api)

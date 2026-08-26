@@ -15,8 +15,11 @@ from typing import Any
 _HANDLERS: dict[str, list[Callable[[dict[str, Any]], None]]] = defaultdict(list)
 
 
-def subscribe(event_type: str) -> Callable[[Callable[[dict[str, Any]], None]], Callable]:
-    def decorator(func: Callable[[dict[str, Any]], None]) -> Callable:
+Handler = Callable[[dict[str, Any]], None]
+
+
+def subscribe(event_type: str) -> Callable[[Handler], Handler]:
+    def decorator(func: Handler) -> Handler:
         _HANDLERS[event_type].append(func)
         return func
 
