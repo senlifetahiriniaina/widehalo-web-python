@@ -1,0 +1,63 @@
+# WideHalo English translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: WideHalo 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-26 18:50+0000\n"
+"PO-Revision-Date: 2026-08-26 18:47+0000\n"
+"Last-Translator: WideHalo\n"
+"Language-Team: WideHalo\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "utilisateur introuvable"
+msgstr "user not found"
+
+msgid "jeton invalide, expiré ou révoqué"
+msgstr "invalid, expired or revoked token"
+
+msgid "lien invalide"
+msgstr "invalid link"
+
+msgid "lien invalide ou expiré"
+msgstr "invalid or expired link"
+
+msgid "raison sociale"
+msgstr "company name"
+
+msgid "NIF"
+msgstr "Tax ID"
+
+msgid "société"
+msgstr "company"
+
+msgid "sociétés"
+msgstr "companies"
+
+msgid "adresse e-mail"
+msgstr "email address"
+
+msgid "utilisateur"
+msgstr "user"
+
+msgid "utilisateurs"
+msgstr "users"
+
+msgid ""
+"Ce mot de passe apparaît dans une liste de mots de passe compromis connus. "
+"Merci d'en choisir un autre."
+msgstr ""
+"This password appears in a list of known compromised passwords. Please "
+"choose another one."
+
+msgid "Votre mot de passe ne doit pas être un mot de passe compromis connu."
+msgstr "Your password must not be a known compromised password."
+
+msgid "authentification requise"
+msgstr "authentication required"
+
+msgid "permission refusée"
+msgstr "permission denied"

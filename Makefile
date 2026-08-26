@@ -15,6 +15,12 @@ migrate:
 makemigrations:
 	docker compose exec web python manage.py makemigrations
 
+makemessages:
+	docker compose exec web python manage.py makemessages -l fr -l en --no-location
+
+compilemessages:
+	docker compose exec web python manage.py compilemessages
+
 test:
 	docker compose exec web pytest
 

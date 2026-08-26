@@ -6,6 +6,7 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.http import JsonResponse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.translation import gettext as _
 from ninja import Router
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import RefreshToken
@@ -43,7 +44,7 @@ def mfa_enroll(request, payload: MfaVerifyIn):
     (reutilisation du schema email+code pour rester minimal)."""
     user = User.objects.filter(email=payload.email).first()
     if user is None:
-        return JsonResponse({"detail": "utilisateur introuvable"}, status=404)
+        return JsonResponse({"detail": _("utilisateur introuvable")}, status=404)
     device = mfa_service.enroll_device(user)
     return MfaEnrollOut(otpauth_url=device.config_url)
 
@@ -82,7 +83,7 @@ def refresh(request, payload: RefreshIn):
         token.blacklist()
         new_refresh = RefreshToken.for_user(user)
     except TokenError:
-        return JsonResponse({"detail": "jeton invalide, expiré ou révoqué"}, status=401)
+        return JsonResponse({"detail": _("jeton invalide, expiré ou révoqué")}, status=401)
     return TokenOut(access=access, refresh=str(new_refresh))
 
 
@@ -101,11 +102,11 @@ def logout(request, payload: RefreshIn):
 def password_reset_request(request, payload: PasswordResetRequestIn):
     user = User.objects.filter(email=payload.email).first()
     if user is not None:
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = token_generator.make_token(user)
+        reset_uid = urlsafe_base64_encode(force_bytes(user.pk))
+        reset_token = token_generator.make_token(user)
         # L'envoi effectif de l'e-mail est delegue au futur module
         # notifications (etape 11) ; on journalise seulement pour ce lot.
-        _ = (uid, token)
+        del reset_uid, reset_token
     # Reponse identique que l'utilisateur existe ou non (pas d'enumeration).
     return {"status": "ok"}
 
@@ -116,9 +117,9 @@ def password_reset_confirm(request, payload: PasswordResetConfirmIn):
         uid = urlsafe_base64_decode(payload.uid).decode()
         user = User.objects.get(pk=uid)
     except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-        return JsonResponse({"detail": "lien invalide"}, status=400)
+        return JsonResponse({"detail": _("lien invalide")}, status=400)
     if not token_generator.check_token(user, payload.token):
-        return JsonResponse({"detail": "lien invalide ou expiré"}, status=400)
+        return JsonResponse({"detail": _("lien invalide ou expiré")}, status=400)
     user.set_password(payload.new_password)
     user.save(update_fields=["password"])
     return {"status": "ok"}

@@ -17,6 +17,7 @@ from collections.abc import Callable
 from typing import Any
 
 from django.http import JsonResponse
+from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
 
@@ -37,9 +38,9 @@ def require_permission(codename: str) -> Callable[[Callable[..., Any]], Callable
         def wrapper(request: Any, *args: Any, **kwargs: Any) -> Any:
             user = getattr(request, "auth", None) or getattr(request, "user", None)
             if user is None or not getattr(user, "is_authenticated", False):
-                return JsonResponse({"detail": "authentification requise"}, status=401)
+                return JsonResponse({"detail": _("authentification requise")}, status=401)
             if not user.has_perm(codename):
-                return JsonResponse({"detail": "permission refusée"}, status=403)
+                return JsonResponse({"detail": _("permission refusée")}, status=403)
             return func(request, *args, **kwargs)
 
         wrapper._required_permission = codename  # type: ignore[attr-defined]
