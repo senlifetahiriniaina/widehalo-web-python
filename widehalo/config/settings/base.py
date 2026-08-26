@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -29,6 +30,7 @@ INSTALLED_APPS = [
     "django_q",
     "channels",
     "ninja_jwt",
+    "ninja_jwt.token_blacklist",
     # Apps du socle WideHalo
     "apps.core",
     "apps.chat",
@@ -50,7 +52,6 @@ MIDDLEWARE = [
     # qui accede a l'ORM. Ne jamais deplacer avant Authentication.
     "apps.core.middleware.TenantMiddleware",
     "apps.core.middleware.MFAEnforcementMiddleware",
-    "guardian.middleware.GuardianMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
@@ -91,9 +92,11 @@ DATABASES = {
 AUTH_USER_MODEL = "core.User"
 
 AUTHENTICATION_BACKENDS = [
+    # AxesBackend doit etre EN PREMIER : il intercepte les tentatives et
+    # bloque avant de deleguer aux backends suivants (cf. doc django-axes).
+    "axes.backends.AxesBackend",
     "django.contrib.auth.backends.ModelBackend",
     "guardian.backends.ObjectPermissionBackend",
-    "axes.backends.AxesBackend",
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -172,11 +175,14 @@ CHANNEL_LAYERS = {
     }
 }
 
+PASSWORD_RESET_TIMEOUT = 3600  # 1h, exigence normative du cahier des charges
+
 # --- JWT (ninja-jwt, etape 4) ---
 NINJA_JWT = {
-    "ACCESS_TOKEN_LIFETIME_MINUTES": 15,
-    "REFRESH_TOKEN_LIFETIME_DAYS": 7,
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 # --- Antivirus (etape 10) ---

@@ -46,16 +46,40 @@ class TenantMiddleware:
         return None
 
 
-class MFAEnforcementMiddleware:
-    """Redirige/bloque les roles soumis a MFA obligatoire sans device confirme.
+EXEMPT_PATH_PREFIXES = (
+    "/api/",
+    "/admin/",
+    "/static/",
+    "/media/",
+    "/mfa/",
+    "/login/",
+    "/__debug__/",
+)
 
-    Implementation complete a l'etape 4 : pour l'instant, laisse passer
-    toutes les requetes (pas de blocage) pour ne pas casser le squelette
-    avant que le modele User/roles n'existe.
+
+class MFAEnforcementMiddleware:
+    """Bloque l'acces web (session, pas API — l'API gate la MFA a la
+    connexion, cf. apps/core/services/auth.py) pour un utilisateur soumis a
+    MFA obligatoire tant que la session n'est pas verifiee OTP
+    (request.user.is_verified(), pose par django_otp.middleware.OTPMiddleware
+    en amont dans MIDDLEWARE).
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        if request.path.startswith(EXEMPT_PATH_PREFIXES):
+            return self.get_response(request)
+
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            from apps.core.services.mfa import mfa_required_for_user
+
+            is_verified = getattr(user, "is_verified", lambda: True)()
+            if mfa_required_for_user(user) and not is_verified:
+                from django.shortcuts import redirect
+
+                return redirect("/mfa/")
+
         return self.get_response(request)

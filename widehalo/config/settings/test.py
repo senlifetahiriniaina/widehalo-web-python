@@ -1,7 +1,7 @@
 from .base import *  # noqa: F403
 
 DEBUG = False
-SECRET_KEY = "test-secret-key"  # noqa: S105 (settings de test uniquement)
+SECRET_KEY = "test-secret-key-not-for-production-use-only-32bytes+"  # noqa: S105
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
@@ -11,8 +11,6 @@ Q_CLUSTER = {  # noqa: F405
     "retry": 120,
     "timeout": 60,
 }
-
-AXES_ENABLED = False
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
