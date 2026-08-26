@@ -446,3 +446,60 @@ class AccPaymentAllocation(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.payment} -> {self.move_line} : {self.amount}"
+
+
+class AccAnalyticPlan(BaseModel):
+    """Un axe d'analyse (Projet, Atelier, Produit, Partenaire, Region...).
+    Plusieurs plans peuvent s'appliquer simultanement a une meme ligne
+    d'ecriture (cf. `AccMoveLine.analytic_distribution`, §5.1.7)."""
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = "acc_analytic_plan"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class AccAnalyticAccount(BaseModel):
+    plan = models.ForeignKey(AccAnalyticPlan, on_delete=models.CASCADE, related_name="accounts")
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=120)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
+    )
+
+    class Meta:
+        db_table = "acc_analytic_account"
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "plan", "code"], name="uniq_analytic_account")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.plan.code}:{self.code}"
+
+
+class AccAnalyticLine(BaseModel):
+    """Ventilation materialisee d'une ligne d'ecriture sur un axe
+    analytique — derivee de `AccMoveLine.analytic_distribution` (JSON de
+    pourcentages par plan), cf. services/analytics.py::record_analytic_lines()."""
+
+    analytic_account = models.ForeignKey(
+        AccAnalyticAccount, on_delete=models.PROTECT, related_name="lines"
+    )
+    move_line = models.ForeignKey(
+        AccMoveLine, on_delete=models.CASCADE, related_name="analytic_lines"
+    )
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    qty = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    uom_code = models.CharField(max_length=16, blank=True)
+
+    class Meta:
+        db_table = "acc_analytic_line"
+        indexes = [models.Index(fields=["analytic_account"])]
+
+    def __str__(self) -> str:
+        return f"{self.analytic_account} : {self.amount}"

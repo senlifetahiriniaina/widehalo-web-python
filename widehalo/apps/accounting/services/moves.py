@@ -15,6 +15,7 @@ from django.db.models import Sum
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import AccAccount, AccJournal, AccMove, AccMoveLine, AccPeriod, AccTax
+from apps.accounting.services.analytics import enforce_and_validate
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 
@@ -62,6 +63,7 @@ def add_line(
 ) -> AccMoveLine:
     if move.state != AccMove.STATE_DRAFT:
         raise ValidationError(_("Impossible d'ajouter une ligne a une ecriture non brouillon."))
+    enforce_and_validate(account, analytic_distribution or {})
     return AccMoveLine.objects.create(
         tenant=move.tenant,
         move=move,
