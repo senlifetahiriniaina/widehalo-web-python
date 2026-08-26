@@ -534,3 +534,200 @@ class MrpScrap(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.order} — rebut {self.qty}"
+
+
+class MrpBomLineState(BaseModel):
+    """MRP-FSM1 (enrichissement WideHalo) : machine a etats de suivi
+    d'approvisionnement par composant d'ordre, INDEPENDANTE de l'etat de
+    l'ordre de fabrication lui-meme (`MrpOrder.state`) — rend visible ce qui
+    bloque une production, composant par composant."""
+
+    STATE_TO_ORDER = "a_commander"
+    STATE_SAMPLE_REQUESTED = "echantillon_demande"
+    STATE_SAMPLE_EVALUATED = "echantillon_evalue"
+    STATE_SUPPLIER_VALIDATED = "fournisseur_valide"
+    STATE_ORDERED = "commande"
+    STATE_RECEIVED = "recue"
+    STATE_QUALITY_CONTROL = "controle_qualite"
+    STATE_AVAILABLE = "disponible"
+    STATE_IN_PRODUCTION = "en_production"
+    STATE_CONSUMED = "consommee"
+    STATE_SHORTAGE = "rupture"
+    STATE_REJECTED = "rejetee"
+    STATE_CHOICES = [
+        (STATE_TO_ORDER, "A commander"),
+        (STATE_SAMPLE_REQUESTED, "Echantillon demande"),
+        (STATE_SAMPLE_EVALUATED, "Echantillon evalue"),
+        (STATE_SUPPLIER_VALIDATED, "Fournisseur valide"),
+        (STATE_ORDERED, "Commande"),
+        (STATE_RECEIVED, "Recue"),
+        (STATE_QUALITY_CONTROL, "Controle qualite"),
+        (STATE_AVAILABLE, "Disponible"),
+        (STATE_IN_PRODUCTION, "En production"),
+        (STATE_CONSUMED, "Consommee"),
+        (STATE_SHORTAGE, "Rupture"),
+        (STATE_REJECTED, "Rejetee"),
+    ]
+
+    order_component = models.OneToOneField(
+        MrpOrderComponent, on_delete=models.CASCADE, related_name="procurement_state"
+    )
+    state = FSMField(default=STATE_TO_ORDER, choices=STATE_CHOICES)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "mrp_bom_line_state"
+
+    def __str__(self) -> str:
+        return f"{self.order_component} — {self.state}"
+
+    @transition(field=state, source=STATE_TO_ORDER, target=STATE_SAMPLE_REQUESTED)
+    def request_sample(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_SAMPLE_REQUESTED, target=STATE_SAMPLE_EVALUATED)
+    def evaluate_sample(self) -> None:
+        pass
+
+    @transition(
+        field=state,
+        source=[STATE_TO_ORDER, STATE_SAMPLE_EVALUATED],
+        target=STATE_SUPPLIER_VALIDATED,
+    )
+    def validate_supplier(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_SUPPLIER_VALIDATED, target=STATE_ORDERED)
+    def order(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_ORDERED, target=STATE_RECEIVED)
+    def receive(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_ORDERED, target=STATE_SHORTAGE)
+    def declare_shortage(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_RECEIVED, target=STATE_QUALITY_CONTROL)
+    def send_to_quality_control(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_QUALITY_CONTROL, target=STATE_AVAILABLE)
+    def approve(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_QUALITY_CONTROL, target=STATE_REJECTED)
+    def reject(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_AVAILABLE, target=STATE_IN_PRODUCTION)
+    def start_production(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_IN_PRODUCTION, target=STATE_CONSUMED)
+    def consume(self) -> None:
+        pass
+
+
+class MrpSupplierEvaluation(BaseModel):
+    """MRP-QQCD1 (enrichissement WideHalo) : evaluation fournisseur ponderee
+    sur 5 criteres avant tout approvisionnement d'un composant critique.
+    Ponderations par defaut issues du CDC, parametrables par tenant."""
+
+    DEFAULT_WEIGHT_QUANTITY = 18
+    DEFAULT_WEIGHT_QUALITY = 30
+    DEFAULT_WEIGHT_COST = 27
+    DEFAULT_WEIGHT_DELAY = 13
+    DEFAULT_WEIGHT_CONFORMITY = 12
+
+    partner_id = models.UUIDField()
+    component_template_id = models.UUIDField(null=True, blank=True)
+    date = models.DateField()
+    # Notes brutes sur 5 (avant ponderation).
+    score_quantity = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    score_quality = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    score_cost = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    score_delay = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    score_conformity = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    weight_quantity = models.PositiveSmallIntegerField(default=DEFAULT_WEIGHT_QUANTITY)
+    weight_quality = models.PositiveSmallIntegerField(default=DEFAULT_WEIGHT_QUALITY)
+    weight_cost = models.PositiveSmallIntegerField(default=DEFAULT_WEIGHT_COST)
+    weight_delay = models.PositiveSmallIntegerField(default=DEFAULT_WEIGHT_DELAY)
+    weight_conformity = models.PositiveSmallIntegerField(default=DEFAULT_WEIGHT_CONFORMITY)
+    # Vrai si une certification obligatoire manque ou est expiree — bloque
+    # l'approvisionnement quel que soit le score pondere.
+    conformity_blocking = models.BooleanField(default=False)
+    weighted_score = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "mrp_supplier_evaluation"
+
+    def __str__(self) -> str:
+        return f"Fournisseur {self.partner_id} — {self.date}"
+
+
+class MrpSampleRequest(BaseModel):
+    """MRP-ECH1 (enrichissement WideHalo) : demande d'echantillon fournisseur
+    precedant la commande d'une nouvelle matiere (indispensable en textile
+    ou la matiere se valide au toucher)."""
+
+    STATE_REQUESTED = "requested"
+    STATE_RECEIVED = "received"
+    STATE_EVALUATED = "evaluated"
+    STATE_APPROVED = "approved"
+    STATE_REJECTED = "rejected"
+    STATE_CHOICES = [
+        (STATE_REQUESTED, "Demande"),
+        (STATE_RECEIVED, "Recu"),
+        (STATE_EVALUATED, "Evalue"),
+        (STATE_APPROVED, "Approuve"),
+        (STATE_REJECTED, "Rejete"),
+    ]
+
+    partner_id = models.UUIDField()
+    component_template_id = models.UUIDField()
+    date_requested = models.DateField()
+    date_received = models.DateField(null=True, blank=True)
+    evaluation_notes = models.TextField(blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_REQUESTED)
+
+    class Meta:
+        db_table = "mrp_sample_request"
+
+    def __str__(self) -> str:
+        return f"Echantillon {self.component_template_id} — {self.partner_id}"
+
+
+class MrpMaintenancePlan(BaseModel):
+    """MRP-GMAO1 (enrichissement WideHalo) : GMAO minimale — plan de
+    maintenance preventive par declencheur calendaire ou horaire. Le calcul
+    MTBF/MTTR se derive des `MrpCri` de type `panne`/`maintenance` sur le
+    poste (cf. services/maintenance.py), pas stocke ici."""
+
+    TRIGGER_CALENDAR = "calendar"
+    TRIGGER_HOURS = "hours"
+    TRIGGER_CHOICES = [
+        (TRIGGER_CALENDAR, "Calendaire"),
+        (TRIGGER_HOURS, "Horaire (heures machine)"),
+    ]
+
+    workcenter = models.ForeignKey(
+        MrpWorkcenter, on_delete=models.CASCADE, related_name="maintenance_plans"
+    )
+    name = models.CharField(max_length=150)
+    trigger_type = models.CharField(
+        max_length=16, choices=TRIGGER_CHOICES, default=TRIGGER_CALENDAR
+    )
+    interval_days = models.PositiveIntegerField(null=True, blank=True)
+    interval_hours = models.PositiveIntegerField(null=True, blank=True)
+    last_done_at = models.DateField(null=True, blank=True)
+    next_due_at = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "mrp_maintenance_plan"
+
+    def __str__(self) -> str:
+        return f"{self.workcenter} — {self.name}"

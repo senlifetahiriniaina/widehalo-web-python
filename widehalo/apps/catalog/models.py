@@ -195,3 +195,40 @@ class Packaging(BaseModel):
 
     class Meta:
         db_table = "catalog_packaging"
+
+
+class CatalogStandard(BaseModel):
+    """CAT-NORM1 : catalogue de normes/certifications (OEKO-TEX 100, GOTS,
+    ISO 105 series, REACH...), referencable par `TextileSpec.certifications`
+    ou par une certification datee via `CatalogCertification`."""
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "catalog_standard"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class CatalogCertification(BaseModel):
+    """Certification datee d'une variante par un fournisseur donne — utilise
+    par `mrp` (RG bloquante MRP-QQCD1 : conformite bloquante si une
+    certification obligatoire manque ou est expiree)."""
+
+    variant = models.ForeignKey(
+        ProductVariant, on_delete=models.CASCADE, related_name="certifications_detail"
+    )
+    standard = models.ForeignKey(CatalogStandard, on_delete=models.PROTECT, related_name="+")
+    # Jamais de FK Django vers `apps.partners.models.Partner`.
+    partner_id = models.UUIDField(null=True, blank=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "catalog_certification"
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} — {self.standard.code}"
