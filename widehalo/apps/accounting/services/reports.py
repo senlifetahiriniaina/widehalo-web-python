@@ -24,6 +24,8 @@ from django.db.models import Sum
 
 from apps.accounting.models import (
     AccAccount,
+    AccAnalyticLine,
+    AccAnalyticPlan,
     AccAsset,
     AccAssetDepreciation,
     AccAssetMovement,
@@ -1099,6 +1101,261 @@ def dcom_report(declaration: AccDcomDeclaration) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _bucket_total(rows: list[dict[str, Any]]) -> Decimal:
+    """Somme du champ `amount` d'un panier courant/non-courant tel que
+    retourne par `balance_sheet` (`actif`/`passif` x `courant`/`non_courant`)."""
+    return sum((row["amount"] for row in rows), Decimal(0))
+
+
+def _cumulative_balance_by_type(account_type: str, cutoff: Any) -> Decimal:
+    """Solde CUMULE (meme convention que `balance_sheet` : toutes ecritures
+    publiees depuis l'origine, date <= `cutoff`) de tous les comptes d'un
+    `AccAccount.type` donne — utilise ici pour recuperer isolement le solde
+    des comptes de stock (necessaire au BFR/rotation des stocks), une
+    information que `balance_sheet` ne restitue plus une fois ses paniers
+    courant/non-courant construits (le type de compte est supprime de
+    chaque ligne apres tri, cf. `balance_sheet`)."""
+    totals = AccMoveLine.objects.filter(
+        account__type=account_type, move__state=AccMove.STATE_POSTED, move__date__lte=cutoff
+    ).aggregate(debit=Sum("debit"), credit=Sum("credit"))
+    return (totals["debit"] or Decimal(0)) - (totals["credit"] or Decimal(0))
+
+
+def _ratio_or_none(
+    numerator: Decimal, denominator: Decimal, *, times: Decimal | None = None
+) -> Decimal | None:
+    """RG (implicite ACC-RATIO1/2) : un ratio dont le denominateur est nul
+    (CA nul, capitaux propres nuls, dettes fournisseurs nulles...) renvoie
+    `None` plutot que de lever `ZeroDivisionError` — un jeune tenant/petit
+    tenant peut tres bien n'avoir encore aucun chiffre d'affaires ou aucune
+    dette fournisseur, ce n'est pas une erreur applicative."""
+    if denominator == 0:
+        return None
+    result = numerator / denominator
+    if times is not None:
+        result *= times
+    return result
+
+
+def financial_ratios(fiscal_year: AccFiscalYear) -> dict[str, Any]:
+    """ACC-RATIO1 + ACC-RATIO2 (§2.8 du document annexe, table "Ratios
+    financiers utilises par les banques" transcrite verbatim) : ratios
+    financiers de base (CDC §5.1, enrichissement WideHalo jamais construit
+    jusqu'ici) + les 3 piliers de l'analyse bancaire locale malgache.
+
+    Structure du retour : deux sous-dictionnaires clairement separes,
+    `"ratio1"` (les 6 ratios deja prevus au CDC : Current Ratio,
+    Debt-to-Equity, marge nette, EBITDA, DSO, DPO) et `"ratio2"` (les
+    ratios de la table §2.8 du document annexe : structure/liquidite/marge/
+    rentabilite/rotation) — choix de NE PAS tout fusionner a plat pour que
+    l'origine CDC vs annexe-banques de chaque ratio reste tracable a la
+    lecture du JSON, plutot que par un commentaire perdu dans le code. Le
+    signal explicitement recherche par les analystes de credit (BFR > FDR,
+    tresorerie structurellement negative) est neanmoins remonte en clef
+    TOP-LEVEL `"bfr_superieur_fdr"` (pas dans `"ratio2"`) pour qu'il ne soit
+    jamais enterre dans un sous-objet.
+
+    Reutilise entierement les rapports deja construits en A9 (jamais de
+    recalcul direct depuis `AccMoveLine`, sauf pour le solde des comptes de
+    stock isole, cf. `_cumulative_balance_by_type` — `balance_sheet` ne
+    l'expose plus une fois ses paniers construits) :
+    - `balance_sheet(fiscal_year)` pour les totaux actif/passif courant et
+      non courant (`_bucket_total`) et le total actif.
+    - `income_statement(fiscal_year)` pour "Chiffre d'affaires", "Achats
+      consommes", "EXCEDENT BRUT D'EXPLOITATION" et "RESULTAT NET DE
+      L'EXERCICE", lus PAR LEUR LABEL EXACT (pas de reconstruction).
+    - `equity_variation_statement(fiscal_year)` pour le total des capitaux
+      propres (somme des soldes de cloture) : `balance_sheet` ne distingue
+      pas les comptes `equity` du reste de son panier passif une fois trie
+      (le type de compte est supprime de chaque ligne), alors
+      qu'`equity_variation_statement` isole deja exactement ce total et est
+      garanti coherent avec le bilan par construction (meme ecritures
+      source, cf. sa propre docstring) — reutilise plutot que redevine.
+    - `aged_receivables`/`aged_payables(as_of_date=fiscal_year.date_end)`
+      pour les creances clients / dettes fournisseurs "d'exploitation".
+
+    Approximations documentees explicitement (formule usuelle retenue en
+    l'absence de precision du document source, a ajuster si l'analyste
+    bancaire/l'expert-comptable en prefere une autre — reserve plus legere
+    que celle des canevas DGI, il ne s'agit ici que d'usages d'analyse
+    financiere standards, pas d'une reconstruction de formulaire officiel) :
+
+    1. **Debt-to-Equity** : le panier "passif" de `balance_sheet` regroupe
+       DEJA capitaux propres et dettes ensemble (c'est la definition meme
+       du bilan, passif = capitaux propres + dettes) sans distinguer les
+       deux dans les lignes retournees. Les "dettes totales" utilisees ici
+       sont donc calculees par difference : (passif courant + passif non
+       courant du bilan) - capitaux propres (via
+       `equity_variation_statement`) — ratio dettes/capitaux propres
+       standard, PAS "(passif courant+non courant)/capitaux propres" au
+       sens litteral (qui reviendrait a (dettes+capitaux propres)/capitaux
+       propres, soit ratio+1, un calcul qui n'aurait pas de sens usuel).
+    2. **FDR (Fonds de Roulement)** = passif non courant du bilan - actif
+       non courant du bilan. Ceci fonctionne directement SANS recalculer
+       "ressources stables" separement, car dans la fixture PCG2005 (cf.
+       docstring de `balance_sheet`) les capitaux propres ET les
+       immobilisations sont les deux seules exceptions `is_current=False`
+       par defaut — le panier "passif non courant" du bilan EST donc deja
+       exactement "capitaux propres + passifs non courants" (ressources
+       stables), et le panier "actif non courant" EST deja "emplois
+       stables" (immobilisations). Hypothese heritee de A9, pas nouvelle
+       ici.
+    3. **DSO/DPO/rotation des stocks** utilisent un solde de fin d'exercice
+       (photo a `fiscal_year.date_end`, via `aged_receivables`/
+       `aged_payables`/solde de stock) plutot qu'une VRAIE moyenne
+       ouverture+cloture/2 — une moyenne exigerait la balance agee de
+       l'exercice precedent, qui peut ne pas exister pour le premier
+       exercice d'un tenant. Simplification documentee, pas un choix
+       silencieux.
+    4. **DSO/DPO** utilisent "Chiffre d'affaires"/"Achats consommes" (HT,
+       tels qu'exposes par `income_statement`) comme proxy du "TTC" exige
+       par la formule bancaire usuelle : la TVA collectee/deductible n'est
+       pas isolee separement par ecriture dans ce modele au niveau ou
+       `income_statement` la restitue.
+    5. **Dettes d'exploitation (BFR)** : `aged_payables` inclut TOUTES les
+       dettes fournisseurs non lettrees, pas seulement celles qualifiees
+       "d'exploitation" au sens strict (un BFR plus rigoureux exclurait les
+       dettes non-exploitation, distinction non modelisee ici).
+    6. **Marge brute** : "Cout des ventes" n'existe pas comme ligne
+       distincte dans `income_statement` — "Achats consommes" sert de proxy
+       le plus proche disponible dans ce modele de donnees (un vrai cout
+       des ventes demanderait un suivi COGS distinct des achats bruts, non
+       modelise a ce stade).
+    7. **Rentabilite economique/financiere** : le document annexe ne
+       precise que le PRINCIPE ("aptitude a degager un profit rapporte aux
+       ressources investies, fonds propres, fonds pretes"), pas les
+       denominateurs exacts. Formules usuelles retenues ici : rentabilite
+       economique = resultat net / total actif (rapporte a l'ensemble des
+       ressources investies, fonds propres ET empruntes) ; rentabilite
+       financiere = resultat net / capitaux propres (rapporte aux seuls
+       fonds propres).
+
+    Division par zero (CA nul, capitaux propres nuls, dettes fournisseurs
+    nulles...) : chaque ratio concerne renvoie `None` plutot que de lever,
+    cf. `_ratio_or_none` — un jeune/petit tenant peut n'avoir aucun CA ou
+    aucune dette fournisseur, ce n'est pas une anomalie."""
+    cutoff = fiscal_year.date_end
+    bs = balance_sheet(fiscal_year, as_of_date=cutoff)
+    postes = {row["label"]: row["amount"] for row in income_statement(fiscal_year)}
+    capitaux_propres = sum(
+        (row["closing"] for row in equity_variation_statement(fiscal_year)), Decimal(0)
+    )
+
+    actif_courant = _bucket_total(bs["actif"]["courant"])
+    actif_non_courant = _bucket_total(bs["actif"]["non_courant"])
+    passif_courant = _bucket_total(bs["passif"]["courant"])
+    passif_non_courant = _bucket_total(bs["passif"]["non_courant"])
+    total_actif = bs["actif"]["total"]
+
+    chiffre_affaires = postes["Chiffre d'affaires"]
+    achats_consommes = postes["Achats consommes"]
+    ebitda = postes["EXCEDENT BRUT D'EXPLOITATION"]
+    resultat_net = postes["RESULTAT NET DE L'EXERCICE"]
+
+    stock = _cumulative_balance_by_type(AccAccount.TYPE_STOCK, cutoff)
+    creances_clients = sum(
+        (row["total"] for row in aged_receivables(as_of_date=cutoff)), Decimal(0)
+    )
+    dettes_fournisseurs = sum(
+        (row["total"] for row in aged_payables(as_of_date=cutoff)), Decimal(0)
+    )
+
+    dettes_totales = (passif_courant + passif_non_courant) - capitaux_propres
+
+    current_ratio = _ratio_or_none(actif_courant, passif_courant)
+
+    ratio1 = {
+        "current_ratio": current_ratio,
+        "debt_to_equity": _ratio_or_none(dettes_totales, capitaux_propres),
+        "marge_nette": _ratio_or_none(resultat_net, chiffre_affaires),
+        "ebitda": ebitda,
+        "dso_jours": _ratio_or_none(creances_clients, chiffre_affaires, times=Decimal(365)),
+        "dpo_jours": _ratio_or_none(dettes_fournisseurs, achats_consommes, times=Decimal(365)),
+    }
+
+    fdr = passif_non_courant - actif_non_courant
+    bfr = (stock + creances_clients) - dettes_fournisseurs
+    tresorerie_nette = fdr - bfr
+
+    ratio2 = {
+        "fdr": fdr,
+        "bfr": bfr,
+        "tresorerie_nette": tresorerie_nette,
+        # Alias documente : identique a `ratio1.current_ratio`, seule la
+        # denomination differe entre le CDC (§5.1) et la table §2.8 du
+        # document annexe — jamais recalcule une seconde fois.
+        "liquidite_generale": current_ratio,
+        "liquidite_immediate": _ratio_or_none(actif_courant - stock, passif_courant),
+        "marge_brute": _ratio_or_none(chiffre_affaires - achats_consommes, chiffre_affaires),
+        "rentabilite_economique": _ratio_or_none(resultat_net, total_actif),
+        "rentabilite_financiere": _ratio_or_none(resultat_net, capitaux_propres),
+        "rotation_stocks_jours": _ratio_or_none(stock, achats_consommes, times=Decimal(365)),
+    }
+
+    return {
+        "as_of_date": cutoff,
+        "ratio1": ratio1,
+        "ratio2": ratio2,
+        # Signal explicitement recherche par les analystes de credit (§2.8
+        # du document annexe, "Implication ERP") : tresorerie
+        # structurellement negative. Clef TOP-LEVEL volontairement, pas
+        # enterree dans `ratio2`.
+        "bfr_superieur_fdr": bfr > fdr,
+    }
+
+
+def analytical_income_statement(
+    fiscal_year: AccFiscalYear, analytic_plan: AccAnalyticPlan
+) -> list[dict[str, Any]]:
+    """ACC-ANA — compte de resultat analytique par axe : agrege les
+    `AccAnalyticLine` deja materialisees par `services/analytics.py::
+    record_analytic_lines()` (A6), par `AccAnalyticAccount` du `analytic_plan`
+    donne, pour les ecritures PUBLIEES de `fiscal_year` — pure agregation
+    d'une table existante, aucun nouveau modele.
+
+    Ventilation produits/charges par compte analytique (au-dela d'un simple
+    total plat) : realisable simplement ici car chaque `AccAnalyticLine`
+    remonte a sa `AccMoveLine` source (`move_line`), elle-meme rattachee a
+    un `AccAccount` dont le `.type` (`income`/`expense`/autre) est
+    directement lisible sans jointure supplementaire couteuse — separe donc
+    "produits"/"charges"/"net" par compte analytique plutot que de s'en
+    tenir a un total plat V1. Un compte analytique jamais mouvemente par un
+    produit ou une charge (cas marginal : RG-ACC-9 n'impose une distribution
+    analytique que sur les lignes de charge/produit, rien n'empeche
+    techniquement une autre nature de compte de porter une distribution) est
+    range cote "charges" par defaut plutot que de creer un troisieme panier
+    "autre" peu exploitable en V1 — documente ici, pas silencieux."""
+    lines = AccAnalyticLine.objects.filter(
+        analytic_account__plan=analytic_plan,
+        move_line__move__period__fiscal_year=fiscal_year,
+        move_line__move__state=AccMove.STATE_POSTED,
+    ).select_related("analytic_account", "move_line__account")
+
+    grouped: dict[Any, dict[str, Any]] = {}
+    for line in lines:
+        account = line.analytic_account
+        entry = grouped.setdefault(
+            account.id,
+            {
+                "analytic_account_id": str(account.id),
+                "code": account.code,
+                "name": account.name,
+                "produits": Decimal(0),
+                "charges": Decimal(0),
+            },
+        )
+        if line.move_line.account.type == AccAccount.TYPE_INCOME:
+            entry["produits"] += line.amount
+        else:
+            entry["charges"] += line.amount
+
+    rows = []
+    for entry in grouped.values():
+        entry["net"] = entry["produits"] - entry["charges"]
+        rows.append(entry)
+    return sorted(rows, key=lambda row: row["code"])
 
 
 def invoice_pdf(invoice: AccMove) -> bytes:

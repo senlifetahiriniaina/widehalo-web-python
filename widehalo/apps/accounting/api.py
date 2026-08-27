@@ -11,6 +11,7 @@ from ninja import Router, Schema
 
 from apps.accounting.models import (
     AccAccount,
+    AccAnalyticPlan,
     AccAsset,
     AccDcomDeclaration,
     AccFiscalYear,
@@ -43,10 +44,12 @@ from apps.accounting.services.payments import register_payment
 from apps.accounting.services.reports import (
     aged_payables,
     aged_receivables,
+    analytical_income_statement,
     balance_sheet,
     cash_flow_statement,
     dcom_report,
     equity_variation_statement,
+    financial_ratios,
     fixed_asset_annexes,
     general_ledger,
     income_statement,
@@ -534,6 +537,48 @@ def aged_payables_endpoint(request, as_of_date: dt.date | None = None, format: s
     """ACC-AGE-F — balance agee fournisseurs."""
     rows = aged_payables(as_of_date)
     data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+# ---------------------------------------------------------------------------
+# A13 — Ratios financiers complets (ACC-RATIO1/ACC-RATIO2) et analytique
+# (ACC-ANA)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/accounting/reports/financial-ratios")
+@require_permission("accounting.view_accaccount")
+def financial_ratios_endpoint(request, fiscal_year_id: str):
+    """ACC-RATIO1/ACC-RATIO2 — ratios financiers de base plus les 3 piliers
+    de l'analyse bancaire locale (FDR/BFR/tresorerie nette). Reserve sur les
+    formules approximatives (marge brute, DSO/DPO, rentabilite economique/
+    financiere...) : cf. docstring de `services/reports.py::financial_ratios`.
+
+    Pas d'export CSV/XLSX (`rows_to_bytes` attend une liste de lignes
+    tabulaires, `financial_ratios` retourne un dictionnaire imbrique
+    `ratio1`/`ratio2` a plat sans lignes repetees) — seul `format=json` est
+    servi ici, comme pour `/reports/balance-sheet` et `/reports/cash-flow`
+    en JSON (memes rapports non tabulaires par nature)."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    data = financial_ratios(fiscal_year)
+    return JsonResponse(data)
+
+
+@router.get("/accounting/reports/analytical-income-statement")
+@require_permission("accounting.view_accmove")
+def analytical_income_statement_endpoint(
+    request, fiscal_year_id: str, analytic_plan_id: str, format: str = "json"
+):
+    """ACC-ANA — compte de resultat analytique par axe. Cf. docstring de
+    `services/reports.py::analytical_income_statement`."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    analytic_plan = get_object_or_404(AccAnalyticPlan, id=analytic_plan_id)
+    rows = analytical_income_statement(fiscal_year, analytic_plan)
+    data = rows_to_bytes(
+        rows,
+        ["analytic_account_id", "code", "name", "produits", "charges", "net"],
+        format=format,
+    )
     return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
 
 
