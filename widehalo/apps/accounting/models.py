@@ -79,6 +79,17 @@ class AccAccount(BaseModel):
         (TYPE_STOCK, "Stock"),
     ]
 
+    FUNCTIONAL_PRODUCTION = "production"
+    FUNCTIONAL_DISTRIBUTION = "distribution"
+    FUNCTIONAL_ADMINISTRATION = "administration"
+    FUNCTIONAL_AUTRE = "autre"
+    FUNCTIONAL_DESTINATION_CHOICES = [
+        (FUNCTIONAL_PRODUCTION, "Production"),
+        (FUNCTIONAL_DISTRIBUTION, "Distribution"),
+        (FUNCTIONAL_ADMINISTRATION, "Administration"),
+        (FUNCTIONAL_AUTRE, "Autre"),
+    ]
+
     code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     account_class = models.PositiveSmallIntegerField(help_text="Classe PCG, 1 a 7")
@@ -92,6 +103,25 @@ class AccAccount(BaseModel):
     # RG-ACC-9 : distribution analytique obligatoire (somme = 100%) sur les
     # lignes portees par ce compte — configurable par compte, cf. etape A6.
     analytic_required = models.BooleanField(default=False)
+    # ACC-BIL (§1.10.1 du document annexe, Art. 131-3 a 131-11) : actif/passif
+    # courant vs non courant. Par defaut True (la majorite des comptes du
+    # cycle d'exploitation — creances, dettes, tresorerie, taxes, stocks —
+    # sont courants) ; positionne explicitement a False dans la fixture
+    # PCG2005 pour les immobilisations (classe 2) et les capitaux propres,
+    # seules exceptions "structurelles" au sens de l'annexe. Reserve OECFM :
+    # cette ventilation par defaut n'est pas validee par un expert-comptable,
+    # cf. docstring de `chart_of_accounts.py`.
+    is_current = models.BooleanField(default=True)
+    # ACC-CR-FN1 (§1.10.2 du document annexe) : cle de ventilation
+    # fonctionnelle sur les comptes de charge, permettant de reclasser les
+    # memes ecritures que le compte de resultat par nature (ACC-CR) en compte
+    # de resultat par fonction (ACC-CR-FCT) sans double saisie. Vide par
+    # defaut (comptes non-charge — produits, bilan — non concernes) ;
+    # reserve OECFM : la repartition par defaut posee dans la fixture PCG2005
+    # est approximative, cf. docstring de `chart_of_accounts.py`.
+    functional_destination = models.CharField(
+        max_length=16, choices=FUNCTIONAL_DESTINATION_CHOICES, blank=True
+    )
 
     class Meta:
         db_table = "acc_account"

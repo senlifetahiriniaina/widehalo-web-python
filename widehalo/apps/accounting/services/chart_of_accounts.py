@@ -3,7 +3,29 @@ REPRESENTATIF et SIMPLIFIE (pas exhaustif), a valider par un
 expert-comptable membre de l'OECFM avant toute utilisation en production
 (exigence explicite du cahier des charges, § 5.1.6). Modifiable par le
 tenant apres chargement : ajout de sous-comptes, desactivation de comptes
-inutilises."""
+inutilises.
+
+Depuis l'etape A9 (Phase 2), la fixture porte aussi des valeurs par defaut
+POUR `is_current` (ACC-BIL, §1.10.1 du document annexe) et
+`functional_destination` (ACC-CR-FN1, §1.10.2) — ces deux mappings sont
+EGALEMENT non valides par un expert-comptable OECFM, au meme titre que le
+reste du plan comptable :
+- `is_current` : False uniquement pour les immobilisations (classe 2) et les
+  capitaux propres/dettes long terme (classe 1) — structurellement non
+  courants au sens des criteres Art. 131-3 a 131-11. True par defaut
+  partout ailleurs (creances, dettes, tresorerie, taxes, stocks classe 3),
+  coherent avec le fait que ce sont les elements du cycle d'exploitation
+  normal de l'entreprise.
+- `functional_destination` : renseigne uniquement sur les comptes de charge
+  (classe 6) — matieres premieres -> `production` (matiere transformee),
+  achats de marchandises/transport -> `distribution` (cout de revient
+  commercial), le reste (loyers, frais bancaires, impots, personnel,
+  dotations aux amortissements) -> `administration` par defaut faute d'une
+  cle de ventilation plus fine en V1 (ex. la masse salariale de production
+  vs administrative n'est pas encore distinguee analytiquement) ; `autre`
+  n'est utilise pour aucun compte de la fixture V1. Ce choix « tout ce qui
+  n'est pas clairement production/distribution va en administration » est
+  une simplification assumee, a affiner avec un vrai expert-comptable."""
 
 from __future__ import annotations
 
@@ -37,6 +59,8 @@ def load_pcg2005(tenant: Tenant) -> int:
             name=entry["name"],
             account_class=entry["account_class"],
             type=entry["type"],
+            is_current=entry.get("is_current", True),
+            functional_destination=entry.get("functional_destination", ""),
         )
         created += 1
 

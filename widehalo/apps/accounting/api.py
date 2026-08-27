@@ -25,7 +25,14 @@ from apps.accounting.services.invoices import (
 from apps.accounting.services.moves import post_move, reverse_move
 from apps.accounting.services.payments import register_payment
 from apps.accounting.services.reports import (
+    aged_payables,
+    aged_receivables,
+    balance_sheet,
+    cash_flow_statement,
+    equity_variation_statement,
     general_ledger,
+    income_statement,
+    income_statement_by_function,
     invoice_pdf,
     journal_report,
     rows_to_bytes,
@@ -330,3 +337,131 @@ def journal_report_endpoint(request, journal_id: str, fiscal_year_id: str, forma
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }[format]
     return HttpResponse(data, content_type=content_type)
+
+
+_REPORT_CONTENT_TYPES = {
+    "json": "application/json",
+    "csv": "text/csv",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+def _flatten_balance_sheet(data: dict) -> list[dict]:
+    """Aplatit `balance_sheet()` en lignes pour l'export CSV/XLSX (le format
+    JSON, structure, reste servi directement sans passer par cette fonction)."""
+    rows = []
+    for section, bucket_key in (("actif", "actif"), ("passif", "passif")):
+        for courant, bucket in (("courant", "courant"), ("non_courant", "non_courant")):
+            for line in data[bucket_key][bucket]:
+                rows.append(
+                    {
+                        "section": section,
+                        "courant": courant,
+                        "code": line["code"],
+                        "name": line["name"],
+                        "amount": line["amount"],
+                    }
+                )
+    return rows
+
+
+@router.get("/accounting/reports/balance-sheet")
+@require_permission("accounting.view_accaccount")
+def balance_sheet_endpoint(
+    request, fiscal_year_id: str, as_of_date: dt.date | None = None, format: str = "json"
+):
+    """ACC-BIL — bilan. Reserve OECFM : cf. docstring de
+    `services/reports.py::balance_sheet`."""
+    from apps.accounting.models import AccFiscalYear
+
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    data = balance_sheet(fiscal_year, as_of_date=as_of_date)
+    if format == "json":
+        return JsonResponse(data)
+    rows = _flatten_balance_sheet(data)
+    payload = rows_to_bytes(rows, ["section", "courant", "code", "name", "amount"], format=format)
+    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+@router.get("/accounting/reports/income-statement")
+@require_permission("accounting.view_accaccount")
+def income_statement_endpoint(request, fiscal_year_id: str, format: str = "json"):
+    """ACC-CR — compte de resultat par nature. Reserve OECFM : cf. docstring
+    de `services/reports.py::income_statement`."""
+    from apps.accounting.models import AccFiscalYear
+
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    rows = income_statement(fiscal_year)
+    data = rows_to_bytes(rows, ["poste", "label", "amount"], format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+@router.get("/accounting/reports/income-statement-by-function")
+@require_permission("accounting.view_accaccount")
+def income_statement_by_function_endpoint(request, fiscal_year_id: str, format: str = "json"):
+    """ACC-CR-FCT — compte de resultat par fonction. Reserve OECFM : cf.
+    docstring de `services/reports.py::income_statement_by_function`."""
+    from apps.accounting.models import AccFiscalYear
+
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    rows = income_statement_by_function(fiscal_year)
+    data = rows_to_bytes(rows, ["label", "amount"], format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+@router.get("/accounting/reports/cash-flow")
+@require_permission("accounting.view_accaccount")
+def cash_flow_endpoint(request, fiscal_year_id: str, format: str = "json"):
+    """ACC-CF — tableau des flux de tresorerie (methode directe). Reserve
+    OECFM et choix de methode : cf. docstring de
+    `services/reports.py::cash_flow_statement`."""
+    from apps.accounting.models import AccFiscalYear
+
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    data = cash_flow_statement(fiscal_year)
+    if format == "json":
+        return JsonResponse(data)
+    payload = rows_to_bytes(
+        data["lines"], ["date", "reference", "section", "account", "label", "amount"], format=format
+    )
+    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+@router.get("/accounting/reports/equity-variation")
+@require_permission("accounting.view_accaccount")
+def equity_variation_endpoint(request, fiscal_year_id: str, format: str = "json"):
+    """ACC-VCP — etat de variation des capitaux propres. Simplification V1 :
+    cf. docstring de `services/reports.py::equity_variation_statement`."""
+    from apps.accounting.models import AccFiscalYear
+
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    rows = equity_variation_statement(fiscal_year)
+    data = rows_to_bytes(rows, ["code", "name", "opening", "movement", "closing"], format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+_AGED_BALANCE_FIELDS = [
+    "partner_id",
+    "moins_d_un_an",
+    "un_a_cinq_ans",
+    "plus_de_cinq_ans",
+    "total",
+]
+
+
+@router.get("/accounting/reports/aged-receivables")
+@require_permission("accounting.view_accmove")
+def aged_receivables_endpoint(request, as_of_date: dt.date | None = None, format: str = "json"):
+    """ACC-AGE-C — balance agee clients."""
+    rows = aged_receivables(as_of_date)
+    data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+@router.get("/accounting/reports/aged-payables")
+@require_permission("accounting.view_accmove")
+def aged_payables_endpoint(request, as_of_date: dt.date | None = None, format: str = "json"):
+    """ACC-AGE-F — balance agee fournisseurs."""
+    rows = aged_payables(as_of_date)
+    data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
