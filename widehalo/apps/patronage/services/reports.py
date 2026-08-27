@@ -30,7 +30,17 @@ def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str 
         sheet = workbook.active
         sheet.append(fields)
         for row in rows:
-            sheet.append([row.get(field) for field in fields])
+            # openpyxl n'accepte que des types de cellule primitifs — un
+            # champ dict/list (ex. `size_ratio` de PAT-MARKER) doit etre
+            # serialise, sous peine de `ValueError: Cannot convert ... to
+            # Excel` (bug reel constate, corrige ici plutot que dans
+            # chaque appelant).
+            sheet.append(
+                [
+                    json.dumps(value) if isinstance(value, dict | list) else value
+                    for value in (row.get(field) for field in fields)
+                ]
+            )
         buffer_bytes = io.BytesIO()
         workbook.save(buffer_bytes)
         return buffer_bytes.getvalue()

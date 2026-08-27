@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
 from decimal import Decimal
 
+import pdfplumber
 import pytest
+from openpyxl import load_workbook
 
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
 from apps.accounting.services.invoices import (
@@ -15,6 +18,7 @@ from apps.accounting.services.reports import (
     general_ledger,
     invoice_pdf,
     journal_report,
+    rows_to_bytes,
     trial_balance,
 )
 from apps.core.models.tenant import Tenant
@@ -93,12 +97,39 @@ def test_trial_balance_lists_moved_accounts(ledger) -> None:
         assert receivable_row["debit"] == Decimal("1000.0000")
 
 
+def test_trial_balance_xlsx_round_trips_header_and_data_rows(ledger) -> None:
+    tenant, fiscal_year, *_ = ledger
+    with use_tenant(tenant.id):
+        rows = trial_balance(fiscal_year)
+        fields = ["code", "name", "debit", "credit", "balance"]
+        xlsx_bytes = rows_to_bytes(rows, fields, format="xlsx")
+        workbook = load_workbook(io.BytesIO(xlsx_bytes))
+        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+        assert sheet_rows[0] == tuple(fields)
+        receivable_row = next(r for r in sheet_rows[1:] if r[0] == "411")
+        assert receivable_row == ("411", "Clients", 1000, 0, 1000)
+
+
 def test_general_ledger_lists_the_posted_line(ledger) -> None:
     tenant, fiscal_year, _journal, receivable, _income, invoice = ledger
     with use_tenant(tenant.id):
         rows = general_ledger(receivable, fiscal_year)
         assert len(rows) == 1
         assert rows[0]["reference"] == invoice.reference
+
+
+def test_general_ledger_xlsx_round_trips_header_and_data_rows(ledger) -> None:
+    tenant, fiscal_year, _journal, receivable, _income, invoice = ledger
+    with use_tenant(tenant.id):
+        rows = general_ledger(receivable, fiscal_year)
+        fields = ["date", "reference", "label", "debit", "credit"]
+        xlsx_bytes = rows_to_bytes(rows, fields, format="xlsx")
+        workbook = load_workbook(io.BytesIO(xlsx_bytes))
+        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+        assert sheet_rows[0] == tuple(fields)
+        data_row = sheet_rows[1]
+        assert data_row[0].date() == invoice.date
+        assert data_row[1:] == (invoice.reference, "Client", 1000, 0)
 
 
 def test_journal_report_lists_all_lines_of_the_journal(ledger) -> None:
@@ -108,8 +139,33 @@ def test_journal_report_lists_all_lines_of_the_journal(ledger) -> None:
         assert len(rows) == 2  # ligne client + ligne vente
 
 
-def test_invoice_pdf_produces_a_valid_pdf_document(ledger) -> None:
+def test_journal_report_xlsx_round_trips_header_and_data_rows(ledger) -> None:
+    tenant, fiscal_year, journal, receivable, income, invoice = ledger
+    with use_tenant(tenant.id):
+        rows = journal_report(journal, fiscal_year)
+        fields = ["reference", "date", "account", "label", "debit", "credit"]
+        xlsx_bytes = rows_to_bytes(rows, fields, format="xlsx")
+        workbook = load_workbook(io.BytesIO(xlsx_bytes))
+        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+        assert sheet_rows[0] == tuple(fields)
+        data_rows = sheet_rows[1:]
+        assert len(data_rows) == 2
+        client_row = next(r for r in data_rows if r[2] == receivable.code)
+        assert client_row[0] == invoice.reference
+        assert client_row[3:] == ("Client", 1000, 0)
+        income_row = next(r for r in data_rows if r[2] == income.code)
+        assert income_row[3:] == ("Vente", 0, 1000)
+
+
+def test_invoice_pdf_contains_reference_lines_and_total(ledger) -> None:
     tenant, _fy, _journal, _receivable, _income, invoice = ledger
     with use_tenant(tenant.id):
         pdf_bytes = invoice_pdf(invoice)
         assert pdf_bytes.startswith(b"%PDF")
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages).replace("\n", " ")
+        assert invoice.reference in text
+        assert "Vente" in text
+        assert "Client" in text
+        assert "1000.0000" in text
+        assert invoice.currency in text

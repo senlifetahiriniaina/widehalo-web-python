@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 from decimal import Decimal
 
+import pdfplumber
 import pytest
 
 from apps.core.models.tenant import Tenant
@@ -58,6 +60,20 @@ def test_generate_tech_pack_stores_pdf_document(tech_pack_setup) -> None:
         assert tech_pack.version == pattern.version
         assert tech_pack.document.mime_type == "application/pdf"
         assert tech_pack.document.size > 0
+
+        piece = pattern.pieces.get()
+        with tech_pack.document.file.open("rb") as fh:
+            pdf_bytes = fh.read()
+        assert pdf_bytes.startswith(b"%PDF")
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        flat_text = text.replace("\n", "")
+        assert pattern.code in flat_text
+        assert f"v{pattern.version}" in flat_text
+        assert pattern.name in text
+        assert piece.code in flat_text
+        assert piece.name in text
+        assert piece.notes in text
 
 
 def test_report_conformity_incident_creates_cri_linked_to_pattern(tech_pack_setup) -> None:
