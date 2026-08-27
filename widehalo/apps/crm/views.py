@@ -4,16 +4,22 @@ activites, saisie rapide. Meme patron que `apps.accounting.views`."""
 
 from __future__ import annotations
 
+import uuid
+from decimal import Decimal, InvalidOperation
+from typing import cast
+
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.models.user import User
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmLead, CrmLostReason, CrmStage
 from apps.crm.services.activities import lead_timeline, log_activity
-from apps.crm.services.leads import create_lead_quick
+from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
+from apps.crm.services.leads import add_lead_line, create_lead_quick
 from apps.crm.services.pipeline import move_lead_to_stage
 from apps.crm.services.scoping import scope_leads_for_user
 from apps.crm.services.scoring import compute_lead_score, whatsapp_contact_link
@@ -42,6 +48,7 @@ def lead_list(request: HttpRequest) -> HttpResponse:
 @login_required
 def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
     lead = get_object_or_404(CrmLead, id=lead_id)
+    user = cast(User, request.user)
     error = None
 
     if request.method == "POST":
@@ -63,7 +70,25 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
                     subject=request.POST.get("subject", ""),
                     notes=request.POST.get("notes", ""),
                 )
-        except ValidationError as exc:
+            elif action == "add_line":
+                variant_id_raw = request.POST.get("variant_id", "").strip()
+                unit_price_raw = request.POST.get("unit_price", "").strip()
+                line = add_lead_line(
+                    lead,
+                    description=request.POST.get("description", ""),
+                    variant_id=uuid.UUID(variant_id_raw) if variant_id_raw else None,
+                    qty=Decimal(request.POST.get("qty") or "1"),
+                    unit_price=Decimal(unit_price_raw) if unit_price_raw else None,
+                    discount_pct=Decimal(request.POST.get("discount_pct") or "0"),
+                    is_custom=bool(request.POST.get("is_custom")),
+                )
+                enforce_discount_threshold(line, requested_by=user)
+        except (
+            ValidationError,
+            DiscountApprovalRequiredError,
+            InvalidOperation,
+            ValueError,
+        ) as exc:
             error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
         else:
             return redirect("crm:detail", lead_id=lead.id)
@@ -76,6 +101,7 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
             "stages": lead.pipeline.stages.all(),
             "lost_reasons": CrmLostReason.objects.filter(tenant=lead.tenant),
             "activities": lead_timeline(lead),
+            "lines": lead.lines.all(),
             "score": compute_lead_score(lead),
             "whatsapp_link": whatsapp_contact_link(lead),
             "error": error,

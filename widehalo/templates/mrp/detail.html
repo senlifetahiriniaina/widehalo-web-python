@@ -27,13 +27,305 @@
 
   <h2>{% trans "Composants planifies" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte consommee" %}</th><th>{% trans "Statut" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte consommee" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Approvisionnement" %}</th><th></th></tr></thead>
     <tbody>
       {% for component in components %}
-        <tr><td>{{ component.variant_id }}</td><td>{{ component.qty_planned }}</td><td>{{ component.qty_consumed }}</td><td>{{ component.state }}</td></tr>
+        {% with proc_state=component.procurement_state %}
+        <tr>
+          <td>{{ component.variant_id }}</td>
+          <td>{{ component.qty_planned }}</td>
+          <td>{{ component.qty_consumed }}</td>
+          <td>{{ component.state }}</td>
+          <td>{% if proc_state %}{{ proc_state.get_state_display }}{% else %}{% trans "A commander" %}{% endif %}</td>
+          <td>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="component_id" value="{{ component.id }}">
+              {% if not proc_state or proc_state.state == "a_commander" %}
+                <button type="submit" name="action" value="request_sample">{% trans "Demander echantillon" %}</button>
+                <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
+              {% elif proc_state.state == "echantillon_demande" %}
+                <button type="submit" name="action" value="evaluate_sample">{% trans "Evaluer echantillon" %}</button>
+              {% elif proc_state.state == "echantillon_evalue" %}
+                <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
+              {% elif proc_state.state == "fournisseur_valide" %}
+                <button type="submit" name="action" value="place_order">{% trans "Commander" %}</button>
+              {% elif proc_state.state == "commande" %}
+                <button type="submit" name="action" value="receive_component">{% trans "Receptionner" %}</button>
+                <button type="submit" name="action" value="declare_shortage">{% trans "Declarer rupture" %}</button>
+              {% elif proc_state.state == "recue" %}
+                <button type="submit" name="action" value="quality_control_component">{% trans "Controle qualite" %}</button>
+              {% elif proc_state.state == "controle_qualite" %}
+                <button type="submit" name="action" value="approve_component">{% trans "Approuver" %}</button>
+                <button type="submit" name="action" value="reject_component">{% trans "Rejeter" %}</button>
+              {% elif proc_state.state == "disponible" %}
+                <button type="submit" name="action" value="start_production_component">{% trans "Mettre en production" %}</button>
+              {% elif proc_state.state == "en_production" %}
+                <button type="submit" name="action" value="consume_component">{% trans "Consommer" %}</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+        {% endwith %}
       {% empty %}
-        <tr><td colspan="4">{% trans "Aucun composant." %}</td></tr>
+        <tr><td colspan="6">{% trans "Aucun composant." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <h2>{% trans "Ordres de travail" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Sequence" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte faite" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for wo in work_orders %}
+        <tr>
+          <td>{{ wo.sequence }}</td>
+          <td>{{ wo.workcenter }}</td>
+          <td>{{ wo.qty_planned }}</td>
+          <td>{{ wo.qty_done }}</td>
+          <td>{{ wo.get_state_display }}</td>
+          <td>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="work_order_id" value="{{ wo.id }}">
+              {% if wo.state == "pending" or wo.state == "paused" %}
+                <button type="submit" name="action" value="start_work_order">{% trans "Demarrer" %}</button>
+              {% endif %}
+              {% if wo.state == "in_progress" %}
+                <button type="submit" name="action" value="pause_work_order">{% trans "Pause" %}</button>
+                <input type="number" name="wo_qty_done" placeholder="{% trans 'Qte faite' %}" step="0.0001" style="width:6em;">
+                <input type="number" name="wo_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;">
+                <button type="submit" name="action" value="done_work_order">{% trans "Terminer" %}</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun ordre de travail." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Creer un ordre de travail" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_work_order">
+    <div class="form-field">
+      <label for="workcenter_id">{% trans "Poste de charge" %}</label>
+      <select id="workcenter_id" name="workcenter_id" required>
+        {% for wc in workcenters %}<option value="{{ wc.id }}">{{ wc }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="wo_sequence">{% trans "Sequence" %}</label>
+      <input id="wo_sequence" type="number" name="wo_sequence" value="0">
+    </div>
+    <div class="form-field">
+      <label for="wo_qty_planned">{% trans "Quantite planifiee" %}</label>
+      <input id="wo_qty_planned" type="number" name="wo_qty_planned" step="0.0001" value="0">
+    </div>
+    <div class="form-field">
+      <label for="wo_duration_planned_min">{% trans "Duree planifiee (min)" %}</label>
+      <input id="wo_duration_planned_min" type="number" name="wo_duration_planned_min" value="0">
+    </div>
+    <button type="submit">{% trans "Creer l'ordre de travail" %}</button>
+  </form>
+
+  <h2>{% trans "Sous-traitance" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Partenaire (UUID)" %}</th><th>{% trans "Qte envoyee" %}</th><th>{% trans "Qte recue" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for sub in subcontract_orders %}
+        <tr>
+          <td>{{ sub.partner_id }}</td>
+          <td>{{ sub.qty }}</td>
+          <td>{{ sub.qty_received }}</td>
+          <td>{{ sub.get_state_display }}</td>
+          <td>
+            {% if sub.state == "sent" %}
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="subcontract_id" value="{{ sub.id }}">
+              <input type="number" name="sub_qty_received" placeholder="{% trans 'Qte recue' %}" step="0.0001" style="width:6em;">
+              <input type="number" name="sub_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;">
+              <button type="submit" name="action" value="receive_subcontract">{% trans "Receptionner" %}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune sous-traitance." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Envoyer en sous-traitance" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_subcontract">
+    <div class="form-field">
+      <label for="partner_id">{% trans "Partenaire (UUID)" %}</label>
+      <input id="partner_id" type="text" name="partner_id" required>
+    </div>
+    <div class="form-field">
+      <label for="sub_qty">{% trans "Quantite" %}</label>
+      <input id="sub_qty" type="number" name="sub_qty" step="0.0001" value="0">
+    </div>
+    <div class="form-field">
+      <label for="price_unit">{% trans "Prix unitaire" %}</label>
+      <input id="price_unit" type="number" name="price_unit" step="0.0001" value="0">
+    </div>
+    <button type="submit">{% trans "Envoyer" %}</button>
+  </form>
+
+  <h2>{% trans "Comptes rendus d'activite (CRA)" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Employe" %}</th><th>{% trans "Date" %}</th><th>{% trans "Heures" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for cra in cra_entries %}
+        <tr>
+          <td>{{ cra.employee }}</td>
+          <td>{{ cra.date }}</td>
+          <td>{{ cra.hours }}</td>
+          <td>{{ cra.get_state_display }}</td>
+          <td>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="cra_id" value="{{ cra.id }}">
+              {% if cra.state == "draft" %}
+                <button type="submit" name="action" value="submit_cra">{% trans "Soumettre" %}</button>
+              {% elif cra.state == "submitted" %}
+                <button type="submit" name="action" value="validate_cra">{% trans "Valider" %}</button>
+                <button type="submit" name="action" value="reject_cra">{% trans "Rejeter" %}</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun CRA." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Declarer un CRA" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_cra">
+    <div class="form-field">
+      <label for="cra_workshop_id">{% trans "Atelier" %}</label>
+      <select id="cra_workshop_id" name="cra_workshop_id" required>
+        {% for ws in workshops %}<option value="{{ ws.id }}">{{ ws }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cra_date">{% trans "Date" %}</label>
+      <input id="cra_date" type="date" name="cra_date">
+    </div>
+    <div class="form-field">
+      <label for="cra_hours">{% trans "Heures" %}</label>
+      <input id="cra_hours" type="number" name="cra_hours" step="0.01" value="0">
+    </div>
+    <div class="form-field">
+      <label for="cra_qty_done">{% trans "Quantite faite" %}</label>
+      <input id="cra_qty_done" type="number" name="cra_qty_done" step="0.0001" value="0">
+    </div>
+    <div class="form-field">
+      <label for="cra_activity_type">{% trans "Type d'activite" %}</label>
+      <input id="cra_activity_type" type="text" name="cra_activity_type">
+    </div>
+    <button type="submit">{% trans "Declarer" %}</button>
+  </form>
+
+  <h2>{% trans "Comptes rendus d'intervention (CRI)" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Date" %}</th><th>{% trans "Duree (min)" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for cri in cri_entries %}
+        <tr>
+          <td>{{ cri.get_type_display }}</td>
+          <td>{{ cri.date }}</td>
+          <td>{{ cri.duration_min }}</td>
+          <td>{{ cri.get_state_display }}</td>
+          <td>
+            {% if cri.state == "draft" %}
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="cri_id" value="{{ cri.id }}">
+              <button type="submit" name="action" value="close_cri">{% trans "Cloturer" %}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun CRI." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Declarer un CRI" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_cri">
+    <div class="form-field">
+      <label for="cri_workcenter_id">{% trans "Poste de charge" %}</label>
+      <select id="cri_workcenter_id" name="cri_workcenter_id" required>
+        {% for wc in workcenters %}<option value="{{ wc.id }}">{{ wc }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cri_type">{% trans "Type" %}</label>
+      <select id="cri_type" name="cri_type">
+        <option value="panne">{% trans "Panne" %}</option>
+        <option value="reglage">{% trans "Reglage" %}</option>
+        <option value="incident_qualite">{% trans "Incident qualite" %}</option>
+        <option value="formation">{% trans "Formation" %}</option>
+        <option value="audit">{% trans "Audit" %}</option>
+        <option value="maintenance">{% trans "Maintenance" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cri_date">{% trans "Date" %}</label>
+      <input id="cri_date" type="date" name="cri_date">
+    </div>
+    <div class="form-field">
+      <label for="cri_duration_min">{% trans "Duree (min)" %}</label>
+      <input id="cri_duration_min" type="number" name="cri_duration_min" value="0">
+    </div>
+    <div class="form-field">
+      <label for="cri_downtime_min">{% trans "Duree d'arret (min)" %}</label>
+      <input id="cri_downtime_min" type="number" name="cri_downtime_min" value="0">
+    </div>
+    <div class="form-field">
+      <label for="cri_description">{% trans "Description" %}</label>
+      <input id="cri_description" type="text" name="cri_description">
+    </div>
+    <button type="submit">{% trans "Declarer" %}</button>
+  </form>
+
+  <h2>{% trans "Rebuts" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Quantite" %}</th><th>{% trans "Motif" %}</th><th>{% trans "Date" %}</th><th>{% trans "Declare par" %}</th></tr></thead>
+    <tbody>
+      {% for scrap in scraps %}
+        <tr><td>{{ scrap.qty }}</td><td>{{ scrap.reason }}</td><td>{{ scrap.date }}</td><td>{{ scrap.declared_by }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun rebut." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Declarer un rebut" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_scrap">
+    <div class="form-field">
+      <label for="scrap_qty">{% trans "Quantite" %}</label>
+      <input id="scrap_qty" type="number" name="scrap_qty" step="0.0001" value="0">
+    </div>
+    <div class="form-field">
+      <label for="scrap_reason">{% trans "Motif" %}</label>
+      <input id="scrap_reason" type="text" name="scrap_reason" required>
+    </div>
+    <button type="submit">{% trans "Declarer" %}</button>
+  </form>
 {% endblock %}

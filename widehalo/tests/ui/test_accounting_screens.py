@@ -75,3 +75,85 @@ def test_invoice_list_screen_renders(accounting_screens_setup) -> None:
     client, _tenant, _journal, _receivable, _income = accounting_screens_setup
     response = client.get("/accounting/")
     assert response.status_code == 200
+
+
+def _posted_invoice_for_payment(client, tenant, journal, receivable, income):
+    from apps.accounting.models import AccJournal, AccMove
+    from apps.accounting.services.invoices import (
+        ensure_default_approval_thresholds,
+        validate_invoice,
+    )
+    from apps.core.models.user import User
+    from apps.core.tests.utils import use_tenant
+    from django.contrib.auth.models import Group, Permission
+
+    with use_tenant(tenant.id):
+        bank_journal = AccJournal.objects.create(
+            tenant=tenant, code="BQ", name="Banque", type=AccJournal.TYPE_BANK, sequence_prefix="BQ"
+        )
+        bank_account = AccAccount.objects.create(
+            tenant=tenant, code="512000", name="Banque", account_class="5", type="bank"
+        )
+        gain = AccAccount.objects.create(
+            tenant=tenant, code="766000", name="Gains de change", account_class="7", type="income"
+        )
+        loss = AccAccount.objects.create(
+            tenant=tenant, code="666000", name="Pertes de change", account_class="6", type="expense"
+        )
+        ensure_default_approval_thresholds(tenant)
+        comptable = User.objects.create_user(
+            email="ui-acc-comptable@example.com", password="Str0ngPassw0rd!23"
+        )
+        group, _ = Group.objects.get_or_create(name="comptable")
+        permission = Permission.objects.get(
+            codename="validate_accmove", content_type__app_label="accounting"
+        )
+        group.permissions.add(permission)
+        comptable.groups.add(group)
+
+    create_response = client.post(
+        "/accounting/new/",
+        {
+            "journal_id": str(journal.id),
+            "date": "2026-01-15",
+            "receivable_account_id": str(receivable.id),
+            "income_account_id": str(income.id),
+            "label": "Vente tissus",
+            "amount": "1000",
+        },
+    )
+    assert create_response.status_code == 302
+    invoice_id = create_response.url.rstrip("/").split("/")[-1]
+
+    with use_tenant(tenant.id):
+        invoice = AccMove.objects.get(id=invoice_id)
+        validate_invoice(invoice, comptable)
+
+    return invoice_id, bank_journal, bank_account, gain, loss
+
+
+def test_invoice_payment_registration_shows_allocation(accounting_screens_setup) -> None:
+    client, tenant, journal, receivable, income = accounting_screens_setup
+    invoice_id, bank_journal, bank_account, gain, loss = _posted_invoice_for_payment(
+        client, tenant, journal, receivable, income
+    )
+
+    payment_response = client.post(
+        f"/accounting/{invoice_id}/",
+        {
+            "action": "register_payment",
+            "payment_journal_id": str(bank_journal.id),
+            "cash_account_id": str(bank_account.id),
+            "gain_account_id": str(gain.id),
+            "loss_account_id": str(loss.id),
+            "payment_amount": "1000",
+            "payment_date": "2026-01-20",
+            "method": "virement",
+        },
+    )
+    assert payment_response.status_code == 302
+
+    detail = client.get(f"/accounting/{invoice_id}/")
+    assert detail.status_code == 200
+    assert b"virement" in detail.content.lower() or b"Virement" in detail.content
+    assert b"1000" in detail.content

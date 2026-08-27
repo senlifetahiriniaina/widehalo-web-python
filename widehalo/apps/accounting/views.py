@@ -17,13 +17,21 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
-from apps.accounting.models import AccAccount, AccJournal, AccMove, AccPeriod
+from apps.accounting.models import (
+    AccAccount,
+    AccJournal,
+    AccMove,
+    AccPayment,
+    AccPaymentAllocation,
+    AccPeriod,
+)
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     cancel_invoice,
     create_invoice,
     validate_invoice,
 )
+from apps.accounting.services.payments import register_payment
 from apps.core.models.audit import AuditLog
 from apps.core.models.document import Document
 from apps.core.models.user import User
@@ -66,7 +74,34 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
                 validate_invoice(invoice, user)
             elif action == "cancel":
                 cancel_invoice(invoice, user, motif=request.POST.get("motif", ""))
-        except (ApprovalRequiredError, ValidationError) as exc:
+            elif action == "register_payment":
+                period = (
+                    AccPeriod.objects.filter(tenant=invoice.tenant, state=AccPeriod.STATE_OPEN)
+                    .order_by("date_start")
+                    .first()
+                )
+                if period is None:
+                    raise ValidationError(_("Aucune periode ouverte pour cet exercice."))
+                payment_journal = get_object_or_404(
+                    AccJournal, id=request.POST.get("payment_journal_id")
+                )
+                cash_account = get_object_or_404(AccAccount, id=request.POST.get("cash_account_id"))
+                gain_account = get_object_or_404(AccAccount, id=request.POST.get("gain_account_id"))
+                loss_account = get_object_or_404(AccAccount, id=request.POST.get("loss_account_id"))
+                register_payment(
+                    invoice=invoice,
+                    period=period,
+                    journal=payment_journal,
+                    cash_account=cash_account,
+                    gain_account=gain_account,
+                    loss_account=loss_account,
+                    date=date.fromisoformat(
+                        request.POST.get("payment_date") or date.today().isoformat()
+                    ),
+                    amount=Decimal(request.POST.get("payment_amount") or "0"),
+                    method=request.POST.get("method", AccPayment.METHOD_TRANSFER),
+                )
+        except (ApprovalRequiredError, ValidationError, InvalidOperation) as exc:
             error = str(exc)
         else:
             return redirect("accounting:detail", invoice_id=invoice.id)
@@ -85,6 +120,13 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
         content_type=content_type, object_id=str(invoice.id)
     ).order_by("-created_at")[:20]
     documents = Document.objects.filter(content_type=content_type, object_id=str(invoice.id))
+    payment_journals = AccJournal.objects.filter(
+        tenant=invoice.tenant, type__in=[AccJournal.TYPE_BANK, AccJournal.TYPE_CASH]
+    )
+    accounts = AccAccount.objects.filter(tenant=invoice.tenant, is_active=True)
+    allocations = AccPaymentAllocation.objects.filter(move_line__move=invoice).select_related(
+        "payment", "move_line"
+    )
 
     return render(
         request,
@@ -94,7 +136,12 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
             "lines": invoice.lines.all(),
             "audit_entries": audit_entries,
             "documents": documents,
+            "payment_journals": payment_journals,
+            "accounts": accounts,
+            "payment_methods": AccPayment.METHOD_CHOICES,
+            "allocations": allocations,
             "error": error,
+            "today": date.today(),
         },
     )
 

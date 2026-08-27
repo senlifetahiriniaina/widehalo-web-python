@@ -20,11 +20,177 @@
   <h2>{% trans "Pieces" %}</h2>
   <ul>
     {% for piece in pieces %}
-      <li>{{ piece.code }} — {{ piece.name }}</li>
+      <li>
+        {{ piece.code }} — {{ piece.name }}
+        <ul>
+          {% for geometry in piece.geometries.all %}
+            <li>{% trans "Geometrie" %} {{ geometry.size }} — {% trans "surface" %} {{ geometry.area_cm2 }} cm2</li>
+          {% empty %}
+            <li>{% trans "Aucune geometrie." %}</li>
+          {% endfor %}
+        </ul>
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="generate_geometry">
+          <input type="hidden" name="piece_id" value="{{ piece.id }}">
+          <div class="form-field">
+            <label for="geom_size_{{ piece.id }}">{% trans "Taille" %}</label>
+            <select id="geom_size_{{ piece.id }}" name="size" required>
+              {% for size in pattern.size_chart.sizes %}
+                <option value="{{ size }}">{{ size }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% for code in geometry_measurement_codes %}
+            <div class="form-field">
+              <label for="geom_{{ code }}_{{ piece.id }}">{{ code }}</label>
+              <input id="geom_{{ code }}_{{ piece.id }}" type="number" step="0.01" name="{{ code }}">
+            </div>
+          {% endfor %}
+          <button type="submit">{% trans "Generer la geometrie" %}</button>
+        </form>
+      </li>
     {% empty %}
       <li>{% trans "Aucune piece." %}</li>
     {% endfor %}
   </ul>
+
+  <h3>{% trans "Ajouter une piece" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_piece">
+    <div class="form-field">
+      <label for="piece_code">{% trans "Code" %}</label>
+      <input id="piece_code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="piece_name">{% trans "Nom" %}</label>
+      <input id="piece_name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="piece_qty">{% trans "Quantite par vetement" %}</label>
+      <input id="piece_qty" type="number" name="qty_per_garment" value="1" min="1">
+    </div>
+    <div class="form-field">
+      <label for="piece_material_variant_id">{% trans "Matiere (UUID)" %}</label>
+      <input id="piece_material_variant_id" type="text" name="material_variant_id">
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+
+  <h2>{% trans "Consommation matiere" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Taille" %}</th><th>{% trans "Matiere" %}</th><th>{% trans "Metrage" %}</th></tr></thead>
+    <tbody>
+      {% for consumption in consumptions %}
+        <tr><td>{{ consumption.size }}</td><td>{{ consumption.material_variant_id }}</td><td>{{ consumption.length_m }} m</td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune consommation calculee." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Calculer la consommation" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="compute_consumption">
+    <div class="form-field">
+      <label for="cons_size">{% trans "Taille" %}</label>
+      <select id="cons_size" name="size" required>
+        {% for size in pattern.size_chart.sizes %}
+          <option value="{{ size }}">{{ size }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cons_material_variant_id">{% trans "Matiere (UUID)" %}</label>
+      <input id="cons_material_variant_id" type="text" name="material_variant_id" required>
+    </div>
+    <div class="form-field">
+      <label for="cons_width_cm">{% trans "Laize (cm)" %}</label>
+      <input id="cons_width_cm" type="number" step="0.01" name="width_cm" required>
+    </div>
+    <div class="form-field">
+      <label for="cons_waste_pct">{% trans "Taux de chute (%)" %}</label>
+      <input id="cons_waste_pct" type="number" step="0.01" name="waste_pct" value="0">
+    </div>
+    <button type="submit">{% trans "Calculer" %}</button>
+  </form>
+
+  <h2>{% trans "Plan de coupe" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Laize" %}</th><th>{% trans "Ratio de tailles" %}</th><th>{% trans "Metrage" %}</th></tr></thead>
+    <tbody>
+      {% for marker in markers %}
+        <tr><td>{{ marker.fabric_width_cm }}</td><td>{{ marker.size_ratio }}</td><td>{{ marker.length_m }} m</td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun plan de coupe calcule." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Calculer le plan de coupe" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="compute_marker">
+    <div class="form-field">
+      <label for="marker_material_variant_id">{% trans "Matiere (UUID)" %}</label>
+      <input id="marker_material_variant_id" type="text" name="material_variant_id" required>
+    </div>
+    <div class="form-field">
+      <label for="marker_fabric_width_cm">{% trans "Laize (cm)" %}</label>
+      <input id="marker_fabric_width_cm" type="number" step="0.01" name="fabric_width_cm" required>
+    </div>
+    <div class="form-field">
+      <label for="marker_size_ratio">{% trans "Ratio de tailles (ex: S:2,M:3)" %}</label>
+      <input id="marker_size_ratio" type="text" name="size_ratio" required>
+    </div>
+    <button type="submit">{% trans "Calculer" %}</button>
+  </form>
+
+  <h3>{% trans "Pousser vers une nomenclature" %}</h3>
+  <form method="post" style="display:inline-block; margin-right:1em;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="push_to_bom">
+    <div class="form-field">
+      <label for="push_bom_id">{% trans "Nomenclature (UUID)" %}</label>
+      <input id="push_bom_id" type="text" name="bom_id" required>
+    </div>
+    <div class="form-field">
+      <label for="push_material_variant_id">{% trans "Matiere (UUID)" %}</label>
+      <input id="push_material_variant_id" type="text" name="material_variant_id" required>
+    </div>
+    <button type="submit">{% trans "Pousser" %}</button>
+  </form>
+  <form method="post" style="display:inline-block;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="revert_push_to_bom">
+    <div class="form-field">
+      <label for="revert_bom_id">{% trans "Nomenclature (UUID)" %}</label>
+      <input id="revert_bom_id" type="text" name="bom_id" required>
+    </div>
+    <div class="form-field">
+      <label for="revert_material_variant_id">{% trans "Matiere (UUID)" %}</label>
+      <input id="revert_material_variant_id" type="text" name="material_variant_id" required>
+    </div>
+    <button type="submit">{% trans "Retirer" %}</button>
+  </form>
+
+  <h2>{% trans "Nouvelle version" %}</h2>
+  <h3>{% trans "Apercu d'impact (ECO)" %}</h3>
+  {% if impacted_boms %}
+    <ul>
+      {% for bom in impacted_boms %}
+        <li>{{ bom.code }} v{{ bom.version }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>{% trans "Aucune nomenclature active impactee." %}</p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="new_version">{% trans "Creer une nouvelle version" %}</button>
+  </form>
 
   <h2>{% trans "Mesures gradees" %}</h2>
   {% if graded %}

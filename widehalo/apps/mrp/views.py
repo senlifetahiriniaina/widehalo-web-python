@@ -7,28 +7,52 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from typing import cast
+from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from apps.core.models.user import User
+from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.mrp.models import MrpBom, MrpOrder, MrpWorkshop
+from apps.mrp.models import (
+    MrpBom,
+    MrpCra,
+    MrpCri,
+    MrpOrder,
+    MrpOrderComponent,
+    MrpSubcontractOrder,
+    MrpWorkcenter,
+    MrpWorkOrder,
+    MrpWorkshop,
+)
+from apps.mrp.services import procurement
+from apps.mrp.services.cra import create_cra, reject_cra, submit_cra, validate_cra
+from apps.mrp.services.interventions import close_cri, create_cri, declare_scrap
 from apps.mrp.services.orders import (
     cancel_order,
     close_order,
     confirm_order,
     create_order,
+    create_work_order,
+    done_work_order,
     finish_order,
+    pause_work_order,
+    receive_from_subcontractor,
     reserve_order,
     resume_order,
     send_to_quality_control,
+    send_to_subcontractor,
     start_order,
+    start_work_order,
     suspend_order,
 )
+from apps.mrp.services.procurement import get_or_create_procurement_state
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -50,6 +74,24 @@ _ACTIONS = {
     "cancel": lambda order, user, post: cancel_order(order, user, reason=post.get("reason", "")),
 }
 
+# MrpBomLineState (MRP-FSM1) : suivi d'approvisionnement PAR COMPOSANT
+# d'ordre (order_component = OneToOneField(MrpOrderComponent)), independant
+# de `MrpOrder.state` — boutons places sur la ligne du composant concerne
+# dans le tableau des composants planifies.
+_PROCUREMENT_ACTIONS = {
+    "request_sample": procurement.request_sample,
+    "evaluate_sample": procurement.evaluate_sample,
+    "validate_supplier": procurement.validate_supplier,
+    "place_order": procurement.order,
+    "receive_component": procurement.receive,
+    "declare_shortage": procurement.declare_shortage,
+    "quality_control_component": procurement.send_to_quality_control,
+    "approve_component": procurement.approve,
+    "reject_component": procurement.reject,
+    "start_production_component": procurement.start_production,
+    "consume_component": procurement.consume,
+}
+
 
 @login_required
 def order_list(request: HttpRequest) -> HttpResponse:
@@ -64,27 +106,139 @@ def order_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _error_message(exc: Exception) -> str:
+    return "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+
+
 @login_required
 def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
     order = get_object_or_404(MrpOrder, id=order_id)
+    tenant = resolve_tenant(request)
     user = cast(User, request.user)
     error = None
 
     if request.method == "POST":
         action = request.POST.get("action", "")
-        handler = _ACTIONS.get(action)
-        if handler is not None:
-            try:
-                handler(order, user, request.POST)
-            except (ValidationError, InvalidOperation) as exc:
-                error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
-            else:
-                return redirect("mrp:detail", order_id=order.id)
+        post = request.POST
+        try:
+            handler = _ACTIONS.get(action)
+            if handler is not None:
+                handler(order, user, post)
+            elif action == "create_work_order":
+                workcenter = get_object_or_404(MrpWorkcenter, id=post.get("workcenter_id"))
+                create_work_order(
+                    order,
+                    workcenter=workcenter,
+                    qty_planned=Decimal(post.get("wo_qty_planned") or "0"),
+                    sequence=int(post.get("wo_sequence") or "0"),
+                    duration_planned_min=int(post.get("wo_duration_planned_min") or "0"),
+                )
+            elif action == "start_work_order":
+                work_order = get_object_or_404(
+                    MrpWorkOrder, id=post.get("work_order_id"), order=order
+                )
+                start_work_order(work_order, operator=user)
+            elif action == "pause_work_order":
+                work_order = get_object_or_404(
+                    MrpWorkOrder, id=post.get("work_order_id"), order=order
+                )
+                pause_work_order(work_order)
+            elif action == "done_work_order":
+                work_order = get_object_or_404(
+                    MrpWorkOrder, id=post.get("work_order_id"), order=order
+                )
+                done_work_order(
+                    work_order,
+                    qty_done=Decimal(post.get("wo_qty_done") or "0"),
+                    qty_rejected=Decimal(post.get("wo_qty_rejected") or "0"),
+                )
+            elif action == "create_subcontract":
+                send_to_subcontractor(
+                    order,
+                    partner_id=UUID(post.get("partner_id") or ""),
+                    qty=Decimal(post.get("sub_qty") or "0"),
+                    price_unit=Decimal(post.get("price_unit") or "0"),
+                )
+            elif action == "receive_subcontract":
+                subcontract_order = get_object_or_404(
+                    MrpSubcontractOrder, id=post.get("subcontract_id"), order=order
+                )
+                receive_from_subcontractor(
+                    subcontract_order,
+                    qty_received=Decimal(post.get("sub_qty_received") or "0"),
+                    qty_rejected=Decimal(post.get("sub_qty_rejected") or "0"),
+                )
+            elif action == "create_cra":
+                workshop = get_object_or_404(MrpWorkshop, id=post.get("cra_workshop_id"))
+                create_cra(
+                    tenant=tenant,
+                    employee=user,
+                    workshop=workshop,
+                    date=parse_date(post.get("cra_date", "")) or timezone.now().date(),
+                    hours=Decimal(post.get("cra_hours") or "0"),
+                    order=order,
+                    qty_done=Decimal(post.get("cra_qty_done") or "0"),
+                    activity_type=post.get("cra_activity_type", ""),
+                    comment=post.get("cra_comment", ""),
+                )
+            elif action == "submit_cra":
+                cra = get_object_or_404(MrpCra, id=post.get("cra_id"), order=order)
+                submit_cra(cra, user)
+            elif action == "validate_cra":
+                cra = get_object_or_404(MrpCra, id=post.get("cra_id"), order=order)
+                validate_cra(cra, user)
+            elif action == "reject_cra":
+                cra = get_object_or_404(MrpCra, id=post.get("cra_id"), order=order)
+                reject_cra(cra, user)
+            elif action == "create_cri":
+                workcenter = get_object_or_404(MrpWorkcenter, id=post.get("cri_workcenter_id"))
+                create_cri(
+                    tenant=tenant,
+                    type=post.get("cri_type", ""),
+                    workcenter=workcenter,
+                    date=parse_date(post.get("cri_date", "")) or timezone.now().date(),
+                    order=order,
+                    intervenant_user=user,
+                    duration_min=int(post.get("cri_duration_min") or "0"),
+                    description=post.get("cri_description", ""),
+                    downtime_min=int(post.get("cri_downtime_min") or "0"),
+                )
+            elif action == "close_cri":
+                cri = get_object_or_404(MrpCri, id=post.get("cri_id"), order=order)
+                close_cri(cri)
+            elif action == "create_scrap":
+                declare_scrap(
+                    order,
+                    declared_by=user,
+                    qty=Decimal(post.get("scrap_qty") or "0"),
+                    reason=post.get("scrap_reason", ""),
+                )
+            elif action in _PROCUREMENT_ACTIONS:
+                component = get_object_or_404(
+                    MrpOrderComponent, id=post.get("component_id"), order=order
+                )
+                state = get_or_create_procurement_state(component)
+                _PROCUREMENT_ACTIONS[action](state, user)
+        except (ValidationError, InvalidOperation, ValueError, TransitionPermissionError) as exc:
+            error = _error_message(exc)
+        else:
+            return redirect("mrp:detail", order_id=order.id)
 
     return render(
         request,
         "mrp/detail.html",
-        {"order": order, "components": order.components.all(), "error": error},
+        {
+            "order": order,
+            "components": order.components.select_related("procurement_state").all(),
+            "work_orders": order.work_orders.select_related("workcenter").all(),
+            "workcenters": MrpWorkcenter.objects.filter(tenant=tenant, is_active=True),
+            "subcontract_orders": order.subcontract_orders.all(),
+            "cra_entries": order.cra_entries.select_related("employee").all(),
+            "workshops": MrpWorkshop.objects.filter(tenant=tenant, is_active=True),
+            "cri_entries": order.cri_entries.all(),
+            "scraps": order.scraps.all(),
+            "error": error,
+        },
     )
 
 

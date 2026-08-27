@@ -33,6 +33,43 @@
       <p>{% trans "Montant attendu" %}: {{ lead.expected_revenue_mga }} MGA</p>
       <p>{% trans "Probabilite" %}: {{ lead.probability }}%</p>
 
+      <h2>{% trans "Lignes" %}</h2>
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th>{% trans "Designation" %}</th>
+            <th>{% trans "Qte" %}</th>
+            <th>{% trans "Prix unitaire" %}</th>
+            <th>{% trans "Remise %" %}</th>
+            <th>{% trans "Sous-total" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+            <tr>
+              <td>{{ line.description }}{% if line.is_custom %} ({% trans "hors catalogue" %}){% endif %}</td>
+              <td>{{ line.qty }}</td>
+              <td>{{ line.unit_price }}</td>
+              <td>{{ line.discount_pct }}</td>
+              <td>{{ line.subtotal }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">{% trans "Aucune ligne." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_line">
+        <input type="text" name="variant_id" placeholder="{% trans 'UUID article (optionnel)' %}">
+        <input type="text" name="description" placeholder="{% trans 'Designation' %}" required>
+        <input type="number" step="0.0001" name="qty" placeholder="{% trans 'Quantite' %}" value="1">
+        <input type="number" step="0.0001" name="unit_price" placeholder="{% trans 'Prix unitaire' %}">
+        <input type="number" step="0.01" name="discount_pct" placeholder="{% trans 'Remise %' %}" value="0">
+        <label><input type="checkbox" name="is_custom" value="1"> {% trans "Hors catalogue" %}</label>
+        <button type="submit">{% trans "Ajouter la ligne" %}</button>
+      </form>
+
       <h2>{% trans "Chronologie des activites" %}</h2>
       <ul>
         {% for activity in activities %}

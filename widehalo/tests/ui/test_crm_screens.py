@@ -58,3 +58,49 @@ def test_lead_list_screen_renders(crm_screens_setup) -> None:
     client, _tenant, _lead = crm_screens_setup
     response = client.get("/crm/")
     assert response.status_code == 200
+
+
+def test_lead_detail_add_line_shows_in_table(crm_screens_setup) -> None:
+    client, _tenant, lead = crm_screens_setup
+
+    response = client.post(
+        f"/crm/{lead.id}/",
+        {
+            "action": "add_line",
+            "description": "Uniforme brode",
+            "qty": "3",
+            "unit_price": "15000",
+            "discount_pct": "5",
+        },
+    )
+    assert response.status_code == 302
+
+    detail = client.get(f"/crm/{lead.id}/")
+    assert detail.status_code == 200
+    assert b"Uniforme brode" in detail.content
+
+
+def test_lead_detail_line_above_discount_threshold_requires_approval(crm_screens_setup) -> None:
+    from django.contrib.auth.models import Group
+
+    client, tenant, lead = crm_screens_setup
+    with use_tenant(tenant.id):
+        group, _ = Group.objects.get_or_create(name="commercial")
+        user = User.objects.get(email="ui-crm@example.com")
+        user.groups.add(group)
+
+    response = client.post(
+        f"/crm/{lead.id}/",
+        {
+            "action": "add_line",
+            "description": "Combinaison sur mesure",
+            "qty": "1",
+            "unit_price": "50000",
+            "discount_pct": "40",
+        },
+    )
+    assert response.status_code == 200
+    assert b"validation" in response.content.lower() or b"approbat" in response.content.lower()
+
+    detail = client.get(f"/crm/{lead.id}/")
+    assert b"Combinaison sur mesure" in detail.content
