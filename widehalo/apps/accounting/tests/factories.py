@@ -26,6 +26,9 @@ from apps.accounting.models import (
     AccAnalyticAccount,
     AccAnalyticLine,
     AccAnalyticPlan,
+    AccAsset,
+    AccAssetDepreciation,
+    AccAssetMovement,
     AccExchangeRate,
     AccFiscalYear,
     AccJournal,
@@ -36,6 +39,7 @@ from apps.accounting.models import (
     AccPaymentTerm,
     AccPaymentTermLine,
     AccPeriod,
+    AccProvision,
     AccTax,
     AccTaxCalendar,
 )
@@ -213,3 +217,54 @@ class AccAnalyticLineFactory(factory.django.DjangoModelFactory):
     move_line = factory.SubFactory(AccMoveLineFactory, tenant=factory.SelfAttribute("..tenant"))
     date = datetime.date(2026, 1, 15)
     amount = Decimal("50.0000")
+
+
+class AccAssetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAsset
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"IMMO-{n}")
+    category = AccAsset.CATEGORY_CORPORELLE
+    label = factory.Sequence(lambda n: f"Immobilisation {n}")
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+    acquisition_date = datetime.date(2026, 1, 1)
+    acquisition_value_mga = Decimal("1000000.0000")
+    depreciation_method = AccAsset.METHOD_LINEAIRE
+    useful_life_years = 5
+
+
+class AccAssetMovementFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAssetMovement
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    asset = factory.SubFactory(AccAssetFactory, tenant=factory.SelfAttribute("..tenant"))
+    movement_type = AccAssetMovement.MOVEMENT_ACQUISITION
+    date = datetime.date(2026, 1, 1)
+    amount_mga = Decimal("1000000.0000")
+
+
+class AccAssetDepreciationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAssetDepreciation
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    asset = factory.SubFactory(AccAssetFactory, tenant=factory.SelfAttribute("..tenant"))
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    opening_accumulated_mga = Decimal("0.0000")
+    annual_dotation_mga = Decimal("200000.0000")
+    closing_accumulated_mga = Decimal("200000.0000")
+
+
+class AccProvisionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccProvision
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"PROV-{n}")
+    nature = factory.Sequence(lambda n: f"Provision {n}")
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    opening_amount_mga = Decimal("0.0000")
+    closing_amount_mga = Decimal("0.0000")

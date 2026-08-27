@@ -46,6 +46,12 @@ def api_ledger():
                 "view_accaccount",
                 "view_accmove",
                 "add_accmove",
+                "view_accasset",
+                "add_accasset",
+                "change_accasset",
+                "add_accassetdepreciation",
+                "view_accprovision",
+                "add_accprovision",
             ],
         )
     )
@@ -130,6 +136,53 @@ def test_list_accounts_via_api(api_ledger) -> None:
     assert response.status_code == 200
     codes = {a["code"] for a in response.json()["results"]}
     assert {"411", "701"} <= codes
+
+
+def test_register_asset_and_fixed_asset_annexes_via_api(api_ledger) -> None:
+    tenant, user, fiscal_year, period, journal, receivable, income = api_ledger
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    with use_tenant(tenant.id):
+        immo_account = AccAccount.objects.create(
+            tenant=tenant, code="2183", name="Materiel", account_class=2, type=AccAccount.TYPE_ASSET
+        )
+
+    create_response = client.post(
+        "/api/v1/accounting/assets",
+        {
+            "category": "corporelle",
+            "label": "Machine API",
+            "account_id": str(immo_account.id),
+            "acquisition_date": "2026-01-01",
+            "acquisition_value_mga": "1000000",
+            "depreciation_method": "lineaire",
+            "useful_life_years": 5,
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    asset_id = create_response.json()["id"]
+    assert create_response.json()["state"] == "active"
+
+    compute_response = client.post(
+        f"/api/v1/accounting/assets/{asset_id}/depreciation/compute",
+        {"fiscal_year_id": str(fiscal_year.id), "post": False},
+        content_type="application/json",
+        **headers,
+    )
+    assert compute_response.status_code == 200
+    assert compute_response.json()["annual_dotation_mga"] == "200000.0000"
+
+    annexes_response = client.get(
+        f"/api/v1/accounting/reports/fixed-asset-annexes?fiscal_year_id={fiscal_year.id}", **headers
+    )
+    assert annexes_response.status_code == 200
+    body = annexes_response.json()
+    expected_keys = {"actif_immobilise", "amortissements", "provisions", "creances_dettes"}
+    assert expected_keys == set(body.keys())
 
 
 def test_invoice_pdf_endpoint_returns_a_pdf(api_ledger) -> None:

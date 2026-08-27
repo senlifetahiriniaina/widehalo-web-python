@@ -11,11 +11,20 @@ from ninja import Router, Schema
 
 from apps.accounting.models import (
     AccAccount,
+    AccAsset,
+    AccFiscalYear,
     AccJournal,
     AccMove,
     AccPayment,
     AccPeriod,
+    AccProvision,
     AccTaxCalendar,
+)
+from apps.accounting.services.assets import (
+    compute_annual_depreciation,
+    dispose_asset,
+    record_provision_movement,
+    register_asset,
 )
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
@@ -30,6 +39,7 @@ from apps.accounting.services.reports import (
     balance_sheet,
     cash_flow_statement,
     equity_variation_statement,
+    fixed_asset_annexes,
     general_ledger,
     income_statement,
     income_statement_by_function,
@@ -67,6 +77,40 @@ class TaxCalendarIn(Schema):
     due_date: dt.date
     periodicity: str
     is_recurring_template: bool = False
+
+
+class AssetIn(Schema):
+    category: str
+    label: str
+    account_id: str
+    acquisition_date: dt.date
+    acquisition_value_mga: Decimal
+    depreciation_method: str
+    useful_life_years: int
+    residual_value_mga: Decimal = Decimal(0)
+
+
+class AssetDisposeIn(Schema):
+    disposal_date: dt.date
+    disposal_value_mga: Decimal
+
+
+class AssetDepreciationComputeIn(Schema):
+    fiscal_year_id: str
+    post: bool = False
+    journal_id: str | None = None
+    period_id: str | None = None
+    dotation_account_id: str | None = None
+    accumulated_depreciation_account_id: str | None = None
+
+
+class ProvisionIn(Schema):
+    nature: str
+    account_id: str
+    fiscal_year_id: str
+    opening_amount_mga: Decimal = Decimal(0)
+    dotation_mga: Decimal = Decimal(0)
+    reprise_mga: Decimal = Decimal(0)
 
 
 class RegisterPaymentIn(Schema):
@@ -465,3 +509,170 @@ def aged_payables_endpoint(request, as_of_date: dt.date | None = None, format: s
     rows = aged_payables(as_of_date)
     data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
     return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+# ---------------------------------------------------------------------------
+# A10 — Immobilisations, amortissements, provisions (ACC-ANNEXE1)
+# ---------------------------------------------------------------------------
+
+
+def _serialize_asset(asset: AccAsset) -> dict:
+    return {
+        "id": str(asset.id),
+        "reference": asset.reference,
+        "category": asset.category,
+        "label": asset.label,
+        "account_id": str(asset.account_id),
+        "acquisition_date": asset.acquisition_date.isoformat(),
+        "acquisition_value_mga": str(asset.acquisition_value_mga),
+        "depreciation_method": asset.depreciation_method,
+        "useful_life_years": asset.useful_life_years,
+        "residual_value_mga": str(asset.residual_value_mga),
+        "disposal_date": asset.disposal_date.isoformat() if asset.disposal_date else None,
+        "disposal_value_mga": (
+            str(asset.disposal_value_mga) if asset.disposal_value_mga is not None else None
+        ),
+        "state": asset.state,
+    }
+
+
+def _serialize_provision(provision: AccProvision) -> dict:
+    return {
+        "id": str(provision.id),
+        "reference": provision.reference,
+        "nature": provision.nature,
+        "account_id": str(provision.account_id),
+        "fiscal_year_id": str(provision.fiscal_year_id),
+        "opening_amount_mga": str(provision.opening_amount_mga),
+        "dotation_mga": str(provision.dotation_mga),
+        "reprise_mga": str(provision.reprise_mga),
+        "closing_amount_mga": str(provision.closing_amount_mga),
+    }
+
+
+@router.get("/accounting/assets")
+@require_permission("accounting.view_accasset")
+def list_assets_endpoint(request):
+    assets = AccAsset.objects.all().order_by("-acquisition_date")
+    return {"results": [_serialize_asset(a) for a in assets]}
+
+
+@router.post("/accounting/assets")
+@require_permission("accounting.add_accasset")
+def register_asset_endpoint(request, payload: AssetIn):
+    account = get_object_or_404(AccAccount, id=payload.account_id)
+    try:
+        asset = register_asset(
+            tenant=account.tenant,
+            category=payload.category,
+            label=payload.label,
+            account=account,
+            acquisition_date=payload.acquisition_date,
+            acquisition_value_mga=payload.acquisition_value_mga,
+            depreciation_method=payload.depreciation_method,
+            useful_life_years=payload.useful_life_years,
+            residual_value_mga=payload.residual_value_mga,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_asset(asset)
+
+
+@router.post("/accounting/assets/{asset_id}/dispose")
+@require_permission("accounting.change_accasset")
+def dispose_asset_endpoint(request, asset_id: str, payload: AssetDisposeIn):
+    asset = get_object_or_404(AccAsset, id=asset_id)
+    try:
+        disposed = dispose_asset(
+            asset,
+            disposal_date=payload.disposal_date,
+            disposal_value_mga=payload.disposal_value_mga,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_asset(disposed)
+
+
+@router.post("/accounting/assets/{asset_id}/depreciation/compute")
+@require_permission("accounting.add_accassetdepreciation")
+def compute_asset_depreciation_endpoint(
+    request, asset_id: str, payload: AssetDepreciationComputeIn
+):
+    asset = get_object_or_404(AccAsset, id=asset_id)
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    journal = get_object_or_404(AccJournal, id=payload.journal_id) if payload.journal_id else None
+    period = get_object_or_404(AccPeriod, id=payload.period_id) if payload.period_id else None
+    dotation_account = (
+        get_object_or_404(AccAccount, id=payload.dotation_account_id)
+        if payload.dotation_account_id
+        else None
+    )
+    accumulated_account = (
+        get_object_or_404(AccAccount, id=payload.accumulated_depreciation_account_id)
+        if payload.accumulated_depreciation_account_id
+        else None
+    )
+    try:
+        entry = compute_annual_depreciation(
+            asset,
+            fiscal_year,
+            post=payload.post,
+            journal=journal,
+            period=period,
+            dotation_account=dotation_account,
+            accumulated_depreciation_account=accumulated_account,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {
+        "id": str(entry.id),
+        "asset_id": str(entry.asset_id),
+        "fiscal_year_id": str(entry.fiscal_year_id),
+        "opening_accumulated_mga": str(entry.opening_accumulated_mga),
+        "annual_dotation_mga": str(entry.annual_dotation_mga),
+        "closing_accumulated_mga": str(entry.closing_accumulated_mga),
+        "move_id": str(entry.move_id) if entry.move_id else None,
+    }
+
+
+@router.get("/accounting/provisions")
+@require_permission("accounting.view_accprovision")
+def list_provisions_endpoint(request):
+    provisions = AccProvision.objects.all().order_by("nature")
+    return {"results": [_serialize_provision(p) for p in provisions]}
+
+
+@router.post("/accounting/provisions")
+@require_permission("accounting.add_accprovision")
+def create_provision_endpoint(request, payload: ProvisionIn):
+    account = get_object_or_404(AccAccount, id=payload.account_id)
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    provision = record_provision_movement(
+        tenant=account.tenant,
+        nature=payload.nature,
+        account=account,
+        fiscal_year=fiscal_year,
+        opening_amount_mga=payload.opening_amount_mga,
+        dotation_mga=payload.dotation_mga,
+        reprise_mga=payload.reprise_mga,
+    )
+    return _serialize_provision(provision)
+
+
+@router.get("/accounting/reports/fixed-asset-annexes")
+@require_permission("accounting.view_accasset")
+def fixed_asset_annexes_endpoint(request, fiscal_year_id: str):
+    """ACC-ANNEXE1 — rapport composite assemblant les 4 annexes fiscales
+    (§1.11 du document annexe). Reserve OECFM : cf. docstring de
+    `services/reports.py::fixed_asset_annexes`.
+
+    Choix de format assume (JSON uniquement, pas de `format=csv/xlsx`) :
+    la structure composite (4 sous-tableaux aux colonnes differentes)
+    s'aplatit mal en un unique fichier tabulaire ; un export CSV/XLSX par
+    sous-annexe individuelle serait la suite naturelle (cf. les endpoints
+    `aged-receivables`/`aged-payables` deja exposes separement pour la 4e
+    sous-annexe "creances_dettes") mais reste hors perimetre de cette etape
+    A10 — a ajouter si un besoin d'export DGI concret se precise (cf.
+    ACC-EXPORT-FISC1, etape A12)."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    return JsonResponse(fixed_asset_annexes(fiscal_year))

@@ -9,7 +9,13 @@ import pdfplumber
 import pytest
 from openpyxl import load_workbook
 
-from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
+from apps.accounting.models import AccAccount, AccAsset, AccFiscalYear, AccJournal, AccPeriod
+from apps.accounting.services.assets import (
+    compute_annual_depreciation,
+    dispose_asset,
+    record_provision_movement,
+    register_asset,
+)
 from apps.accounting.services.invoices import (
     create_invoice,
     ensure_default_approval_thresholds,
@@ -21,6 +27,7 @@ from apps.accounting.services.reports import (
     balance_sheet,
     cash_flow_statement,
     equity_variation_statement,
+    fixed_asset_annexes,
     general_ledger,
     income_statement,
     income_statement_by_function,
@@ -718,3 +725,161 @@ def test_aged_receivables_buckets_by_due_date_offset(bare_ledger) -> None:
         assert rows[partner_a]["un_a_cinq_ans"] == Decimal("200")
         assert rows[partner_a]["total"] == Decimal("300")
         assert rows[partner_b]["plus_de_cinq_ans"] == Decimal("300")
+
+
+# ---------------------------------------------------------------------------
+# A10 — ACC-ANNEXE1 (fixed_asset_annexes)
+# ---------------------------------------------------------------------------
+
+
+def test_fixed_asset_annexes_actif_immobilise_and_amortissements(bare_ledger) -> None:
+    tenant, fiscal_year, period, journal = bare_ledger
+    with use_tenant(tenant.id):
+        immo_account = _make_account(
+            tenant, code="2183", name="Materiel", account_class=2, type=AccAccount.TYPE_ASSET
+        )
+
+        # Actif acquis avant l'exercice (deja dans la valeur brute
+        # d'ouverture) : acquis en 2025, jamais cede.
+        older_asset = register_asset(
+            tenant=tenant,
+            category=AccAsset.CATEGORY_CORPORELLE,
+            label="Machine ancienne",
+            account=immo_account,
+            acquisition_date=dt.date(2025, 1, 1),
+            acquisition_value_mga=Decimal("500000"),
+            depreciation_method=AccAsset.METHOD_LINEAIRE,
+            useful_life_years=5,
+        )
+        compute_annual_depreciation(
+            older_asset,
+            AccFiscalYear.objects.create(
+                tenant=tenant,
+                code="FY2025",
+                date_start=dt.date(2025, 1, 1),
+                date_end=dt.date(2025, 12, 31),
+            ),
+        )
+
+        # Actif acquis DURANT l'exercice.
+        new_asset = register_asset(
+            tenant=tenant,
+            category=AccAsset.CATEGORY_CORPORELLE,
+            label="Machine neuve",
+            account=immo_account,
+            acquisition_date=dt.date(2026, 3, 1),
+            acquisition_value_mga=Decimal("1000000"),
+            depreciation_method=AccAsset.METHOD_LINEAIRE,
+            useful_life_years=5,
+        )
+        compute_annual_depreciation(new_asset, fiscal_year)
+
+        # Actif cede DURANT l'exercice.
+        disposed_asset = register_asset(
+            tenant=tenant,
+            category=AccAsset.CATEGORY_CORPORELLE,
+            label="Machine cedee",
+            account=immo_account,
+            acquisition_date=dt.date(2024, 1, 1),
+            acquisition_value_mga=Decimal("300000"),
+            depreciation_method=AccAsset.METHOD_LINEAIRE,
+            useful_life_years=5,
+        )
+        compute_annual_depreciation(
+            disposed_asset,
+            AccFiscalYear.objects.create(
+                tenant=tenant,
+                code="FY2024",
+                date_start=dt.date(2024, 1, 1),
+                date_end=dt.date(2024, 12, 31),
+            ),
+        )
+        dispose_asset(
+            disposed_asset, disposal_date=dt.date(2026, 6, 30), disposal_value_mga=Decimal("100000")
+        )
+        compute_annual_depreciation(disposed_asset, fiscal_year)
+
+        annexes = fixed_asset_annexes(fiscal_year)
+        actif_row = next(
+            r for r in annexes["actif_immobilise"] if r["categorie"] == AccAsset.CATEGORY_CORPORELLE
+        )
+        # Ouverture = ancienne (500000) + cedee (300000, pas encore cedee au
+        # debut de l'exercice) = 800000.
+        assert actif_row["valeur_brute_debut_exercice"] == Decimal("800000")
+        assert actif_row["acquisitions"] == Decimal("1000000")
+        assert actif_row["cessions_mises_au_rebut"] == Decimal("300000")
+        assert actif_row["valeur_brute_fin_exercice"] == Decimal("1500000")
+
+        amort_row = next(
+            r for r in annexes["amortissements"] if r["categorie"] == AccAsset.CATEGORY_CORPORELLE
+        )
+        # "Amortissements sur sorties" retire le cumul de l'actif cede
+        # durant l'exercice de la colonne cumul fin d'exercice.
+        assert amort_row["amortissements_sur_sorties"] > Decimal("0")
+        assert (
+            amort_row["cumul_fin_exercice"]
+            == amort_row["cumul_debut_exercice"]
+            + amort_row["dotations_de_l_exercice"]
+            - amort_row["amortissements_sur_sorties"]
+        )
+        assert amort_row["valeur_nette_comptable"] == (
+            actif_row["valeur_brute_fin_exercice"] - amort_row["cumul_fin_exercice"]
+        )
+
+
+def test_fixed_asset_annexes_provisions(bare_ledger) -> None:
+    tenant, fiscal_year, period, journal = bare_ledger
+    with use_tenant(tenant.id):
+        provision_account = _make_account(
+            tenant, code="151", name="Provisions", account_class=1, type=AccAccount.TYPE_LIABILITY
+        )
+        record_provision_movement(
+            tenant=tenant,
+            nature="Litige client X",
+            account=provision_account,
+            fiscal_year=fiscal_year,
+            opening_amount_mga=Decimal("100000"),
+            dotation_mga=Decimal("50000"),
+        )
+        record_provision_movement(
+            tenant=tenant,
+            nature="Garantie produits",
+            account=provision_account,
+            fiscal_year=fiscal_year,
+            opening_amount_mga=Decimal("20000"),
+            reprise_mga=Decimal("20000"),
+        )
+
+        annexes = fixed_asset_annexes(fiscal_year)
+        by_nature = {row["nature"]: row for row in annexes["provisions"]}
+        assert by_nature["Litige client X"]["montant_fin_exercice"] == Decimal("150000")
+        assert by_nature["Garantie produits"]["montant_fin_exercice"] == Decimal("0")
+
+
+def test_fixed_asset_annexes_creances_dettes_matches_aged_balances(bare_ledger) -> None:
+    tenant, fiscal_year, period, journal = bare_ledger
+    with use_tenant(tenant.id):
+        receivable = _make_account(
+            tenant, code="411", name="Clients", account_class=4, type=AccAccount.TYPE_RECEIVABLE
+        )
+        income = _make_account(
+            tenant, code="701", name="Ventes", account_class=7, type=AccAccount.TYPE_INCOME
+        )
+        _post_simple_move(
+            tenant,
+            journal,
+            period,
+            dt.date(2026, 6, 1),
+            debit_account=receivable,
+            debit_amount=Decimal("100000"),
+            credit_account=income,
+            credit_amount=Decimal("100000"),
+            due_date=dt.date(2026, 7, 1),
+        )
+
+        annexes = fixed_asset_annexes(fiscal_year)
+        client_row = next(r for r in annexes["creances_dettes"] if r["nature"] == "client")
+        assert client_row["moins_d_un_an"] == Decimal("100000")
+        assert client_row["total"] == Decimal("100000")
+        autre_row = next(r for r in annexes["creances_dettes"] if r["nature"] == "autre")
+        assert autre_row["total"] == Decimal("0")

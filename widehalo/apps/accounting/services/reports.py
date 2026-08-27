@@ -22,7 +22,17 @@ from typing import Any
 
 from django.db.models import Sum
 
-from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccMove, AccMoveLine
+from apps.accounting.models import (
+    AccAccount,
+    AccAsset,
+    AccAssetDepreciation,
+    AccAssetMovement,
+    AccFiscalYear,
+    AccJournal,
+    AccMove,
+    AccMoveLine,
+    AccProvision,
+)
 
 
 def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str = "json") -> bytes:
@@ -837,6 +847,231 @@ def cash_basis_report(fiscal_year: AccFiscalYear, *, mode: str = "recap") -> lis
             row["balance"] = running_balance
         rows.append(row)
     return rows
+
+
+_ASSET_CATEGORY_LABELS: dict[str, str] = dict(AccAsset.CATEGORY_CHOICES)
+
+
+def _actif_immobilise_annex(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:
+    """Colonne "Valeur brute debut exercice" calculee directement depuis
+    `AccAsset` (valeur d'acquisition des immobilisations deja detenues/deja
+    cedees avant le debut de l'exercice), independamment des mouvements —
+    plus robuste qu'une reconstruction par mouvements cumules. Les colonnes
+    de MOUVEMENT DE L'EXERCICE (acquisitions/cessions/virements) sont elles
+    lues depuis `AccAssetMovement` sur la fenetre `[date_start, date_end]`."""
+    categories = [c for c, _label in AccAsset.CATEGORY_CHOICES]
+    opening: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+    for asset in AccAsset.objects.all():
+        if asset.acquisition_date < fiscal_year.date_start:
+            opening[asset.category] += asset.acquisition_value_mga
+        if (
+            asset.state == AccAsset.STATE_DISPOSED
+            and asset.disposal_date is not None
+            and asset.disposal_date < fiscal_year.date_start
+        ):
+            opening[asset.category] -= asset.acquisition_value_mga
+
+    acquisitions: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+    cessions: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+    virements: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+
+    movements = AccAssetMovement.objects.filter(
+        date__gte=fiscal_year.date_start, date__lte=fiscal_year.date_end
+    ).select_related("asset")
+    for movement in movements:
+        category = movement.asset.category
+        if movement.movement_type == AccAssetMovement.MOVEMENT_ACQUISITION:
+            # Par construction (`services/assets.py::register_asset`), le
+            # montant du mouvement d'acquisition EGALE la valeur brute de
+            # l'actif — utilise directement plutot que re-derive.
+            acquisitions[category] += movement.asset.acquisition_value_mga
+        elif movement.movement_type == AccAssetMovement.MOVEMENT_DISPOSAL:
+            # Choix documente : la colonne "cessions" de cette annexe est la
+            # VALEUR BRUTE (cout d'acquisition) qui sort du suivi de l'actif
+            # immobilise — PAS le prix de cession (`movement.amount_mga`,
+            # qui porte `disposal_value_mga`, une donnee de plus-value/
+            # moins-value hors perimetre de cette annexe).
+            cessions[category] += movement.asset.acquisition_value_mga
+        elif movement.movement_type == AccAssetMovement.MOVEMENT_TRANSFER:
+            # Simplification V1 assumee : un virement de poste a poste est
+            # ici algebrique (`amount_mga` tel que saisi), agrege par
+            # categorie de l'actif transfere — `AccAsset.category` etant
+            # fixe par actif (pas reaffecte par le virement lui-meme en
+            # V1), cette colonne reste indicative plutot qu'une reconciliation
+            # stricte entre 2 categories distinctes.
+            virements[category] += movement.amount_mga
+
+    rows = []
+    for category in categories:
+        valeur_brute_debut = opening[category]
+        valeur_brute_fin = (
+            valeur_brute_debut + acquisitions[category] - cessions[category] + virements[category]
+        )
+        rows.append(
+            {
+                "categorie": category,
+                "categorie_label": _ASSET_CATEGORY_LABELS[category],
+                "valeur_brute_debut_exercice": valeur_brute_debut,
+                "acquisitions": acquisitions[category],
+                "cessions_mises_au_rebut": cessions[category],
+                "virements_de_poste_a_poste": virements[category],
+                "valeur_brute_fin_exercice": valeur_brute_fin,
+            }
+        )
+    return rows
+
+
+def _amortissements_annex(
+    fiscal_year: AccFiscalYear, valeur_brute_fin: dict[str, Decimal]
+) -> list[dict[str, Any]]:
+    """`valeur_brute_fin` : valeur brute fin d'exercice par categorie, deja
+    calculee par `_actif_immobilise_annex`, reutilisee ici pour deriver la
+    "Valeur nette comptable" (= valeur brute fin exercice - cumul fin
+    exercice) sans recalcul — annexes coherentes par construction entre
+    elles, comme l'exige le document annexe (§1.11)."""
+    categories = [c for c, _label in AccAsset.CATEGORY_CHOICES]
+    cumul_debut: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+    dotations: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+    sorties: dict[str, Decimal] = dict.fromkeys(categories, Decimal(0))
+
+    entries = AccAssetDepreciation.objects.filter(fiscal_year=fiscal_year).select_related("asset")
+    for entry in entries:
+        category = entry.asset.category
+        cumul_debut[category] += entry.opening_accumulated_mga
+        dotations[category] += entry.annual_dotation_mga
+        # "Amortissements sur sorties" : l'amortissement cumule (jusqu'a la
+        # cession, incluse) d'un actif cede DURANT cet exercice est retire du
+        # cumul — n'a de sens que si l'actif a effectivement ete cede sur
+        # cet exercice precis (pas seulement "est disposed" aujourd'hui).
+        asset = entry.asset
+        if (
+            asset.state == AccAsset.STATE_DISPOSED
+            and asset.disposal_date is not None
+            and fiscal_year.date_start <= asset.disposal_date <= fiscal_year.date_end
+        ):
+            sorties[category] += entry.closing_accumulated_mga
+
+    rows = []
+    for category in categories:
+        cumul_fin = cumul_debut[category] + dotations[category] - sorties[category]
+        rows.append(
+            {
+                "categorie": category,
+                "categorie_label": _ASSET_CATEGORY_LABELS[category],
+                "cumul_debut_exercice": cumul_debut[category],
+                "dotations_de_l_exercice": dotations[category],
+                "amortissements_sur_sorties": sorties[category],
+                "cumul_fin_exercice": cumul_fin,
+                "valeur_nette_comptable": valeur_brute_fin.get(category, Decimal(0)) - cumul_fin,
+            }
+        )
+    return rows
+
+
+def _provisions_annex(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:
+    provisions = AccProvision.objects.filter(fiscal_year=fiscal_year).order_by("nature")
+    grouped: dict[str, dict[str, Any]] = {}
+    for provision in provisions:
+        entry = grouped.setdefault(
+            provision.nature,
+            {
+                "nature": provision.nature,
+                "montant_debut_exercice": Decimal(0),
+                "dotations": Decimal(0),
+                "reprises": Decimal(0),
+                "montant_fin_exercice": Decimal(0),
+            },
+        )
+        entry["montant_debut_exercice"] += provision.opening_amount_mga
+        entry["dotations"] += provision.dotation_mga
+        entry["reprises"] += provision.reprise_mga
+        entry["montant_fin_exercice"] += provision.closing_amount_mga
+    return list(grouped.values())
+
+
+def _creances_dettes_annex(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:
+    """Reutilise `aged_receivables`/`aged_payables` (A9) VERBATIM — memes
+    tranches d'echeance, aucune reimplementation de la logique de bucket.
+    `as_of_date` = fin d'exercice (coherent avec `balance_sheet`, un etat de
+    situation a une date donnee). "autre" (troisieme nature de la colonne du
+    document annexe, §1.11) reste a 0 : aucune entite `AccMoveLine` de type
+    ni creance ni dette n'est actuellement rattachee a une echeance dans le
+    modele existant — case documentee plutot que devinee."""
+    cutoff = fiscal_year.date_end
+    receivable_rows = aged_receivables(as_of_date=cutoff)
+    payable_rows = aged_payables(as_of_date=cutoff)
+
+    def _totals(rows: list[dict[str, Any]]) -> dict[str, Decimal]:
+        totals = {b: Decimal(0) for b in _AGE_BUCKETS}
+        for row in rows:
+            for bucket in _AGE_BUCKETS:
+                totals[bucket] += row[bucket]
+        return totals
+
+    client_totals = _totals(receivable_rows)
+    fournisseur_totals = _totals(payable_rows)
+
+    def _row(nature: str, totals: dict[str, Decimal]) -> dict[str, Any]:
+        return {
+            "nature": nature,
+            AGE_BUCKET_LESS_THAN_1_YEAR: totals[AGE_BUCKET_LESS_THAN_1_YEAR],
+            AGE_BUCKET_1_TO_5_YEARS: totals[AGE_BUCKET_1_TO_5_YEARS],
+            AGE_BUCKET_MORE_THAN_5_YEARS: totals[AGE_BUCKET_MORE_THAN_5_YEARS],
+            "total": sum(totals.values(), Decimal(0)),
+        }
+
+    return [
+        _row("client", client_totals),
+        _row("fournisseur", fournisseur_totals),
+        _row("autre", {b: Decimal(0) for b in _AGE_BUCKETS}),
+    ]
+
+
+def fixed_asset_annexes(fiscal_year: AccFiscalYear) -> dict[str, list[dict[str, Any]]]:
+    """ACC-ANNEXE1 (§1.11 du document annexe) : assemblage automatique des 4
+    annexes fiscales obligatoires accompagnant le bilan/compte de resultat au
+    regime reel. Structure de colonnes TRANSCRITE VERBATIM depuis le tableau
+    du §1.11 ("Annexe | Structure de colonnes recommandee | Entite ERP
+    correspondante") :
+
+    - "actif_immobilise" : Categorie d'immobilisation | Valeur brute debut
+      exercice | Acquisitions | Cessions/mises au rebut | Virements de poste
+      a poste | Valeur brute fin exercice.
+    - "amortissements" : Categorie d'immobilisation | Cumul debut exercice |
+      Dotations de l'exercice | Amortissements sur sorties | Cumul fin
+      exercice | Valeur nette comptable.
+    - "provisions" : Nature de la provision | Montant debut exercice |
+      Dotations | Reprises | Montant fin exercice.
+    - "creances_dettes" : Nature (client/fournisseur/autre) | Moins d'un an |
+      Un a cinq ans | Plus de cinq ans | Total.
+
+    Reserve OECFM explicite (§3.5 du document annexe, rappelee comme pour
+    `balance_sheet`/`income_statement` a l'etape A9) : ces 4 structures de
+    colonnes ne sont PAS retrouvees littéralement dans un formulaire officiel
+    numerote malgache (contrairement aux liasses fiscales francaises
+    2054-2059 ou aux canevas SYSCOHADA) — reconstruites par analogie
+    fonctionnelle avec l'article XII.13 du PCG 2005 (§III.13 du Guide
+    annote), identiques dans tous les referentiels derives des normes
+    IAS/IFRS selon le document source lui-meme. A confirmer aupres d'un
+    cabinet OECFM ou de la DGI avant tout usage en production reelle, jamais
+    a presenter comme un formulaire officiel definitif tel quel.
+
+    Coherence par construction (comme l'exige le §1.11) : "actif_immobilise"
+    et "amortissements" partagent les memes `AccAsset`/`AccAssetMovement`/
+    `AccAssetDepreciation` que le bilan (compte de classe 2, cf.
+    `balance_sheet`) ; "creances_dettes" reutilise EXACTEMENT
+    `aged_receivables`/`aged_payables` (A9), memes tranches, aucune
+    reimplementation."""
+    actif_immobilise = _actif_immobilise_annex(fiscal_year)
+    valeur_brute_fin = {
+        row["categorie"]: row["valeur_brute_fin_exercice"] for row in actif_immobilise
+    }
+    return {
+        "actif_immobilise": actif_immobilise,
+        "amortissements": _amortissements_annex(fiscal_year, valeur_brute_fin),
+        "provisions": _provisions_annex(fiscal_year),
+        "creances_dettes": _creances_dettes_annex(fiscal_year),
+    }
 
 
 def invoice_pdf(invoice: AccMove) -> bytes:

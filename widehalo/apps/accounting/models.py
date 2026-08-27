@@ -575,6 +575,161 @@ class AccTaxCalendar(BaseModel):
         return f"{self.get_declaration_type_display()} — {self.due_date}"
 
 
+class AccAsset(BaseModel, ReferenceMixin):
+    """ACC-ANNEXE1 (§1.11 du document annexe) : une immobilisation, base de
+    l'annexe "Etat de l'actif immobilise" et, via `AccAssetDepreciation", de
+    l'annexe "Etat des amortissements". `category` reprend la granularite
+    du document annexe ("Categorie d'immobilisation") — approximee ici aux
+    3 grandes masses du PCG 2005 (incorporelles classe 20, corporelles
+    classes 21-23, financieres classe 26-27) faute de sous-nomenclature plus
+    fine imposee par un texte reglementaire verifie (meme reserve OECFM que
+    `services/reports.py`)."""
+
+    CATEGORY_INCORPORELLE = "incorporelle"
+    CATEGORY_CORPORELLE = "corporelle"
+    CATEGORY_FINANCIERE = "financiere"
+    CATEGORY_CHOICES = [
+        (CATEGORY_INCORPORELLE, "Immobilisation incorporelle"),
+        (CATEGORY_CORPORELLE, "Immobilisation corporelle"),
+        (CATEGORY_FINANCIERE, "Immobilisation financiere"),
+    ]
+
+    METHOD_LINEAIRE = "lineaire"
+    METHOD_DEGRESSIF = "degressif"
+    METHOD_CHOICES = [
+        (METHOD_LINEAIRE, "Lineaire"),
+        (METHOD_DEGRESSIF, "Degressif"),
+    ]
+
+    STATE_ACTIVE = "active"
+    STATE_DISPOSED = "disposed"
+    STATE_CHOICES = [
+        (STATE_ACTIVE, "En service"),
+        (STATE_DISPOSED, "Cedee/mise au rebut"),
+    ]
+
+    category = models.CharField(max_length=16, choices=CATEGORY_CHOICES)
+    label = models.CharField(max_length=200)
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    acquisition_date = models.DateField()
+    acquisition_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    # V1 : seule la methode lineaire est implementee (cf.
+    # services/assets.py::register_asset) — `degressif` reste declarable ici
+    # (le champ existe et le CDC nomme les deux methodes) mais est refuse a
+    # l'enregistrement, memes principes que RG-SAL-8 ("explicabilite
+    # d'abord", cf. plan) : ne jamais calculer silencieusement un
+    # amortissement degressif approximatif.
+    depreciation_method = models.CharField(max_length=16, choices=METHOD_CHOICES)
+    useful_life_years = models.PositiveIntegerField()
+    residual_value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    disposal_date = models.DateField(null=True, blank=True)
+    disposal_value_mga = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_ACTIVE)
+
+    class Meta:
+        db_table = "acc_asset"
+
+    def __str__(self) -> str:
+        return self.reference or self.label
+
+
+class AccAssetMovement(BaseModel):
+    """Mouvement d'immobilisation (§1.11 du document annexe : "Entrees,
+    sorties, virements de poste a poste par categorie"), source de l'annexe
+    "Etat de l'actif immobilise" (`services/reports.py::fixed_asset_annexes`)."""
+
+    MOVEMENT_ACQUISITION = "acquisition"
+    MOVEMENT_DISPOSAL = "disposal"
+    MOVEMENT_TRANSFER = "transfer"
+    MOVEMENT_TYPE_CHOICES = [
+        (MOVEMENT_ACQUISITION, "Acquisition"),
+        (MOVEMENT_DISPOSAL, "Cession/mise au rebut"),
+        (MOVEMENT_TRANSFER, "Virement de poste a poste"),
+    ]
+
+    asset = models.ForeignKey(AccAsset, on_delete=models.CASCADE, related_name="movements")
+    movement_type = models.CharField(max_length=16, choices=MOVEMENT_TYPE_CHOICES)
+    date = models.DateField()
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    # Uniquement significatifs pour `movement_type="transfer"` (virement
+    # d'un compte de classe 2 a un autre, ex. immobilisation en cours ->
+    # immobilisation definitive) — nuls pour acquisition/cession.
+    from_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    to_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Reste null en V1 pour l'acquisition (cf. docstring
+    # `services/assets.py::register_asset` — l'ecriture d'acquisition est
+    # normalement deja passee par le flux d'achat/paiement qui n'existe pas
+    # encore, `purchase`). Peut etre rattache a une ecriture reelle pour un
+    # virement de poste ou une cession traites via ce service.
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_asset_movement"
+        indexes = [models.Index(fields=["asset", "date"])]
+
+    def __str__(self) -> str:
+        return f"{self.asset} — {self.movement_type} ({self.date})"
+
+
+class AccAssetDepreciation(BaseModel):
+    """Une annuite d'amortissement calculee pour `asset`/`fiscal_year` —
+    source de l'annexe "Etat des amortissements" (§1.11 du document annexe),
+    cf. `services/assets.py::compute_annual_depreciation`."""
+
+    asset = models.ForeignKey(
+        AccAsset, on_delete=models.CASCADE, related_name="depreciation_entries"
+    )
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
+    opening_accumulated_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    annual_dotation_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    closing_accumulated_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    # Reste null si l'annuite n'a pas ete "postee" au grand livre
+    # (`post=False`, par defaut — cf. docstring du service).
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_asset_depreciation"
+
+    def __str__(self) -> str:
+        return f"{self.asset} — {self.fiscal_year} : {self.annual_dotation_mga}"
+
+
+class AccProvision(BaseModel, ReferenceMixin):
+    """Une provision (§1.11 du document annexe, annexe "Etat des
+    provisions") : dotation/reprise par exercice, `nature` en texte libre
+    (le document ne propose pas de nomenclature fermee, contrairement aux
+    categories d'immobilisation)."""
+
+    nature = models.CharField(max_length=200)
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
+    opening_amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    dotation_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    reprise_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    closing_amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    # Reste null en V1 : la comptabilisation reelle de la dotation/reprise
+    # est une operation de cloture ordinaire, deja faisable manuellement via
+    # `create_draft_move`/`add_line`/`post_move` (cf. docstring de
+    # `services/assets.py::record_provision_movement`).
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_provision"
+
+    def __str__(self) -> str:
+        return self.reference or f"{self.nature} ({self.fiscal_year})"
+
+
 class AccAnalyticLine(BaseModel):
     """Ventilation materialisee d'une ligne d'ecriture sur un axe
     analytique — derivee de `AccMoveLine.analytic_distribution` (JSON de
