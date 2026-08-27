@@ -24,6 +24,9 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccIrcmDeclaration,
     AccJournal,
+    AccLandedCostBatch,
+    AccLandedCostComponent,
+    AccLandedCostLine,
     AccLocalTax,
     AccMobileMoneyStatementLine,
     AccMove,
@@ -66,6 +69,13 @@ from apps.accounting.services.invoices import (
     validate_invoice,
 )
 from apps.accounting.services.ircm import generate_ircm_declaration
+from apps.accounting.services.landed_costs import (
+    add_cost_component,
+    add_landed_cost_line,
+    create_landed_cost_batch,
+    finalize_batch,
+    landed_cost_report,
+)
 from apps.accounting.services.local_tax import record_local_tax
 from apps.accounting.services.mobile_money import (
     import_mobile_money_statement,
@@ -223,6 +233,27 @@ class ConfirmReconciliationIn(Schema):
 
 class ManualMatchIn(Schema):
     move_line_id: str
+
+
+class LandedCostBatchIn(Schema):
+    label: str
+    date: dt.date
+    allocation_method: str
+    currency: str = "MGA"
+
+
+class LandedCostLineIn(Schema):
+    description: str
+    qty: Decimal
+    purchase_value_mga: Decimal
+    variant_id: str | None = None
+    weight_kg: Decimal | None = None
+
+
+class LandedCostComponentIn(Schema):
+    label: str
+    amount_mga: Decimal
+    account_id: str | None = None
 
 
 class RegisterPaymentIn(Schema):
@@ -1446,3 +1477,136 @@ def unmatched_bank_reconciliation_endpoint(request, bank_account_id: str):
     bank_account = get_object_or_404(AccAccount, id=bank_account_id)
     lines = unmatched_or_suggested_lines(bank_account)
     return {"results": [_serialize_bank_statement_line(line) for line in lines]}
+
+
+# ---------------------------------------------------------------------------
+# A17 — Couts d'importation (landed costs), ACC-IMP : calculateur autonome,
+# sans integration reelle a une valorisation de stock (`stocks` n'existe pas
+# encore) — cf. docstring de `services/landed_costs.py`.
+# ---------------------------------------------------------------------------
+
+
+def _serialize_landed_cost_batch(batch: AccLandedCostBatch) -> dict:
+    return {
+        "id": str(batch.id),
+        "reference": batch.reference,
+        "label": batch.label,
+        "date": batch.date.isoformat(),
+        "currency": batch.currency,
+        "total_purchase_value_mga": str(batch.total_purchase_value_mga),
+        "allocation_method": batch.allocation_method,
+        "state": batch.state,
+    }
+
+
+def _serialize_landed_cost_line(line: AccLandedCostLine) -> dict:
+    return {
+        "id": str(line.id),
+        "batch_id": str(line.batch_id),
+        "description": line.description,
+        "variant_id": str(line.variant_id) if line.variant_id else None,
+        "qty": str(line.qty),
+        "weight_kg": str(line.weight_kg) if line.weight_kg is not None else None,
+        "purchase_value_mga": str(line.purchase_value_mga),
+    }
+
+
+def _serialize_landed_cost_component(component: AccLandedCostComponent) -> dict:
+    return {
+        "id": str(component.id),
+        "batch_id": str(component.batch_id),
+        "label": component.label,
+        "amount_mga": str(component.amount_mga),
+        "account_id": str(component.account_id) if component.account_id else None,
+    }
+
+
+@router.get("/accounting/landed-cost-batches")
+@require_permission("accounting.view_acclandedcostbatch")
+def list_landed_cost_batches_endpoint(request):
+    batches = AccLandedCostBatch.objects.all().order_by("-date")
+    return {"results": [_serialize_landed_cost_batch(b) for b in batches]}
+
+
+@router.post("/accounting/landed-cost-batches")
+@require_permission("accounting.add_acclandedcostbatch")
+def create_landed_cost_batch_endpoint(request, payload: LandedCostBatchIn):
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    batch = create_landed_cost_batch(
+        tenant=tenant,
+        label=payload.label,
+        date=payload.date,
+        allocation_method=payload.allocation_method,
+        currency=payload.currency,
+    )
+    return _serialize_landed_cost_batch(batch)
+
+
+@router.post("/accounting/landed-cost-batches/{batch_id}/lines")
+@require_permission("accounting.change_acclandedcostbatch")
+def add_landed_cost_line_endpoint(request, batch_id: str, payload: LandedCostLineIn):
+    batch = get_object_or_404(AccLandedCostBatch, id=batch_id)
+    try:
+        line = add_landed_cost_line(
+            batch,
+            description=payload.description,
+            qty=payload.qty,
+            purchase_value_mga=payload.purchase_value_mga,
+            variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+            weight_kg=payload.weight_kg,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_landed_cost_line(line)
+
+
+@router.post("/accounting/landed-cost-batches/{batch_id}/cost-components")
+@require_permission("accounting.change_acclandedcostbatch")
+def add_landed_cost_component_endpoint(request, batch_id: str, payload: LandedCostComponentIn):
+    batch = get_object_or_404(AccLandedCostBatch, id=batch_id)
+    account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
+    try:
+        component = add_cost_component(
+            batch, label=payload.label, amount_mga=payload.amount_mga, account=account
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_landed_cost_component(component)
+
+
+@router.post("/accounting/landed-cost-batches/{batch_id}/finalize")
+@require_permission("accounting.change_acclandedcostbatch")
+def finalize_landed_cost_batch_endpoint(request, batch_id: str):
+    batch = get_object_or_404(AccLandedCostBatch, id=batch_id)
+    try:
+        finalized = finalize_batch(batch)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_landed_cost_batch(finalized)
+
+
+@router.get("/accounting/landed-cost-batches/{batch_id}/report")
+@require_permission("accounting.view_acclandedcostbatch")
+def landed_cost_report_endpoint(request, batch_id: str, format: str = "json"):
+    """ACC-IMP — rapport de repartition des couts d'importation. Cf.
+    docstring de `services/landed_costs.py::landed_cost_report`."""
+    batch = get_object_or_404(AccLandedCostBatch, id=batch_id)
+    try:
+        rows = landed_cost_report(batch)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    data = rows_to_bytes(
+        rows,
+        [
+            "description",
+            "variant_id",
+            "qty",
+            "purchase_value_mga",
+            "allocation_key_pct",
+            "allocated_cost_mga",
+            "landed_total_mga",
+            "landed_unit_cost_mga",
+        ],
+        format=format,
+    )
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])

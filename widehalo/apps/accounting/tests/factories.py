@@ -40,6 +40,9 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccIrcmDeclaration,
     AccJournal,
+    AccLandedCostBatch,
+    AccLandedCostComponent,
+    AccLandedCostLine,
     AccLocalTax,
     AccMobileMoneyStatementLine,
     AccMove,
@@ -401,3 +404,35 @@ class AccReconcileRuleFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     name = factory.Sequence(lambda n: f"Regle {n}")
     match_on_amount = True
+
+
+class AccLandedCostBatchFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccLandedCostBatch
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"IMP-{n}")
+    label = factory.Sequence(lambda n: f"Import {n}")
+    date = datetime.date(2026, 2, 1)
+    allocation_method = AccLandedCostBatch.METHOD_BY_VALUE
+
+
+class AccLandedCostLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccLandedCostLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    batch = factory.SubFactory(AccLandedCostBatchFactory, tenant=factory.SelfAttribute("..tenant"))
+    description = factory.Sequence(lambda n: f"Article {n}")
+    qty = Decimal("10.0000")
+    purchase_value_mga = Decimal("100000.0000")
+
+
+class AccLandedCostComponentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccLandedCostComponent
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    batch = factory.SubFactory(AccLandedCostBatchFactory, tenant=factory.SelfAttribute("..tenant"))
+    label = factory.Sequence(lambda n: f"Frais {n}")
+    amount_mga = Decimal("10000.0000")

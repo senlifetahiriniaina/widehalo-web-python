@@ -1157,3 +1157,115 @@ class AccReconcileRule(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or self.name
+
+
+class AccLandedCostBatch(BaseModel, ReferenceMixin):
+    """A17 — **ACC-IMP** : un lot d'achat importe sur lequel repartir des
+    frais additionnels (fret, assurance, douane, manutention...) entre les
+    lignes du lot, pour obtenir un cout unitaire "debarque" (landed cost).
+
+    Calculateur AUTONOME, explicitement documente comme tel (cf. docstring
+    de module `services/landed_costs.py`) : AUCUNE ecriture `AccMove` n'est
+    postee ici, AUCUNE valorisation de stock n'est mise a jour — `stocks`
+    n'existe pas encore dans ce depot. A faire evoluer vers une vraie
+    integration stock quand ce module existera (cf. plan, etape A17).
+
+    `state` : 2 valeurs (`draft`/`finalized`), meme discipline que
+    `AccBudget` (A14)/les regles de rapprochement d'A16 : une transition
+    unique, triviale, gardee par une seule regle (pas d'ajout de ligne/
+    composant sur un lot finalise) ne justifie pas une machine a etats
+    `django-fsm` — la garde est appliquee explicitement dans
+    `services/landed_costs.py`, jamais au niveau du modele."""
+
+    METHOD_BY_VALUE = "by_value"
+    METHOD_BY_WEIGHT = "by_weight"
+    METHOD_BY_QUANTITY = "by_quantity"
+    METHOD_CHOICES = [
+        (METHOD_BY_VALUE, "Par valeur"),
+        (METHOD_BY_WEIGHT, "Par poids"),
+        (METHOD_BY_QUANTITY, "Par quantite"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_FINALIZED = "finalized"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_FINALIZED, "Finalise"),
+    ]
+
+    label = models.CharField(max_length=255)
+    date = models.DateField()
+    currency = models.CharField(max_length=3, default="MGA")
+    # Somme des `purchase_value_mga` des lignes du lot — recalculee a chaque
+    # ajout de ligne (cf. `services/landed_costs.py::add_landed_cost_line`),
+    # jamais saisie directement.
+    total_purchase_value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    allocation_method = models.CharField(max_length=16, choices=METHOD_CHOICES)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "acc_landed_cost_batch"
+
+    def __str__(self) -> str:
+        return self.reference or self.label
+
+
+class AccLandedCostLine(BaseModel):
+    """Une ligne (article/reference) d'un `AccLandedCostBatch`, portant sa
+    valeur d'achat brute FOB/EXW avant repartition des couts d'importation.
+
+    `variant_id` : reference OPAQUE optionnelle vers un
+    `apps.catalog.models.ProductVariant` — JAMAIS de FK Django (regle de
+    couplage n°1 du CDC). `accounting` ne declare PAS `catalog` comme
+    dependance de module pour ce seul champ : un UUID opaque stocke sans
+    jamais appeler `apps.catalog.services.public` ne cree aucun couplage
+    reel, meme discipline que `partner_id` sur `AccMove`/`AccMoveLine`
+    (aucune dependance `partners` ajoutee pour ce champ non plus, alors que
+    `partners` EST deja une dependance declaree de `accounting` pour
+    d'autres raisons — cf. `module.py`). Si un futur usage de ce champ
+    appelle un jour `catalog.services.public` (ex. pour afficher le nom du
+    variant dans un rapport), `catalog` devra alors etre ajoute aux
+    dependances de `module.py` a ce moment-la, pas avant."""
+
+    batch = models.ForeignKey(AccLandedCostBatch, on_delete=models.CASCADE, related_name="lines")
+    description = models.CharField(max_length=255)
+    variant_id = models.UUIDField(null=True, blank=True)
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    # Requis seulement si `batch.allocation_method="by_weight"` — cf.
+    # garde explicite dans `services/landed_costs.py::landed_cost_report`.
+    weight_kg = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    purchase_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+
+    class Meta:
+        db_table = "acc_landed_cost_line"
+        indexes = [models.Index(fields=["batch"])]
+
+    def __str__(self) -> str:
+        return f"{self.description} ({self.purchase_value_mga})"
+
+
+class AccLandedCostComponent(BaseModel):
+    """Un composant de cout additionnel (fret, assurance, douane,
+    manutention...) a repartir entre toutes les lignes du lot, au prorata de
+    la cle d'allocation choisie sur le lot (`allocation_method`).
+
+    `account` : compte de charge auquel ce composant est NORMALEMENT
+    impute — purement INFORMATIF ici (aucune ecriture n'est postee, cf.
+    docstring de `AccLandedCostBatch`) ; nullable, car cette information
+    peut manquer sans empecher le calcul de repartition lui-meme."""
+
+    batch = models.ForeignKey(
+        AccLandedCostBatch, on_delete=models.CASCADE, related_name="cost_components"
+    )
+    label = models.CharField(max_length=200)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_landed_cost_component"
+        indexes = [models.Index(fields=["batch"])]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.amount_mga})"
