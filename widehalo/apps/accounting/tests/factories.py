@@ -37,6 +37,7 @@ from apps.accounting.models import (
     AccPaymentTermLine,
     AccPeriod,
     AccTax,
+    AccTaxCalendar,
 )
 
 
@@ -169,6 +170,17 @@ class AccPaymentAllocationFactory(factory.django.DjangoModelFactory):
     payment = factory.SubFactory(AccPaymentFactory, tenant=factory.SelfAttribute("..tenant"))
     move_line = factory.SubFactory(AccMoveLineFactory, tenant=factory.SelfAttribute("..tenant"))
     amount = Decimal("100.0000")
+
+
+class AccTaxCalendarFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccTaxCalendar
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    declaration_type = AccTaxCalendar.DECLARATION_TVA
+    label = "TVA — declaration mensuelle"
+    due_date = datetime.date(2026, 2, 15)
+    periodicity = AccTaxCalendar.PERIODICITY_MONTHLY
 
 
 class AccAnalyticPlanFactory(factory.django.DjangoModelFactory):

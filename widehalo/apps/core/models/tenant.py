@@ -31,6 +31,24 @@ class Tenant(models.Model):
     fiscal_regime = models.CharField(
         max_length=16, choices=FISCAL_REGIME_CHOICES, default=FISCAL_REGIME_REAL_WITH_VAT
     )
+    # ACC-SMT1/A8 (§1.6 du document annexe) : depuis la Loi de Finances 2026,
+    # un tenant dont le chiffre d'affaires annuel reel se situe dans la
+    # tranche 200-400 M Ar peut OPTER pour l'assujettissement a la TVA
+    # (jusque-la automatiquement non assujetti dans cette tranche). Ce champ
+    # est INDEPENDANT de `fiscal_regime` : il n'a de sens que pour un tenant
+    # dont le CA reel tombe dans cette tranche precise, mais `core` ne
+    # calcule volontairement pas ce CA lui-meme (cela supposerait une
+    # dependance de `core` vers `accounting`, qu'aucune regle de couplage du
+    # projet n'autorise) — c'est au tenant/comptable de positionner ce
+    # booleen a bon escient, et a un futur ecran de configuration fiscale
+    # (module accounting) de guider ce choix une fois le CA reel connu
+    # (cf. ACC-CR, phase 2 A9). Valeur par defaut `False` (non assujetti,
+    # comportement historique) tant que l'option n'a pas ete exercee.
+    # Reserve OECFM/DGI (§0.5, §3.5 du document annexe) : la tranche 200-
+    # 400 M Ar et le caractere optionnel de la TVA qui s'y attache sont
+    # repris d'un document non primaire — a confirmer aupres d'un expert-
+    # comptable OECFM ou de la DGI avant tout usage en production reelle.
+    vat_opted_in = models.BooleanField(default=False)
 
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(

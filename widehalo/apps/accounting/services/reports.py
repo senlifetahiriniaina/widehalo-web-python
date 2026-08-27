@@ -116,6 +116,66 @@ def journal_report(journal: AccJournal, fiscal_year: AccFiscalYear) -> list[dict
     return rows
 
 
+def cash_basis_report(fiscal_year: AccFiscalYear, *, mode: str = "recap") -> list[dict[str, Any]]:
+    """ACC-SMT — rapport de tresorerie simplifie pour un tenant au regime
+    Impot Synthetique (§1.1.1 du document annexe), derive uniquement des
+    lignes d'ecriture (`AccMoveLine`) portees par un compte de type caisse
+    ou banque (`AccAccount.TYPE_CASH`/`TYPE_BANK`) — aucune table source de
+    verite supplementaire.
+
+    Deux sous-formats, selon `mode` :
+    - `"recap"` : "recapitulatif recettes/depenses" (sous-strate CA < 100 M
+      Ar) — liste plate date/libelle/montant/sens ;
+    - `"smt"` : "etat des encaissements/decaissements" (Systeme Minimal de
+      Tresorerie, sous-strate 100-200 M Ar) — memes lignes, plus une colonne
+      `balance` : le solde net de tresorerie cumule.
+
+    Le choix du mode est explicitement laisse a l'appelant (parametre
+    obligatoire de fait ici, defaut `"recap"`) : determiner automatiquement
+    la sous-strate applicable exigerait de calculer le CA reel de
+    l'exercice, ce que seul ACC-CR (compte de resultat, etape A9) permettra
+    de faire correctement — cf. note de l'etape A8 du plan. Ne PAS deviner
+    la strate a partir d'un autre indicateur en attendant.
+
+    Reserve OECFM/DGI (§0.5, §3.5 du document annexe) : les seuils de CA et
+    la nomenclature des sous-strates SMT/recapitulatif sont repris d'un
+    document non primaire — a confirmer aupres d'un expert-comptable OECFM
+    ou de la DGI avant tout usage en production reelle."""
+    if mode not in ("recap", "smt"):
+        raise ValueError(f"Mode de rapport ACC-SMT non supporte : {mode!r}")
+
+    lines = (
+        AccMoveLine.objects.filter(
+            account__type__in=[AccAccount.TYPE_CASH, AccAccount.TYPE_BANK],
+            move__period__fiscal_year=fiscal_year,
+            move__state=AccMove.STATE_POSTED,
+        )
+        .select_related("move")
+        .order_by("move__date", "move__reference")
+    )
+
+    rows: list[dict[str, Any]] = []
+    running_balance = Decimal(0)
+    for line in lines:
+        if line.debit:
+            direction = "in"
+            amount = line.debit
+        else:
+            direction = "out"
+            amount = line.credit
+        row: dict[str, Any] = {
+            "date": line.move.date,
+            "label": line.label,
+            "amount": amount,
+            "direction": direction,
+        }
+        if mode == "smt":
+            running_balance += amount if direction == "in" else -amount
+            row["balance"] = running_balance
+        rows.append(row)
+    return rows
+
+
 def invoice_pdf(invoice: AccMove) -> bytes:
     """ACC-FAC — facture client, document PDF bilingue (FR/EN) minimal."""
     from weasyprint import HTML

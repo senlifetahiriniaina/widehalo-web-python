@@ -481,6 +481,70 @@ class AccAnalyticAccount(BaseModel):
         return f"{self.plan.code}:{self.code}"
 
 
+class AccTaxCalendar(BaseModel):
+    """ACC-CAL1 (§1.2 du document annexe) : une echeance fiscale DGI pour ce
+    tenant. Les echeances legales malgaches se deplacent au gre des
+    communiques DGI — ce modele reste volontairement une simple liste de
+    dates concretes par tenant (pas un moteur de regles de recurrence) :
+    `due_date` porte la prochaine echeance CONNUE pour ce tenant, editable a
+    tout moment par un comptable/admin quand la DGI publie un communique qui
+    la deplace. `is_recurring_template=True` marque une ligne "modele" que
+    `services/tax_calendar.py::seed_default_tax_calendar` peut reconduire
+    d'une periode a l'autre (le tenant clone/ajuste, aucune reconduction
+    automatique en V1)."""
+
+    DECLARATION_IRSA = "irsa"
+    DECLARATION_TVA = "tva"
+    DECLARATION_IR_ACOMPTE = "ir_acompte"
+    DECLARATION_IS_ANNUAL = "is_annual"
+    DECLARATION_IR_ANNUAL = "ir_annual"
+    DECLARATION_IRCM = "ircm"
+    DECLARATION_DCOM = "dcom"
+    DECLARATION_TVM = "tvm"
+    DECLARATION_IFT = "ift"
+    DECLARATION_IFPB = "ifpb"
+    DECLARATION_ETATS_FINANCIERS = "etats_financiers"
+    DECLARATION_TYPE_CHOICES = [
+        (DECLARATION_IRSA, "IRSA"),
+        (DECLARATION_TVA, "TVA"),
+        (DECLARATION_IR_ACOMPTE, "Acompte IR"),
+        (DECLARATION_IS_ANNUAL, "IS annuel"),
+        (DECLARATION_IR_ANNUAL, "IR annuel"),
+        (DECLARATION_IRCM, "IRCM"),
+        (DECLARATION_DCOM, "DCOM"),
+        (DECLARATION_TVM, "TVM"),
+        (DECLARATION_IFT, "IFT"),
+        (DECLARATION_IFPB, "IFPB"),
+        (DECLARATION_ETATS_FINANCIERS, "Depot des etats financiers"),
+    ]
+
+    PERIODICITY_MONTHLY = "monthly"
+    PERIODICITY_BIMONTHLY = "bimonthly"
+    PERIODICITY_SEMIANNUAL = "semiannual"
+    PERIODICITY_ANNUAL = "annual"
+    PERIODICITY_VARIABLE = "variable"
+    PERIODICITY_CHOICES = [
+        (PERIODICITY_MONTHLY, "Mensuelle"),
+        (PERIODICITY_BIMONTHLY, "Bimestrielle"),
+        (PERIODICITY_SEMIANNUAL, "Semestrielle"),
+        (PERIODICITY_ANNUAL, "Annuelle"),
+        (PERIODICITY_VARIABLE, "Variable"),
+    ]
+
+    declaration_type = models.CharField(max_length=24, choices=DECLARATION_TYPE_CHOICES)
+    label = models.CharField(max_length=200)
+    due_date = models.DateField()
+    periodicity = models.CharField(max_length=16, choices=PERIODICITY_CHOICES)
+    is_recurring_template = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "acc_tax_calendar"
+        indexes = [models.Index(fields=["due_date"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_declaration_type_display()} — {self.due_date}"
+
+
 class AccAnalyticLine(BaseModel):
     """Ventilation materialisee d'une ligne d'ecriture sur un axe
     analytique — derivee de `AccMoveLine.analytic_distribution` (JSON de

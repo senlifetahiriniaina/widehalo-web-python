@@ -9,7 +9,14 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
-from apps.accounting.models import AccAccount, AccJournal, AccMove, AccPayment, AccPeriod
+from apps.accounting.models import (
+    AccAccount,
+    AccJournal,
+    AccMove,
+    AccPayment,
+    AccPeriod,
+    AccTaxCalendar,
+)
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     create_invoice,
@@ -24,6 +31,8 @@ from apps.accounting.services.reports import (
     rows_to_bytes,
     trial_balance,
 )
+from apps.accounting.services.tax_calendar import create_tax_calendar_entry
+from apps.core.models.tenant import Tenant
 from apps.core.services.permissions import require_permission
 
 router = Router(tags=["accounting"])
@@ -43,6 +52,14 @@ class InvoiceIn(Schema):
     receivable_account_id: str
     currency: str = "MGA"
     lines: list[InvoiceLineIn]
+
+
+class TaxCalendarIn(Schema):
+    declaration_type: str
+    label: str
+    due_date: dt.date
+    periodicity: str
+    is_recurring_template: bool = False
 
 
 class RegisterPaymentIn(Schema):
@@ -216,6 +233,51 @@ def list_payments(request):
             for p in AccPayment.objects.all().order_by("-date")
         ]
     }
+
+
+def _serialize_tax_calendar_entry(entry: AccTaxCalendar) -> dict:
+    return {
+        "id": str(entry.id),
+        "declaration_type": entry.declaration_type,
+        "label": entry.label,
+        "due_date": entry.due_date.isoformat(),
+        "periodicity": entry.periodicity,
+        "is_recurring_template": entry.is_recurring_template,
+    }
+
+
+@router.get("/accounting/tax-calendar")
+@require_permission("accounting.view_acctaxcalendar")
+def list_tax_calendar_endpoint(request, declaration_type: str = "", within_days: int | None = None):
+    """ACC-CAL1 — liste des echeances fiscales du tenant courant, filtrable
+    par `declaration_type` et/ou restreinte aux `within_days` prochains
+    jours (memes filtres qu'`upcoming_deadlines`, exposes ici directement
+    en requete SQL pour rester coherent avec un tri systematique par
+    date)."""
+    entries = AccTaxCalendar.objects.all().order_by("due_date")
+    if declaration_type:
+        entries = entries.filter(declaration_type=declaration_type)
+    if within_days is not None:
+        today = dt.date.today()
+        entries = entries.filter(
+            due_date__gte=today, due_date__lte=today + dt.timedelta(days=within_days)
+        )
+    return {"results": [_serialize_tax_calendar_entry(e) for e in entries]}
+
+
+@router.post("/accounting/tax-calendar")
+@require_permission("accounting.add_acctaxcalendar")
+def create_tax_calendar_endpoint(request, payload: TaxCalendarIn):
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    entry = create_tax_calendar_entry(
+        tenant=tenant,
+        declaration_type=payload.declaration_type,
+        label=payload.label,
+        due_date=payload.due_date,
+        periodicity=payload.periodicity,
+        is_recurring_template=payload.is_recurring_template,
+    )
+    return _serialize_tax_calendar_entry(entry)
 
 
 @router.get("/accounting/reports/trial-balance")
