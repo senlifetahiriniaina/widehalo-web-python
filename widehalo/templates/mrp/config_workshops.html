@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Ateliers" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Ateliers" %}</h1>
+  <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Adresse" %}</th><th>{% trans "Capacite (h/j)" %}</th><th>{% trans "Sous-traitant" %}</th></tr></thead>
+    <tbody>
+      {% for workshop in workshops %}
+        <tr><td>{{ workshop.code }}</td><td>{{ workshop.name }}</td><td>{{ workshop.address }}</td><td>{{ workshop.capacity_hours_day }}</td><td>{{ workshop.is_subcontractor|yesno:"Oui,Non" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun atelier." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvel atelier" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="address">{% trans "Adresse" %}</label>
+      <input id="address" type="text" name="address">
+    </div>
+    <div class="form-field">
+      <label for="capacity_hours_day">{% trans "Capacite (h/j)" %}</label>
+      <input id="capacity_hours_day" type="number" name="capacity_hours_day" step="0.01" value="8">
+    </div>
+    <div class="form-field">
+      <label for="is_subcontractor"><input id="is_subcontractor" type="checkbox" name="is_subcontractor"> {% trans "Sous-traitant" %}</label>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nomenclatures (BOM)" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nomenclatures (BOM)" %}</h1>
+  <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Version" %}</th><th>{% trans "Produit (UUID)" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for bom in boms %}
+        <tr><td>{{ bom.code }}</td><td>{{ bom.version }}</td><td>{{ bom.product_template_id }}</td><td>{{ bom.get_state_display }}</td><td><a href="{% url 'mrp:config_bom_detail' bom_id=bom.id %}">{% trans "Voir" %}</a></td></tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune nomenclature." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle nomenclature" %}</h2>
+  <p class="hint">{% trans "Le produit est reference par son UUID (module catalog) — aucun couplage direct." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="product_template_id">{% trans "UUID du produit (catalog)" %}</label>
+      <input id="product_template_id" type="text" name="product_template_id" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

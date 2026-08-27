@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Pipelines" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Pipelines" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Par defaut" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pipeline in pipelines %}
+        <tr>
+          <td>{{ pipeline.name }}</td>
+          <td>{% if pipeline.is_default %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+          <td><a href="{% url 'crm:config_pipeline_detail' pipeline.id %}">{% trans "Etapes" %}</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun pipeline." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau pipeline" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="is_default">
+        <input id="is_default" type="checkbox" name="is_default" value="1">
+        {% trans "Pipeline par defaut" %}
+      </label>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

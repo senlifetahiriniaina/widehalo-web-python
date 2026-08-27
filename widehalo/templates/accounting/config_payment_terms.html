@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Conditions de paiement" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Conditions de paiement" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Lignes" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for term in payment_terms %}
+        <tr>
+          <td>{{ term.name }}</td>
+          <td>
+            {% for line in term.lines.all %}
+              {{ line.get_value_type_display }} — {{ line.days }} {% trans "jours" %}{% if not forloop.last %}; {% endif %}
+            {% empty %}
+              —
+            {% endfor %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="2">{% trans "Aucune condition de paiement." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle condition de paiement" %}</h2>
+  <p class="hint">{% trans "Simplifie a une seule ligne (le detail multi-lignes reste accessible via l'API)." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="value_type">{% trans "Type de valeur" %}</label>
+      <select id="value_type" name="value_type" required>
+        {% for value, label in value_type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="days">{% trans "Jours" %}</label>
+      <input id="days" type="number" name="days" min="0" value="0" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

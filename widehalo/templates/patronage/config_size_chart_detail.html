@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ size_chart.code }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ size_chart.code }} — {{ size_chart.name }}</h1>
+  <p>{% trans "Tailles" %}: {{ size_chart.sizes|join:", " }} ({% trans "base" %}: {{ size_chart.base_size }})</p>
+  <p><a href="{% url 'patronage:config_size_charts' %}">{% trans "Retour tableaux de mesures" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Valeurs" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Point de mesure" %}</th><th>{% trans "Taille" %}</th><th>{% trans "Valeur" %}</th></tr></thead>
+    <tbody>
+      {% for value in values %}
+        <tr><td>{{ value.measurement_point.code }} — {{ value.measurement_point.name }}</td><td>{{ value.size }}</td><td>{{ value.value }}</td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune valeur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Ajouter un point de mesure" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_measurement_point">
+    <div class="form-field">
+      <label for="mp_code">{% trans "Code" %}</label>
+      <input id="mp_code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="mp_name">{% trans "Nom" %}</label>
+      <input id="mp_name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="unit">{% trans "Unite" %}</label>
+      <select id="unit" name="unit">
+        <option value="cm">cm</option>
+        <option value="mm">mm</option>
+        <option value="inch">inch</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="category">{% trans "Categorie" %}</label>
+      <select id="category" name="category">
+        <option value="largeur">{% trans "Largeur" %}</option>
+        <option value="longueur">{% trans "Longueur" %}</option>
+        <option value="circonference">{% trans "Circonference" %}</option>
+        <option value="angle">{% trans "Angle" %}</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+
+  <h2>{% trans "Ajouter/mettre a jour une valeur" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_value">
+    <div class="form-field">
+      <label for="measurement_point_id">{% trans "Point de mesure" %}</label>
+      <select id="measurement_point_id" name="measurement_point_id" required>
+        {% for point in measurement_points %}
+          <option value="{{ point.id }}">{{ point.code }} — {{ point.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="size">{% trans "Taille" %}</label>
+      <select id="size" name="size" required>
+        {% for size in size_chart.sizes %}
+          <option value="{{ size }}">{{ size }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="value">{% trans "Valeur" %}</label>
+      <input id="value" type="number" name="value" step="0.01" required>
+    </div>
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Exercices" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Exercices comptables" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Fin" %}</th>
+        <th>{% trans "Statut" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fiscal_year in fiscal_years %}
+        <tr>
+          <td>{{ fiscal_year.code }}</td>
+          <td>{{ fiscal_year.date_start }}</td>
+          <td>{{ fiscal_year.date_end }}</td>
+          <td>{{ fiscal_year.get_state_display }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun exercice." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvel exercice" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="date_start">{% trans "Debut" %}</label>
+      <input id="date_start" type="date" name="date_start" required>
+    </div>
+    <div class="form-field">
+      <label for="date_end">{% trans "Fin" %}</label>
+      <input id="date_end" type="date" name="date_end" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

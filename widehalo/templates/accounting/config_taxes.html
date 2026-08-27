@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Taxes" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Taxes" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Taux" %}</th>
+        <th>{% trans "TTC" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tax in taxes %}
+        <tr>
+          <td>{{ tax.code }}</td>
+          <td>{{ tax.name }}</td>
+          <td>{{ tax.get_type_display }}</td>
+          <td>{{ tax.rate }}%</td>
+          <td>{% if tax.is_included %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune taxe." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle taxe" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="type">{% trans "Type" %}</label>
+      <select id="type" name="type" required>
+        {% for value, label in type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="rate">{% trans "Taux (%)" %}</label>
+      <input id="rate" type="number" name="rate" step="0.001" min="0" required>
+    </div>
+    <div class="form-field">
+      <label for="is_included">
+        <input id="is_included" type="checkbox" name="is_included" value="1">
+        {% trans "Taxe incluse dans le prix (TTC)" %}
+      </label>
+    </div>
+    <div class="form-field">
+      <label for="account_collected_id">{% trans "Compte de collecte" %}</label>
+      <select id="account_collected_id" name="account_collected_id">
+        <option value="">—</option>
+        {% for account in accounts %}
+          <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="account_deductible_id">{% trans "Compte de deduction" %}</label>
+      <select id="account_deductible_id" name="account_deductible_id">
+        <option value="">—</option>
+        {% for account in accounts %}
+          <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="valid_from">{% trans "Valide a partir de" %}</label>
+      <input id="valid_from" type="date" name="valid_from">
+    </div>
+    <div class="form-field">
+      <label for="valid_to">{% trans "Valide jusqu'a" %}</label>
+      <input id="valid_to" type="date" name="valid_to">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

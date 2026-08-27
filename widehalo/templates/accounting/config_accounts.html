@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Comptes" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Plan comptable" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Classe" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Parent" %}</th>
+        <th>{% trans "Lettrable" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for account in accounts %}
+        <tr>
+          <td>{{ account.code }}</td>
+          <td>{{ account.name }}</td>
+          <td>{{ account.account_class }}</td>
+          <td>{{ account.get_type_display }}</td>
+          <td>{{ account.parent|default:"—" }}</td>
+          <td>{% if account.reconcilable %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun compte." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau compte" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="account_class">{% trans "Classe PCG (1-7)" %}</label>
+      <input id="account_class" type="number" name="account_class" min="1" max="7" required>
+    </div>
+    <div class="form-field">
+      <label for="type">{% trans "Type" %}</label>
+      <select id="type" name="type" required>
+        {% for value, label in type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="parent_id">{% trans "Compte parent" %}</label>
+      <select id="parent_id" name="parent_id">
+        <option value="">—</option>
+        {% for account in accounts %}
+          <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="currency">{% trans "Devise" %}</label>
+      <input id="currency" type="text" name="currency" value="MGA" maxlength="3">
+    </div>
+    <div class="form-field">
+      <label for="reconcilable">
+        <input id="reconcilable" type="checkbox" name="reconcilable" value="1">
+        {% trans "Lettrable" %}
+      </label>
+    </div>
+    <div class="form-field">
+      <label for="analytic_required">
+        <input id="analytic_required" type="checkbox" name="analytic_required" value="1">
+        {% trans "Analytique obligatoire" %}
+      </label>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

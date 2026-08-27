@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Motifs de perte" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Motifs de perte" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr><th>{% trans "Nom" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for lost_reason in lost_reasons %}
+        <tr><td>{{ lost_reason.name }}</td></tr>
+      {% empty %}
+        <tr><td>{% trans "Aucun motif." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau motif" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ routing.code }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ routing.code }} — {{ routing.name }}</h1>
+  <p><a href="{% url 'mrp:config_routings' %}">{% trans "Retour gammes" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Etapes" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Sequence" %}</th><th>{% trans "Operation" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Duree (min)" %}</th></tr></thead>
+    <tbody>
+      {% for step in steps %}
+        <tr><td>{{ step.sequence }}</td><td>{{ step.operation }}</td><td>{{ step.workcenter }}</td><td>{{ step.duration_min }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune etape." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Ajouter une etape" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="sequence">{% trans "Sequence" %}</label>
+      <input id="sequence" type="number" name="sequence" value="0" required>
+    </div>
+    <div class="form-field">
+      <label for="operation_id">{% trans "Operation" %}</label>
+      <select id="operation_id" name="operation_id" required>
+        {% for operation in operations %}
+          <option value="{{ operation.id }}">{{ operation.code }} — {{ operation.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="workcenter_id">{% trans "Poste de charge" %}</label>
+      <select id="workcenter_id" name="workcenter_id" required>
+        {% for workcenter in workcenters %}
+          <option value="{{ workcenter.id }}">{{ workcenter }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="duration_min">{% trans "Duree (min)" %}</label>
+      <input id="duration_min" type="number" name="duration_min" value="0" required>
+    </div>
+    <button type="submit">{% trans "Ajouter l etape" %}</button>
+  </form>
+{% endblock %}

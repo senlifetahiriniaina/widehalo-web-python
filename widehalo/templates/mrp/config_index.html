@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Configuration Production" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Configuration Production" %}</h1>
+  <ul>
+    <li><a href="{% url 'mrp:config_workshops' %}">{% trans "Ateliers" %}</a></li>
+    <li><a href="{% url 'mrp:config_workcenters' %}">{% trans "Postes de charge" %}</a></li>
+    <li><a href="{% url 'mrp:config_operations' %}">{% trans "Operations" %}</a></li>
+    <li><a href="{% url 'mrp:config_routings' %}">{% trans "Gammes" %}</a></li>
+    <li><a href="{% url 'mrp:config_boms' %}">{% trans "Nomenclatures (BOM)" %}</a></li>
+  </ul>
+{% endblock %}

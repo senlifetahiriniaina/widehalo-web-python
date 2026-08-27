@@ -3,5 +3,11 @@
 {% block title %}{% trans "Parametres" %} — WideHalo{% endblock %}
 {% block content %}
   <h1>{% trans "Parametres" %}</h1>
-  <p>{% blocktrans %}Preferences de langue, notifications et vues sauvegardees. Section en construction pour les lots futurs.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Donnees de configuration par module (journaux, pipelines, ateliers, tableaux de mesures...). Les ecrans transactionnels (factures, opportunites, ordres, patrons) restent accessibles depuis le menu "Modules metier".{% endblocktrans %}</p>
+  <ul>
+    <li><a href="{% url 'accounting:config_index' %}">{% trans "Configuration Comptabilite" %}</a></li>
+    <li><a href="{% url 'crm:config_index' %}">{% trans "Configuration CRM" %}</a></li>
+    <li><a href="{% url 'mrp:config_index' %}">{% trans "Configuration Production" %}</a></li>
+    <li><a href="{% url 'patronage:config_index' %}">{% trans "Configuration Patronage" %}</a></li>
+  </ul>
 {% endblock %}

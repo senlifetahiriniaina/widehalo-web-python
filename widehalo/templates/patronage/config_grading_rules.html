@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Regles de gradation" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Regles de gradation" %}</h1>
+  <p><a href="{% url 'patronage:config_index' %}">{% trans "Retour configuration" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Tableau de mesures" %}</th><th>{% trans "Point de mesure" %}</th><th>{% trans "Mode" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Formule" %}</th><th>{% trans "De" %}</th><th>{% trans "A" %}</th></tr></thead>
+    <tbody>
+      {% for rule in grading_rules %}
+        <tr>
+          <td>{{ rule.size_chart.code }}</td>
+          <td>{{ rule.measurement_point.code }}</td>
+          <td>{{ rule.get_mode_display }}</td>
+          <td>{{ rule.value|default:"—" }}</td>
+          <td>{{ rule.formula|default:"—" }}</td>
+          <td>{{ rule.from_size }}</td>
+          <td>{{ rule.to_size }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucune regle de gradation." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle regle de gradation" %}</h2>
+  <p class="hint">
+    {% trans "Formulaire simplifie (U3) : un seul formulaire generique pour les 4 modes. 'Valeur' porte l'increment/le pourcentage (increment fixe/progressif/pourcentage) ; 'Formule' ne sert qu'au mode formule (expression sur d'autres points de mesure de la meme taille)." %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="size_chart_id">{% trans "Tableau de mesures" %}</label>
+      <select id="size_chart_id" name="size_chart_id" required>
+        {% for size_chart in size_charts %}
+          <option value="{{ size_chart.id }}">{{ size_chart.code }} — {{ size_chart.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="measurement_point_id">{% trans "Point de mesure" %}</label>
+      <select id="measurement_point_id" name="measurement_point_id" required>
+        {% for point in measurement_points %}
+          <option value="{{ point.id }}">{{ point.code }} — {{ point.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="mode">{% trans "Mode" %}</label>
+      <select id="mode" name="mode" required>
+        <option value="increment_fixe">{% trans "Increment fixe" %}</option>
+        <option value="increment_progressif">{% trans "Increment progressif" %}</option>
+        <option value="pourcentage">{% trans "Pourcentage" %}</option>
+        <option value="formule">{% trans "Formule" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="value">{% trans "Valeur (increment/pourcentage)" %}</label>
+      <input id="value" type="number" name="value" step="0.0001">
+    </div>
+    <div class="form-field">
+      <label for="formula">{% trans "Formule (mode formule)" %}</label>
+      <input id="formula" type="text" name="formula" placeholder="tour_poitrine / 2">
+    </div>
+    <div class="form-field">
+      <label for="from_size">{% trans "De la taille" %}</label>
+      <input id="from_size" type="text" name="from_size" required>
+    </div>
+    <div class="form-field">
+      <label for="to_size">{% trans "A la taille" %}</label>
+      <input id="to_size" type="text" name="to_size" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

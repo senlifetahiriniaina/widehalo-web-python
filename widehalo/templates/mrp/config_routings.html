@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Gammes" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gammes" %}</h1>
+  <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for routing in routings %}
+        <tr><td>{{ routing.code }}</td><td>{{ routing.name }}</td><td><a href="{% url 'mrp:config_routing_detail' routing_id=routing.id %}">{% trans "Voir" %}</a></td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune gamme." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle gamme" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Periodes" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Periodes comptables" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Exercice" %}</th>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Fin" %}</th>
+        <th>{% trans "Statut" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for period in periods %}
+        <tr>
+          <td>{{ period.fiscal_year.code }}</td>
+          <td>{{ period.code }}</td>
+          <td>{{ period.date_start }}</td>
+          <td>{{ period.date_end }}</td>
+          <td>{{ period.get_state_display }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune periode." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle periode" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+      <select id="fiscal_year_id" name="fiscal_year_id" required>
+        {% for fiscal_year in fiscal_years %}
+          <option value="{{ fiscal_year.id }}">{{ fiscal_year.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="date_start">{% trans "Debut" %}</label>
+      <input id="date_start" type="date" name="date_start" required>
+    </div>
+    <div class="form-field">
+      <label for="date_end">{% trans "Fin" %}</label>
+      <input id="date_end" type="date" name="date_end" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

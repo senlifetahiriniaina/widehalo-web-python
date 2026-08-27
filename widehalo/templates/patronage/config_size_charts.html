@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Tableaux de mesures" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Tableaux de mesures" %}</h1>
+  <p><a href="{% url 'patronage:config_index' %}">{% trans "Retour configuration" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type vetement" %}</th><th>{% trans "Tailles" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for size_chart in size_charts %}
+        <tr>
+          <td>{{ size_chart.code }}</td>
+          <td>{{ size_chart.name }}</td>
+          <td>{{ size_chart.get_garment_type_display }}</td>
+          <td>{{ size_chart.sizes|join:", " }}</td>
+          <td><a href="{% url 'patronage:config_size_chart_detail' size_chart_id=size_chart.id %}">{% trans "Voir" %}</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun tableau de mesures." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau tableau de mesures" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="garment_type">{% trans "Type vetement" %}</label>
+      <select id="garment_type" name="garment_type" required>
+        <option value="chemise">{% trans "Chemise" %}</option>
+        <option value="pantalon">{% trans "Pantalon" %}</option>
+        <option value="robe">{% trans "Robe" %}</option>
+        <option value="veste">{% trans "Veste" %}</option>
+        <option value="jupe">{% trans "Jupe" %}</option>
+        <option value="tshirt">{% trans "T-shirt" %}</option>
+        <option value="combinaison">{% trans "Combinaison" %}</option>
+        <option value="accessoire">{% trans "Accessoire" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="sizes">{% trans "Tailles (separees par virgule)" %}</label>
+      <input id="sizes" type="text" name="sizes" placeholder="S,M,L" required>
+    </div>
+    <div class="form-field">
+      <label for="base_size">{% trans "Taille de base" %}</label>
+      <input id="base_size" type="text" name="base_size" placeholder="M" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
