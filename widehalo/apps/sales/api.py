@@ -3,8 +3,12 @@ de vente. Depuis S3, `POST .../confirm` declenche aussi la qualification
 d'origine par ligne (RG-SAL-3) comme effet de bord de `confirm_order` — pas
 de nouvel endpoint dedie dans ce lot (le futur `GET .../procurement-plan`
 du §5.5.7 est differe a S7, cf. plan). Depuis S4, `POST .../invoice`
-declenche la facturation reelle (RG-SAL-2/SAL-AVCT1). Recurrence/previsions
-restent differees a S5-S7."""
+declenche la facturation reelle (RG-SAL-2/SAL-AVCT1). Depuis S5,
+`GET/POST /sales/recurrences` (creation/liste de gabarits de recurrence,
+RG-SAL-6) — pas de "declencher maintenant" HTTP dedie : la generation
+effective passe par `services.recurrence.run_due_recurrences`, invoquee
+par la commande de management `run_sales_recurrences` (ops), pas par
+l'API. Previsions restent differees a S6-S7."""
 
 from __future__ import annotations
 
@@ -18,7 +22,7 @@ from ninja import Router
 
 from apps.core.services.permissions import require_permission
 from apps.crm.services.public import get_lead_reference
-from apps.sales.models import SalesOrder, SalesQuotation
+from apps.sales.models import SalesOrder, SalesQuotation, SalesRecurrence
 from apps.sales.schemas import (
     OrderCancelIn,
     OrderDeliverIn,
@@ -32,6 +36,8 @@ from apps.sales.schemas import (
     QuotationLineIn,
     QuotationLineOut,
     QuotationOut,
+    RecurrenceIn,
+    RecurrenceOut,
 )
 from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.orders import (
@@ -48,6 +54,7 @@ from apps.sales.services.quotations import (
     decline_quotation,
     send_quotation,
 )
+from apps.sales.services.recurrence import create_recurrence
 
 router = Router(tags=["sales"])
 
@@ -368,3 +375,43 @@ def invoice_order_endpoint(request, order_id: str, payload: OrderInvoiceIn):
             ),
         )
     return OrderInvoiceOut(invoice_id=str(invoice_id))
+
+
+def _serialize_recurrence(recurrence: SalesRecurrence) -> RecurrenceOut:
+    return RecurrenceOut(
+        id=str(recurrence.id),
+        name=recurrence.name,
+        interval=recurrence.interval,
+        day_rule=recurrence.day_rule,
+        start_date=recurrence.start_date,
+        end_date=recurrence.end_date,
+        next_run=recurrence.next_run,
+        template_order_id=str(recurrence.template_order_id),
+        is_active=recurrence.is_active,
+    )
+
+
+@router.get("/sales/recurrences")
+@require_permission("sales.view_salesrecurrence")
+def list_recurrences(request):
+    recurrences = SalesRecurrence.objects.all().order_by("-created_at")
+    return {"results": [_serialize_recurrence(recurrence) for recurrence in recurrences]}
+
+
+@router.post("/sales/recurrences")
+@require_permission("sales.add_salesrecurrence")
+def create_recurrence_endpoint(request, payload: RecurrenceIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    template_order = get_object_or_404(SalesOrder, id=payload.template_order_id)
+    recurrence = create_recurrence(
+        tenant=tenant,
+        name=payload.name,
+        interval=payload.interval,
+        start_date=payload.start_date,
+        template_order=template_order,
+        day_rule=payload.day_rule,
+        end_date=payload.end_date,
+    )
+    return _serialize_recurrence(recurrence)

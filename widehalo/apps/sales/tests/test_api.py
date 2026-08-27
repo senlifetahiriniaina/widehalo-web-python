@@ -467,3 +467,78 @@ def test_create_quotation_via_api_denied_without_permission(api_sales) -> None:
         **headers,
     )
     assert response.status_code == 403
+
+
+def test_create_and_list_recurrences_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    order_response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    template_order_id = order_response.json()["id"]
+
+    create_response = client.post(
+        "/api/v1/sales/recurrences",
+        {
+            "name": "Facturation mensuelle",
+            "interval": "monthly",
+            "start_date": str(dt.date.today()),
+            "template_order_id": template_order_id,
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    body = create_response.json()
+    assert body["name"] == "Facturation mensuelle"
+    assert body["interval"] == "monthly"
+    assert body["template_order_id"] == template_order_id
+    assert body["is_active"] is True
+
+    list_response = client.get("/api/v1/sales/recurrences", **headers)
+    assert list_response.status_code == 200
+    results = list_response.json()["results"]
+    assert any(item["id"] == body["id"] for item in results)
+
+
+def test_create_recurrence_via_api_denied_without_permission(api_sales) -> None:
+    """Regression T6/RBAC : require_permission("sales.add_salesrecurrence")
+    doit refuser (403) un utilisateur authentifie sans ce role."""
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    order_response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    template_order_id = order_response.json()["id"]
+
+    outsider = User.objects.create_user(
+        email="sales-recurrence-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    outsider_token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    outsider_headers = _headers(outsider_token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/sales/recurrences",
+        {
+            "name": "Facturation mensuelle",
+            "interval": "monthly",
+            "start_date": str(dt.date.today()),
+            "template_order_id": template_order_id,
+        },
+        content_type="application/json",
+        **outsider_headers,
+    )
+    assert response.status_code == 403

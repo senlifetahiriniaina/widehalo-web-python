@@ -6,8 +6,10 @@ la confirmation depuis S3 (`services.procurement.qualify_and_process_order`,
 reel pour "a produire", stube pour "sur stock"/"a acheter" tant que
 `stocks`/`purchase` n'existent pas). La facturation reelle (RG-SAL-2,
 `billing_policy` par ligne, + SAL-AVCT1 "a l'avancement de production")
-est cablee depuis S4 (`services.invoicing`), la recurrence reste differee
-a S5.
+est cablee depuis S4 (`services.invoicing`). La planification periodique
+(`SalesRecurrence`, RG-SAL-6) est ajoutee en S5 (`services.recurrence`) :
+generation automatique d'une commande brouillon a partir d'un gabarit,
+JAMAIS auto-confirmee, avec notification du commercial pour validation.
 
 Regle de couplage n1 : `sales` ne fait jamais de FK Django vers
 `apps.partners`/`apps.catalog`/`apps.crm`/`apps.accounting`/`apps.mrp` —
@@ -360,3 +362,55 @@ class SalesOrderLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.description} x{self.qty}"
+
+
+class SalesRecurrence(BaseModel):
+    """Planification periodique (§5.5.2/5.5.3, S5, RG-SAL-6) : gabarit de
+    generation automatique de commandes brouillon. Pas de `ReferenceMixin`
+    — ce n'est pas un document commercial mais un enregistrement de
+    configuration (meme categorie que `CrmPipeline`), donc aucune
+    `reference` sequentielle a lui attribuer.
+
+    `day_rule` reste une metadonnee informative en S5, jamais parsee par
+    une logique de calendrier complexe : c'est une simple chaine libre
+    documentant a l'humain quel jour dans l'intervalle declenche la
+    generation (ex. "first_monday", "last_day_of_month", ou un simple
+    entier textuel type "15" pour le 15 du mois) — la date reelle qui
+    pilote la generation est `next_run`, avancee automatiquement par
+    `services.recurrence.generate_due_order` selon `interval` uniquement
+    (le mecanisme ne lit jamais `day_rule` pour calculer une date, il ne
+    sert qu'a etre affiche/documente aupres du commercial)."""
+
+    INTERVAL_WEEKLY = "weekly"
+    INTERVAL_MONTHLY = "monthly"
+    INTERVAL_QUARTERLY = "quarterly"
+    INTERVAL_YEARLY = "yearly"
+    INTERVAL_CHOICES = [
+        (INTERVAL_WEEKLY, "Hebdomadaire"),
+        (INTERVAL_MONTHLY, "Mensuel"),
+        (INTERVAL_QUARTERLY, "Trimestriel"),
+        (INTERVAL_YEARLY, "Annuel"),
+    ]
+
+    name = models.CharField(max_length=150)
+    interval = models.CharField(max_length=16, choices=INTERVAL_CHOICES)
+    day_rule = models.CharField(max_length=64, blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    next_run = models.DateField()
+    # La commande gabarit dont les donnees/lignes sont recopiees a chaque
+    # generation (cf. `services.recurrence.generate_due_order`) — vraie FK
+    # Django car `SalesOrder` appartient au meme module `sales` (pas une
+    # reference inter-app, la regle de couplage n1 ne s'applique pas ici).
+    # `PROTECT` : un gabarit encore utilise par une recurrence ne doit
+    # jamais pouvoir etre supprime silencieusement.
+    template_order = models.ForeignKey(
+        SalesOrder, on_delete=models.PROTECT, related_name="recurrences_using_as_template"
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "sales_recurrence"
+
+    def __str__(self) -> str:
+        return self.name

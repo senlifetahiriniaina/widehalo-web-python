@@ -142,6 +142,27 @@ class OrderLineOut(Schema):
     deposit_pct: Decimal | None
 
 
+class RecurrenceIn(Schema):
+    name: str
+    interval: str
+    start_date: dt.date
+    template_order_id: str
+    day_rule: str = ""
+    end_date: dt.date | None = None
+
+
+class RecurrenceOut(Schema):
+    id: str
+    name: str
+    interval: str
+    day_rule: str
+    start_date: dt.date
+    end_date: dt.date | None
+    next_run: dt.date
+    template_order_id: str
+    is_active: bool
+
+
 class OrderOut(Schema):
     id: str
     reference: str

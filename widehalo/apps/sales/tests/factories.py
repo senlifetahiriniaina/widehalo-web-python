@@ -14,7 +14,13 @@ import uuid
 
 import factory
 
-from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation, SalesQuotationLine
+from apps.sales.models import (
+    SalesOrder,
+    SalesOrderLine,
+    SalesQuotation,
+    SalesQuotationLine,
+    SalesRecurrence,
+)
 
 
 class SalesQuotationFactory(factory.django.DjangoModelFactory):
@@ -55,3 +61,15 @@ class SalesOrderLineFactory(factory.django.DjangoModelFactory):
     variant_id = factory.LazyFunction(uuid.uuid4)
     description = factory.Sequence(lambda n: f"Ligne {n}")
     qty = 1
+
+
+class SalesRecurrenceFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SalesRecurrence
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Recurrence {n}")
+    interval = SalesRecurrence.INTERVAL_MONTHLY
+    start_date = factory.LazyFunction(dt.date.today)
+    next_run = factory.LazyFunction(dt.date.today)
+    template_order = factory.SubFactory(SalesOrderFactory, tenant=factory.SelfAttribute("..tenant"))
