@@ -3,7 +3,10 @@ plan) : creation directe ou depuis un devis accepte (RG-SAL-1, chaine
 documentaire sans ressaisie), controle de credit a la confirmation
 (RG-SAL-4), et machine a etats complete du §5.5.4 (`SalesOrder.state`,
 `django-fsm-2`/`attempt_transition()` du socle, meme patron que
-`AccMove.invoice_state`/`MrpOrder.state`).
+`AccMove.invoice_state`/`MrpOrder.state`). `confirm_order()` declenche
+aussi, une fois la confirmation effective (jamais sur une commande
+`blocked`), la qualification d'origine par ligne RG-SAL-3 (S3, cf.
+`apps.sales.services.procurement`).
 
 RG-SAL-2 (facturation reelle) est differee a S4 : `mark_invoiced`/`close`
 restent declarees sur le modele mais aucune fonction de service reelle ne
@@ -29,6 +32,7 @@ from apps.core.services.sequences import next_reference
 from apps.core.services.workflow import attempt_transition
 from apps.partners.services.public import is_over_credit_limit
 from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation
+from apps.sales.services import procurement
 
 
 def create_order(
@@ -200,6 +204,11 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     attempt_transition(order, "confirm", user)
     order.date_confirmed = timezone.now().date()
     order.save(update_fields=["state", "date_confirmed"])
+
+    # RG-SAL-3 (S3) : qualification d'origine par ligne, uniquement une
+    # fois la commande effectivement confirmee — jamais sur une commande
+    # `blocked` (cf. `apps.sales.services.procurement`).
+    procurement.qualify_and_process_order(order, user)
     return order
 
 

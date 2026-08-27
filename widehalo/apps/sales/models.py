@@ -1,9 +1,11 @@
 """Ventes (§5.5) : devis (`SalesQuotation`/`SalesQuotationLine`, S1) et
 commande de vente (`SalesOrder`/`SalesOrderLine`, S2, FSM complete
 §5.5.4) — cf. plan, sous-sequencement du module `sales`. La qualification
-d'origine par ligne (RG-SAL-3, hormis le champ `source` deja ecrit en S1)
-est differee a S3, la facturation reelle (RG-SAL-2) a S4, la recurrence a
-S5.
+d'origine par ligne (RG-SAL-3, champ `source` ecrit des S1) est traitee a
+la confirmation depuis S3 (`services.procurement.qualify_and_process_order`,
+reel pour "a produire", stube pour "sur stock"/"a acheter" tant que
+`stocks`/`purchase` n'existent pas), la facturation reelle (RG-SAL-2) est
+differee a S4, la recurrence a S5.
 
 Regle de couplage n1 : `sales` ne fait jamais de FK Django vers
 `apps.partners`/`apps.catalog`/`apps.crm`/`apps.accounting`/`apps.mrp` —
@@ -302,17 +304,20 @@ class SalesOrderLine(BaseModel):
     cost_estimate_mga = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     margin_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     lead_time_days = models.PositiveIntegerField(null=True, blank=True)
-    # RG-SAL-3 : la logique de qualification (declenchement OF/reservation
-    # stock/demande d'achat) reste differee a S3, seul le champ est ecrit.
+    # RG-SAL-3 : qualification traitee a la confirmation depuis S3 (cf.
+    # `services.procurement.qualify_and_process_order`).
     source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default=SOURCE_STOCK)
     qty_delivered = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     qty_invoiced = models.DecimalField(max_digits=18, decimal_places=4, default=0)
-    # Renseigne par la qualification RG-SAL-3 (S3) — toujours nul en S2.
+    # Renseigne par la qualification RG-SAL-3 (S3) quand un `MrpOrder` reel
+    # est cree pour la ligne — reste nul sinon (stock/achat/production non
+    # qualifiable automatiquement).
     qty_to_produce = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     # Jamais de FK Django vers `apps.mrp.models.MrpOrder` — reference par
-    # UUID nu, renseignee par S3 quand la branche "a produire" appelle
-    # `mrp.services.public.create_manufacturing_order` (gap identifie par
-    # le plan). Toujours nul en S2.
+    # UUID nu, renseignee depuis S3 quand la branche "a produire" appelle
+    # `mrp.services.public.create_manufacturing_order` (gap comble par ce
+    # lot). Reste nul si aucune nomenclature/atelier actif n'est
+    # disponible, ou si la ligne n'est pas qualifiee "a produire".
     mrp_order_id = models.UUIDField(null=True, blank=True)
     # Reference par UUID nu vers une future ligne de commande d'achat
     # (`apps.purchase`, module pas encore construit) — champ declare des

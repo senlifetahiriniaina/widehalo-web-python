@@ -12,8 +12,11 @@ from uuid import UUID
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
-from apps.mrp.models import MrpBom, MrpBomLine, MrpWorkcenter
+from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
+from apps.mrp.models import MrpBom, MrpBomLine, MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.interventions import create_cri
+from apps.mrp.services.orders import create_order
 
 
 def set_bom_line_qty_by_size(
@@ -72,3 +75,50 @@ def list_active_boms_for_product(product_template_id: Any) -> list[dict[str, Any
     de version de patron."""
     boms = MrpBom.objects.filter(product_template_id=product_template_id, state=MrpBom.STATE_ACTIVE)
     return [{"id": bom.id, "code": bom.code, "version": bom.version} for bom in boms]
+
+
+def create_manufacturing_order(
+    *,
+    tenant: Tenant,
+    product_template_id: Any,
+    variant_id: Any = None,
+    qty: Decimal,
+    requested_by: User | None = None,
+) -> UUID | None:
+    """RG-SAL-3 (branche "a produire", cf. plan sous-sequencement `sales`
+    S3) : point d'integration appele par
+    `sales.services.procurement.qualify_and_process_order` pour toute
+    ligne de commande qualifiee "a produire". Ne leve jamais d'exception —
+    l'appelant doit pouvoir traiter un retour `None` comme "ne peut pas
+    etre produit automatiquement, necessite une intervention manuelle",
+    jamais comme une erreur bloquante (meme discipline que le stub de
+    faisabilite RG-CRM-7).
+
+    Retourne `None` si aucune nomenclature active n'existe pour le produit,
+    ou si le tenant ne dispose d'aucun atelier (`MrpWorkshop`) auquel
+    rattacher l'ordre — dans les deux cas, aucun `MrpOrder` n'est cree.
+    `requested_by` n'est pas encore trace sur `MrpOrder` (pas de champ
+    dedie en modele) : reserve pour un futur enrichissement, accepte sans
+    effet pour ne pas casser l'appelant si ce champ est ajoute plus tard."""
+    active_boms = list_active_boms_for_product(product_template_id)
+    if not active_boms:
+        return None
+    bom = MrpBom.objects.get(id=active_boms[0]["id"])
+
+    # Choix du workshop par defaut (aucune notion de rattachement produit
+    # <-> atelier au CDC pour ce lot) : le premier atelier non
+    # sous-traitant du tenant, par ordre de creation — un tenant de
+    # production reelle en a generalement peu, et un choix stable/
+    # deterministe importe plus ici qu'une regle d'affectation fine
+    # (differee a un futur lot si le besoin se confirme).
+    workshop = (
+        MrpWorkshop.objects.filter(tenant=tenant, is_subcontractor=False)
+        .order_by("created_at")
+        .first()
+    )
+    if workshop is None:
+        return None
+
+    order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=qty, variant_id=variant_id)
+    order_id: UUID = order.id
+    return order_id

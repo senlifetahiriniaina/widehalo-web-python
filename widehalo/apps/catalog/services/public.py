@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.utils import timezone
 
@@ -21,6 +22,21 @@ def get_variant_price(variant_id: Any, *, partner_id: Any = None) -> Decimal:
 def get_variant_reference(variant_id: Any) -> str:
     variant = ProductVariant.objects.filter(id=variant_id).first()
     return variant.reference if variant is not None else ""
+
+
+def get_variant_template_id(variant_id: Any) -> UUID | None:
+    """Gap identifie par le sous-sequencement S3 de `sales` (RG-SAL-3) :
+    remonte le `ProductTemplate` d'une variante — necessaire a
+    `sales.services.procurement` pour passer du `variant_id` stocke sur
+    une ligne de commande au `product_template_id` qu'attend
+    `mrp.services.public.list_active_boms_for_product`/
+    `create_manufacturing_order`. Retourne `None`, jamais une exception,
+    si la variante n'existe pas (meme discipline que `get_variant_reference`)."""
+    variant = ProductVariant.objects.filter(id=variant_id).first()
+    if variant is None:
+        return None
+    template_id: UUID = variant.template_id
+    return template_id
 
 
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:

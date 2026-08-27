@@ -1,5 +1,9 @@
 """API django-ninja du module `sales` (§5.5.7) — S1 : devis, S2 : commande
-de vente (facturation/recurrence/previsions differes a S3-S7, cf. plan)."""
+de vente. Depuis S3, `POST .../confirm` declenche aussi la qualification
+d'origine par ligne (RG-SAL-3) comme effet de bord de `confirm_order` — pas
+de nouvel endpoint dedie dans ce lot (le futur `GET .../procurement-plan`
+du §5.5.7 est differe a S7, cf. plan). Facturation/recurrence/previsions
+restent differees a S4-S7."""
 
 from __future__ import annotations
 

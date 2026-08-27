@@ -2,6 +2,6 @@ from apps.core.module import ModuleSpec
 
 MODULE = ModuleSpec(
     name="sales",
-    dependencies=("core", "partners", "catalog", "crm"),
+    dependencies=("core", "partners", "catalog", "crm", "mrp"),
     verbose_name="Ventes",
 )
