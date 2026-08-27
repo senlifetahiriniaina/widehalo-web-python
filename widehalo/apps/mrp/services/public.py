@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
@@ -122,6 +123,30 @@ def create_manufacturing_order(
     order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=qty, variant_id=variant_id)
     order_id: UUID = order.id
     return order_id
+
+
+def get_total_workshop_capacity(tenant: Tenant) -> Decimal:
+    """RG-SAL-7 (composante "capacite disponible des ateliers", cf. plan
+    sous-sequencement `sales` S6) : somme de `MrpWorkshop.capacity_hours_day`
+    pour les ateliers non sous-traitants actifs du tenant — meme filtre
+    "non sous-traitant" que `create_manufacturing_order` (un atelier
+    sous-traitant n'est pas une capacite de production propre au tenant).
+
+    C'est une capacite BRUTE en heures/jour, pas une quantite de produits
+    servables : convertir des heures atelier en une quantite precise pour
+    un produit donne demanderait une estimation de temps de gamme/BOM
+    reelle, hors-perimetre de ce lot (cf.
+    `sales.services.forecast.build_forecast`, qui expose ce nombre tel
+    quel dans `parameters` pour interpretation humaine plutot que de
+    fabriquer une quantite-produit precise et trompeuse).
+
+    Retourne `Decimal(0)`, jamais une exception, quand le tenant ne
+    dispose d'aucun atelier non sous-traitant (meme discipline "jamais de
+    faux positif" que le reste de ce module)."""
+    total = MrpWorkshop.objects.filter(tenant=tenant, is_subcontractor=False).aggregate(
+        total=models.Sum("capacity_hours_day")
+    )["total"]
+    return total if total is not None else Decimal(0)
 
 
 def get_order_produced_qty(mrp_order_id: Any) -> Decimal | None:

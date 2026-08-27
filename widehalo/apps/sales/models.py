@@ -10,6 +10,11 @@ est cablee depuis S4 (`services.invoicing`). La planification periodique
 (`SalesRecurrence`, RG-SAL-6) est ajoutee en S5 (`services.recurrence`) :
 generation automatique d'une commande brouillon a partir d'un gabarit,
 JAMAIS auto-confirmee, avec notification du commercial pour validation.
+S6 ajoute les previsions (RG-SAL-7/8, SAL-SAIS1) : `SalesCustomerCalendar`
+(calendrier client), `SalesTarget` (objectifs commerciaux) et
+`SalesForecast` (sortie de `services.forecast.build_forecast`) ; RG-SAL-9
+(incoterm obligatoire a l'export) est ferme par `SalesOrder.is_export` +
+`services.orders.ensure_incoterm_for_export`.
 
 Regle de couplage n1 : `sales` ne fait jamais de FK Django vers
 `apps.partners`/`apps.catalog`/`apps.crm`/`apps.accounting`/`apps.mrp` —
@@ -223,6 +228,12 @@ class SalesOrder(BaseModel, ReferenceMixin):
     # `services.invoicing.invoice_order`), independamment du detail par
     # ligne (`SalesOrderLine.qty_invoiced`).
     invoiced_amount_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # RG-SAL-9 (S6) : saisi par l'utilisateur — aucune detection automatique
+    # du pays du partenaire dans ce lot (`partners.services.public` n'expose
+    # pas le pays). Rend `incoterm` obligatoire (cf.
+    # `services.orders.ensure_incoterm_for_export`, appelee depuis
+    # `confirm_order`).
+    is_export = models.BooleanField(default=False)
 
     class Meta:
         db_table = "sales_order"
@@ -414,3 +425,121 @@ class SalesRecurrence(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class SalesCustomerCalendar(BaseModel):
+    """Calendrier client (§5.5.3, RG-SAL-7) : fermetures/pics saisonniers
+    connus d'un partenaire, consommes par `services.forecast.
+    customer_calendar_adjustment` pour ajuster une prevision par
+    periode. Pas de `ReferenceMixin` — enregistrement de configuration,
+    meme categorie que `SalesRecurrence`, aucune reference sequentielle."""
+
+    TYPE_CLOSURE = "closure"
+    TYPE_PEAK_ACTIVITY = "peak_activity"
+    TYPE_CAMPAIGN = "campaign"
+    TYPE_INVENTORY = "inventory"
+    TYPE_CHOICES = [
+        (TYPE_CLOSURE, "Fermeture"),
+        (TYPE_PEAK_ACTIVITY, "Pic d'activite"),
+        (TYPE_CAMPAIGN, "Campagne"),
+        (TYPE_INVENTORY, "Inventaire"),
+    ]
+
+    # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
+    # couplage n1).
+    partner_id = models.UUIDField()
+    label = models.CharField(max_length=150)
+    date_from = models.DateField()
+    date_to = models.DateField()
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    # Modificateur applique a la demande prevue du partenaire sur la
+    # periode (ex. +50.00 pour un pic, -100.00 pour une fermeture totale).
+    impact_pct = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        db_table = "sales_customer_calendar"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.date_from} -> {self.date_to})"
+
+
+class SalesTarget(BaseModel):
+    """Objectif commercial (§5.5.3) : `period` est une simple chaine de
+    bucket mensuel (ex. "2026-01"), pas une FK vers
+    `apps.accounting.models.AccPeriod` — cette derniere est une periode
+    fiscale comptable reelle (cloture/lettrage), un couplage bien trop
+    fort pour un objectif commercial qui n'a besoin que d'un bucket
+    d'affichage. Pas de `ReferenceMixin` — enregistrement de
+    configuration, pas un document commercial."""
+
+    SCOPE_COMPANY = "company"
+    SCOPE_TEAM = "team"
+    SCOPE_SALESPERSON = "salesperson"
+    SCOPE_CHOICES = [
+        (SCOPE_COMPANY, "Entreprise"),
+        (SCOPE_TEAM, "Equipe"),
+        (SCOPE_SALESPERSON, "Commercial"),
+    ]
+
+    period = models.CharField(max_length=7)
+    scope = models.CharField(max_length=16, choices=SCOPE_CHOICES, default=SCOPE_COMPANY)
+    # UUID d'equipe (`apps.crm.models.CrmTeam`) ou de commercial
+    # (`core.User`) selon `scope` — jamais de FK, nul quand `scope ==
+    # "company"`.
+    scope_ref = models.UUIDField(null=True, blank=True)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    qty = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+
+    class Meta:
+        db_table = "sales_target"
+
+    def __str__(self) -> str:
+        return f"{self.scope}:{self.period}"
+
+
+class SalesForecast(BaseModel):
+    """Prevision produit x periode (RG-SAL-7/8, SAL-SAIS1, S6) — sortie de
+    `services.forecast.build_forecast`. Pas de `ReferenceMixin` : c'est un
+    resultat de calcul recomputable, pas un document commercial numerote."""
+
+    CONFIDENCE_LOW = "low"
+    CONFIDENCE_MEDIUM = "medium"
+    CONFIDENCE_HIGH = "high"
+    CONFIDENCE_CHOICES = [
+        (CONFIDENCE_LOW, "Faible"),
+        (CONFIDENCE_MEDIUM, "Moyenne"),
+        (CONFIDENCE_HIGH, "Haute"),
+    ]
+
+    period = models.CharField(max_length=7)
+    variant_id = models.UUIDField()
+    # Nul = prevision produit tous clients confondus, renseigne = prevision
+    # restreinte a un partenaire (cf. `customer_calendar_adjustment`).
+    partner_id = models.UUIDField(null=True, blank=True)
+    qty_forecast = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # Renseigne a posteriori une fois la periode cloturee — jamais calcule
+    # par ce lot (cf. plan, hors-perimetre S6).
+    qty_actual = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    confidence = models.CharField(max_length=8, choices=CONFIDENCE_CHOICES, default=CONFIDENCE_LOW)
+    # Code court identifiant la methode ayant produit `qty_forecast` (ex.
+    # "weighted_moving_average+exponential_smoothing") — RG-SAL-8
+    # (explicabilite).
+    method = models.CharField(max_length=64, blank=True)
+    computed_at = models.DateTimeField(auto_now=True)
+    # RG-SAL-8 : tous les intrants/sorties intermediaires du calcul, pour
+    # qu'un humain puisse reconstituer *pourquoi* `qty_forecast`/
+    # `dominant_cause` valent ce qu'ils valent — jamais un modele boite
+    # noire.
+    parameters = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "sales_forecast"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "period", "variant_id", "partner_id"],
+                name="uniq_sales_forecast_tenant_period_variant_partner",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.variant_id}@{self.period}"

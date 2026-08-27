@@ -15,11 +15,14 @@ import uuid
 import factory
 
 from apps.sales.models import (
+    SalesCustomerCalendar,
+    SalesForecast,
     SalesOrder,
     SalesOrderLine,
     SalesQuotation,
     SalesQuotationLine,
     SalesRecurrence,
+    SalesTarget,
 )
 
 
@@ -73,3 +76,38 @@ class SalesRecurrenceFactory(factory.django.DjangoModelFactory):
     start_date = factory.LazyFunction(dt.date.today)
     next_run = factory.LazyFunction(dt.date.today)
     template_order = factory.SubFactory(SalesOrderFactory, tenant=factory.SelfAttribute("..tenant"))
+
+
+class SalesCustomerCalendarFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SalesCustomerCalendar
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    label = factory.Sequence(lambda n: f"Evenement {n}")
+    date_from = factory.LazyFunction(dt.date.today)
+    date_to = factory.LazyFunction(dt.date.today)
+    type = SalesCustomerCalendar.TYPE_CLOSURE
+    impact_pct = -100
+
+
+class SalesTargetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SalesTarget
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    period = "2026-01"
+    scope = SalesTarget.SCOPE_COMPANY
+    amount_mga = 0
+
+
+class SalesForecastFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SalesForecast
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    period = "2026-01"
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    qty_forecast = 0
+    confidence = SalesForecast.CONFIDENCE_LOW
+    method = "weighted_moving_average+exponential_smoothing"

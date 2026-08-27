@@ -542,3 +542,113 @@ def test_create_recurrence_via_api_denied_without_permission(api_sales) -> None:
         **outsider_headers,
     )
     assert response.status_code == 403
+
+
+def test_recompute_and_list_forecast_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    order_response = client.post(
+        "/api/v1/sales/orders",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "lines": [
+                {"description": "Prestation", "qty": "3", "unit_price": "1000", "is_custom": True}
+            ],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    order_id = order_response.json()["id"]
+    variant_id = order_response.json()["lines"][0]["variant_id"]
+    # Ligne hors catalogue (`is_custom`) : `variant_id` reste nul, donc
+    # `recompute_forecasts_for_period` n'y trouvera aucun variant a
+    # previsionner — attendu, verifie une liste vide plutot qu'une erreur.
+    assert variant_id is None
+
+    with use_tenant(tenant.id):
+        order = SalesOrder.objects.get(id=order_id)
+        line = order.lines.get()
+        line.variant_id = uuid.uuid4()
+        line.qty_delivered = line.qty
+        line.save(update_fields=["variant_id", "qty_delivered"])
+
+    period = "2026-05"
+    recompute_response = client.post(
+        "/api/v1/sales/forecast/recompute",
+        {"period": period},
+        content_type="application/json",
+        **headers,
+    )
+    assert recompute_response.status_code == 200
+    assert len(recompute_response.json()["results"]) == 1
+
+    list_response = client.get(f"/api/v1/sales/forecast?from={period}&to={period}", **headers)
+    assert list_response.status_code == 200
+    results = list_response.json()["results"]
+    assert len(results) == 1
+    assert results[0]["period"] == period
+    assert results[0]["parameters"]["dominant_cause"] != "stock"
+
+
+def test_recompute_forecast_via_api_denied_without_permission(api_sales) -> None:
+    tenant, _user = api_sales
+    client = Client()
+    outsider = User.objects.create_user(
+        email="sales-forecast-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/sales/forecast/recompute",
+        {"period": "2026-05"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403
+
+
+def test_create_and_list_targets_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/targets",
+        {"period": "2026-05", "scope": "company", "amount_mga": "5000000"},
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    body = create_response.json()
+    assert body["period"] == "2026-05"
+    assert body["scope"] == "company"
+
+    list_response = client.get("/api/v1/sales/targets", **headers)
+    assert list_response.status_code == 200
+    assert any(item["id"] == body["id"] for item in list_response.json()["results"])
+
+
+def test_create_target_via_api_denied_without_permission(api_sales) -> None:
+    tenant, _user = api_sales
+    client = Client()
+    outsider = User.objects.create_user(
+        email="sales-target-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/sales/targets",
+        {"period": "2026-05", "scope": "company", "amount_mga": "5000000"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403

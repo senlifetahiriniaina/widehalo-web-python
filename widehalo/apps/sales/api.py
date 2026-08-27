@@ -8,7 +8,12 @@ declenche la facturation reelle (RG-SAL-2/SAL-AVCT1). Depuis S5,
 RG-SAL-6) — pas de "declencher maintenant" HTTP dedie : la generation
 effective passe par `services.recurrence.run_due_recurrences`, invoquee
 par la commande de management `run_sales_recurrences` (ops), pas par
-l'API. Previsions restent differees a S6-S7."""
+l'API. Depuis S6, `GET /sales/forecast` (liste des previsions deja
+calculees, RG-SAL-7) et `POST /sales/forecast/recompute` (recalcul,
+`services.forecast.recompute_forecasts_for_period`), ainsi que
+`GET/POST /sales/targets` (objectifs commerciaux). Le masquage de la
+marge par role et le reste des ecrans/rapports (§5.5.7 restant) sont
+differes a S7."""
 
 from __future__ import annotations
 
@@ -18,12 +23,20 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
-from ninja import Router
+from ninja import Query, Router
 
 from apps.core.services.permissions import require_permission
 from apps.crm.services.public import get_lead_reference
-from apps.sales.models import SalesOrder, SalesQuotation, SalesRecurrence
+from apps.sales.models import (
+    SalesForecast,
+    SalesOrder,
+    SalesQuotation,
+    SalesRecurrence,
+    SalesTarget,
+)
 from apps.sales.schemas import (
+    ForecastOut,
+    ForecastRecomputeIn,
     OrderCancelIn,
     OrderDeliverIn,
     OrderIn,
@@ -38,7 +51,10 @@ from apps.sales.schemas import (
     QuotationOut,
     RecurrenceIn,
     RecurrenceOut,
+    TargetIn,
+    TargetOut,
 )
+from apps.sales.services.forecast import recompute_forecasts_for_period
 from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.orders import (
     add_order_line,
@@ -415,3 +431,89 @@ def create_recurrence_endpoint(request, payload: RecurrenceIn):
         end_date=payload.end_date,
     )
     return _serialize_recurrence(recurrence)
+
+
+def _serialize_forecast(forecast: SalesForecast) -> ForecastOut:
+    return ForecastOut(
+        id=str(forecast.id),
+        period=forecast.period,
+        variant_id=str(forecast.variant_id),
+        partner_id=str(forecast.partner_id) if forecast.partner_id else None,
+        qty_forecast=forecast.qty_forecast,
+        qty_actual=forecast.qty_actual,
+        confidence=forecast.confidence,
+        method=forecast.method,
+        computed_at=forecast.computed_at,
+        parameters=forecast.parameters,
+    )
+
+
+@router.get("/sales/forecast")
+@require_permission("sales.view_salesforecast")
+def list_forecast_endpoint(
+    request,
+    date_from: str | None = Query(None, alias="from"),
+    date_to: str | None = Query(None, alias="to"),
+    variant: str | None = Query(None),
+):
+    """RG-SAL-7 (§5.5.7) : liste des previsions deja calculees
+    (`services.forecast.recompute_forecasts_for_period` alimente la
+    table), filtrees par plage de periode (buckets mensuels "YYYY-MM"
+    compares lexicographiquement, ce qui est correct pour ce format) et/ou
+    variante. `from`/`to`/`variant` sont tous optionnels (aucun filtre
+    applique quand omis). `from`/`to` sont des mots reserves Python : les
+    parametres internes `date_from`/`date_to` sont alias vers les noms de
+    query string du CDC via `ninja.Query(alias=...)`."""
+    forecasts = SalesForecast.objects.all().order_by("period", "variant_id")
+    if date_from:
+        forecasts = forecasts.filter(period__gte=date_from)
+    if date_to:
+        forecasts = forecasts.filter(period__lte=date_to)
+    if variant:
+        forecasts = forecasts.filter(variant_id=uuid.UUID(variant))
+    return {"results": [_serialize_forecast(forecast) for forecast in forecasts]}
+
+
+@router.post("/sales/forecast/recompute")
+@require_permission("sales.change_salesforecast")
+def recompute_forecast_endpoint(request, payload: ForecastRecomputeIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    forecasts = recompute_forecasts_for_period(tenant, payload.period)
+    return {"results": [_serialize_forecast(forecast) for forecast in forecasts]}
+
+
+def _serialize_target(target: SalesTarget) -> TargetOut:
+    return TargetOut(
+        id=str(target.id),
+        period=target.period,
+        scope=target.scope,
+        scope_ref=str(target.scope_ref) if target.scope_ref else None,
+        amount_mga=target.amount_mga,
+        qty=target.qty,
+    )
+
+
+@router.get("/sales/targets")
+@require_permission("sales.view_salestarget")
+def list_targets_endpoint(request):
+    targets = SalesTarget.objects.all().order_by("-period")
+    return {"results": [_serialize_target(target) for target in targets]}
+
+
+@router.post("/sales/targets")
+@require_permission("sales.add_salestarget")
+def create_target_endpoint(request, payload: TargetIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    target = SalesTarget.objects.create(
+        tenant=tenant,
+        period=payload.period,
+        scope=payload.scope,
+        scope_ref=uuid.UUID(payload.scope_ref) if payload.scope_ref else None,
+        amount_mga=payload.amount_mga,
+        qty=payload.qty,
+    )
+    return _serialize_target(target)

@@ -10,7 +10,7 @@ from uuid import UUID
 
 from django.utils import timezone
 
-from apps.catalog.models import CatalogCertification, ProductVariant
+from apps.catalog.models import CatalogCertification, ProductSupplierInfo, ProductVariant
 from apps.catalog.services.pricing import get_price
 
 
@@ -37,6 +37,36 @@ def get_variant_template_id(variant_id: Any) -> UUID | None:
         return None
     template_id: UUID = variant.template_id
     return template_id
+
+
+def get_supplier_lead_time_days(variant_id: Any, *, partner_id: Any = None) -> int | None:
+    """RG-SAL-7 (composante "delais fournisseurs", cf. plan
+    sous-sequencement `sales` S6) : delai fournisseur le plus court connu
+    pour le produit d'une variante (`ProductSupplierInfo`, cherchee sur
+    tout le `ProductTemplate` de la variante — un fournisseur reference
+    generalement le produit, pas chaque variante taille/couleur
+    individuellement).
+
+    `partner_id` optionnel restreint a un fournisseur precis (retourne
+    alors son `lead_time_days` s'il existe). Sans `partner_id`, retourne
+    le minimum parmi tous les fournisseurs connus du produit (l'hypothese
+    la plus optimiste disponible, coherente avec l'usage "delai avant
+    rupture" de RG-SAL-7 — un acheteur choisirait le fournisseur le plus
+    rapide s'il devait commander en urgence).
+
+    Retourne `None`, jamais une exception, si la variante n'existe pas ou
+    qu'aucune information fournisseur n'est enregistree pour son produit
+    (meme discipline que `get_variant_template_id`)."""
+    variant = ProductVariant.objects.filter(id=variant_id).first()
+    if variant is None:
+        return None
+
+    infos = ProductSupplierInfo.objects.filter(variant__template_id=variant.template_id)
+    if partner_id is not None:
+        infos = infos.filter(partner_id=partner_id)
+
+    lead_time = infos.order_by("lead_time_days").values_list("lead_time_days", flat=True).first()
+    return lead_time
 
 
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:

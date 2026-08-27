@@ -165,6 +165,26 @@ def send_order(order: SalesOrder, user: User) -> SalesOrder:
     return order
 
 
+def ensure_incoterm_for_export(order: SalesOrder) -> None:
+    """RG-SAL-9 : "Champ [incoterm] obligatoire sur les commandes a
+    l'export". `is_export` est un booleen saisi par l'utilisateur (pas de
+    detection automatique du pays du partenaire dans ce lot,
+    `partners.services.public` n'expose pas le pays — cf. plan). Leve
+    `ValidationError` si `is_export` est vrai et `incoterm` vide.
+
+    Choix du point de controle (S6) : `confirm_order`, pas `send_order`.
+    L'envoi d'un devis/commande au client est une simple communication
+    (le commercial peut encore completer l'incoterm avant que le client
+    ne s'engage) ; la confirmation, elle, engage reellement la commande
+    (declenche RG-SAL-3, RG-SAL-4) — c'est donc le dernier moment ou
+    bloquer sans deranger le commercial pour un champ qu'il aurait pu
+    renseigner apres l'envoi mais avant l'engagement reel."""
+    if order.is_export and not order.incoterm:
+        raise ValidationError(
+            _("L'incoterm est obligatoire pour une commande a l'export (RG-SAL-9).")
+        )
+
+
 def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     """RG-SAL-4 : controle de credit a la confirmation. `sales` calcule
     son propre encours (le CDC ne fournit pas de formule exacte, la
@@ -182,6 +202,8 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     du diagramme §5.5.4, pas une erreur — la commande y est simplement
     transitionnee avec un motif trace, et la fonction retourne
     normalement."""
+    ensure_incoterm_for_export(order)
+
     outstanding = SalesOrder.objects.filter(
         tenant=order.tenant,
         partner_id=order.partner_id,

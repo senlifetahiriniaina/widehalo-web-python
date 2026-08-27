@@ -15,7 +15,11 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder
 from apps.mrp.services.bom import activate_bom, create_bom
-from apps.mrp.services.public import create_manufacturing_order, get_order_produced_qty
+from apps.mrp.services.public import (
+    create_manufacturing_order,
+    get_order_produced_qty,
+    get_total_workshop_capacity,
+)
 from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
 
 pytestmark = pytest.mark.django_db
@@ -95,3 +99,24 @@ def test_get_order_produced_qty_returns_none_for_unknown_order(public_setup) -> 
     tenant = public_setup
     with use_tenant(tenant.id):
         assert get_order_produced_qty(uuid.uuid4()) is None
+
+
+def test_get_total_workshop_capacity_sums_non_subcontractor_workshops(public_setup) -> None:
+    """RG-SAL-7 (S6 du sous-sequencement `sales`) : la capacite totale
+    somme uniquement les ateliers non sous-traitants — meme filtre que
+    `create_manufacturing_order`."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        MrpWorkshopFactory(tenant=tenant, capacity_hours_day=Decimal("8.00"))
+        MrpWorkshopFactory(tenant=tenant, capacity_hours_day=Decimal("10.50"))
+        MrpWorkshopFactory(
+            tenant=tenant, capacity_hours_day=Decimal("40.00"), is_subcontractor=True
+        )
+
+        assert get_total_workshop_capacity(tenant) == Decimal("18.50")
+
+
+def test_get_total_workshop_capacity_returns_zero_without_workshop(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert get_total_workshop_capacity(tenant) == Decimal(0)

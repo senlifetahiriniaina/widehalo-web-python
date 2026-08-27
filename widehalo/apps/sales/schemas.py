@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from typing import Any
 
 from ninja import Schema
 
@@ -161,6 +162,40 @@ class RecurrenceOut(Schema):
     next_run: dt.date
     template_order_id: str
     is_active: bool
+
+
+class ForecastOut(Schema):
+    id: str
+    period: str
+    variant_id: str
+    partner_id: str | None
+    qty_forecast: Decimal
+    qty_actual: Decimal | None
+    confidence: str
+    method: str
+    computed_at: dt.datetime
+    parameters: dict[str, Any]
+
+
+class ForecastRecomputeIn(Schema):
+    period: str
+
+
+class TargetIn(Schema):
+    period: str
+    scope: str = "company"
+    scope_ref: str | None = None
+    amount_mga: Decimal = Decimal(0)
+    qty: Decimal | None = None
+
+
+class TargetOut(Schema):
+    id: str
+    period: str
+    scope: str
+    scope_ref: str | None
+    amount_mga: Decimal
+    qty: Decimal | None
 
 
 class OrderOut(Schema):
