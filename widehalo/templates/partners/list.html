@@ -3,5 +3,10 @@
 {% block title %}{% trans "Partenaires" %} — WideHalo{% endblock %}
 {% block content %}
   <h1>{% trans "Partenaires" %}</h1>
+  <p>
+    <a href="{% url 'partners:duplicates' %}">{% trans "Alertes de doublon" %}</a>
+    &middot;
+    <a href="{% url 'partners:merge' %}">{% trans "Fusionner des partenaires" %}</a>
+  </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

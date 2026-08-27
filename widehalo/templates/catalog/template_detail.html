@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ template.name }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ template.reference }} — {{ template.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Categorie" %}: {{ template.category|default:"—" }}</p>
+  <p>{% trans "Unite de base" %}: {{ template.base_uom }}</p>
+  <p>{% trans "Prix catalogue" %}: {{ template.base_price_mga }} MGA</p>
+
+  <h2>{% trans "Variantes" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Valeurs d'attributs" %}</th>
+        <th>{% trans "Actif" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for variant in variants %}
+        <tr>
+          <td>{{ variant.reference }}</td>
+          <td>
+            {% for value in variant.attribute_values.all %}
+              {{ value }}{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td>{{ variant.is_active|yesno:"Oui,Non" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune variante generee." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Generer les variantes" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="generate_variants">
+    <fieldset>
+      <legend>{% trans "Attributs generateurs (2 maximum)" %}</legend>
+      {% for attribute in attributes %}
+        <label>
+          <input type="checkbox" name="attribute_ids" value="{{ attribute.id }}"
+                 {% if attribute.id in current_attribute_ids %}checked{% endif %}>
+          {{ attribute.name }}
+        </label>
+      {% empty %}
+        <p>{% trans "Aucun attribut disponible — creez-en depuis la configuration." %}</p>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">{% trans "Generer" %}</button>
+  </form>
+
+  <h2>{% trans "Specifications textiles" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Composition" %}</th>
+        <th>{% trans "Grammage (g/m2)" %}</th>
+        <th>{% trans "Laize (cm)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for variant in variants %}
+        {% with spec=variant.textile_spec %}
+          {% if spec %}
+            <tr>
+              <td>{{ variant.reference }}</td>
+              <td>{{ spec.composition }}</td>
+              <td>{{ spec.weight_gsm|default:"—" }}</td>
+              <td>{{ spec.width_cm|default:"—" }}</td>
+            </tr>
+          {% endif %}
+        {% endwith %}
+      {% empty %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Prix (listes applicables)" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Liste de prix" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Prix (MGA)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in price_items %}
+        <tr>
+          <td>{{ item.variant.reference }}</td>
+          <td>{{ item.price_list.name }}</td>
+          <td>{{ item.price_list.get_kind_display }}</td>
+          <td>{{ item.price_mga }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun prix specifique — le prix catalogue s'applique." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Information fournisseur" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Partenaire (UUID)" %}</th>
+        <th>{% trans "Reference fournisseur" %}</th>
+        <th>{% trans "Prix (MGA)" %}</th>
+        <th>{% trans "Delai (jours)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for variant in variants %}
+        {% for info in variant.supplier_infos.all %}
+          <tr>
+            <td>{{ variant.reference }}</td>
+            <td>{{ info.partner_id }}</td>
+            <td>{{ info.supplier_reference }}</td>
+            <td>{{ info.price_mga }}</td>
+            <td>{{ info.lead_time_days }}</td>
+          </tr>
+        {% endfor %}
+      {% empty %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une information fournisseur" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_supplier_info">
+    <div class="form-field">
+      <label for="variant_id">{% trans "Variante" %}</label>
+      <select id="variant_id" name="variant_id" required>
+        {% for variant in variants %}
+          <option value="{{ variant.id }}">{{ variant.reference }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="partner_id">{% trans "Partenaire (UUID)" %}</label>
+      <input id="partner_id" type="text" name="partner_id" required>
+    </div>
+    <div class="form-field">
+      <label for="supplier_reference">{% trans "Reference fournisseur" %}</label>
+      <input id="supplier_reference" type="text" name="supplier_reference">
+    </div>
+    <div class="form-field">
+      <label for="price_mga">{% trans "Prix (MGA)" %}</label>
+      <input id="price_mga" type="number" step="0.0001" name="price_mga">
+    </div>
+    <div class="form-field">
+      <label for="lead_time_days">{% trans "Delai (jours)" %}</label>
+      <input id="lead_time_days" type="number" name="lead_time_days">
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+{% endblock %}

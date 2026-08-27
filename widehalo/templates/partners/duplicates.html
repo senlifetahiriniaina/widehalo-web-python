@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Doublons partenaires" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Alertes de doublon" %}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Partenaire" %}</th>
+        <th>{% trans "Doublon presume" %}</th>
+        <th>{% trans "Champ" %}</th>
+        <th>{% trans "Detecte le" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for alert in alerts %}
+        <tr>
+          <td><a href="{% url 'partners:detail' alert.partner_id %}">{{ alert.partner.name }}</a></td>
+          <td><a href="{% url 'partners:detail' alert.duplicate_of_id %}">{{ alert.duplicate_of.name }}</a></td>
+          <td>{{ alert.matched_field }}</td>
+          <td>{{ alert.created_at }}</td>
+          <td>
+            <a href="{% url 'partners:merge' %}?primary={{ alert.duplicate_of_id }}&duplicate={{ alert.partner_id }}">{% trans "Fusionner" %}</a>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="alert_id" value="{{ alert.id }}">
+              <button type="submit">{% trans "Resoudre" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune alerte ouverte." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Certifications" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Certifications" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Norme" %}</th>
+        <th>{% trans "Partenaire (UUID)" %}</th>
+        <th>{% trans "Validite" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for certification in certifications %}
+        <tr>
+          <td>{{ certification.variant.reference }}</td>
+          <td>{{ certification.standard.code }}</td>
+          <td>{{ certification.partner_id|default:"—" }}</td>
+          <td>{{ certification.valid_from|default:"—" }} — {{ certification.valid_until|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune certification." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle certification" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="variant_id">{% trans "Variante" %}</label>
+      <select id="variant_id" name="variant_id" required>
+        {% for variant in variants %}
+          <option value="{{ variant.id }}">{{ variant.reference }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="standard_id">{% trans "Norme" %}</label>
+      <select id="standard_id" name="standard_id" required>
+        {% for standard in standards %}
+          <option value="{{ standard.id }}">{{ standard.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="partner_id">{% trans "Partenaire (UUID, optionnel)" %}</label>
+      <input id="partner_id" type="text" name="partner_id">
+    </div>
+    <div class="form-field">
+      <label for="valid_from">{% trans "Valide a partir de" %}</label>
+      <input id="valid_from" type="date" name="valid_from">
+    </div>
+    <div class="form-field">
+      <label for="valid_until">{% trans "Valide jusqu'a" %}</label>
+      <input id="valid_until" type="date" name="valid_until">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

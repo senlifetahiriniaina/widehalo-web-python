@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Fusionner des partenaires" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Fusionner deux partenaires" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="primary_id">{% trans "Partenaire a conserver (primaire)" %}</label>
+      <select id="primary_id" name="primary_id" required>
+        <option value="">---</option>
+        {% for partner in partners %}
+          <option value="{{ partner.id }}" {% if primary_id == partner.id|stringformat:"s" %}selected{% endif %}>{{ partner.name }} ({{ partner.reference }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="duplicate_id">{% trans "Doublon a fusionner (absorbe)" %}</label>
+      <select id="duplicate_id" name="duplicate_id" required>
+        <option value="">---</option>
+        {% for partner in partners %}
+          <option value="{{ partner.id }}" {% if duplicate_id == partner.id|stringformat:"s" %}selected{% endif %}>{{ partner.name }} ({{ partner.reference }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">{% trans "Fusionner" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Attributs" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Attributs generateurs de variantes" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% for attribute in attributes %}
+    <div class="side-panel" style="margin-bottom: 1rem;">
+      <h3>{{ attribute.name }}</h3>
+      <ul>
+        {% for value in attribute.values.all %}
+          <li>{{ value.value }}</li>
+        {% empty %}
+          <li>{% trans "Aucune valeur." %}</li>
+        {% endfor %}
+      </ul>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_value">
+        <input type="hidden" name="attribute_id" value="{{ attribute.id }}">
+        <input type="text" name="value" placeholder="{% trans 'Nouvelle valeur' %}" required>
+        <button type="submit">{% trans "Ajouter la valeur" %}</button>
+      </form>
+    </div>
+  {% empty %}
+    <p>{% trans "Aucun attribut." %}</p>
+  {% endfor %}
+
+  <h2>{% trans "Nouvel attribut" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

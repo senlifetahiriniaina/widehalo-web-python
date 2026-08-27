@@ -3,6 +3,7 @@
 {% block title %}{% trans "Messagerie" %} — WideHalo{% endblock %}
 {% block content %}
   <h1>{% trans "Messagerie" %}</h1>
+  <p><a href="{% url 'chat:new_conversation' %}">{% trans "Nouvelle conversation" %}</a></p>
   <div style="display:flex; gap:2rem;">
     <ul style="flex:1;">
       {% for channel in channels %}
@@ -17,6 +18,20 @@
              hx-get="/chat/{{ active_channel_id }}/messages/"
              hx-trigger="load, every 10s"
              hx-swap="innerHTML"></div>
+
+        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+        <form method="post" enctype="multipart/form-data" action="/chat/{{ active_channel_id }}/">
+          {% csrf_token %}
+          <div class="form-field">
+            <label for="body">{% trans "Message" %}</label>
+            <input id="body" type="text" name="body" required>
+          </div>
+          <div class="form-field">
+            <label for="attachment">{% trans "Piece jointe" %}</label>
+            <input id="attachment" type="file" name="attachment">
+          </div>
+          <button type="submit">{% trans "Envoyer" %}</button>
+        </form>
       {% else %}
         <p>{% trans "Selectionnez un canal." %}</p>
       {% endif %}

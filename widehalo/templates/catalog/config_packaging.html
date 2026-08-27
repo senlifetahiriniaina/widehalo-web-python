@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Conditionnement" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Conditionnement" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Unite" %}</th>
+        <th>{% trans "Code-barres" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for packaging in packagings %}
+        <tr>
+          <td>{{ packaging.variant.reference }}</td>
+          <td>{{ packaging.unit_count }}</td>
+          <td>{{ packaging.uom.code }}</td>
+          <td>{{ packaging.barcode|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun conditionnement." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau conditionnement" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="variant_id">{% trans "Variante" %}</label>
+      <select id="variant_id" name="variant_id" required>
+        {% for variant in variants %}
+          <option value="{{ variant.id }}">{{ variant.reference }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="unit_count">{% trans "Quantite par colis" %}</label>
+      <input id="unit_count" type="number" name="unit_count" value="1" required>
+    </div>
+    <div class="form-field">
+      <label for="uom_id">{% trans "Unite" %}</label>
+      <select id="uom_id" name="uom_id" required>
+        {% for uom in uoms %}
+          <option value="{{ uom.id }}">{{ uom.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="barcode">{% trans "Code-barres" %}</label>
+      <input id="barcode" type="text" name="barcode">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

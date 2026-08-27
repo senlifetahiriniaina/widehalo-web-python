@@ -5,8 +5,12 @@ from typing import cast
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.db import models
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.chat.services.public import get_or_create_document_channel
 from apps.core.models.audit import AuditLog
@@ -15,7 +19,8 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
-from apps.partners.models import Partner
+from apps.partners.models import DuplicateAlert, Partner
+from apps.partners.services.merge import merge_partners
 from apps.partners.services.onboarding import create_partner
 
 COLUMNS = [
@@ -78,6 +83,105 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
             "audit_entries": audit_entries,
             "documents": documents,
             "chat_channel_id": chat_channel_id,
+        },
+    )
+
+
+@login_required
+def partner_edit(request: HttpRequest, partner_id: str) -> HttpResponse:
+    """Formulaire d'edition simple : aucun service dedie n'existe pour la
+    mise a jour (seul `create_partner` existe cote onboarding), donc on suit
+    le patron deja utilise ailleurs (ex. `apps.accounting.views`) —
+    `full_clean()` + `save()` sur l'instance recuperee, entoure d'un
+    try/except `ValidationError`."""
+    partner = get_object_or_404(Partner, id=partner_id)
+    error = None
+
+    if request.method == "POST":
+        partner.name = request.POST.get("name", partner.name)
+        partner.nif = request.POST.get("nif", "")
+        partner.roles = request.POST.getlist("roles")
+        try:
+            partner.credit_limit_mga = Decimal(request.POST.get("credit_limit_mga") or "0")
+        except InvalidOperation:
+            error = _("Plafond credit invalide.")
+        else:
+            try:
+                partner.full_clean()
+                partner.save()
+            except ValidationError as exc:
+                error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+            else:
+                return redirect("partners:detail", partner_id=partner.id)
+
+    return render(
+        request,
+        "partners/edit.html",
+        {"partner": partner, "error": error, "role_choices": Partner.ROLE_CHOICES},
+    )
+
+
+@login_required
+def duplicate_alert_list(request: HttpRequest) -> HttpResponse:
+    """Liste des alertes de doublon non resolues du tenant courant, avec une
+    action « Resoudre » (marque simplement `resolved_at`) et un lien direct
+    vers l'ecran de fusion prerempli pour la paire concernee."""
+    if request.method == "POST":
+        alert = get_object_or_404(DuplicateAlert, id=request.POST.get("alert_id"))
+        alert.resolved_at = timezone.now()
+        alert.save(update_fields=["resolved_at"])
+        return redirect("partners:duplicates")
+
+    alerts = DuplicateAlert.objects.filter(resolved_at__isnull=True).select_related(
+        "partner", "duplicate_of"
+    )
+    return render(request, "partners/duplicates.html", {"alerts": alerts})
+
+
+@login_required
+def partner_merge(request: HttpRequest) -> HttpResponse:
+    """Choix d'un partenaire primaire et d'un doublon (deux listes, ou
+    prerempli via `?primary=<id>&duplicate=<id>` depuis une alerte), puis
+    appel a `merge_partners()`. Toute `DuplicateAlert` ouverte reliant les
+    deux partenaires (dans un sens ou l'autre) est resolue au passage."""
+    error = None
+    partners = Partner.objects.filter(is_active=True).order_by("name")
+    primary_id = request.POST.get("primary_id") or request.GET.get("primary") or ""
+    duplicate_id = request.POST.get("duplicate_id") or request.GET.get("duplicate") or ""
+
+    if request.method == "POST":
+        try:
+            if not primary_id or not duplicate_id:
+                raise ValidationError(_("Selectionnez les deux partenaires a fusionner."))
+            if primary_id == duplicate_id:
+                raise ValidationError(_("Le partenaire primaire et le doublon doivent differer."))
+            primary = get_object_or_404(Partner, id=primary_id)
+            duplicate = get_object_or_404(Partner, id=duplicate_id)
+            merge_partners(primary=primary, duplicate=duplicate)
+        except ValidationError as exc:
+            error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+        else:
+            # `merge_partners()` reassigne deja, par introspection generique
+            # des FK, les `DuplicateAlert.partner`/`duplicate_of` qui
+            # pointaient vers `duplicate` afin qu'ils pointent vers
+            # `primary` — toute alerte encore ouverte impliquant `primary`
+            # concerne donc necessairement la paire qui vient d'etre fusionnee.
+            related_alerts = DuplicateAlert.objects.filter(resolved_at__isnull=True).filter(
+                models.Q(partner=primary) | models.Q(duplicate_of=primary)
+            )
+            for related_alert in related_alerts:
+                related_alert.resolved_at = timezone.now()
+                related_alert.save(update_fields=["resolved_at"])
+            return redirect("partners:detail", partner_id=primary.id)
+
+    return render(
+        request,
+        "partners/merge.html",
+        {
+            "partners": partners,
+            "primary_id": primary_id,
+            "duplicate_id": duplicate_id,
+            "error": error,
         },
     )
 

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Modifier" %} {{ partner.name }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Modifier le partenaire" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" value="{{ partner.name }}" required>
+    </div>
+    <div class="form-field">
+      <label for="nif">{% trans "NIF" %}</label>
+      <input id="nif" type="text" name="nif" value="{{ partner.nif }}">
+    </div>
+    <div class="form-field">
+      <label for="roles">{% trans "Roles" %}</label>
+      <select id="roles" name="roles" multiple>
+        {% for role_value, role_label in role_choices %}
+          <option value="{{ role_value }}" {% if role_value in partner.roles %}selected{% endif %}>{{ role_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="credit_limit_mga">{% trans "Plafond credit (MGA)" %}</label>
+      <input id="credit_limit_mga" type="number" name="credit_limit_mga" value="{{ partner.credit_limit_mga }}" min="0" step="0.01">
+    </div>
+    <button type="submit">{% trans "Enregistrer" %}</button>
+    <a href="{% url 'partners:detail' partner.id %}">{% trans "Annuler" %}</a>
+  </form>
+{% endblock %}
