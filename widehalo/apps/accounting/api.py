@@ -30,6 +30,7 @@ from apps.accounting.services.assets import (
     register_asset,
 )
 from apps.accounting.services.dcom import generate_dcom_declaration
+from apps.accounting.services.fiscal_export import export_canevas_notes
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     create_invoice,
@@ -56,6 +57,7 @@ from apps.accounting.services.reports import (
     trial_balance,
 )
 from apps.accounting.services.tax_calendar import create_tax_calendar_entry
+from apps.accounting.services.tax_returns import generate_liasse_ir, generate_liasse_is
 from apps.core.models.tenant import Tenant
 from apps.core.services.permissions import require_permission
 
@@ -683,23 +685,76 @@ def create_provision_endpoint(request, payload: ProvisionIn):
     return _serialize_provision(provision)
 
 
+_FIXED_ASSET_ANNEX_FIELDS: dict[str, list[str]] = {
+    "actif_immobilise": [
+        "categorie",
+        "categorie_label",
+        "valeur_brute_debut_exercice",
+        "acquisitions",
+        "cessions_mises_au_rebut",
+        "virements_de_poste_a_poste",
+        "valeur_brute_fin_exercice",
+    ],
+    "amortissements": [
+        "categorie",
+        "categorie_label",
+        "cumul_debut_exercice",
+        "dotations_de_l_exercice",
+        "amortissements_sur_sorties",
+        "cumul_fin_exercice",
+        "valeur_nette_comptable",
+    ],
+    "provisions": [
+        "nature",
+        "montant_debut_exercice",
+        "dotations",
+        "reprises",
+        "montant_fin_exercice",
+    ],
+    "creances_dettes": ["nature", "moins_d_un_an", "un_a_cinq_ans", "plus_de_cinq_ans", "total"],
+}
+
+
+def _flatten_fixed_asset_annexes(data: dict) -> list[dict]:
+    """Aplatit les 4 sous-annexes de `fixed_asset_annexes()` en un unique
+    tableau CSV/XLSX (colonne `annexe` en tete pour distinguer les 4
+    sous-tableaux aux schemas differents, cf. A12/ACC-EXPORT-FISC1) — le
+    format JSON, structure, reste servi directement sans passer par cette
+    fonction (meme pattern que `_flatten_balance_sheet`)."""
+    rows: list[dict] = []
+    for annex_key, fields in _FIXED_ASSET_ANNEX_FIELDS.items():
+        for row in data[annex_key]:
+            flat = {"annexe": annex_key}
+            for field in fields:
+                flat[field] = row.get(field)
+            rows.append(flat)
+    return rows
+
+
 @router.get("/accounting/reports/fixed-asset-annexes")
 @require_permission("accounting.view_accasset")
-def fixed_asset_annexes_endpoint(request, fiscal_year_id: str):
+def fixed_asset_annexes_endpoint(request, fiscal_year_id: str, format: str = "json"):
     """ACC-ANNEXE1 — rapport composite assemblant les 4 annexes fiscales
     (§1.11 du document annexe). Reserve OECFM : cf. docstring de
     `services/reports.py::fixed_asset_annexes`.
 
-    Choix de format assume (JSON uniquement, pas de `format=csv/xlsx`) :
-    la structure composite (4 sous-tableaux aux colonnes differentes)
-    s'aplatit mal en un unique fichier tabulaire ; un export CSV/XLSX par
-    sous-annexe individuelle serait la suite naturelle (cf. les endpoints
-    `aged-receivables`/`aged-payables` deja exposes separement pour la 4e
-    sous-annexe "creances_dettes") mais reste hors perimetre de cette etape
-    A10 — a ajouter si un besoin d'export DGI concret se precise (cf.
-    ACC-EXPORT-FISC1, etape A12)."""
+    `format=csv|xlsx` (ajoute a l'etape A12, ACC-EXPORT-FISC1) aplatit les 4
+    sous-tableaux en un unique fichier tabulaire via `_flatten_fixed_asset_annexes`
+    (colonne `annexe` en tete) — `format=json` (par defaut) reste la
+    structure composite native, plus lisible pour un ecran."""
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
-    return JsonResponse(fixed_asset_annexes(fiscal_year))
+    data = fixed_asset_annexes(fiscal_year)
+    if format == "json":
+        return JsonResponse(data)
+    rows = _flatten_fixed_asset_annexes(data)
+    fields = ["annexe"] + sorted(
+        {f for fields in _FIXED_ASSET_ANNEX_FIELDS.values() for f in fields}, key=lambda f: f
+    )
+    # Ordre stable et complet des colonnes malgre des schemas differents par
+    # sous-annexe (cellules vides pour les colonnes non applicables a une
+    # ligne donnee) — simple, robuste, pas de perte d'information.
+    payload = rows_to_bytes(rows, fields, format=format)
+    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------
@@ -807,3 +862,60 @@ def create_local_tax_endpoint(request, payload: LocalTaxIn):
         fiscal_year=fiscal_year,
     )
     return _serialize_local_tax(local_tax)
+
+
+# ---------------------------------------------------------------------------
+# A12 — Liasses fiscales et export reglementaire (ACC-IS, ACC-IR,
+# ACC-EXPORT-FISC1)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/accounting/reports/liasse-is")
+@require_permission("accounting.view_accaccount")
+def liasse_is_endpoint(request, fiscal_year_id: str):
+    """ACC-IS — liasse fiscale composite PDF (regime Impot Synthetique,
+    seuil haut) : bilan + CR nature + CR fonction + flux de tresorerie.
+    Reserve OECFM/DGI sur l'ordonnancement des sections : cf. docstring de
+    `services/tax_returns.py`. 400 si le tenant n'est pas au regime
+    synthetique (cf. `generate_liasse_is`)."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    try:
+        pdf_bytes = generate_liasse_is(fiscal_year)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="liasse-is-{fiscal_year.code}.pdf"'
+    return response
+
+
+@router.get("/accounting/reports/liasse-ir")
+@require_permission("accounting.view_accaccount")
+def liasse_ir_endpoint(request, fiscal_year_id: str):
+    """ACC-IR — liasse fiscale composite PDF (regime reel) : les 5 etats
+    financiers de base plus les 4 annexes fiscales. Reserve OECFM/DGI sur
+    l'ordonnancement des sections : cf. docstring de
+    `services/tax_returns.py`. 400 si le tenant n'est pas au regime reel
+    (cf. `generate_liasse_ir`)."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
+    try:
+        pdf_bytes = generate_liasse_ir(fiscal_year)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="liasse-ir-{fiscal_year.code}.pdf"'
+    return response
+
+
+@router.get("/accounting/reports/export-canevas-notes")
+@require_permission("accounting.view_accaccount")
+def export_canevas_notes_endpoint(request):
+    """ACC-EXPORT-FISC1 — registre documentaire associant a chaque rapport
+    fiscal deja construit (A8-A12) une note sur la plateforme/le canevas DGI
+    (eHetra/DConline) que son export CSV/XLSX vise a approcher. PAS une
+    specification d'export byte-pres supplementaire : chaque rapport
+    concerne est deja exportable via son propre endpoint
+    `format=csv|xlsx` (`rows_to_bytes`, cf. `services/reports.py`) — ce
+    registre documente seulement, avec la reserve OECFM/DGI explicite,
+    l'intention derriere chaque export. Cf. docstring de
+    `services/fiscal_export.py`."""
+    return JsonResponse({"results": export_canevas_notes()})
