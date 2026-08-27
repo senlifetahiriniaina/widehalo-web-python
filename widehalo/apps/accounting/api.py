@@ -7,7 +7,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from ninja import Router, Schema
+from ninja import File, Router, Schema
+from ninja.files import UploadedFile
 
 from apps.accounting.models import (
     AccAccount,
@@ -17,11 +18,15 @@ from apps.accounting.models import (
     AccBudget,
     AccBudgetLine,
     AccDcomDeclaration,
+    AccDunningAction,
+    AccDunningLevel,
     AccFiscalYear,
     AccIrcmDeclaration,
     AccJournal,
     AccLocalTax,
+    AccMobileMoneyStatementLine,
     AccMove,
+    AccMoveLine,
     AccPayment,
     AccPeriod,
     AccProvision,
@@ -40,6 +45,11 @@ from apps.accounting.services.budgets import (
     create_budget,
 )
 from apps.accounting.services.dcom import generate_dcom_declaration
+from apps.accounting.services.dunning import (
+    overdue_receivables,
+    record_dunning_action,
+    seed_default_dunning_levels,
+)
 from apps.accounting.services.fiscal_export import export_canevas_notes
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
@@ -48,6 +58,11 @@ from apps.accounting.services.invoices import (
 )
 from apps.accounting.services.ircm import generate_ircm_declaration
 from apps.accounting.services.local_tax import record_local_tax
+from apps.accounting.services.mobile_money import (
+    import_mobile_money_statement,
+    reconcile_mobile_money_line,
+    unmatched_mobile_money_lines,
+)
 from apps.accounting.services.moves import post_move, reverse_move
 from apps.accounting.services.payments import register_payment
 from apps.accounting.services.reports import (
@@ -66,6 +81,7 @@ from apps.accounting.services.reports import (
     invoice_pdf,
     journal_report,
     rows_to_bytes,
+    treasury_forecast,
     trial_balance,
 )
 from apps.accounting.services.tax_calendar import create_tax_calendar_entry
@@ -161,6 +177,24 @@ class LocalTaxIn(Schema):
     assessed_value_mga: Decimal
     rate_pct: Decimal
     fiscal_year_id: str
+
+
+class DunningLevelIn(Schema):
+    level: int
+    label: str
+    days_overdue_threshold: int
+    message_template: str = ""
+
+
+class DunningActionIn(Schema):
+    move_line_id: str
+    level_id: str
+    date_sent: dt.date | None = None
+    notes: str = ""
+
+
+class MobileMoneyReconcileIn(Schema):
+    payment_id: str
 
 
 class RegisterPaymentIn(Schema):
@@ -1087,3 +1121,160 @@ def budget_variance_report_endpoint(request, budget_id: str, format: str = "json
         format=format,
     )
     return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+# ---------------------------------------------------------------------------
+# A15 — Tresorerie previsionnelle (ACC-TRESO), relances client (ACC-REL,
+# RG-ACC-11), reconciliation mobile money simple
+# ---------------------------------------------------------------------------
+
+
+@router.get("/accounting/reports/treasury-forecast")
+@require_permission("accounting.view_accaccount")
+def treasury_forecast_endpoint(request, horizon_days: int = 90, as_of_date: dt.date | None = None):
+    """ACC-TRESO — previsionnel de tresorerie glissant, paniers hebdomadaires
+    et detection de creux (ACC-TR1). Reserve/choix de granularite : cf.
+    docstring de `services/reports.py::treasury_forecast`."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    data = treasury_forecast(tenant, as_of_date=as_of_date, horizon_days=horizon_days)
+    return JsonResponse(data)
+
+
+def _serialize_dunning_level(level: AccDunningLevel) -> dict:
+    return {
+        "id": str(level.id),
+        "level": level.level,
+        "label": level.label,
+        "days_overdue_threshold": level.days_overdue_threshold,
+        "message_template": level.message_template,
+    }
+
+
+@router.get("/accounting/dunning-levels")
+@require_permission("accounting.view_accdunninglevel")
+def list_dunning_levels_endpoint(request):
+    """ACC-REL — niveaux de relance configures pour le tenant courant. Cf.
+    `POST` sur le meme chemin pour amorcer les 3 niveaux par defaut."""
+    levels = AccDunningLevel.objects.all().order_by("level")
+    return {"results": [_serialize_dunning_level(entry) for entry in levels]}
+
+
+@router.post("/accounting/dunning-levels")
+@require_permission("accounting.add_accdunninglevel")
+def create_dunning_level_endpoint(request, payload: DunningLevelIn):
+    """ACC-REL — cree/ajuste (par `level`) un niveau de relance precis pour
+    ce tenant. Cf. `POST .../dunning-levels/seed` pour amorcer directement
+    les 3 niveaux par defaut sans en saisir le detail."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    level, _created = AccDunningLevel.objects.update_or_create(
+        tenant=tenant,
+        level=payload.level,
+        defaults={
+            "label": payload.label,
+            "days_overdue_threshold": payload.days_overdue_threshold,
+            "message_template": payload.message_template,
+        },
+    )
+    return _serialize_dunning_level(level)
+
+
+@router.post("/accounting/dunning-levels/seed")
+@require_permission("accounting.add_accdunninglevel")
+def seed_dunning_levels_endpoint(request):
+    """ACC-REL — amorce les 3 niveaux par defaut pour ce tenant (idempotent,
+    cf. `seed_default_dunning_levels` — n'ecrase jamais un niveau deja
+    personnalise par le tenant)."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    levels = seed_default_dunning_levels(tenant)
+    return {"results": [_serialize_dunning_level(entry) for entry in levels]}
+
+
+@router.get("/accounting/reports/overdue-receivables")
+@require_permission("accounting.view_accmove")
+def overdue_receivables_endpoint(request, as_of_date: dt.date | None = None):
+    """ACC-REL — creances clients en retard, niveau de relance applicable.
+    Cf. docstring de `services/dunning.py::overdue_receivables`."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    rows = overdue_receivables(tenant, as_of_date=as_of_date)
+    return {"results": rows}
+
+
+def _serialize_dunning_action(action: AccDunningAction) -> dict:
+    return {
+        "id": str(action.id),
+        "reference": action.reference,
+        "move_line_id": str(action.move_line_id),
+        "level_id": str(action.level_id),
+        "date_sent": action.date_sent.isoformat(),
+        "notes": action.notes,
+    }
+
+
+@router.post("/accounting/dunning-actions")
+@require_permission("accounting.add_accdunningaction")
+def create_dunning_action_endpoint(request, payload: DunningActionIn):
+    """ACC-REL — enregistre qu'une relance a ete envoyee (V1 : simple trace,
+    aucun envoi automatise — cf. docstring de
+    `services/dunning.py::record_dunning_action`)."""
+    move_line = get_object_or_404(AccMoveLine, id=payload.move_line_id)
+    level = get_object_or_404(AccDunningLevel, id=payload.level_id)
+    action = record_dunning_action(
+        move_line, level, date_sent=payload.date_sent, notes=payload.notes
+    )
+    return _serialize_dunning_action(action)
+
+
+def _serialize_mobile_money_line(line: AccMobileMoneyStatementLine) -> dict:
+    return {
+        "id": str(line.id),
+        "import_batch_id": str(line.import_batch_id),
+        "statement_date": line.statement_date.isoformat(),
+        "reference_external": line.reference_external,
+        "amount_mga": str(line.amount_mga),
+        "direction": line.direction,
+        "matched_payment_id": str(line.matched_payment_id) if line.matched_payment_id else None,
+        "state": line.state,
+    }
+
+
+@router.post("/accounting/mobile-money/import")
+@require_permission("accounting.add_accmobilemoneystatementline")
+def import_mobile_money_endpoint(
+    request,
+    statement: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Reconciliation mobile money simple (PAS le mecanisme generique d'A16,
+    cf. docstring de `services/mobile_money.py`) : import multipart d'un CSV
+    de relevé (colonnes `date`/`reference`/`amount`/`direction`, format
+    placeholder documente sur le service). Meme idiome multipart que
+    `apps.chat.api.create_message` (`ninja.File`/`UploadedFile`), seul
+    exemple existant d'upload de fichier via django-ninja dans ce depot."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        lines = import_mobile_money_statement(tenant, statement.read())
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {"results": [_serialize_mobile_money_line(line) for line in lines]}
+
+
+@router.post("/accounting/mobile-money/{line_id}/reconcile")
+@require_permission("accounting.change_accmobilemoneystatementline")
+def reconcile_mobile_money_endpoint(request, line_id: str, payload: MobileMoneyReconcileIn):
+    """Rapprochement MANUEL/ASSISTE uniquement en V1 (pas de correspondance
+    floue automatique) — cf. docstring de
+    `services/mobile_money.py::reconcile_mobile_money_line`."""
+    statement_line = get_object_or_404(AccMobileMoneyStatementLine, id=line_id)
+    payment = get_object_or_404(AccPayment, id=payload.payment_id)
+    try:
+        reconciled = reconcile_mobile_money_line(statement_line, payment)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_mobile_money_line(reconciled)
+
+
+@router.get("/accounting/mobile-money/unmatched")
+@require_permission("accounting.view_accmobilemoneystatementline")
+def unmatched_mobile_money_endpoint(request):
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    lines = unmatched_mobile_money_lines(tenant)
+    return {"results": [_serialize_mobile_money_line(line) for line in lines]}

@@ -33,11 +33,14 @@ from apps.accounting.models import (
     AccBudgetLine,
     AccDcomDeclaration,
     AccDcomLine,
+    AccDunningAction,
+    AccDunningLevel,
     AccExchangeRate,
     AccFiscalYear,
     AccIrcmDeclaration,
     AccJournal,
     AccLocalTax,
+    AccMobileMoneyStatementLine,
     AccMove,
     AccMoveLine,
     AccPayment,
@@ -339,3 +342,35 @@ class AccLocalTaxFactory(factory.django.DjangoModelFactory):
     rate_pct = Decimal("1.00")
     fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
     amount_due_mga = Decimal("100000.0000")
+
+
+class AccDunningLevelFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccDunningLevel
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    level = factory.Sequence(lambda n: (n % 3) + 1)
+    label = factory.Sequence(lambda n: f"Niveau {n}")
+    days_overdue_threshold = 15
+
+
+class AccDunningActionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccDunningAction
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    move_line = factory.SubFactory(AccMoveLineFactory, tenant=factory.SelfAttribute("..tenant"))
+    level = factory.SubFactory(AccDunningLevelFactory, tenant=factory.SelfAttribute("..tenant"))
+    date_sent = datetime.date(2026, 2, 1)
+
+
+class AccMobileMoneyStatementLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccMobileMoneyStatementLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    import_batch_id = factory.LazyFunction(uuid.uuid4)
+    statement_date = datetime.date(2026, 2, 1)
+    reference_external = factory.Sequence(lambda n: f"MVOLA-{n}")
+    amount_mga = Decimal("1000.0000")
+    direction = AccMobileMoneyStatementLine.DIRECTION_IN

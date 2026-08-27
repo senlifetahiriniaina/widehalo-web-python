@@ -36,6 +36,7 @@ from apps.accounting.models import (
     AccMoveLine,
     AccProvision,
 )
+from apps.core.models.tenant import Tenant
 
 
 def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str = "json") -> bytes:
@@ -1379,3 +1380,122 @@ def invoice_pdf(invoice: AccMove) -> bytes:
     """
     result: bytes = HTML(string=html).write_pdf()
     return result
+
+
+# ACC-TRESO (A15, ACC-TR1 deja nomme au CDC comme enrichissement WideHalo) :
+# granularite du prevu 90 jours glissants. Choix documente : des paniers
+# HEBDOMADAIRES (7 jours), pas quotidiens — un pas journalier sur 90 jours
+# produirait 90 lignes par appel, une granularite superieure a ce qu'un
+# tableau de bord de tresorerie exploite habituellement (l'attention utile
+# porte sur "quelle semaine risque un creux", pas sur le jour exact), pour un
+# cout de lecture/API bien moindre. `_BUCKET_DAYS` expose ici (pas prive) au
+# cas ou un futur ecran voudrait un pas different sans reecrire la logique de
+# bucketing.
+_BUCKET_DAYS = 7
+
+
+def treasury_forecast(
+    tenant: Tenant, *, as_of_date: Any = None, horizon_days: int = 90
+) -> dict[str, Any]:
+    """ACC-TRESO — prevu de tresorerie sur `horizon_days` jours glissants
+    (par defaut 90), decoupe en paniers hebdomadaires (cf. `_BUCKET_DAYS`
+    ci-dessus pour le choix de granularite).
+
+    Position de depart : solde CUMULE (memes principes que `balance_sheet` —
+    toutes ecritures publiees depuis l'origine, date <= `as_of_date`) des
+    comptes de type `AccAccount.TYPE_CASH`/`TYPE_BANK`.
+
+    Entrees/sorties attendues : lignes `AccMoveLine` OUVERTES (memes criteres
+    qu'`aged_receivables`/`aged_payables`, A9 : `matching_number == ""`) sur
+    un compte `receivable`/`payable`, dont `due_date` tombe dans la fenetre
+    `[as_of_date, as_of_date + horizon_days]`. Une ligne sans `due_date` (ou
+    hors fenetre) n'apparait dans aucun panier — a la difference d'
+    `aged_receivables`, un prevu de tresorerie n'a pas de sens pour une
+    echeance inconnue ou hors horizon.
+
+    Solde projete par panier = position de depart + entrees cumulees -
+    sorties cumulees jusqu'a la fin de ce panier (cumul, pas panier isole).
+
+    **Detection de creux (ACC-TR1)** : chaque panier dont le solde projete
+    est negatif est signale dans `"dips"`. C'est un simple SEUIL (`< 0`),
+    pas un modele statistique — meme discipline "explicabilite d'abord" que
+    RG-SAL-8 (cf. plan) : un tenant doit pouvoir retrouver a la main pourquoi
+    un creux est signale, jamais une boite noire.
+
+    `tenant` : parametre expose pour la signature (coherent avec le reste de
+    `services/dunning.py`/`services/mobile_money.py` d'A15) mais non utilise
+    directement pour filtrer les requetes ci-dessous — `AccMoveLine.objects`
+    (TenantManager) filtre deja systematiquement sur le tenant COURANT du
+    contexte d'execution (meme convention que toutes les fonctions
+    existantes de ce module, ex. `aged_receivables`, qui ne prennent pas non
+    plus `tenant` en parametre)."""
+    del tenant  # cf. docstring : filtrage deja assure par TenantManager
+    as_of = as_of_date or dt.date.today()
+    horizon_end = as_of + dt.timedelta(days=horizon_days)
+    n_buckets = -(-horizon_days // _BUCKET_DAYS)  # division entiere arrondie au superieur
+
+    cash_totals = AccMoveLine.objects.filter(
+        account__type__in=[AccAccount.TYPE_CASH, AccAccount.TYPE_BANK],
+        move__state=AccMove.STATE_POSTED,
+        move__date__lte=as_of,
+    ).aggregate(debit=Sum("debit"), credit=Sum("credit"))
+    starting_cash = (cash_totals["debit"] or Decimal(0)) - (cash_totals["credit"] or Decimal(0))
+
+    def _bucketed_open_amounts(account_type: str) -> list[Decimal]:
+        lines = AccMoveLine.objects.filter(
+            account__type=account_type,
+            move__state=AccMove.STATE_POSTED,
+            matching_number="",
+            due_date__isnull=False,
+            due_date__gte=as_of,
+            due_date__lte=horizon_end,
+        )
+        totals = [Decimal(0) for _ in range(n_buckets)]
+        for line in lines:
+            assert line.due_date is not None  # garanti par due_date__isnull=False ci-dessus
+            bucket_index = min((line.due_date - as_of).days // _BUCKET_DAYS, n_buckets - 1)
+            amount = (
+                line.debit - line.credit
+                if account_type == AccAccount.TYPE_RECEIVABLE
+                else line.credit - line.debit
+            )
+            totals[bucket_index] += amount
+        return totals
+
+    inflows_by_bucket = _bucketed_open_amounts(AccAccount.TYPE_RECEIVABLE)
+    outflows_by_bucket = _bucketed_open_amounts(AccAccount.TYPE_PAYABLE)
+
+    buckets: list[dict[str, Any]] = []
+    dips: list[dict[str, Any]] = []
+    cumulative_inflows = Decimal(0)
+    cumulative_outflows = Decimal(0)
+    for index in range(n_buckets):
+        period_start = as_of + dt.timedelta(days=index * _BUCKET_DAYS)
+        period_end = min(period_start + dt.timedelta(days=_BUCKET_DAYS - 1), horizon_end)
+        cumulative_inflows += inflows_by_bucket[index]
+        cumulative_outflows += outflows_by_bucket[index]
+        projected_balance = starting_cash + cumulative_inflows - cumulative_outflows
+        period_label = (
+            f"Semaine {index + 1} ({period_start.isoformat()} - {period_end.isoformat()})"
+        )
+        buckets.append(
+            {
+                "period_label": period_label,
+                "period_start": period_start,
+                "period_end": period_end,
+                "inflows_mga": inflows_by_bucket[index],
+                "outflows_mga": outflows_by_bucket[index],
+                "projected_balance_mga": projected_balance,
+            }
+        )
+        if projected_balance < 0:
+            dips.append({"period_label": period_label, "projected_balance_mga": projected_balance})
+
+    return {
+        "as_of_date": as_of,
+        "horizon_days": horizon_days,
+        "starting_cash_mga": starting_cash,
+        "buckets": buckets,
+        "dips": dips,
+        "has_dip": bool(dips),
+    }

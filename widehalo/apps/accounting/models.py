@@ -963,3 +963,99 @@ class AccBudgetLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.budget} / {self.account} : {self.budgeted_amount_mga}"
+
+
+class AccDunningLevel(BaseModel):
+    """A15 — ACC-REL (RG-ACC-11) : un gabarit de niveau de relance client, PAR
+    tenant (3 niveaux attendus par le CDC — pas de FK vers un document,
+    simple enregistrement de configuration, meme categorie que
+    `sales.SalesRecurrence` : pas de `ReferenceMixin`).
+
+    `days_overdue_threshold`/`label`/`message_template` : valeurs par defaut
+    RAISONNABLES INVENTEES (le CDC ne precise que "3 niveaux", RG-ACC-11, sans
+    en fixer le libelle ni le seuil exact) — reserve legere documentee ici et
+    sur `services/dunning.py::seed_default_dunning_levels`, ajustables par
+    tenant a tout moment (pas de valeur en dur ailleurs dans le code, toujours
+    lues depuis cet enregistrement)."""
+
+    level = models.PositiveSmallIntegerField()
+    label = models.CharField(max_length=120)
+    days_overdue_threshold = models.PositiveIntegerField()
+    message_template = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "acc_dunning_level"
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "level"], name="uniq_dunning_level")
+        ]
+        ordering = ["level"]
+
+    def __str__(self) -> str:
+        return f"Niveau {self.level} — {self.label}"
+
+
+class AccDunningAction(BaseModel, ReferenceMixin):
+    """A15 — ACC-REL : trace qu'une relance a ete envoyee pour une ligne
+    creance en retard donnee. V1 (cf. docstring de
+    `services/dunning.py::record_dunning_action`) : simple enregistrement
+    manuel, aucun envoi automatise (email/WhatsApp) construit ici — un futur
+    ecran/notification pourra s'appuyer sur ce modele sans le modifier."""
+
+    move_line = models.ForeignKey(AccMoveLine, on_delete=models.PROTECT, related_name="+")
+    level = models.ForeignKey(AccDunningLevel, on_delete=models.PROTECT, related_name="+")
+    date_sent = models.DateField()
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "acc_dunning_action"
+
+    def __str__(self) -> str:
+        return self.reference or f"Relance {self.move_line_id} — niveau {self.level_id}"
+
+
+class AccMobileMoneyStatementLine(BaseModel):
+    """A15 — reconciliation mobile money simple (PAS le moteur de
+    rapprochement bancaire generique a regles d'A16 : un mecanisme
+    autonome, plus simple, dedie a `AccPayment.method="mobile_money"`).
+
+    `import_batch_id` regroupe les lignes issues d'un meme import CSV (un
+    `uuid4()` genere par appel a
+    `services/mobile_money.py::import_mobile_money_statement`) — permet de
+    retrouver/filtrer un import donne sans modele de lot separe.
+
+    Format CSV et rapprochement : reserve legere documentee sur
+    `services/mobile_money.py` (meme discipline que les formules de ratio
+    d'A13) — format placeholder en l'absence d'export reel Mvola/Orange
+    Money/Airtel Money, rapprochement manuel/assiste uniquement (pas de
+    correspondance floue automatique en V1)."""
+
+    DIRECTION_IN = "in"
+    DIRECTION_OUT = "out"
+    DIRECTION_CHOICES = [
+        (DIRECTION_IN, "Entrant"),
+        (DIRECTION_OUT, "Sortant"),
+    ]
+
+    STATE_UNMATCHED = "unmatched"
+    STATE_MATCHED = "matched"
+    STATE_CHOICES = [
+        (STATE_UNMATCHED, "Non rapproche"),
+        (STATE_MATCHED, "Rapproche"),
+    ]
+
+    import_batch_id = models.UUIDField()
+    statement_date = models.DateField()
+    reference_external = models.CharField(max_length=100, blank=True)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    direction = models.CharField(max_length=8, choices=DIRECTION_CHOICES)
+    matched_payment = models.ForeignKey(
+        AccPayment, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_UNMATCHED)
+
+    class Meta:
+        db_table = "acc_mobile_money_statement_line"
+        indexes = [models.Index(fields=["import_batch_id"]), models.Index(fields=["state"])]
+
+    def __str__(self) -> str:
+        return f"{self.statement_date} — {self.reference_external} ({self.amount_mga})"
