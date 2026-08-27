@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{{ pattern.name }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ pattern.get_state_display }}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    {% if pattern.state == "draft" %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <h1>{{ pattern.name }} — v{{ pattern.version }}</h1>
+  <p>{% trans "Code" %}: {{ pattern.code }}</p>
+  <p><a href="/api/v1/patronage/patterns/{{ pattern.id }}/tech-pack.pdf">{% trans "Telecharger le dossier technique" %}</a></p>
+
+  <h2>{% trans "Pieces" %}</h2>
+  <ul>
+    {% for piece in pieces %}
+      <li>{{ piece.code }} — {{ piece.name }}</li>
+    {% empty %}
+      <li>{% trans "Aucune piece." %}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>{% trans "Mesures gradees" %}</h2>
+  {% if graded %}
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Point de mesure" %}</th>{% for size in pattern.size_chart.sizes %}<th>{{ size }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for code, values in graded.items %}
+          <tr><td>{{ code }}</td>{% for size in pattern.size_chart.sizes %}<td>{{ values|dict_get:size }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% trans "Aucune donnee de gradation." %}</p>
+  {% endif %}
+{% endblock %}

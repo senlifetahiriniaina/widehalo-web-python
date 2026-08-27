@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Ordres de fabrication" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Ordres de fabrication" %}</h1>
+  <p><a href="{% url 'mrp:create' %}">{% trans "Nouvel ordre" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

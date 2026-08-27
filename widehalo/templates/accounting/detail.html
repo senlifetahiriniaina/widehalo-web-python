@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ invoice.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ invoice.get_invoice_state_display }}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
+        <button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
+      {% endif %}
+      {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
+        <input type="text" name="motif" placeholder="{% trans 'Motif d annulation' %}">
+        <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
+      {% endif %}
+    </form>
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  </div>
+
+  <div style="display:flex; gap:2rem;">
+    <div style="flex:2;">
+      <h1>{{ invoice.reference|default:"(brouillon)" }}</h1>
+      <p>{% trans "Date" %}: {{ invoice.date }}</p>
+      <p>{% trans "Devise" %}: {{ invoice.currency }}</p>
+      <p>{% trans "Total debit" %}: {{ invoice.total_debit }} MGA</p>
+
+      <h2>{% trans "Lignes" %}</h2>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Libelle" %}</th><th>{% trans "Debit" %}</th><th>{% trans "Credit" %}</th></tr></thead>
+        <tbody>
+          {% for line in lines %}
+            <tr><td>{{ line.label }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>
+          {% empty %}
+            <tr><td colspan="3">{% trans "Aucune ligne." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2>{% trans "Documents" %}</h2>
+      <ul>
+        {% for document in documents %}
+          <li>{{ document.original_name }}</li>
+        {% empty %}
+          <li>{% trans "Aucun document." %}</li>
+        {% endfor %}
+      </ul>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="document-upload">{% trans "Ajouter un document" %}</label>
+        <input id="document-upload" type="file" name="document" required>
+        <button type="submit">{% trans "Envoyer" %}</button>
+      </form>
+    </div>
+
+    <aside class="side-panel" style="flex:1;">
+      <h2>{% trans "Audit" %}</h2>
+      <ul>
+        {% for entry in audit_entries %}
+          <li>{{ entry.action }} — {{ entry.created_at }}</li>
+        {% empty %}
+          <li>{% trans "Aucune entree." %}</li>
+        {% endfor %}
+      </ul>
+    </aside>
+  </div>
+{% endblock %}

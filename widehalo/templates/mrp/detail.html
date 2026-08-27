@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ order.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ order.get_state_display }}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="{% trans 'Motif (suspension/annulation)' %}">
+      <input type="number" name="qty_produced" placeholder="{% trans 'Quantite produite' %}" step="0.0001">
+      {% if order.state == "draft" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
+      {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Reserver" %}</button>{% endif %}
+      {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Demarrer" %}</button>{% endif %}
+      {% if order.state == "in_production" %}<button type="submit" name="action" value="suspend">{% trans "Suspendre" %}</button>{% endif %}
+      {% if order.state == "suspended" %}<button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>{% endif %}
+      {% if order.state == "in_production" %}<button type="submit" name="action" value="send_to_quality_control">{% trans "Controle qualite" %}</button>{% endif %}
+      {% if order.state == "quality_control" %}<button type="submit" name="action" value="finish">{% trans "Terminer" %}</button>{% endif %}
+      {% if order.state == "done" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Quantite" %}: {{ order.qty }} {{ order.uom_code }}</p>
+  <p>{% trans "Quantite produite" %}: {{ order.qty_produced }}</p>
+
+  <h2>{% trans "Composants planifies" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte consommee" %}</th><th>{% trans "Statut" %}</th></tr></thead>
+    <tbody>
+      {% for component in components %}
+        <tr><td>{{ component.variant_id }}</td><td>{{ component.qty_planned }}</td><td>{{ component.qty_consumed }}</td><td>{{ component.state }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun composant." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

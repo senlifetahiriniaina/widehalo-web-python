@@ -16,6 +16,10 @@ urlpatterns = [
     path("partners/", include("apps.partners.urls")),
     path("catalog/", include("apps.catalog.urls")),
     path("chat/", include("apps.chat.urls")),
+    path("accounting/", include("apps.accounting.urls")),
+    path("crm/", include("apps.crm.urls")),
+    path("mrp/", include("apps.mrp.urls")),
+    path("patronage/", include("apps.patronage.urls")),
 ]
 
 if settings.DEBUG:

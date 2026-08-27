@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Patrons" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Patrons" %}</h1>
+  <p><a href="{% url 'patronage:create' %}">{% trans "Nouveau patron" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

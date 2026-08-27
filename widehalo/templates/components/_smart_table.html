@@ -31,7 +31,13 @@
       {% for row in page_obj %}
         <tr>
           {% for column in columns %}
-            <td>{{ row|getattr:column.key }}</td>
+            <td>
+              {% if forloop.first and row_url_name %}
+                <a href="{{ row|reverse_with_pk:row_url_name }}">{{ row|getattr:column.key }}</a>
+              {% else %}
+                {{ row|getattr:column.key }}
+              {% endif %}
+            </td>
           {% endfor %}
         </tr>
       {% empty %}

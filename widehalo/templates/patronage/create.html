@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau patron" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau patron" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="size_chart_id">{% trans "Tableau de mesures" %}</label>
+      <select id="size_chart_id" name="size_chart_id" required>
+        {% for size_chart in size_charts %}
+          <option value="{{ size_chart.id }}">{{ size_chart.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">{% trans "Creer le patron" %}</button>
+  </form>
+{% endblock %}

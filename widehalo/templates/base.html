@@ -19,8 +19,16 @@
         <li><a href="/chat/">{% trans "Messagerie" %}</a></li>
         <li><a href="/search/">{% trans "Recherche" %}</a></li>
         <li><a href="/documents/">{% trans "Documents" %}</a></li>
-        <li class="app-menu-disabled" aria-disabled="true">{% trans "Comptabilite" %} <span class="app-badge">{% trans "bientot" %}</span></li>
-        <li class="app-menu-disabled" aria-disabled="true">{% trans "Ventes" %} <span class="app-badge">{% trans "bientot" %}</span></li>
+        <li x-data="{ open: false }" @click.outside="open = false" style="position:relative;">
+          <a href="#" @click.prevent="open = !open">{% trans "Modules metier" %}</a>
+          <ul x-show="open" x-cloak class="app-menu-dropdown">
+            <li><a href="/accounting/">{% trans "Comptabilite" %}</a></li>
+            <li><a href="/crm/">{% trans "CRM" %}</a></li>
+            <li><a href="/mrp/">{% trans "Production" %}</a></li>
+            <li><a href="/patronage/">{% trans "Patronage" %}</a></li>
+            <li class="app-menu-disabled" aria-disabled="true">{% trans "Ventes" %} <span class="app-badge">{% trans "bientot" %}</span></li>
+          </ul>
+        </li>
         <li><a href="/settings/">{% trans "Parametres" %}</a></li>
       </ul>
     </nav>

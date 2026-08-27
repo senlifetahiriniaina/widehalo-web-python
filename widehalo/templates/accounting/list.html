@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Factures clients" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Factures clients" %}</h1>
+  <p><a href="{% url 'accounting:create' %}">{% trans "Nouvelle facture" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

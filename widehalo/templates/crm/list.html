@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Opportunites" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Opportunites" %}</h1>
+  <p><a href="{% url 'crm:create' %}">{% trans "Nouvelle opportunite" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}
