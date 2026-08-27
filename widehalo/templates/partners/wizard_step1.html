@@ -5,6 +5,7 @@
   <h1>{% trans "Nouveau partenaire" %} — {% trans "Etape 1 sur 2" %}</h1>
   <form hx-post="{% url 'partners:wizard' %}" hx-target="#wizard-container" hx-swap="innerHTML">
     <div id="wizard-container">
+      {% csrf_token %}
       <input type="hidden" name="step" value="1">
       <div class="form-field">
         <label for="name">{% trans "Nom" %}</label>
