@@ -20,6 +20,7 @@ urlpatterns = [
     path("crm/", include("apps.crm.urls")),
     path("mrp/", include("apps.mrp.urls")),
     path("patronage/", include("apps.patronage.urls")),
+    path("sales/", include("apps.sales.urls")),
 ]
 
 if settings.DEBUG:

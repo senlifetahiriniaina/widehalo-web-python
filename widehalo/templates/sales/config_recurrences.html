@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Recurrences de vente" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gabarits de recurrence (RG-SAL-6)" %}</h1>
+  <p>{% blocktrans %}Une commande recurrente genere automatiquement une nouvelle commande brouillon a echeance, jamais confirmee automatiquement.{% endblocktrans %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Intervalle" %}</th><th>{% trans "Prochaine generation" %}</th><th>{% trans "Gabarit" %}</th><th>{% trans "Active" %}</th></tr></thead>
+    <tbody>
+      {% for recurrence in recurrences %}
+        <tr>
+          <td>{{ recurrence.name }}</td>
+          <td>{{ recurrence.get_interval_display }}</td>
+          <td>{{ recurrence.next_run }}</td>
+          <td><a href="{% url 'sales:order_detail' order_id=recurrence.template_order_id %}">{{ recurrence.template_order.reference }}</a></td>
+          <td>{{ recurrence.is_active|yesno:"Oui,Non" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune recurrence." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau gabarit" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="interval">{% trans "Intervalle" %}</label>
+      <select id="interval" name="interval">
+        <option value="weekly">{% trans "Hebdomadaire" %}</option>
+        <option value="monthly" selected>{% trans "Mensuel" %}</option>
+        <option value="quarterly">{% trans "Trimestriel" %}</option>
+        <option value="yearly">{% trans "Annuel" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="start_date">{% trans "Date de debut" %}</label>
+      <input id="start_date" type="date" name="start_date" required>
+    </div>
+    <div class="form-field">
+      <label for="end_date">{% trans "Date de fin (optionnel)" %}</label>
+      <input id="end_date" type="date" name="end_date">
+    </div>
+    <div class="form-field">
+      <label for="template_order_id">{% trans "Commande gabarit" %}</label>
+      <select id="template_order_id" name="template_order_id" required>
+        {% for order in templates %}<option value="{{ order.id }}">{{ order }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

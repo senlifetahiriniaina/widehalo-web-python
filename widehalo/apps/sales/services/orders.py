@@ -28,11 +28,36 @@ from django.utils.translation import gettext as _
 from apps.catalog.services.public import get_variant_price
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.notifications import dispatch_notification
 from apps.core.services.sequences import next_reference
 from apps.core.services.workflow import attempt_transition
 from apps.partners.services.public import is_over_credit_limit
 from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation
 from apps.sales.services import procurement
+
+
+def _notify_salesperson(order: SalesOrder, notification_type: str, message: str) -> None:
+    """SAL-NOTIF1 (§5.5.9, S7) : "e-mail automatique a la confirmation, a
+    l'expedition et a la facturation". Portee assumee et documentee : le
+    CDC parle de "notification client", mais `apps.core.services.
+    notifications.dispatch_notification` ne sait notifier qu'un `User`
+    interne (aucun canal e-mail-vers-adresse-externe n'est cable dans ce
+    socle) — V1 de ce lot notifie donc le COMMERCIAL de la commande (pas
+    le client final), a charge pour lui de relayer l'information au
+    client (coherent avec le "lien WhatsApp manuel" du meme paragraphe du
+    CDC, qui suppose deja un humain dans la boucle plutot qu'un envoi
+    automatique au client). Silencieux (jamais d'exception) si la
+    commande n'a pas de commercial assigne — pas de destinataire de
+    repli pertinent ici (contrairement a `services.recurrence.
+    generate_due_order`, ou l'appelant `user` est un candidat naturel)."""
+    if order.salesperson is None:
+        return
+    dispatch_notification(
+        user=order.salesperson,
+        notification_type=notification_type,
+        payload={"order_id": str(order.id), "reference": order.reference, "message": message},
+        tenant_id=str(order.tenant_id),
+    )
 
 
 def create_order(
@@ -231,6 +256,11 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     # fois la commande effectivement confirmee — jamais sur une commande
     # `blocked` (cf. `apps.sales.services.procurement`).
     procurement.qualify_and_process_order(order, user)
+
+    # SAL-NOTIF1 (S7) : jamais sur le chemin `blocked` ci-dessus (return
+    # anticipe) — uniquement une confirmation effective.
+    message = _("La commande %(reference)s a ete confirmee.") % {"reference": order.reference}
+    _notify_salesperson(order, "sales.order_confirmed", str(message))
     return order
 
 
@@ -264,6 +294,12 @@ def mark_delivered(order: SalesOrder, user: User, *, partial: bool = False) -> S
     for line in order.lines.all():
         line.qty_delivered = line.qty
         line.save(update_fields=["qty_delivered"])
+
+    # SAL-NOTIF1 (S7) : "a l'expedition" — uniquement la livraison
+    # COMPLETE (jamais sur `mark_partially_delivered` ci-dessus, qui
+    # retourne plus tot).
+    message = _("La commande %(reference)s a ete livree.") % {"reference": order.reference}
+    _notify_salesperson(order, "sales.order_delivered", str(message))
     return order
 
 

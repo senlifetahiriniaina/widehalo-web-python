@@ -1,8 +1,7 @@
 """API django-ninja du module `sales` (§5.5.7) — S1 : devis, S2 : commande
 de vente. Depuis S3, `POST .../confirm` declenche aussi la qualification
 d'origine par ligne (RG-SAL-3) comme effet de bord de `confirm_order` — pas
-de nouvel endpoint dedie dans ce lot (le futur `GET .../procurement-plan`
-du §5.5.7 est differe a S7, cf. plan). Depuis S4, `POST .../invoice`
+de nouvel endpoint dedie dans ce lot. Depuis S4, `POST .../invoice`
 declenche la facturation reelle (RG-SAL-2/SAL-AVCT1). Depuis S5,
 `GET/POST /sales/recurrences` (creation/liste de gabarits de recurrence,
 RG-SAL-6) — pas de "declencher maintenant" HTTP dedie : la generation
@@ -11,9 +10,13 @@ par la commande de management `run_sales_recurrences` (ops), pas par
 l'API. Depuis S6, `GET /sales/forecast` (liste des previsions deja
 calculees, RG-SAL-7) et `POST /sales/forecast/recompute` (recalcul,
 `services.forecast.recompute_forecasts_for_period`), ainsi que
-`GET/POST /sales/targets` (objectifs commerciaux). Le masquage de la
-marge par role et le reste des ecrans/rapports (§5.5.7 restant) sont
-differes a S7."""
+`GET/POST /sales/targets` (objectifs commerciaux). Depuis S7 :
+`GET .../orders/{id}/procurement-plan` (differe de S3, cf.
+`services.procurement.get_procurement_plan`, rapport en lecture seule) et
+le masquage reel de la marge (RG-SAL-5) sur toutes les serialisations de
+ligne devis/commande via `apps.core.services.permissions.
+filter_fields_for_role` — premiere utilisation reelle de ce hook N4 dans
+tout le projet (cf. `_serialize_line`/`_serialize_order_line`)."""
 
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
 from ninja import Query, Router
 
-from apps.core.services.permissions import require_permission
+from apps.core.services.permissions import (
+    filter_fields_for_role,
+    require_permission,
+    user_role_codes,
+)
 from apps.crm.services.public import get_lead_reference
 from apps.sales.models import (
     SalesForecast,
@@ -42,13 +49,9 @@ from apps.sales.schemas import (
     OrderIn,
     OrderInvoiceIn,
     OrderInvoiceOut,
-    OrderLineOut,
-    OrderOut,
     QuotationDeclineIn,
     QuotationIn,
     QuotationLineIn,
-    QuotationLineOut,
-    QuotationOut,
     RecurrenceIn,
     RecurrenceOut,
     TargetIn,
@@ -63,6 +66,7 @@ from apps.sales.services.orders import (
     create_order,
     mark_delivered,
 )
+from apps.sales.services.procurement import get_procurement_plan
 from apps.sales.services.quotations import (
     accept_quotation,
     add_quotation_line,
@@ -75,45 +79,64 @@ from apps.sales.services.recurrence import create_recurrence
 router = Router(tags=["sales"])
 
 
-def _serialize_line(line) -> QuotationLineOut:  # type: ignore[no-untyped-def]
-    return QuotationLineOut(
-        id=str(line.id),
-        sequence=line.sequence,
-        variant_id=str(line.variant_id) if line.variant_id else None,
-        is_custom=line.is_custom,
-        description=line.description,
-        qty=line.qty,
-        uom=line.uom,
-        unit_price=line.unit_price,
-        discount_pct=line.discount_pct,
-        subtotal=line.subtotal,
-        source=line.source,
-    )
+def _role_codes(request) -> set[str]:  # type: ignore[no-untyped-def]
+    """RG-SAL-5 : resout les codes de role de l'utilisateur JWT courant
+    (`request.auth`, cf. convention deja etablie par
+    `apps.core.tests.utils.grant_role` : un role = un `Group.name`)."""
+    return user_role_codes(request.auth)
 
 
-def _serialize_quotation(quotation: SalesQuotation) -> QuotationOut:
+def _serialize_line(line, role_codes: set[str]) -> dict:  # type: ignore[no-untyped-def,type-arg]
+    """Retourne un dict (pas une instance `QuotationLineOut`) — RG-SAL-5
+    (S7) : premiere utilisation reelle de `filter_fields_for_role`.
+    Choix assume (documente) : construire directement un dict plutot que
+    `QuotationLineOut(...).model_dump()` puis filtrer, pour rester
+    lisible et eviter un aller-retour de (dev)serialisation inutile ;
+    django-ninja serialise un dict renvoye par un endpoint aussi bien
+    qu'une instance de `Schema` (aucun `response=...` explicite n'est
+    declare sur les endpoints devis/commande, donc aucune validation de
+    sortie stricte n'est perdue par ce changement)."""
+    data = {
+        "id": str(line.id),
+        "sequence": line.sequence,
+        "variant_id": str(line.variant_id) if line.variant_id else None,
+        "is_custom": line.is_custom,
+        "description": line.description,
+        "qty": line.qty,
+        "uom": line.uom,
+        "unit_price": line.unit_price,
+        "discount_pct": line.discount_pct,
+        "subtotal": line.subtotal,
+        "source": line.source,
+        "margin_pct": line.margin_pct,
+        "cost_estimate_mga": line.cost_estimate_mga,
+    }
+    return filter_fields_for_role("sales.SalesQuotationLine", role_codes, data)
+
+
+def _serialize_quotation(quotation: SalesQuotation, role_codes: set[str]) -> dict:  # type: ignore[type-arg]
     source_lead_reference = (
         get_lead_reference(quotation.source_lead_id) if quotation.source_lead_id else ""
     )
-    return QuotationOut(
-        id=str(quotation.id),
-        reference=quotation.reference,
-        partner_id=str(quotation.partner_id),
-        contact=quotation.contact,
-        source_lead_id=str(quotation.source_lead_id) if quotation.source_lead_id else None,
-        source_lead_reference=source_lead_reference,
-        date=quotation.date,
-        validity_date=quotation.validity_date,
-        currency=quotation.currency,
-        incoterm=quotation.incoterm,
-        state=quotation.state,
-        amount_untaxed=quotation.amount_untaxed,
-        amount_tax=quotation.amount_tax,
-        amount_total=quotation.amount_total,
-        amount_total_mga=quotation.amount_total_mga,
-        notes=quotation.notes,
-        lines=[_serialize_line(line) for line in quotation.lines.all()],
-    )
+    return {
+        "id": str(quotation.id),
+        "reference": quotation.reference,
+        "partner_id": str(quotation.partner_id),
+        "contact": quotation.contact,
+        "source_lead_id": str(quotation.source_lead_id) if quotation.source_lead_id else None,
+        "source_lead_reference": source_lead_reference,
+        "date": quotation.date,
+        "validity_date": quotation.validity_date,
+        "currency": quotation.currency,
+        "incoterm": quotation.incoterm,
+        "state": quotation.state,
+        "amount_untaxed": quotation.amount_untaxed,
+        "amount_tax": quotation.amount_tax,
+        "amount_total": quotation.amount_total,
+        "amount_total_mga": quotation.amount_total_mga,
+        "notes": quotation.notes,
+        "lines": [_serialize_line(line, role_codes) for line in quotation.lines.all()],
+    }
 
 
 # NOTE ordre des decorateurs : `@router.xxx` DOIT etre le decorateur EXTERNE
@@ -126,7 +149,8 @@ def _serialize_quotation(quotation: SalesQuotation) -> QuotationOut:
 @require_permission("sales.view_salesquotation")
 def list_quotations(request):
     quotations = SalesQuotation.objects.all().order_by("-created_at")
-    return {"results": [_serialize_quotation(quotation) for quotation in quotations]}
+    role_codes = _role_codes(request)
+    return {"results": [_serialize_quotation(quotation, role_codes) for quotation in quotations]}
 
 
 @router.post("/sales/quotations")
@@ -165,14 +189,14 @@ def create_quotation_endpoint(request, payload: QuotationIn):
             sequence=index,
         )
     quotation.refresh_from_db()
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
 @router.get("/sales/quotations/{quotation_id}")
 @require_permission("sales.view_salesquotation")
 def get_quotation_endpoint(request, quotation_id: str):
     quotation = get_object_or_404(SalesQuotation, id=quotation_id)
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
 @router.post("/sales/quotations/{quotation_id}/lines")
@@ -192,7 +216,7 @@ def add_quotation_line_endpoint(request, quotation_id: str, payload: QuotationLi
         sequence=quotation.lines.count(),
     )
     quotation.refresh_from_db()
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
 @router.post("/sales/quotations/{quotation_id}/send")
@@ -203,7 +227,7 @@ def send_quotation_endpoint(request, quotation_id: str):
         send_quotation(quotation)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
 @router.post("/sales/quotations/{quotation_id}/accept")
@@ -214,7 +238,7 @@ def accept_quotation_endpoint(request, quotation_id: str):
         accept_quotation(quotation)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
 @router.post("/sales/quotations/{quotation_id}/decline")
@@ -225,63 +249,68 @@ def decline_quotation_endpoint(request, quotation_id: str, payload: QuotationDec
         decline_quotation(quotation, reason=payload.reason)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_quotation(quotation)
+    return _serialize_quotation(quotation, _role_codes(request))
 
 
-def _serialize_order_line(line) -> OrderLineOut:  # type: ignore[no-untyped-def]
-    return OrderLineOut(
-        id=str(line.id),
-        sequence=line.sequence,
-        variant_id=str(line.variant_id) if line.variant_id else None,
-        is_custom=line.is_custom,
-        description=line.description,
-        qty=line.qty,
-        uom=line.uom,
-        unit_price=line.unit_price,
-        discount_pct=line.discount_pct,
-        subtotal=line.subtotal,
-        source=line.source,
-        qty_delivered=line.qty_delivered,
-        qty_invoiced=line.qty_invoiced,
-        billing_policy=line.billing_policy,
-        deposit_pct=line.deposit_pct,
-    )
+def _serialize_order_line(line, role_codes: set[str]) -> dict:  # type: ignore[no-untyped-def,type-arg]
+    """RG-SAL-5 : meme masquage que `_serialize_line`, cf. sa docstring."""
+    data = {
+        "id": str(line.id),
+        "sequence": line.sequence,
+        "variant_id": str(line.variant_id) if line.variant_id else None,
+        "is_custom": line.is_custom,
+        "description": line.description,
+        "qty": line.qty,
+        "uom": line.uom,
+        "unit_price": line.unit_price,
+        "discount_pct": line.discount_pct,
+        "subtotal": line.subtotal,
+        "source": line.source,
+        "qty_delivered": line.qty_delivered,
+        "qty_invoiced": line.qty_invoiced,
+        "billing_policy": line.billing_policy,
+        "deposit_pct": line.deposit_pct,
+        "margin_pct": line.margin_pct,
+        "cost_estimate_mga": line.cost_estimate_mga,
+    }
+    return filter_fields_for_role("sales.SalesOrderLine", role_codes, data)
 
 
-def _serialize_order(order: SalesOrder) -> OrderOut:
+def _serialize_order(order: SalesOrder, role_codes: set[str]) -> dict:  # type: ignore[type-arg]
     source_lead_reference = get_lead_reference(order.source_lead_id) if order.source_lead_id else ""
-    return OrderOut(
-        id=str(order.id),
-        reference=order.reference,
-        quotation_id=str(order.quotation_id) if order.quotation_id else None,
-        partner_id=str(order.partner_id),
-        contact=order.contact,
-        source_lead_id=str(order.source_lead_id) if order.source_lead_id else None,
-        source_lead_reference=source_lead_reference,
-        date=order.date,
-        date_confirmed=order.date_confirmed,
-        commitment_date=order.commitment_date,
-        currency=order.currency,
-        incoterm=order.incoterm,
-        state=order.state,
-        blocked_reason=order.blocked_reason,
-        cancel_reason=order.cancel_reason,
-        amount_untaxed=order.amount_untaxed,
-        amount_tax=order.amount_tax,
-        amount_total=order.amount_total,
-        amount_total_mga=order.amount_total_mga,
-        notes=order.notes,
-        is_recurring=order.is_recurring,
-        invoiced_amount_mga=order.invoiced_amount_mga,
-        lines=[_serialize_order_line(line) for line in order.lines.all()],
-    )
+    return {
+        "id": str(order.id),
+        "reference": order.reference,
+        "quotation_id": str(order.quotation_id) if order.quotation_id else None,
+        "partner_id": str(order.partner_id),
+        "contact": order.contact,
+        "source_lead_id": str(order.source_lead_id) if order.source_lead_id else None,
+        "source_lead_reference": source_lead_reference,
+        "date": order.date,
+        "date_confirmed": order.date_confirmed,
+        "commitment_date": order.commitment_date,
+        "currency": order.currency,
+        "incoterm": order.incoterm,
+        "state": order.state,
+        "blocked_reason": order.blocked_reason,
+        "cancel_reason": order.cancel_reason,
+        "amount_untaxed": order.amount_untaxed,
+        "amount_tax": order.amount_tax,
+        "amount_total": order.amount_total,
+        "amount_total_mga": order.amount_total_mga,
+        "notes": order.notes,
+        "is_recurring": order.is_recurring,
+        "invoiced_amount_mga": order.invoiced_amount_mga,
+        "lines": [_serialize_order_line(line, role_codes) for line in order.lines.all()],
+    }
 
 
 @router.get("/sales/orders")
 @require_permission("sales.view_salesorder")
 def list_orders(request):
     orders = SalesOrder.objects.all().order_by("-created_at")
-    return {"results": [_serialize_order(order) for order in orders]}
+    role_codes = _role_codes(request)
+    return {"results": [_serialize_order(order, role_codes) for order in orders]}
 
 
 @router.post("/sales/orders")
@@ -322,14 +351,14 @@ def create_order_endpoint(request, payload: OrderIn):
             sequence=index,
         )
     order.refresh_from_db()
-    return _serialize_order(order)
+    return _serialize_order(order, _role_codes(request))
 
 
 @router.get("/sales/orders/{order_id}")
 @require_permission("sales.view_salesorder")
 def get_order_endpoint(request, order_id: str):
     order = get_object_or_404(SalesOrder, id=order_id)
-    return _serialize_order(order)
+    return _serialize_order(order, _role_codes(request))
 
 
 @router.post("/sales/orders/{order_id}/confirm")
@@ -340,7 +369,7 @@ def confirm_order_endpoint(request, order_id: str):
         confirm_order(order, request.auth)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_order(order)
+    return _serialize_order(order, _role_codes(request))
 
 
 @router.post("/sales/orders/{order_id}/deliver")
@@ -351,7 +380,18 @@ def deliver_order_endpoint(request, order_id: str, payload: OrderDeliverIn):
         mark_delivered(order, request.auth, partial=payload.partial)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_order(order)
+    return _serialize_order(order, _role_codes(request))
+
+
+@router.get("/sales/orders/{order_id}/procurement-plan")
+@require_permission("sales.view_salesorder")
+def order_procurement_plan_endpoint(request, order_id: str):
+    """RG-SAL-3 (§5.5.7) : differe de S3 a S7 (cf. plan) — rapport en
+    LECTURE SEULE de l'etat de qualification par ligne deja ecrit a la
+    confirmation, jamais une re-qualification (`services.procurement.
+    get_procurement_plan` ne mute jamais `SalesOrderLine`)."""
+    order = get_object_or_404(SalesOrder, id=order_id)
+    return get_procurement_plan(order)
 
 
 @router.post("/sales/orders/{order_id}/cancel")
@@ -362,7 +402,7 @@ def cancel_order_endpoint(request, order_id: str, payload: OrderCancelIn):
         cancel_order(order, request.auth, reason=payload.reason)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return _serialize_order(order)
+    return _serialize_order(order, _role_codes(request))
 
 
 @router.post("/sales/orders/{order_id}/invoice", response=OrderInvoiceOut)

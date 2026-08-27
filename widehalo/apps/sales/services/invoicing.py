@@ -23,9 +23,11 @@ from typing import Any
 from uuid import UUID
 
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import create_customer_invoice_from_source
 from apps.core.models.user import User
+from apps.core.services.notifications import dispatch_notification
 from apps.core.services.workflow import attempt_transition
 from apps.mrp.services.public import get_order_produced_qty
 from apps.sales.models import SalesOrder, SalesOrderLine
@@ -182,4 +184,24 @@ def invoice_order(
     # `update_fields` litteral incluant le champ FSM dans la meme
     # fonction que l'appel `attempt_transition()`.
     order.save(update_fields=["invoiced_amount_mga", "state"])
+
+    # SAL-NOTIF1 (§5.5.9, S7) : "a la facturation" — uniquement quand une
+    # facture reelle a bien ete creee (jamais sur le `return None`
+    # ci-dessus). Meme portee assumee que `services.orders._notify_
+    # salesperson` (notifie le commercial, pas directement le client
+    # final — cf. sa docstring) ; silencieux si aucun commercial n'est
+    # assigne a la commande.
+    if order.salesperson is not None:
+        message = _("La commande %(reference)s a ete facturee.") % {"reference": order.reference}
+        dispatch_notification(
+            user=order.salesperson,
+            notification_type="sales.order_invoiced",
+            payload={
+                "order_id": str(order.id),
+                "reference": order.reference,
+                "invoice_id": str(move_id),
+                "message": str(message),
+            },
+            tenant_id=str(order.tenant_id),
+        )
     return move_id

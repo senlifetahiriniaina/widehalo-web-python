@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports Ventes" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports Ventes (§5.5.7)" %}</h1>
+  <p>{% blocktrans %}Le devis (SAL-DEVIS) et la confirmation de commande (SAL-BC) se telechargent depuis leur fiche respective. Le bon de livraison (SAL-BL) depuis la fiche commande.{% endblocktrans %}</p>
+
+  <h2>{% trans "Facturation (SAL-FAC)" %}</h2>
+  <p>{% blocktrans %}Les factures generees depuis une commande de vente sont des documents comptables reels : consultez-les depuis l'ecran Comptabilite.{% endblocktrans %}</p>
+  <p><a href="{% url 'accounting:list' %}">{% trans "Voir les factures (Comptabilite)" %}</a></p>
+
+  <h2>{% trans "Chiffre d'affaires (SAL-CA)" %}</h2>
+  <form method="get" action="{% url 'sales:report_revenue' %}">
+    <div class="form-field">
+      <label for="ca_date_from">{% trans "Du" %}</label>
+      <input id="ca_date_from" type="date" name="date_from">
+    </div>
+    <div class="form-field">
+      <label for="ca_date_to">{% trans "Au" %}</label>
+      <input id="ca_date_to" type="date" name="date_to">
+    </div>
+    <div class="form-field">
+      <label for="ca_group_by">{% trans "Grouper par" %}</label>
+      <select id="ca_group_by" name="group_by">
+        <option value="partner_id">{% trans "Partenaire" %}</option>
+        <option value="salesperson">{% trans "Commercial" %}</option>
+        <option value="date">{% trans "Date" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="ca_format">{% trans "Format" %}</label>
+      <select id="ca_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Analyse de marge (SAL-MARGE)" %}</h2>
+  <p>{% blocktrans %}RG-SAL-5 : la colonne marge n'apparait que pour les roles direction/admin/resp_commercial.{% endblocktrans %}</p>
+  <form method="get" action="{% url 'sales:report_margin' %}">
+    <div class="form-field">
+      <label for="margin_format">{% trans "Format" %}</label>
+      <select id="margin_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Commandes en retard (SAL-RET)" %}</h2>
+  <form method="get" action="{% url 'sales:report_late_orders' %}">
+    <div class="form-field">
+      <label for="late_format">{% trans "Format" %}</label>
+      <select id="late_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Realisation des objectifs (SAL-OBJ)" %}</h2>
+  <form method="get" action="{% url 'sales:report_targets' %}">
+    <div class="form-field">
+      <label for="obj_period">{% trans "Periode (YYYY-MM)" %}</label>
+      <input id="obj_period" type="text" name="period" placeholder="2026-08">
+    </div>
+    <div class="form-field">
+      <label for="obj_format">{% trans "Format" %}</label>
+      <select id="obj_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Previsions (SAL-PREV)" %}</h2>
+  <form method="get" action="{% url 'sales:report_forecast' %}">
+    <div class="form-field">
+      <label for="prev_date_from">{% trans "Periode de" %} (YYYY-MM)</label>
+      <input id="prev_date_from" type="text" name="date_from" placeholder="2026-01">
+    </div>
+    <div class="form-field">
+      <label for="prev_date_to">{% trans "Periode a" %} (YYYY-MM)</label>
+      <input id="prev_date_to" type="text" name="date_to" placeholder="2026-12">
+    </div>
+    <div class="form-field">
+      <label for="prev_format">{% trans "Format" %}</label>
+      <select id="prev_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+{% endblock %}

@@ -26,6 +26,37 @@ from apps.core.models.user import User
 # Ventes) : SENSITIVE_FIELDS["sales.SalesOrderLine"] = {"margin": {"direction", "admin"}}
 SENSITIVE_FIELDS: dict[str, dict[str, set[str]]] = {}
 
+# RG-SAL-5 (§5.5, S7) : premiere population reelle de ce registre, jamais
+# utilise par aucun module avant `sales`. Le champ reel s'appelle
+# `margin_pct` (pas "margin", cf. `apps.sales.models.SalesOrderLine`/
+# `SalesQuotationLine`). Roles autorises a voir la marge : `direction`/
+# `admin` (pilotage transverse) et `resp_commercial` (responsable
+# commercial, doit pouvoir arbitrer une remise en connaissance de cause) —
+# EXCLUS explicitement : `commercial` (un commercial ne doit pas voir la
+# marge sur les lignes qu'il chiffre au client, seulement le prix). Choix
+# aligne sur `apps.core.services.rbac_policy.ROLE_APP_PERMISSIONS["sales"]`
+# (S1) qui donne acces au module `sales` a exactement ces 4 roles
+# (`admin`/`direction`/`commercial`/`resp_commercial`) — `margin_pct` est
+# donc masque au seul role qui, parmi les 4, n'a pas de responsabilite de
+# pilotage/marge. Applique aux DEUX modeles qui portent le champ (devis ET
+# commande) : le CDC ne mentionne que "sales.SalesOrderLine" dans son
+# commentaire d'exemple, mais `SalesQuotationLine.margin_pct` porte la
+# meme information sensible et doit etre masque de la meme facon.
+# `cost_estimate_mga` (cout de revient estime) est ajoute au meme role-set :
+# un cout de revient permet de reconstituer la marge par simple soustraction
+# du prix de vente (deja visible de tout `commercial`) — le masquer
+# seulement partiellement (marge oui, cout non) aurait laisse une fuite
+# triviale de la meme information sensible.
+_MARGIN_VISIBLE_ROLES = {"direction", "admin", "resp_commercial"}
+SENSITIVE_FIELDS["sales.SalesOrderLine"] = {
+    "margin_pct": set(_MARGIN_VISIBLE_ROLES),
+    "cost_estimate_mga": set(_MARGIN_VISIBLE_ROLES),
+}
+SENSITIVE_FIELDS["sales.SalesQuotationLine"] = {
+    "margin_pct": set(_MARGIN_VISIBLE_ROLES),
+    "cost_estimate_mga": set(_MARGIN_VISIBLE_ROLES),
+}
+
 
 class _PermissionGuardedView:
     """Objet appelable (plutot qu'une fermeture `def wrapper(...)`) qui

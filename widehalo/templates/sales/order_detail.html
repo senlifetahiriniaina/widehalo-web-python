@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ order.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ order.get_state_display }}
+    {% if order.blocked_reason %}<p>{% trans "Motif de blocage" %}: {{ order.blocked_reason }}</p>{% endif %}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
+      {% if order.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
+      {% if order.state == "draft" or order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
+      {% if order.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Debloquer" %}</button>{% endif %}
+      {% if order.state == "confirmed" %}<button type="submit" name="action" value="start_preparation">{% trans "Demarrer la preparation" %}</button>{% endif %}
+      {% if order.state == "in_preparation" %}<button type="submit" name="action" value="deliver_partial">{% trans "Livrer partiellement" %}</button>{% endif %}
+      {% if order.state == "in_preparation" or order.state == "partially_delivered" %}<button type="submit" name="action" value="deliver_full">{% trans "Livrer completement" %}</button>{% endif %}
+      {% if order.state == "delivered" %}<button type="submit" name="action" value="invoice">{% trans "Facturer" %}</button>{% endif %}
+      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
+  <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
+  <p>{% trans "Total" %}: {{ order.amount_total_mga }} MGA</p>
+  <p>{% trans "Deja facture" %}: {{ order.invoiced_amount_mga }} MGA</p>
+
+  <h2>{% trans "Rapports" %}</h2>
+  <ul>
+    <li><a href="{% url 'sales:report_order_confirmation_pdf' order_id=order.id %}">{% trans "Confirmation de commande (PDF)" %}</a></li>
+    <li><a href="{% url 'sales:report_delivery_note' order_id=order.id %}">{% trans "Bon de livraison" %}</a></li>
+  </ul>
+  <p><a href="{% url 'sales:reports_index' %}">{% trans "Voir tous les rapports" %}</a></p>
+
+  <h2>{% trans "Lignes" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Prix unitaire" %}</th>
+        <th>{% trans "Sous-total" %}</th>
+        <th>{% trans "Origine" %}</th>
+        <th>{% trans "Politique de facturation" %}</th>
+        <th>{% trans "Qte livree" %}</th>
+        <th>{% trans "Qte facturee" %}</th>
+        {% if can_see_margin %}<th>{% trans "Marge (%)" %}</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty }}</td>
+          <td>{{ line.unit_price }}</td>
+          <td>{{ line.subtotal }}</td>
+          <td>{{ line.get_source_display }}</td>
+          <td>{{ line.get_billing_policy_display }}</td>
+          <td>{{ line.qty_delivered }}</td>
+          <td>{{ line.qty_invoiced }}</td>
+          {% if can_see_margin %}<td>{{ line.margin_pct|default:"-" }}</td>{% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{% if can_see_margin %}9{% else %}8{% endif %}">{% trans "Aucune ligne." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une ligne hors catalogue" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_line">
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <input id="description" type="text" name="description" required>
+    </div>
+    <div class="form-field">
+      <label for="qty">{% trans "Quantite" %}</label>
+      <input id="qty" type="number" name="qty" step="0.0001" value="1">
+    </div>
+    <div class="form-field">
+      <label for="unit_price">{% trans "Prix unitaire" %}</label>
+      <input id="unit_price" type="number" name="unit_price" step="0.0001">
+    </div>
+    <div class="form-field">
+      <label for="billing_policy">{% trans "Politique de facturation" %}</label>
+      <select id="billing_policy" name="billing_policy">
+        <option value="on_ordered_qty">{% trans "Sur quantite commandee" %}</option>
+        <option value="on_delivered_qty">{% trans "Sur quantite livree" %}</option>
+        <option value="on_deposit">{% trans "Sur acompte" %}</option>
+        <option value="on_production_progress">{% trans "A l'avancement de production" %}</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ quotation.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ quotation.get_state_display }}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="{% trans 'Motif de refus' %}">
+      {% if quotation.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
+      {% if quotation.state == "sent" %}<button type="submit" name="action" value="accept">{% trans "Accepter" %}</button>{% endif %}
+      {% if quotation.state == "sent" %}<button type="submit" name="action" value="decline">{% trans "Refuser" %}</button>{% endif %}
+      {% if quotation.state == "accepted" %}<button type="submit" name="action" value="convert_to_order">{% trans "Convertir en commande" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ quotation.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Partenaire" %}: {{ quotation.partner_id }}</p>
+  <p>{% trans "Total" %}: {{ quotation.amount_total }} {{ quotation.currency }}</p>
+
+  <p><a href="{% url 'sales:report_quotation_pdf' quotation_id=quotation.id %}">{% trans "Telecharger le devis (PDF)" %}</a></p>
+
+  <h2>{% trans "Lignes" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Prix unitaire" %}</th>
+        <th>{% trans "Sous-total" %}</th>
+        {% if can_see_margin %}<th>{% trans "Marge (%)" %}</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty }}</td>
+          <td>{{ line.unit_price }}</td>
+          <td>{{ line.subtotal }}</td>
+          {% if can_see_margin %}<td>{{ line.margin_pct|default:"-" }}</td>{% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{% if can_see_margin %}5{% else %}4{% endif %}">{% trans "Aucune ligne." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une ligne hors catalogue" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_line">
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <input id="description" type="text" name="description" required>
+    </div>
+    <div class="form-field">
+      <label for="qty">{% trans "Quantite" %}</label>
+      <input id="qty" type="number" name="qty" step="0.0001" value="1">
+    </div>
+    <div class="form-field">
+      <label for="unit_price">{% trans "Prix unitaire" %}</label>
+      <input id="unit_price" type="number" name="unit_price" step="0.0001">
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+{% endblock %}

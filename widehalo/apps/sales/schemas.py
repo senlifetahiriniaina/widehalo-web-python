@@ -43,6 +43,16 @@ class QuotationDeclineIn(Schema):
 
 
 class QuotationLineOut(Schema):
+    """RG-SAL-5 (S7) : `margin_pct`/`cost_estimate_mga` sont declares ici
+    pour que le champ EXISTE dans le contrat d'API (l'acceptance test
+    §5.5.8 n°4 exige qu'il soit present puis masque, pas simplement
+    absent) — mais leur masquage effectif par role n'a pas lieu ici (une
+    `Schema` ninja ne connait pas l'utilisateur courant) : il est applique
+    en amont, sur le dict de sortie, par
+    `apps.core.services.permissions.filter_fields_for_role` (cf.
+    `apps.sales.api._serialize_line`). Les deux champs sont optionnels
+    dans la reponse JSON pour un utilisateur sans le role requis."""
+
     id: str
     sequence: int
     variant_id: str | None
@@ -54,6 +64,8 @@ class QuotationLineOut(Schema):
     discount_pct: Decimal
     subtotal: Decimal
     source: str
+    margin_pct: Decimal | None = None
+    cost_estimate_mga: Decimal | None = None
 
 
 class QuotationOut(Schema):
@@ -141,6 +153,9 @@ class OrderLineOut(Schema):
     qty_invoiced: Decimal
     billing_policy: str
     deposit_pct: Decimal | None
+    # RG-SAL-5 (S7) : meme masquage que `QuotationLineOut`, cf. sa docstring.
+    margin_pct: Decimal | None = None
+    cost_estimate_mga: Decimal | None = None
 
 
 class RecurrenceIn(Schema):

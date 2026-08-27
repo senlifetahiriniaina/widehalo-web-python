@@ -1,0 +1,275 @@
+"""Rapports `sales` (§5.5.7, S7) : SAL-DEVIS, SAL-BC, SAL-CA, SAL-MARGE,
+SAL-RET, SAL-OBJ, SAL-BL (minimal), SAL-PREV. SAL-FAC ("cf. Accounting")
+n'a pas de generateur ici : c'est un simple lien vers l'ecran de facture
+deja existant du module `accounting` (cf. `templates/sales/reports.html`),
+aucune duplication de generation de PDF.
+
+`rows_to_bytes` est une COPIE volontaire du helper identique de
+`apps.mrp.services.reports`/`apps.patronage.services.reports` (verifie
+avant d'ecrire ce fichier : la fonction est deja dupliquee par app dans ce
+projet, jamais centralisee dans `core`) — suivre la convention existante
+plutot que d'introduire une nouvelle dependance inter-app pour un
+utilitaire generique."""
+
+from __future__ import annotations
+
+import csv
+import datetime as dt
+import io
+import json
+from decimal import Decimal
+from typing import Any
+
+from django.db.models import Sum
+
+from apps.sales.models import (
+    SalesForecast,
+    SalesOrder,
+    SalesOrderLine,
+    SalesQuotation,
+    SalesTarget,
+)
+
+# RG-SAL-5 : memes roles que `apps.core.services.permissions.
+# SENSITIVE_FIELDS["sales.SalesOrderLine"]["margin_pct"]` — le rapport
+# SAL-MARGE doit respecter le meme masquage que l'ecran/l'API.
+_MARGIN_VISIBLE_ROLES = {"direction", "admin", "resp_commercial"}
+
+
+def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str = "json") -> bytes:
+    if format == "json":
+        return json.dumps(rows, indent=2, ensure_ascii=False, default=str).encode("utf-8")
+
+    if format == "csv":
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+        return buffer.getvalue().encode("utf-8")
+
+    if format == "xlsx":
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(fields)
+        for row in rows:
+            sheet.append([row.get(field) for field in fields])
+        buffer_bytes = io.BytesIO()
+        workbook.save(buffer_bytes)
+        return buffer_bytes.getvalue()
+
+    raise ValueError(f"Format d'export non supporte : {format}")
+
+
+def quotation_pdf(quotation: SalesQuotation) -> bytes:
+    """SAL-DEVIS — PDF bilingue minimal (meme patron que
+    `mrp.services.reports.order_pdf`/ACC-FAC)."""
+    from weasyprint import HTML
+
+    lines_html = "".join(
+        f"<tr><td>{line.description}</td><td>{line.qty}</td><td>{line.unit_price}</td>"
+        f"<td>{line.subtotal}</td></tr>"
+        for line in quotation.lines.all()
+    )
+    html = f"""
+    <html><head><meta charset="utf-8"></head><body>
+      <h1>Devis / Quotation {quotation.reference}</h1>
+      <p>Partenaire / Partner : {quotation.partner_id}</p>
+      <p>Date : {quotation.date}</p>
+      <table border="1" cellspacing="0" cellpadding="4">
+        <thead><tr><th>Description</th><th>Qte</th><th>Prix unitaire</th>
+        <th>Sous-total</th></tr></thead>
+        <tbody>{lines_html}</tbody>
+      </table>
+      <p>Total / Total : {quotation.amount_total} {quotation.currency}</p>
+    </body></html>
+    """
+    result: bytes = HTML(string=html).write_pdf()
+    return result
+
+
+def order_confirmation_pdf(order: SalesOrder) -> bytes:
+    """SAL-BC — confirmation de commande, meme patron que `quotation_pdf`."""
+    from weasyprint import HTML
+
+    lines_html = "".join(
+        f"<tr><td>{line.description}</td><td>{line.qty}</td><td>{line.unit_price}</td>"
+        f"<td>{line.subtotal}</td></tr>"
+        for line in order.lines.all()
+    )
+    html = f"""
+    <html><head><meta charset="utf-8"></head><body>
+      <h1>Confirmation de commande / Order confirmation {order.reference}</h1>
+      <p>Partenaire / Partner : {order.partner_id}</p>
+      <p>Date : {order.date}</p>
+      <p>Statut / State : {order.get_state_display()}</p>
+      <table border="1" cellspacing="0" cellpadding="4">
+        <thead><tr><th>Description</th><th>Qte</th><th>Prix unitaire</th>
+        <th>Sous-total</th></tr></thead>
+        <tbody>{lines_html}</tbody>
+      </table>
+      <p>Total / Total : {order.amount_total} {order.currency}</p>
+    </body></html>
+    """
+    result: bytes = HTML(string=html).write_pdf()
+    return result
+
+
+def delivery_note_rows(order: SalesOrder) -> list[dict[str, Any]]:
+    """SAL-BL — bon de livraison, portee MINIMALE assumee (documentee) :
+    `apps.stocks` n'existe pas encore (pas de numero de colis/emplacement
+    entrepot/transporteur reel a afficher) — se contente de lister les
+    lignes de la commande avec ce qui est deja livre, suffisant pour un
+    accuse de reception papier basique."""
+    return [
+        {
+            "description": line.description,
+            "qty_ordered": line.qty,
+            "qty_delivered": line.qty_delivered,
+            "uom": line.uom,
+        }
+        for line in order.lines.all()
+    ]
+
+
+def revenue_report(
+    *, date_from: dt.date, date_to: dt.date, group_by: str = "partner_id"
+) -> list[dict[str, Any]]:
+    """SAL-CA — chiffre d'affaires par periode/client/commercial. `group_by`
+    parmi "partner_id"/"salesperson"/"date" (le CDC demande aussi "produit"/
+    "region" : produit necessiterait de deplier par ligne+resoudre le
+    catalogue, region n'existe dans aucun modele `partners` expose — hors
+    perimetre documente de cette premiere version du rapport, a etendre
+    quand un besoin concret se precise)."""
+    valid_group_by = {"partner_id", "salesperson", "date"}
+    if group_by not in valid_group_by:
+        raise ValueError(f"group_by invalide : {group_by}")
+
+    queryset = SalesOrder.objects.filter(
+        date__gte=date_from, date__lte=date_to, is_active=True
+    ).exclude(state=SalesOrder.STATE_CANCELLED)
+
+    if group_by == "salesperson":
+        rows = (
+            queryset.values("salesperson__email")
+            .annotate(total_mga=Sum("amount_total_mga"))
+            .order_by("-total_mga")
+        )
+        return [
+            {
+                "salesperson": row["salesperson__email"] or "-",
+                "total_mga": row["total_mga"] or Decimal(0),
+            }
+            for row in rows
+        ]
+
+    group_field = "date" if group_by == "date" else "partner_id"
+    rows = (
+        queryset.values(group_field)
+        .annotate(total_mga=Sum("amount_total_mga"))
+        .order_by(f"-{group_field}" if group_by == "date" else "-total_mga")
+    )
+    return [
+        {group_field: str(row[group_field]), "total_mga": row["total_mga"] or Decimal(0)}
+        for row in rows
+    ]
+
+
+def margin_report(*, role_codes: set[str]) -> list[dict[str, Any]]:
+    """SAL-MARGE — analyse de marge par commande, RG-SAL-5 : ne renvoie
+    JAMAIS `margin_pct`/`cost_estimate_mga` a un role hors
+    `_MARGIN_VISIBLE_ROLES` — meme masquage que l'ecran/l'API, applique
+    ici directement (pas de dict a filtrer champ par champ, la colonne
+    entiere est omise en amont pour ce rapport tabulaire)."""
+    can_see_margin = bool(role_codes & _MARGIN_VISIBLE_ROLES)
+    lines = SalesOrderLine.objects.filter(is_active=True).select_related("order")
+    rows: list[dict[str, Any]] = []
+    for line in lines:
+        row: dict[str, Any] = {
+            "order_reference": line.order.reference,
+            "description": line.description,
+            "subtotal": line.subtotal,
+        }
+        if can_see_margin:
+            row["margin_pct"] = line.margin_pct
+            row["cost_estimate_mga"] = line.cost_estimate_mga
+        rows.append(row)
+    return rows
+
+
+def late_orders_report() -> list[dict[str, Any]]:
+    """SAL-RET — commandes en retard : `commitment_date` depassee et pas
+    encore livrees (`delivered`/`invoiced`/`closed`/`cancelled` exclus,
+    ce sont des issues finales, jamais "en retard")."""
+    today = dt.date.today()
+    final_states = (
+        SalesOrder.STATE_DELIVERED,
+        SalesOrder.STATE_INVOICED,
+        SalesOrder.STATE_CLOSED,
+        SalesOrder.STATE_CANCELLED,
+    )
+    orders = SalesOrder.objects.filter(commitment_date__lt=today, is_active=True).exclude(
+        state__in=final_states
+    )
+    return [
+        {
+            "reference": order.reference,
+            "partner_id": str(order.partner_id),
+            "commitment_date": order.commitment_date,
+            "state": order.state,
+            "days_late": (today - order.commitment_date).days if order.commitment_date else None,
+        }
+        for order in orders
+    ]
+
+
+def target_achievement_report(*, period: str) -> list[dict[str, Any]]:
+    """SAL-OBJ — realisation des objectifs commerciaux vs `SalesTarget`.
+    Le realise est approxime par la somme de `amount_total_mga` des
+    commandes NON annulees de la periode (bucket mensuel "YYYY-MM" compare
+    au prefixe de `SalesOrder.date`) — pas de notion de "commande
+    realisee" plus fine que celle-ci dans ce lot."""
+    year, month = (int(part) for part in period.split("-"))
+    orders_total = SalesOrder.objects.filter(
+        date__year=year, date__month=month, is_active=True
+    ).exclude(state=SalesOrder.STATE_CANCELLED).aggregate(total=Sum("amount_total_mga"))[
+        "total"
+    ] or Decimal(0)
+    targets = SalesTarget.objects.filter(period=period, is_active=True)
+    rows: list[dict[str, Any]] = []
+    for target in targets:
+        achievement_pct = (
+            (orders_total / target.amount_mga * Decimal(100)) if target.amount_mga else Decimal(0)
+        )
+        rows.append(
+            {
+                "scope": target.scope,
+                "scope_ref": str(target.scope_ref) if target.scope_ref else "",
+                "target_mga": target.amount_mga,
+                "realized_mga": orders_total,
+                "achievement_pct": achievement_pct,
+            }
+        )
+    return rows
+
+
+def forecast_rows(*, date_from: str, date_to: str) -> list[dict[str, Any]]:
+    """SAL-PREV — previsions/ecarts (`SalesForecast`, deja calculees par
+    `services.forecast.build_forecast`/`recompute_forecasts_for_period` en
+    S6) : simple mise a plat tabulaire, aucun nouveau calcul ici."""
+    forecasts = SalesForecast.objects.filter(
+        period__gte=date_from, period__lte=date_to, is_active=True
+    ).order_by("period", "variant_id")
+    return [
+        {
+            "period": forecast.period,
+            "variant_id": str(forecast.variant_id),
+            "partner_id": str(forecast.partner_id) if forecast.partner_id else "",
+            "qty_forecast": forecast.qty_forecast,
+            "qty_actual": forecast.qty_actual,
+            "confidence": forecast.confidence,
+            "method": forecast.method,
+        }
+        for forecast in forecasts
+    ]

@@ -101,3 +101,37 @@ def _qualify_production_line(
     line.qty_to_produce = line.qty
     line.save(update_fields=["mrp_order_id", "qty_to_produce"])
     summary["produced"].append(str(line.id))
+
+
+def get_procurement_plan(order: SalesOrder) -> dict[str, Any]:
+    """`GET .../orders/{id}/procurement-plan` (§5.5.7) — differe de S3 a S7
+    (cf. plan). Lecture SEULE de l'etat de qualification RG-SAL-3 deja
+    ecrit par `qualify_and_process_order` a la confirmation : ne
+    recree/ne relance jamais rien (jamais un second `MrpOrder` pour la
+    meme ligne) — c'est un rapport, pas une re-qualification. Une
+    commande pas encore confirmee n'a jamais ete qualifiee : chaque ligne
+    y apparait avec le statut `"not_yet_qualified"`."""
+    lines: list[dict[str, Any]] = []
+    for line in order.lines.all():
+        if line.mrp_order_id is not None:
+            status = "produced"
+        elif order.state == SalesOrder.STATE_DRAFT or order.state == SalesOrder.STATE_SENT:
+            status = "not_yet_qualified"
+        elif line.source == SalesOrderLine.SOURCE_STOCK:
+            status = "pending_stock"
+        elif line.source == SalesOrderLine.SOURCE_ACHAT:
+            status = "pending_purchase"
+        elif line.source == SalesOrderLine.SOURCE_PRODUCTION:
+            status = "needs_manual_production"
+        else:  # pragma: no cover - garde defensive, choix SOURCE_CHOICES exhaustifs
+            status = "unknown"
+        lines.append(
+            {
+                "line_id": str(line.id),
+                "source": line.source,
+                "status": status,
+                "mrp_order_id": str(line.mrp_order_id) if line.mrp_order_id else None,
+                "qty_to_produce": line.qty_to_produce,
+            }
+        )
+    return {"order_id": str(order.id), "lines": lines}
