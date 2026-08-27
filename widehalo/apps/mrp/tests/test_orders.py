@@ -113,6 +113,17 @@ def test_cancel_requires_reason_and_only_before_reservation(order_setup) -> None
         assert cancelled.state == MrpOrder.STATE_CANCELLED
 
 
+def test_cancel_confirmed_order(order_setup) -> None:
+    """Arete `confirmed -> cancelled` (RG-MRP couche 11) : distincte de
+    `draft -> cancelled` deja couverte par
+    `test_cancel_requires_reason_and_only_before_reservation`."""
+    tenant, user, _workshop, _workcenter, order = order_setup
+    with use_tenant(tenant.id):
+        confirm_order(order, user)
+        cancelled = cancel_order(order, user, reason="Rupture matiere premiere")
+        assert cancelled.state == MrpOrder.STATE_CANCELLED
+
+
 def test_cannot_skip_states(order_setup) -> None:
     tenant, user, _workshop, _workcenter, order = order_setup
     with use_tenant(tenant.id), pytest.raises(TransitionPermissionError):

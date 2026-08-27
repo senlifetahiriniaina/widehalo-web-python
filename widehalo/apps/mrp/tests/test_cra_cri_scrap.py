@@ -8,6 +8,7 @@ import pytest
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.workflow import TransitionPermissionError
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpCra, MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
@@ -75,6 +76,25 @@ def test_cra_can_be_rejected(production_setup) -> None:
         submit_cra(cra, user)
         rejected = reject_cra(cra, user)
         assert rejected.state == MrpCra.STATE_REJECTED
+
+
+def test_cra_forbidden_transition_validate_without_submit(production_setup) -> None:
+    """Transition interdite representative du graphe `MrpCra.state` : on ne
+    peut pas valider un CRA encore `draft`, il faut d'abord `submit_cra`."""
+    tenant, user, workshop, _workcenter, order, work_order = production_setup
+    with use_tenant(tenant.id):
+        cra = create_cra(
+            tenant=tenant,
+            employee=user,
+            workshop=workshop,
+            date=datetime.date.today(),
+            hours=Decimal(1),
+            work_order=work_order,
+            order=order,
+        )
+        assert cra.state == MrpCra.STATE_DRAFT
+        with pytest.raises(TransitionPermissionError):
+            validate_cra(cra, user)
 
 
 def test_only_validated_cra_enters_real_labor_cost(production_setup) -> None:

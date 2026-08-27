@@ -19,7 +19,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest
 from apps.core.services.approvals import decide
-from apps.core.services.workflow import TransitionPermissionError
+from apps.core.services.workflow import TransitionPermissionError, attempt_transition
 from apps.core.tests.utils import use_tenant
 
 pytestmark = pytest.mark.django_db
@@ -196,3 +196,95 @@ def test_cancel_posted_invoice_is_refused(ledger) -> None:
 
         with pytest.raises(ValidationError):
             cancel_invoice(posted, comptable, motif="Trop tard")
+
+
+def test_cancel_invoice_while_awaiting_double_validation(ledger) -> None:
+    """Arete `to_validate -> cancelled` (RG-ACC couche 11) : la couche
+    service actuelle ne laisse jamais une facture *persistee* en
+    `to_validate` (`submit_for_validation()` et `validate()` s'enchainent
+    dans le meme appel une fois toutes les approbations decidees) — cet etat
+    n'est donc observable que via une transition directe du modele, ce que
+    ce test verifie explicitement pour garder l'arete couverte. Une fois
+    dans cet etat, `cancel_invoice` (garde-fou base sur `AccMove.state`, pas
+    `invoice_state`) ne doit pas s'y opposer."""
+    tenant, *_ = ledger
+    with use_tenant(tenant.id):
+        comptable = User.objects.create_user(email="c6@example.com", password="Str0ngPassw0rd!23")
+        _grant(comptable, "comptable", "validate_accmove", "cancel_accmove")
+
+        invoice = _make_invoice(ledger, Decimal("1000"))
+        invoice.submit_for_validation()
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_TO_VALIDATE
+
+        cancelled = cancel_invoice(invoice, comptable, motif="Commande annulee par le client")
+        assert cancelled.invoice_state == AccMove.INVOICE_STATE_CANCELLED
+
+
+def test_invoice_state_edges_not_reached_via_service_layer(ledger) -> None:
+    """Aretes du graphe `AccMove.invoice_state` jamais declenchees par la
+    couche service actuelle (`mark_paid_partially` depuis `overdue`,
+    `mark_paid`/`mark_overdue` depuis les etats intermediaires,
+    `mark_in_dispute`) : le modele les expose neanmoins et doivent rester
+    couvertes pour eviter toute regression silencieuse si un futur job de
+    detection des retards de paiement venait les exercer."""
+    tenant, *_ = ledger
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="c7@example.com", password="Str0ngPassw0rd!23")
+        _grant(user, "comptable", "validate_accmove")
+
+        invoice = _make_invoice(ledger, Decimal("1000"))
+        validate_invoice(invoice, user)
+        invoice.refresh_from_db()
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_VALIDATED
+
+        # validated -> overdue
+        attempt_transition(invoice, "mark_overdue", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_OVERDUE
+
+        # overdue -> in_dispute
+        attempt_transition(invoice, "mark_in_dispute", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_IN_DISPUTE
+
+
+def test_invoice_paid_partially_from_overdue_and_paid_from_overdue(ledger) -> None:
+    """Aretes `overdue -> paid_partially` et `overdue -> paid`."""
+    tenant, *_ = ledger
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="c8@example.com", password="Str0ngPassw0rd!23")
+        _grant(user, "comptable", "validate_accmove")
+
+        invoice = _make_invoice(ledger, Decimal("1000"))
+        validate_invoice(invoice, user)
+        invoice.refresh_from_db()
+        attempt_transition(invoice, "mark_overdue", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_OVERDUE
+
+        attempt_transition(invoice, "mark_paid_partially", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_PAID_PARTIALLY
+
+        attempt_transition(invoice, "mark_overdue", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_OVERDUE
+
+        attempt_transition(invoice, "mark_paid", user)
+        invoice.save(update_fields=["invoice_state"])
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_PAID
+
+
+def test_invoice_forbidden_transition_from_draft_raises(ledger) -> None:
+    """Transition interdite representative du graphe `invoice_state` : un
+    brouillon (`draft`) ne peut pas passer directement a `paid` — aucune
+    arete ne relie ces deux etats."""
+    tenant, *_ = ledger
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="c9@example.com", password="Str0ngPassw0rd!23")
+        invoice = _make_invoice(ledger, Decimal("1000"))
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_DRAFT
+
+        with pytest.raises(TransitionPermissionError):
+            attempt_transition(invoice, "mark_paid", user)

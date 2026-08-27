@@ -8,6 +8,7 @@ import pytest
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.workflow import TransitionPermissionError
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpBomLineState, MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.analysis import find_shared_components, where_used
@@ -22,11 +23,15 @@ from apps.mrp.services.maintenance import (
 from apps.mrp.services.orders import confirm_order, create_order, create_work_order, done_work_order
 from apps.mrp.services.procurement import (
     approve,
+    consume,
+    declare_shortage,
     evaluate_sample,
     get_or_create_procurement_state,
     receive,
+    reject,
     request_sample,
     send_to_quality_control,
+    start_production,
     validate_supplier,
 )
 from apps.mrp.services.procurement import (
@@ -83,6 +88,69 @@ def test_procurement_fsm_happy_path(enrichment_setup) -> None:
         send_to_quality_control(state, user)
         approved = approve(state, user)
         assert approved.state == MrpBomLineState.STATE_AVAILABLE
+
+        start_production(approved, user)
+        consumed = consume(approved, user)
+        assert consumed.state == MrpBomLineState.STATE_CONSUMED
+
+
+def _procurement_state(enrichment_setup, user):
+    tenant, _user, workshop, _workcenter = enrichment_setup
+    bom = create_bom(tenant=tenant, code="BOM-EDGE", product_template_id=uuid.uuid4())
+    add_bom_line(bom, component_template_id=uuid.uuid4(), qty=Decimal(1))
+    activate_bom(bom)
+    mrp_order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=Decimal(5))
+    confirm_order(mrp_order, user)
+    component = mrp_order.components.first()
+    return get_or_create_procurement_state(component)
+
+
+def test_procurement_validate_supplier_directly_from_to_order(enrichment_setup) -> None:
+    """Arete `to_order -> supplier_validated` (source alternative de
+    `validate_supplier`, sans passer par l'echantillon) — distincte de
+    `sample_evaluated -> supplier_validated` deja couverte par le chemin
+    heureux."""
+    tenant, user, _workshop, _workcenter = enrichment_setup
+    with use_tenant(tenant.id):
+        state = _procurement_state(enrichment_setup, user)
+        assert state.state == MrpBomLineState.STATE_TO_ORDER
+        validated = validate_supplier(state, user)
+        assert validated.state == MrpBomLineState.STATE_SUPPLIER_VALIDATED
+
+
+def test_procurement_declare_shortage(enrichment_setup) -> None:
+    """Arete `ordered -> shortage`."""
+    tenant, user, _workshop, _workcenter = enrichment_setup
+    with use_tenant(tenant.id):
+        state = _procurement_state(enrichment_setup, user)
+        validate_supplier(state, user)
+        order_procurement(state, user)
+        shortage = declare_shortage(state, user)
+        assert shortage.state == MrpBomLineState.STATE_SHORTAGE
+
+
+def test_procurement_reject_after_quality_control(enrichment_setup) -> None:
+    """Arete `quality_control -> rejected`."""
+    tenant, user, _workshop, _workcenter = enrichment_setup
+    with use_tenant(tenant.id):
+        state = _procurement_state(enrichment_setup, user)
+        validate_supplier(state, user)
+        order_procurement(state, user)
+        receive(state, user)
+        send_to_quality_control(state, user)
+        rejected = reject(state, user)
+        assert rejected.state == MrpBomLineState.STATE_REJECTED
+
+
+def test_procurement_forbidden_transition_consume_before_production(enrichment_setup) -> None:
+    """Transition interdite representative du graphe `MrpBomLineState.state` :
+    on ne peut pas consommer un composant qui n'est meme pas encore
+    disponible (`to_order`)."""
+    tenant, user, _workshop, _workcenter = enrichment_setup
+    with use_tenant(tenant.id):
+        state = _procurement_state(enrichment_setup, user)
+        with pytest.raises(TransitionPermissionError):
+            consume(state, user)
 
 
 def test_supplier_evaluation_weighted_score(enrichment_setup) -> None:
