@@ -17,6 +17,18 @@ jobs:
       - run: ruff format --check .
       - run: ruff check .
 
+  security:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements/dev.txt
+      - run: bandit -r widehalo/apps widehalo/config -x '*/tests/*,*/migrations/*'
+      - run: pip-audit -r requirements/base.txt -r requirements/dev.txt -r requirements/prod.txt
+
   typecheck:
     runs-on: ubuntu-latest
     needs: lint
@@ -148,7 +160,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [typecheck, architecture-tests, tests]
+    needs: [typecheck, architecture-tests, tests, security]
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f docker/Dockerfile -t widehalo:ci .

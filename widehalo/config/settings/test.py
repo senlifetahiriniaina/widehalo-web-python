@@ -1,8 +1,11 @@
 from .base import *  # noqa: F403
 
 DEBUG = False
-SECRET_KEY = "test-secret-key-not-for-production-use-only-32bytes+"  # noqa: S105
+# Test-only key, never used in prod (base/prod settings pull SECRET_KEY from the environment).
+SECRET_KEY = "test-secret-key-not-for-production-use-only-32bytes+"  # noqa: S105 # nosec B105
 
+# Deliberately weak/fast hasher for the test suite only (real user passwords are never
+# processed through this settings module) — trades cryptographic strength for test speed.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 Q_CLUSTER = {  # noqa: F405
