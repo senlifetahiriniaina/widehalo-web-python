@@ -29,6 +29,8 @@ from apps.accounting.models import (
     AccAsset,
     AccAssetDepreciation,
     AccAssetMovement,
+    AccBudget,
+    AccBudgetLine,
     AccDcomDeclaration,
     AccDcomLine,
     AccExchangeRate,
@@ -272,6 +274,26 @@ class AccProvisionFactory(factory.django.DjangoModelFactory):
     fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
     opening_amount_mga = Decimal("0.0000")
     closing_amount_mga = Decimal("0.0000")
+
+
+class AccBudgetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccBudget
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    reference = factory.Sequence(lambda n: f"BUD-{n}")
+    name = factory.Sequence(lambda n: f"Budget {n}")
+
+
+class AccBudgetLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccBudgetLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    budget = factory.SubFactory(AccBudgetFactory, tenant=factory.SelfAttribute("..tenant"))
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+    budgeted_amount_mga = Decimal("100000.0000")
 
 
 class AccDcomDeclarationFactory(factory.django.DjangoModelFactory):

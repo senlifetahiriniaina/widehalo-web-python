@@ -11,8 +11,11 @@ from ninja import Router, Schema
 
 from apps.accounting.models import (
     AccAccount,
+    AccAnalyticAccount,
     AccAnalyticPlan,
     AccAsset,
+    AccBudget,
+    AccBudgetLine,
     AccDcomDeclaration,
     AccFiscalYear,
     AccIrcmDeclaration,
@@ -29,6 +32,12 @@ from apps.accounting.services.assets import (
     dispose_asset,
     record_provision_movement,
     register_asset,
+)
+from apps.accounting.services.budgets import (
+    add_budget_line,
+    approve_budget,
+    budget_variance_report,
+    create_budget,
 )
 from apps.accounting.services.dcom import generate_dcom_declaration
 from apps.accounting.services.fiscal_export import export_canevas_notes
@@ -81,6 +90,18 @@ class InvoiceIn(Schema):
     receivable_account_id: str
     currency: str = "MGA"
     lines: list[InvoiceLineIn]
+
+
+class BudgetIn(Schema):
+    fiscal_year_id: str
+    name: str
+
+
+class BudgetLineIn(Schema):
+    account_id: str
+    budgeted_amount_mga: Decimal
+    period_id: str | None = None
+    analytic_account_id: str | None = None
 
 
 class TaxCalendarIn(Schema):
@@ -964,3 +985,105 @@ def export_canevas_notes_endpoint(request):
     l'intention derriere chaque export. Cf. docstring de
     `services/fiscal_export.py`."""
     return JsonResponse({"results": export_canevas_notes()})
+
+
+# ---------------------------------------------------------------------------
+# A14 — Budgets et analyse d'ecart
+# ---------------------------------------------------------------------------
+
+
+def _serialize_budget(budget: AccBudget) -> dict:
+    return {
+        "id": str(budget.id),
+        "reference": budget.reference,
+        "fiscal_year_id": str(budget.fiscal_year_id),
+        "name": budget.name,
+        "state": budget.state,
+    }
+
+
+def _serialize_budget_line(line: AccBudgetLine) -> dict:
+    return {
+        "id": str(line.id),
+        "budget_id": str(line.budget_id),
+        "account_id": str(line.account_id),
+        "period_id": str(line.period_id) if line.period_id else None,
+        "analytic_account_id": str(line.analytic_account_id) if line.analytic_account_id else None,
+        "budgeted_amount_mga": str(line.budgeted_amount_mga),
+    }
+
+
+@router.get("/accounting/budgets")
+@require_permission("accounting.view_accbudget")
+def list_budgets_endpoint(request):
+    budgets = AccBudget.objects.all().order_by("-fiscal_year__date_start")
+    return {"results": [_serialize_budget(b) for b in budgets]}
+
+
+@router.post("/accounting/budgets")
+@require_permission("accounting.add_accbudget")
+def create_budget_endpoint(request, payload: BudgetIn):
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    budget = create_budget(tenant=fiscal_year.tenant, fiscal_year=fiscal_year, name=payload.name)
+    return _serialize_budget(budget)
+
+
+@router.post("/accounting/budgets/{budget_id}/lines")
+@require_permission("accounting.change_accbudget")
+def add_budget_line_endpoint(request, budget_id: str, payload: BudgetLineIn):
+    budget = get_object_or_404(AccBudget, id=budget_id)
+    account = get_object_or_404(AccAccount, id=payload.account_id)
+    period = get_object_or_404(AccPeriod, id=payload.period_id) if payload.period_id else None
+    analytic_account = (
+        get_object_or_404(AccAnalyticAccount, id=payload.analytic_account_id)
+        if payload.analytic_account_id
+        else None
+    )
+    try:
+        line = add_budget_line(
+            budget,
+            account=account,
+            budgeted_amount_mga=payload.budgeted_amount_mga,
+            period=period,
+            analytic_account=analytic_account,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_budget_line(line)
+
+
+@router.post("/accounting/budgets/{budget_id}/approve")
+@require_permission("accounting.change_accbudget")
+def approve_budget_endpoint(request, budget_id: str):
+    budget = get_object_or_404(AccBudget, id=budget_id)
+    try:
+        approved = approve_budget(budget)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_budget(approved)
+
+
+@router.get("/accounting/budgets/{budget_id}/variance-report")
+@require_permission("accounting.view_accbudget")
+def budget_variance_report_endpoint(request, budget_id: str, format: str = "json"):
+    """A14 — rapport d'ecart reel vs budget. `period=None` sur une ligne
+    signifie "etale sur l'exercice" (comparaison au reel cumule de tout
+    `budget.fiscal_year`) — cf. docstring de `AccBudgetLine`/
+    `services/budgets.py::budget_variance_report`."""
+    budget = get_object_or_404(AccBudget, id=budget_id)
+    rows = budget_variance_report(budget)
+    data = rows_to_bytes(
+        rows,
+        [
+            "account_code",
+            "account_name",
+            "period_label",
+            "analytic_account_label",
+            "budgeted_amount_mga",
+            "actual_amount_mga",
+            "variance_mga",
+            "variance_pct",
+        ],
+        format=format,
+    )
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])

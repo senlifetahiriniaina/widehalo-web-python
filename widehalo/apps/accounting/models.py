@@ -900,3 +900,66 @@ class AccAnalyticLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.analytic_account} : {self.amount}"
+
+
+class AccBudget(BaseModel, ReferenceMixin):
+    """A14 — Budgets et analyse d'ecart. Un budget porte sur UN exercice
+    (`fiscal_year`) et regroupe des `AccBudgetLine` par compte/periode/axe
+    analytique optionnel (cf. `AccBudgetLine`).
+
+    `state` reste un `CharField` a deux valeurs (`draft`/`approved`) plutot
+    qu'une machine a etats `django-fsm` (utilisee ailleurs dans ce module,
+    ex. `AccMove`) : une transition unique, triviale, gardee par une seule
+    regle (pas de retour arriere, pas de branchement) ne justifie pas
+    l'appareillage FSM — la garde ("pas d'ajout de ligne sur un budget
+    approuve") est appliquee explicitement dans `services/budgets.py`,
+    jamais au niveau du modele."""
+
+    STATE_DRAFT = "draft"
+    STATE_APPROVED = "approved"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_APPROVED, "Approuve"),
+    ]
+
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="budgets")
+    name = models.CharField(max_length=200)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "acc_budget"
+
+    def __str__(self) -> str:
+        return self.reference or self.name
+
+
+class AccBudgetLine(BaseModel):
+    """Une ligne de budget : montant `budgeted_amount_mga` porte par un
+    `account`, optionnellement restreint a une `period` precise de
+    l'exercice du budget et/ou a un `analytic_account`.
+
+    Semantique retenue pour `period=None` (documentee ici et reprise par
+    `services/budgets.py::budget_variance_report`) : une ligne SANS periode
+    signifie "etale sur l'ensemble de l'exercice" — le montant budgete
+    s'entend alors comme un total annuel, compare au REEL cumule sur tout
+    `budget.fiscal_year` (pas divise par le nombre de periodes : le CDC ne
+    demande qu'un rapport d'ecart reel vs budget, pas un lissage mensuel
+    automatique, qui serait une fonctionnalite distincte non demandee ici).
+    Une ligne AVEC periode compare son montant au reel de cette seule
+    periode."""
+
+    budget = models.ForeignKey(AccBudget, on_delete=models.CASCADE, related_name="lines")
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    period = models.ForeignKey(
+        AccPeriod, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    analytic_account = models.ForeignKey(
+        AccAnalyticAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    budgeted_amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+
+    class Meta:
+        db_table = "acc_budget_line"
+
+    def __str__(self) -> str:
+        return f"{self.budget} / {self.account} : {self.budgeted_amount_mga}"
