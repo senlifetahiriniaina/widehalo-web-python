@@ -9,7 +9,9 @@ from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import grant_role
+from apps.core.tests.utils import grant_role, use_tenant
+from apps.sales.models import SalesOrder
+from apps.sales.services.orders import start_preparation
 
 pytestmark = pytest.mark.django_db
 
@@ -176,6 +178,145 @@ def test_send_quotation_rejects_non_draft_via_api(api_sales) -> None:
         f"/api/v1/sales/quotations/{quotation_id}/send", content_type="application/json", **headers
     )
     assert second_send_response.status_code == 400
+
+
+def test_create_and_get_order_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "lines": [
+                {
+                    "description": "Prestation sur mesure",
+                    "qty": "2",
+                    "unit_price": "10000",
+                    "is_custom": True,
+                }
+            ],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    body = create_response.json()
+    order_id = body["id"]
+    assert body["reference"].startswith("CMD-")
+    assert body["state"] == "draft"
+    assert Decimal(body["amount_total"]) == Decimal("20000.0000")
+
+    get_response = client.get(f"/api/v1/sales/orders/{order_id}", **headers)
+    assert get_response.status_code == 200
+    assert get_response.json()["reference"] == body["reference"]
+
+
+def test_list_orders_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    response = client.get("/api/v1/sales/orders", **headers)
+    assert response.status_code == 200
+    assert len(response.json()["results"]) == 1
+
+
+def test_confirm_and_deliver_order_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    order_id = create_response.json()["id"]
+
+    confirm_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/confirm", content_type="application/json", **headers
+    )
+    assert confirm_response.status_code == 200
+    assert confirm_response.json()["state"] == "confirmed"
+
+    with use_tenant(tenant.id):
+        order = SalesOrder.objects.get(id=order_id)
+        start_preparation(order, user)
+
+    deliver_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/deliver",
+        {"partial": False},
+        content_type="application/json",
+        **headers,
+    )
+    assert deliver_response.status_code == 200
+    assert deliver_response.json()["state"] == "delivered"
+
+    # Une commande livree ne peut plus etre annulee directement (garde
+    # miroir de `accounting.services.invoices.cancel_invoice`).
+    cancel_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/cancel",
+        {"reason": "Client annule"},
+        content_type="application/json",
+        **headers,
+    )
+    assert cancel_response.status_code == 400
+
+
+def test_cancel_order_requires_reason_via_api(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    order_id = create_response.json()["id"]
+    cancel_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/cancel",
+        {"reason": ""},
+        content_type="application/json",
+        **headers,
+    )
+    assert cancel_response.status_code == 400
+
+
+def test_create_order_via_api_denied_without_permission(api_sales) -> None:
+    """Regression T6/RBAC : require_permission("sales.add_salesorder")
+    doit refuser (403) un utilisateur authentifie sans ce role."""
+    tenant, _user = api_sales
+    client = Client()
+    outsider = User.objects.create_user(
+        email="sales-order-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403
 
 
 def test_create_quotation_via_api_denied_without_permission(api_sales) -> None:
