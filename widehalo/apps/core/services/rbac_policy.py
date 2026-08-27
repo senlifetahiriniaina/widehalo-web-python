@@ -47,6 +47,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},
         "sales": {"view", "add", "change"},
+        "purchase": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -60,6 +61,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view", "change"},
         "catalog": {"view", "change"},
         "sales": {"view", "change"},
+        "purchase": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -80,9 +82,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "sales": {"view", "add", "change"},
     },
     "acheteur": {
-        # Domaine cible = futur module `purchase` (pas encore construit) ;
-        # en attendant, acces aux briques mrp deja liees a l'achat
-        # (evaluation fournisseur, echantillons, etats de procurement).
+        # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
+        # aussi l'acces aux briques mrp deja liees a l'achat (evaluation
+        # fournisseur, echantillons, etats de procurement).
+        "purchase": {"view", "add", "change"},
         "mrp": {"view", "change"},
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},

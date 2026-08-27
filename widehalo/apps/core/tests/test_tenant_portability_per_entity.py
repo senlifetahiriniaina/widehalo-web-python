@@ -71,6 +71,7 @@ _FACTORY_MODULES = [
     "apps.mrp.tests.factories",
     "apps.patronage.tests.factories",
     "apps.sales.tests.factories",
+    "apps.purchase.tests.factories",
 ]
 
 
