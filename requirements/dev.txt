@@ -20,3 +20,4 @@ pytest-playwright>=0.5
 django-test-migrations>=1.4
 bandit>=1.7
 pip-audit>=2.7
+schemathesis>=3.30
