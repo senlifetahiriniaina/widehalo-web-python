@@ -1059,3 +1059,101 @@ class AccMobileMoneyStatementLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.statement_date} — {self.reference_external} ({self.amount_mga})"
+
+
+class AccBankStatementLine(BaseModel):
+    """A16 — une ligne d'un relevé bancaire importé (`acc_reconcile_rule`,
+    §"Rapprochement bancaire assisté par règles"). A la difference de la
+    reconciliation mobile money d'A15 (qui rapproche un `AccPayment` a un
+    relevé), le rapprochement bancaire classique compare le relevé EXTERNE
+    de la banque aux lignes du GRAND LIVRE du compte bancaire lui-meme
+    (`matched_move_line` pointe directement vers une `AccMoveLine`, jamais
+    vers un `AccPayment`) — c'est le mecanisme generique dont A15 a
+    explicitement differe la construction.
+
+    `bank_account` : conceptuellement restreint a `AccAccount.type=TYPE_BANK`
+    — non impose par une contrainte DB (aucune contrainte "check" portant sur
+    un champ d'un autre modele n'existe ailleurs dans ce fichier), valide
+    dans `services/bank_reconciliation.py::import_bank_statement`.
+
+    `partner_id` : ajoute (UUID opaque, meme discipline que
+    `AccMoveLine.partner_id` — jamais de FK Django inter-app) pour que
+    `AccReconcileRule.match_on_partner` soit reellement exploitable ; un
+    relevé bancaire reel porte generalement une identification du
+    payeur/beneficiaire (nom, parfois un identifiant), d'ou ce choix plutot
+    que d'abandonner la condition de regle.
+
+    `state` : 3 valeurs (pas 2 comme A15) car ce rapprochement est
+    "ASSISTE", pas automatique — `rule_suggested` distingue explicitement
+    "une regle a propose UNE correspondance confiante" de `matched`
+    ("un humain a confirme"), cf. `services/bank_reconciliation.py`."""
+
+    DIRECTION_IN = "in"
+    DIRECTION_OUT = "out"
+    DIRECTION_CHOICES = [
+        (DIRECTION_IN, "Entrant"),
+        (DIRECTION_OUT, "Sortant"),
+    ]
+
+    STATE_UNMATCHED = "unmatched"
+    STATE_RULE_SUGGESTED = "rule_suggested"
+    STATE_MATCHED = "matched"
+    STATE_CHOICES = [
+        (STATE_UNMATCHED, "Non rapproche"),
+        (STATE_RULE_SUGGESTED, "Suggere par une regle"),
+        (STATE_MATCHED, "Rapproche"),
+    ]
+
+    bank_account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    import_batch_id = models.UUIDField()
+    statement_date = models.DateField()
+    reference_external = models.CharField(max_length=100, blank=True)
+    label = models.CharField(max_length=255, blank=True)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    direction = models.CharField(max_length=8, choices=DIRECTION_CHOICES)
+    partner_id = models.UUIDField(null=True, blank=True)
+    matched_move_line = models.ForeignKey(
+        AccMoveLine, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_UNMATCHED)
+
+    class Meta:
+        db_table = "acc_bank_statement_line"
+        indexes = [
+            models.Index(fields=["import_batch_id"]),
+            models.Index(fields=["bank_account", "state"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.statement_date} — {self.reference_external} ({self.amount_mga})"
+
+
+class AccReconcileRule(BaseModel, ReferenceMixin):
+    """A16 — regle de rapprochement bancaire assiste (moteur simple
+    montant/reference/tiers, `acc_reconcile_rule`). `ReferenceMixin` porte
+    ici sans generation via `next_reference` (aucun exercice associe a une
+    regle de configuration) — meme discipline que `AccDunningAction`.
+
+    `priority` : evaluees en ordre DECROISSANT (la regle de plus haute
+    priorite d'abord) — cf. `services/bank_reconciliation.py::suggest_matches`.
+    Une regle ne s'applique QUE si ses conditions actives (ANDees) isolent
+    EXACTEMENT une `AccMoveLine` candidate ; toute ambiguite (0 ou 2+
+    candidats) fait passer a la regle suivante plutot que de deviner."""
+
+    name = models.CharField(max_length=120)
+    bank_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
+    )
+    match_on_amount = models.BooleanField(default=True)
+    amount_tolerance_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    match_on_reference = models.BooleanField(default=False)
+    match_on_partner = models.BooleanField(default=False)
+    priority = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "acc_reconcile_rule"
+        ordering = ["-priority"]
+
+    def __str__(self) -> str:
+        return self.reference or self.name

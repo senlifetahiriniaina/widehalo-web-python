@@ -29,6 +29,7 @@ from apps.accounting.models import (
     AccAsset,
     AccAssetDepreciation,
     AccAssetMovement,
+    AccBankStatementLine,
     AccBudget,
     AccBudgetLine,
     AccDcomDeclaration,
@@ -49,6 +50,7 @@ from apps.accounting.models import (
     AccPaymentTermLine,
     AccPeriod,
     AccProvision,
+    AccReconcileRule,
     AccTax,
     AccTaxCalendar,
 )
@@ -374,3 +376,28 @@ class AccMobileMoneyStatementLineFactory(factory.django.DjangoModelFactory):
     reference_external = factory.Sequence(lambda n: f"MVOLA-{n}")
     amount_mga = Decimal("1000.0000")
     direction = AccMobileMoneyStatementLine.DIRECTION_IN
+
+
+class AccBankStatementLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccBankStatementLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    bank_account = factory.SubFactory(
+        AccAccountFactory, tenant=factory.SelfAttribute("..tenant"), type=AccAccount.TYPE_BANK
+    )
+    import_batch_id = factory.LazyFunction(uuid.uuid4)
+    statement_date = datetime.date(2026, 2, 1)
+    reference_external = factory.Sequence(lambda n: f"VIR-{n}")
+    label = factory.Sequence(lambda n: f"Virement {n}")
+    amount_mga = Decimal("1000.0000")
+    direction = AccBankStatementLine.DIRECTION_IN
+
+
+class AccReconcileRuleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccReconcileRule
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Regle {n}")
+    match_on_amount = True

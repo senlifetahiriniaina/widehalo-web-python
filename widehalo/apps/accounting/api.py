@@ -15,6 +15,7 @@ from apps.accounting.models import (
     AccAnalyticAccount,
     AccAnalyticPlan,
     AccAsset,
+    AccBankStatementLine,
     AccBudget,
     AccBudgetLine,
     AccDcomDeclaration,
@@ -30,6 +31,7 @@ from apps.accounting.models import (
     AccPayment,
     AccPeriod,
     AccProvision,
+    AccReconcileRule,
     AccTaxCalendar,
 )
 from apps.accounting.services.assets import (
@@ -37,6 +39,13 @@ from apps.accounting.services.assets import (
     dispose_asset,
     record_provision_movement,
     register_asset,
+)
+from apps.accounting.services.bank_reconciliation import (
+    confirm_reconciliation,
+    import_bank_statement,
+    manual_match,
+    suggest_matches,
+    unmatched_or_suggested_lines,
 )
 from apps.accounting.services.budgets import (
     add_budget_line,
@@ -195,6 +204,25 @@ class DunningActionIn(Schema):
 
 class MobileMoneyReconcileIn(Schema):
     payment_id: str
+
+
+class ReconcileRuleIn(Schema):
+    name: str
+    bank_account_id: str | None = None
+    match_on_amount: bool = True
+    amount_tolerance_mga: Decimal = Decimal(0)
+    match_on_reference: bool = False
+    match_on_partner: bool = False
+    priority: int = 0
+    is_active: bool = True
+
+
+class ConfirmReconciliationIn(Schema):
+    move_line_id: str | None = None
+
+
+class ManualMatchIn(Schema):
+    move_line_id: str
 
 
 class RegisterPaymentIn(Schema):
@@ -1278,3 +1306,143 @@ def unmatched_mobile_money_endpoint(request):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     lines = unmatched_mobile_money_lines(tenant)
     return {"results": [_serialize_mobile_money_line(line) for line in lines]}
+
+
+# ---------------------------------------------------------------------------
+# A16 — Rapprochement bancaire assiste par regles (acc_reconcile_rule)
+# ---------------------------------------------------------------------------
+
+
+def _serialize_reconcile_rule(rule: AccReconcileRule) -> dict:
+    return {
+        "id": str(rule.id),
+        "name": rule.name,
+        "bank_account_id": str(rule.bank_account_id) if rule.bank_account_id else None,
+        "match_on_amount": rule.match_on_amount,
+        "amount_tolerance_mga": str(rule.amount_tolerance_mga),
+        "match_on_reference": rule.match_on_reference,
+        "match_on_partner": rule.match_on_partner,
+        "priority": rule.priority,
+        "is_active": rule.is_active,
+    }
+
+
+def _serialize_bank_statement_line(line: AccBankStatementLine) -> dict:
+    return {
+        "id": str(line.id),
+        "bank_account_id": str(line.bank_account_id),
+        "import_batch_id": str(line.import_batch_id),
+        "statement_date": line.statement_date.isoformat(),
+        "reference_external": line.reference_external,
+        "label": line.label,
+        "amount_mga": str(line.amount_mga),
+        "direction": line.direction,
+        "partner_id": str(line.partner_id) if line.partner_id else None,
+        "matched_move_line_id": (
+            str(line.matched_move_line_id) if line.matched_move_line_id else None
+        ),
+        "state": line.state,
+    }
+
+
+@router.get("/accounting/reconcile-rules")
+@require_permission("accounting.view_accreconcilerule")
+def list_reconcile_rules_endpoint(request):
+    """A16 — regles actives et inactives du tenant courant, dans l'ordre
+    d'evaluation (`-priority`, cf. `AccReconcileRule.Meta.ordering`)."""
+    rules = AccReconcileRule.objects.all()
+    return {"results": [_serialize_reconcile_rule(rule) for rule in rules]}
+
+
+@router.post("/accounting/reconcile-rules")
+@require_permission("accounting.add_accreconcilerule")
+def create_reconcile_rule_endpoint(request, payload: ReconcileRuleIn):
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    bank_account = (
+        get_object_or_404(AccAccount, id=payload.bank_account_id)
+        if payload.bank_account_id
+        else None
+    )
+    rule = AccReconcileRule.objects.create(
+        tenant=tenant,
+        name=payload.name,
+        bank_account=bank_account,
+        match_on_amount=payload.match_on_amount,
+        amount_tolerance_mga=payload.amount_tolerance_mga,
+        match_on_reference=payload.match_on_reference,
+        match_on_partner=payload.match_on_partner,
+        priority=payload.priority,
+        is_active=payload.is_active,
+    )
+    return _serialize_reconcile_rule(rule)
+
+
+@router.post("/accounting/bank-reconciliation/import")
+@require_permission("accounting.add_accbankstatementline")
+def import_bank_statement_endpoint(
+    request,
+    bank_account_id: str,
+    statement: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import multipart d'un relevé bancaire CSV (colonnes
+    `date`/`reference`/`label`/`amount`/`direction`, format placeholder
+    documente sur `services/bank_reconciliation.py`). Meme idiome multipart
+    que `import_mobile_money_endpoint`/`apps.chat.api.create_message`."""
+    bank_account = get_object_or_404(AccAccount, id=bank_account_id)
+    try:
+        lines = import_bank_statement(bank_account, statement.read())
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {"results": [_serialize_bank_statement_line(line) for line in lines]}
+
+
+@router.post("/accounting/bank-reconciliation/{bank_account_id}/suggest-matches")
+@require_permission("accounting.change_accbankstatementline")
+def suggest_matches_endpoint(request, bank_account_id: str):
+    """A16 — evalue les `AccReconcileRule` actives sur ce compte (portee ou
+    globales) sur toutes les lignes `unmatched` — cf. docstring de
+    `services/bank_reconciliation.py::suggest_matches`. Rapprochement
+    ASSISTE uniquement : les lignes retournees passent en
+    `rule_suggested`, jamais directement `matched`."""
+    bank_account = get_object_or_404(AccAccount, id=bank_account_id)
+    lines = suggest_matches(bank_account)
+    return {"results": [_serialize_bank_statement_line(line) for line in lines]}
+
+
+@router.post("/accounting/bank-reconciliation/{line_id}/confirm")
+@require_permission("accounting.change_accbankstatementline")
+def confirm_reconciliation_endpoint(request, line_id: str, payload: ConfirmReconciliationIn):
+    """Confirmation HUMAINE d'une suggestion de regle (`state="rule_suggested"`
+    requis), ou rapprochement manuel direct si `move_line_id` est fourni —
+    cf. docstring de `services/bank_reconciliation.py::confirm_reconciliation`."""
+    statement_line = get_object_or_404(AccBankStatementLine, id=line_id)
+    move_line = (
+        get_object_or_404(AccMoveLine, id=payload.move_line_id) if payload.move_line_id else None
+    )
+    try:
+        confirmed = confirm_reconciliation(statement_line, move_line=move_line)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_bank_statement_line(confirmed)
+
+
+@router.post("/accounting/bank-reconciliation/{line_id}/manual-match")
+@require_permission("accounting.change_accbankstatementline")
+def manual_match_endpoint(request, line_id: str, payload: ManualMatchIn):
+    """Rapprochement manuel direct sans passer par aucune regle — cf.
+    docstring de `services/bank_reconciliation.py::manual_match`."""
+    statement_line = get_object_or_404(AccBankStatementLine, id=line_id)
+    move_line = get_object_or_404(AccMoveLine, id=payload.move_line_id)
+    matched = manual_match(statement_line, move_line)
+    return _serialize_bank_statement_line(matched)
+
+
+@router.get("/accounting/bank-reconciliation/{bank_account_id}/unmatched")
+@require_permission("accounting.view_accbankstatementline")
+def unmatched_bank_reconciliation_endpoint(request, bank_account_id: str):
+    """Liste de travail (`unmatched` + `rule_suggested`) pour ce compte
+    bancaire — cf. docstring de
+    `services/bank_reconciliation.py::unmatched_or_suggested_lines`."""
+    bank_account = get_object_or_404(AccAccount, id=bank_account_id)
+    lines = unmatched_or_suggested_lines(bank_account)
+    return {"results": [_serialize_bank_statement_line(line) for line in lines]}
