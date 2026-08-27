@@ -1,0 +1,203 @@
+"""Factories factory_boy pour les modeles du module `accounting` — une par
+modele concret, pour amorcer les tests (couche T1 du plan de durcissement,
+CDC §14 couches).
+
+`tenant` est toujours resolu via un `SubFactory` a chemin pointe vers
+`apps.core.tests.factories.TenantFactory` : la resolution factory_boy est
+paresseuse (import differe a l'instanciation reelle), ce qui fonctionne
+meme si ce module est ecrit en parallele par un autre agent. Les sous-objets
+d'un meme graphe (ex. `AccMove.journal`/`period`) partagent systematiquement
+le tenant du parent via `factory.SelfAttribute("..tenant")`.
+
+Aucune reference cross-app (`partner_id`, etc.) n'est un FK Django — toujours
+un UUID genere via `factory.LazyFunction(uuid.uuid4)`, jamais un objet cree
+dans une autre app (regle de couplage n°1 du CDC)."""
+
+from __future__ import annotations
+
+import datetime
+import uuid
+from decimal import Decimal
+
+import factory
+
+from apps.accounting.models import (
+    AccAccount,
+    AccAnalyticAccount,
+    AccAnalyticLine,
+    AccAnalyticPlan,
+    AccExchangeRate,
+    AccFiscalYear,
+    AccJournal,
+    AccMove,
+    AccMoveLine,
+    AccPayment,
+    AccPaymentAllocation,
+    AccPaymentTerm,
+    AccPaymentTermLine,
+    AccPeriod,
+    AccTax,
+)
+
+
+class AccFiscalYearFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccFiscalYear
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"FY{2020 + n}")
+    date_start = datetime.date(2026, 1, 1)
+    date_end = datetime.date(2026, 12, 31)
+
+
+class AccPeriodFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPeriod
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    code = factory.Sequence(lambda n: f"2026-{(n % 12) + 1:02d}")
+    date_start = datetime.date(2026, 1, 1)
+    date_end = datetime.date(2026, 1, 31)
+
+
+class AccAccountFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAccount
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"6{n:04d}")
+    name = factory.Sequence(lambda n: f"Compte {n}")
+    account_class = 6
+    type = AccAccount.TYPE_EXPENSE
+
+
+class AccJournalFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccJournal
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"JRN{n}")
+    name = factory.Sequence(lambda n: f"Journal {n}")
+    type = AccJournal.TYPE_SALE
+    sequence_prefix = "INV"
+
+
+class AccMoveFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccMove
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    journal = factory.SubFactory(AccJournalFactory, tenant=factory.SelfAttribute("..tenant"))
+    period = factory.SubFactory(AccPeriodFactory, tenant=factory.SelfAttribute("..tenant"))
+    date = datetime.date(2026, 1, 15)
+    move_type = AccMove.TYPE_ENTRY
+    # `state`/`invoice_state` restent aux valeurs par defaut du modele
+    # (draft) — ne jamais appeler une methode @transition depuis une
+    # factory (RG-ACC-1..4 : le workflow est gouverne par les services).
+
+
+class AccTaxFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccTax
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"TVA{n}")
+    name = factory.Sequence(lambda n: f"Taxe {n}")
+    type = AccTax.TYPE_SALE
+    rate = Decimal("20.000")
+
+
+class AccPaymentTermFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPaymentTerm
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Condition {n}")
+
+
+class AccPaymentTermLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPaymentTermLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    term = factory.SubFactory(AccPaymentTermFactory, tenant=factory.SelfAttribute("..tenant"))
+    value_type = AccPaymentTermLine.VALUE_TYPE_BALANCE
+    days = 30
+
+
+class AccExchangeRateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccExchangeRate
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    currency = "USD"
+    date = factory.Sequence(lambda n: datetime.date(2026, 1, 1) + datetime.timedelta(days=n))
+    rate_to_mga = Decimal("4500.000000")
+
+
+class AccMoveLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccMoveLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    move = factory.SubFactory(AccMoveFactory, tenant=factory.SelfAttribute("..tenant"))
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+    label = factory.Sequence(lambda n: f"Ligne {n}")
+    debit = Decimal("100.0000")
+    credit = Decimal("0.0000")
+
+
+class AccPaymentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPayment
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    journal = factory.SubFactory(AccJournalFactory, tenant=factory.SelfAttribute("..tenant"))
+    date = datetime.date(2026, 1, 20)
+    amount = Decimal("1000.0000")
+    direction = AccPayment.DIRECTION_INBOUND
+    method = AccPayment.METHOD_CASH
+    partner_id = factory.LazyFunction(uuid.uuid4)
+
+
+class AccPaymentAllocationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPaymentAllocation
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    payment = factory.SubFactory(AccPaymentFactory, tenant=factory.SelfAttribute("..tenant"))
+    move_line = factory.SubFactory(AccMoveLineFactory, tenant=factory.SelfAttribute("..tenant"))
+    amount = Decimal("100.0000")
+
+
+class AccAnalyticPlanFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAnalyticPlan
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"AXE{n}")
+    name = factory.Sequence(lambda n: f"Axe {n}")
+
+
+class AccAnalyticAccountFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAnalyticAccount
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    plan = factory.SubFactory(AccAnalyticPlanFactory, tenant=factory.SelfAttribute("..tenant"))
+    code = factory.Sequence(lambda n: f"AA{n}")
+    name = factory.Sequence(lambda n: f"Compte analytique {n}")
+
+
+class AccAnalyticLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccAnalyticLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    analytic_account = factory.SubFactory(
+        AccAnalyticAccountFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    move_line = factory.SubFactory(AccMoveLineFactory, tenant=factory.SelfAttribute("..tenant"))
+    date = datetime.date(2026, 1, 15)
+    amount = Decimal("50.0000")
