@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports MRP" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports MRP" %}</h1>
+
+  <h2>{% trans "Comptes rendus d'activite (CRA)" %}</h2>
+  <form method="get" action="{% url 'mrp:report_cra' %}">
+    <div class="form-field">
+      <label for="cra_date_from">{% trans "Du" %}</label>
+      <input id="cra_date_from" type="date" name="date_from">
+    </div>
+    <div class="form-field">
+      <label for="cra_date_to">{% trans "Au" %}</label>
+      <input id="cra_date_to" type="date" name="date_to">
+    </div>
+    <div class="form-field">
+      <label for="cra_format">{% trans "Format" %}</label>
+      <select id="cra_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Comptes rendus d'intervention (CRI)" %}</h2>
+  <form method="get" action="{% url 'mrp:report_cri' %}">
+    <div class="form-field">
+      <label for="cri_date_from">{% trans "Du" %}</label>
+      <input id="cri_date_from" type="date" name="date_from">
+    </div>
+    <div class="form-field">
+      <label for="cri_date_to">{% trans "Au" %}</label>
+      <input id="cri_date_to" type="date" name="date_to">
+    </div>
+    <div class="form-field">
+      <label for="cri_format">{% trans "Format" %}</label>
+      <select id="cri_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Rendement par poste" %}</h2>
+  <form method="get" action="{% url 'mrp:report_efficiency' %}">
+    <div class="form-field">
+      <label for="eff_workcenter_code">{% trans "Poste de charge (code, optionnel)" %}</label>
+      <input id="eff_workcenter_code" type="text" name="workcenter_code">
+    </div>
+    <div class="form-field">
+      <label for="eff_format">{% trans "Format" %}</label>
+      <select id="eff_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Analyse des rebuts" %}</h2>
+  <form method="get" action="{% url 'mrp:report_scrap' %}">
+    <div class="form-field">
+      <label for="scrap_date_from">{% trans "Du" %}</label>
+      <input id="scrap_date_from" type="date" name="date_from">
+    </div>
+    <div class="form-field">
+      <label for="scrap_date_to">{% trans "Au" %}</label>
+      <input id="scrap_date_to" type="date" name="date_to">
+    </div>
+    <div class="form-field">
+      <label for="scrap_format">{% trans "Format" %}</label>
+      <select id="scrap_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Charge planifiee par atelier" %}</h2>
+  <form method="get" id="workload-form" action="">
+    <div class="form-field">
+      <label for="workload_workshop_id">{% trans "Atelier" %}</label>
+      <select id="workload_workshop_id" name="workshop_id" onchange="document.getElementById('workload-form').action = '/mrp/reports/workload/' + this.value + '/';">
+        <option value="">---</option>
+        {% for ws in workshops %}<option value="{{ ws.id }}">{{ ws }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="workload_format">{% trans "Format" %}</label>
+      <select id="workload_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+{% endblock %}

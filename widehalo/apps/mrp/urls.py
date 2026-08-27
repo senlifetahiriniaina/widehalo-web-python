@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.mrp import views, views_config
+from apps.mrp import views, views_config, views_reports
 
 app_name = "mrp"
 
@@ -20,4 +20,18 @@ urlpatterns = [
     ),
     path("config/boms/", views_config.config_boms, name="config_boms"),
     path("config/boms/<uuid:bom_id>/", views_config.config_bom_detail, name="config_bom_detail"),
+    path("reports/", views_reports.reports_index, name="reports_index"),
+    path(
+        "reports/<uuid:order_id>/order.pdf", views_reports.report_order_pdf, name="report_order_pdf"
+    ),
+    path("reports/<uuid:order_id>/cost/", views_reports.report_cost, name="report_cost"),
+    path("reports/cra/", views_reports.report_cra, name="report_cra"),
+    path("reports/cri/", views_reports.report_cri, name="report_cri"),
+    path("reports/efficiency/", views_reports.report_efficiency, name="report_efficiency"),
+    path("reports/scrap/", views_reports.report_scrap, name="report_scrap"),
+    path(
+        "reports/workload/<uuid:workshop_id>/",
+        views_reports.report_workload,
+        name="report_workload",
+    ),
 ]

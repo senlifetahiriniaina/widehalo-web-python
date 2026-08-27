@@ -15,7 +15,15 @@
 
   <h1>{{ pattern.name }} — v{{ pattern.version }}</h1>
   <p>{% trans "Code" %}: {{ pattern.code }}</p>
-  <p><a href="/api/v1/patronage/patterns/{{ pattern.id }}/tech-pack.pdf">{% trans "Telecharger le dossier technique" %}</a></p>
+  <p><a href="{% url 'patronage:tech_pack_download' pattern_id=pattern.id %}">{% trans "Telecharger le dossier technique" %}</a></p>
+
+  <h2>{% trans "Rapports" %}</h2>
+  <ul>
+    <li><a href="{% url 'patronage:report_measurements' pattern_id=pattern.id %}">{% trans "Tableau de mesures gradees" %}</a></li>
+    <li><a href="{% url 'patronage:report_consumption' pattern_id=pattern.id %}">{% trans "Consommation matiere" %}</a></li>
+    <li><a href="{% url 'patronage:report_marker' pattern_id=pattern.id %}">{% trans "Plan de coupe" %}</a></li>
+    <li><a href="{% url 'patronage:report_versions' pattern_id=pattern.id %}">{% trans "Comparatif des versions" %}</a></li>
+  </ul>
 
   <h2>{% trans "Pieces" %}</h2>
   <ul>

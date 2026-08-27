@@ -4,5 +4,6 @@
 {% block content %}
   <h1>{% trans "Factures clients" %}</h1>
   <p><a href="{% url 'accounting:create' %}">{% trans "Nouvelle facture" %}</a></p>
+  <p><a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

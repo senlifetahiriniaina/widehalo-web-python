@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports CRM" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports CRM" %}</h1>
+
+  <section>
+    <h2>{% trans "Repartition du pipeline" %}</h2>
+    <form method="get" action="{% url 'crm:report_pipeline' %}">
+      <label>{% trans "Pipeline" %}
+        <select name="pipeline_id" required>
+          {% for pipeline in pipelines %}
+            <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>{% trans "Format" %}
+        <select name="format">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
+      <button type="submit">{% trans "Telecharger" %}</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>{% trans "Taux de conversion" %}</h2>
+    <form method="get" action="{% url 'crm:report_conversion' %}">
+      <label>{% trans "Pipeline" %}
+        <select name="pipeline_id" required>
+          {% for pipeline in pipelines %}
+            <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>{% trans "Format" %}
+        <select name="format">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
+      <button type="submit">{% trans "Telecharger" %}</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>{% trans "Activites par type" %}</h2>
+    <form method="get" action="{% url 'crm:report_activities' %}">
+      <label>{% trans "Format" %}
+        <select name="format">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
+      <button type="submit">{% trans "Telecharger" %}</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>{% trans "Motifs de perte" %}</h2>
+    <form method="get" action="{% url 'crm:report_lost' %}">
+      <label>{% trans "Format" %}
+        <select name="format">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
+      <button type="submit">{% trans "Telecharger" %}</button>
+    </form>
+  </section>
+{% endblock %}

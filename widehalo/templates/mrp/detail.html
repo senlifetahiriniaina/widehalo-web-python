@@ -25,6 +25,13 @@
   <p>{% trans "Quantite" %}: {{ order.qty }} {{ order.uom_code }}</p>
   <p>{% trans "Quantite produite" %}: {{ order.qty_produced }}</p>
 
+  <h2>{% trans "Rapports" %}</h2>
+  <ul>
+    <li><a href="{% url 'mrp:report_order_pdf' order_id=order.id %}">{% trans "Ordre de fabrication (PDF)" %}</a></li>
+    <li><a href="{% url 'mrp:report_cost' order_id=order.id %}">{% trans "Rapport de cout" %}</a></li>
+  </ul>
+  <p><a href="{% url 'mrp:reports_index' %}">{% trans "Voir les rapports de l'atelier" %}</a></p>
+
   <h2>{% trans "Composants planifies" %}</h2>
   <table class="smart-table">
     <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte consommee" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Approvisionnement" %}</th><th></th></tr></thead>

@@ -1,12 +1,24 @@
 from django.urls import path
 
-from apps.accounting import views, views_config
+from apps.accounting import views, views_config, views_reports
 
 app_name = "accounting"
 
 urlpatterns = [
     path("", views.invoice_list, name="list"),
     path("new/", views.invoice_create, name="create"),
+    path("reports/", views_reports.reports_index, name="reports_index"),
+    path(
+        "reports/trial-balance/",
+        views_reports.trial_balance_download,
+        name="report_trial_balance",
+    ),
+    path(
+        "reports/general-ledger/",
+        views_reports.general_ledger_download,
+        name="report_general_ledger",
+    ),
+    path("reports/journal/", views_reports.journal_report_download, name="report_journal"),
     path("<uuid:invoice_id>/", views.invoice_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/fiscal-years/", views_config.config_fiscal_years, name="config_fiscal_years"),

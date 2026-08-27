@@ -35,6 +35,7 @@ from apps.patronage.services.patterns import (
     generate_piece_geometry,
     new_pattern_version,
 )
+from apps.patronage.services.tech_pack import generate_tech_pack
 
 # Points de mesure geres par le mini-formulaire de generation de geometrie
 # (U4) : suffisants pour les 4 gabarits parametriques simples de
@@ -177,6 +178,22 @@ def pattern_detail(request: HttpRequest, pattern_id: str) -> HttpResponse:
             "error": error,
         },
     )
+
+
+@login_required
+def tech_pack_download(request: HttpRequest, pattern_id: str) -> HttpResponse:
+    """Telechargement session-authentifie du dossier technique (RG-PAT-7),
+    equivalent HTML de l'endpoint API `tech_pack_endpoint` (JWT) — genere le
+    dossier via le service puis diffuse le fichier stocke."""
+    pattern = get_object_or_404(PatPattern, id=pattern_id)
+    user = cast(User, request.user)
+    tech_pack = generate_tech_pack(pattern, actor=user)
+    tech_pack.document.file.open("rb")
+    data = tech_pack.document.file.read()
+    tech_pack.document.file.close()
+    response = HttpResponse(data, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{pattern.code}-tech-pack.pdf"'
+    return response
 
 
 @login_required

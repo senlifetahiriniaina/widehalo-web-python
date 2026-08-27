@@ -231,6 +231,19 @@ def test_push_to_bom_on_active_bom_shows_error_via_ui(
     assert b"form-error" in response.content
 
 
+def test_tech_pack_download_via_session(patronage_screens_setup) -> None:
+    client, _tenant, _size_chart, pattern = patronage_screens_setup
+    detail = client.get(f"/patronage/{pattern.id}/")
+    assert detail.status_code == 200
+    assert f"/patronage/{pattern.id}/tech-pack.pdf".encode() in detail.content
+    assert b"/api/v1/patronage" not in detail.content
+
+    response = client.get(f"/patronage/{pattern.id}/tech-pack.pdf")
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF")
+
+
 def test_new_version_shows_impacted_boms_preview(patronage_consumption_screens_setup) -> None:
     client, tenant, pattern, _piece, _material_id, product_id = patronage_consumption_screens_setup
     with use_tenant(tenant.id):
