@@ -5,10 +5,16 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 
 from apps.core.models.rbac import RoleProfile
+from apps.core.services.rbac_policy import sync_group_permissions
 
 
 class Command(BaseCommand):
-    help = "Cree les 11 roles standards V1 (settings.CORE_STANDARD_ROLES) comme Group+RoleProfile."
+    help = (
+        "Cree les 11 roles standards V1 (settings.CORE_STANDARD_ROLES) comme "
+        "Group+RoleProfile, et (re)synchronise leurs permissions Django selon "
+        "apps.core.services.rbac_policy.ROLE_APP_PERMISSIONS — idempotent, a "
+        "relancer si cette politique est modifiee."
+    )
 
     def handle(self, *args, **options) -> None:
         created = 0
@@ -22,8 +28,10 @@ class Command(BaseCommand):
                 },
             )
             created += int(was_created)
+            sync_group_permissions(group, code)
         self.stdout.write(
             self.style.SUCCESS(
-                f"{len(settings.CORE_STANDARD_ROLES)} rôles vérifiés, {created} créés."
+                f"{len(settings.CORE_STANDARD_ROLES)} rôles vérifiés, {created} créés, "
+                f"permissions synchronisées."
             )
         )

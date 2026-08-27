@@ -13,6 +13,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.services.permissions import require_permission
 from apps.crm.models import CrmActivity, CrmLead, CrmLostReason, CrmPipeline, CrmStage
 from apps.crm.services.activities import complete_activity, lead_timeline, log_activity
 from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
@@ -77,13 +78,23 @@ def _serialize_lead(lead: CrmLead) -> dict[str, Any]:
     }
 
 
+# NOTE ordre des decorateurs : `@router.xxx` DOIT etre le decorateur
+# EXTERNE et `@require_permission(...)` l'INTERNE (juste au-dessus de
+# `def`) — `Router.api_operation` enregistre dans sa table de routage la
+# fonction qui lui est passee directement puis la retourne inchangee, donc
+# seul le decorateur le plus proche de `def` finit reellement invoque a
+# chaque requete (verifie empiriquement : l'ordre inverse ne bloque JAMAIS
+# aucune requete HTTP reelle malgre un `_required_permission` visible au
+# niveau du nom de fonction).
 @router.get("/crm/leads")
+@require_permission("crm.view_crmlead")
 def list_leads(request):
     leads = scope_leads_for_user(CrmLead.objects.all(), request.auth)
     return {"results": [_serialize_lead(lead) for lead in leads.order_by("-created_at")]}
 
 
 @router.post("/crm/leads")
+@require_permission("crm.add_crmlead")
 def create_lead_endpoint(request, payload: LeadIn):
     from apps.core.models.tenant import Tenant
 
@@ -118,6 +129,7 @@ def create_lead_endpoint(request, payload: LeadIn):
 
 
 @router.post("/crm/leads/{lead_id}/move-stage")
+@require_permission("crm.change_crmlead")
 def move_lead_stage_endpoint(request, lead_id: str, payload: MoveStageIn):
     lead = get_object_or_404(CrmLead, id=lead_id)
     stage = get_object_or_404(CrmStage, id=payload.stage_id)
@@ -134,6 +146,7 @@ def move_lead_stage_endpoint(request, lead_id: str, payload: MoveStageIn):
 
 
 @router.post("/crm/leads/{lead_id}/lines/{line_id}/enforce-discount")
+@require_permission("crm.change_crmlead")
 def enforce_discount_endpoint(request, lead_id: str, line_id: str):
     lead = get_object_or_404(CrmLead, id=lead_id)
     line = get_object_or_404(lead.lines, id=line_id)
@@ -145,6 +158,7 @@ def enforce_discount_endpoint(request, lead_id: str, line_id: str):
 
 
 @router.get("/crm/leads/{lead_id}/activities")
+@require_permission("crm.view_crmactivity")
 def list_lead_activities(request, lead_id: str):
     lead = get_object_or_404(CrmLead, id=lead_id)
     return {
@@ -162,6 +176,7 @@ def list_lead_activities(request, lead_id: str):
 
 
 @router.post("/crm/leads/{lead_id}/activities")
+@require_permission("crm.add_crmactivity")
 def create_lead_activity_endpoint(request, lead_id: str, payload: ActivityIn):
     lead = get_object_or_404(CrmLead, id=lead_id)
     activity = log_activity(
@@ -175,6 +190,7 @@ def create_lead_activity_endpoint(request, lead_id: str, payload: ActivityIn):
 
 
 @router.post("/crm/activities/{activity_id}/complete")
+@require_permission("crm.change_crmactivity")
 def complete_activity_endpoint(request, activity_id: str):
     activity = get_object_or_404(CrmActivity, id=activity_id)
     completed = complete_activity(activity)
@@ -182,6 +198,7 @@ def complete_activity_endpoint(request, activity_id: str):
 
 
 @router.get("/crm/reports/pipeline")
+@require_permission("crm.view_crmpipeline")
 def pipeline_report_endpoint(request, pipeline_id: str, format: str = "json"):
     pipeline = get_object_or_404(CrmPipeline, id=pipeline_id)
     rows = pipeline_breakdown(pipeline)
@@ -194,19 +211,25 @@ def pipeline_report_endpoint(request, pipeline_id: str, format: str = "json"):
 
 
 @router.get("/crm/reports/conversion")
+@require_permission("crm.view_crmpipeline")
 def conversion_report_endpoint(request, pipeline_id: str):
     pipeline = get_object_or_404(CrmPipeline, id=pipeline_id)
     return conversion_rate(pipeline)
 
 
 @router.get("/crm/reports/activities")
+@require_permission("crm.view_crmactivity")
 def activities_report_endpoint(request, format: str = "json"):
     rows = activity_breakdown()
     data = rows_to_bytes(rows, ["activity_type", "count"], format=format)
     return _report_response(data, format)
 
 
+# crm.view_crmlead choisi plutot que crm.view_crmlostreason : le rapport
+# agrege des donnees de leads (lead_count, montant), la ventilation par
+# motif de perte n'etant qu'un axe de regroupement.
 @router.get("/crm/reports/lost")
+@require_permission("crm.view_crmlead")
 def lost_report_endpoint(request, format: str = "json"):
     rows = lost_reason_breakdown()
     data = rows_to_bytes(

@@ -24,6 +24,7 @@ from apps.accounting.services.reports import (
     rows_to_bytes,
     trial_balance,
 )
+from apps.core.services.permissions import require_permission
 
 router = Router(tags=["accounting"])
 
@@ -68,7 +69,18 @@ def _serialize_move(move: AccMove) -> dict:
     }
 
 
+# NOTE ordre des decorateurs : `@router.xxx` DOIT etre le decorateur EXTERNE
+# (le plus haut) et `@require_permission(...)` l'INTERNE (juste au-dessus de
+# `def`). `Router.api_operation` enregistre dans `add_api_operation` la
+# fonction qui lui est passee DIRECTEMENT (celle definie juste en dessous
+# dans le code), puis la retourne inchangee — donc seul le decorateur le
+# plus proche de `def` finit dans la table de routage effectivement
+# invoquee a chaque requete. Verifie empiriquement : dans l'ordre inverse,
+# `require_permission` ne bloque JAMAIS aucune requete HTTP reelle (mais
+# reste visible sur le nom de fonction au niveau module, d'ou le risque de
+# le croire actif a la simple lecture du code).
 @router.get("/accounting/accounts")
+@require_permission("accounting.view_accaccount")
 def list_accounts(request):
     return {
         "results": [
@@ -79,11 +91,13 @@ def list_accounts(request):
 
 
 @router.get("/accounting/moves")
+@require_permission("accounting.view_accmove")
 def list_moves(request):
     return {"results": [_serialize_move(m) for m in AccMove.objects.all().order_by("-date")]}
 
 
 @router.post("/accounting/moves/{move_id}/post")
+@require_permission("accounting.change_accmove")
 def post_move_endpoint(request, move_id: str):
     move = get_object_or_404(AccMove, id=move_id)
     try:
@@ -94,6 +108,7 @@ def post_move_endpoint(request, move_id: str):
 
 
 @router.post("/accounting/moves/{move_id}/reverse")
+@require_permission("accounting.change_accmove")
 def reverse_move_endpoint(request, move_id: str, motif: str = ""):
     move = get_object_or_404(AccMove, id=move_id)
     try:
@@ -104,12 +119,14 @@ def reverse_move_endpoint(request, move_id: str, motif: str = ""):
 
 
 @router.get("/accounting/invoices")
+@require_permission("accounting.view_accmove")
 def list_invoices(request):
     invoices = AccMove.objects.filter(move_type=AccMove.TYPE_CUSTOMER_INVOICE).order_by("-date")
     return {"results": [_serialize_move(i) for i in invoices]}
 
 
 @router.post("/accounting/invoices")
+@require_permission("accounting.add_accmove")
 def create_invoice_endpoint(request, payload: InvoiceIn):
     journal = get_object_or_404(AccJournal, id=payload.journal_id)
     period = get_object_or_404(AccPeriod, id=payload.period_id)
@@ -139,6 +156,7 @@ def create_invoice_endpoint(request, payload: InvoiceIn):
 
 
 @router.post("/accounting/invoices/{invoice_id}/validate")
+@require_permission("accounting.validate_accmove")
 def validate_invoice_endpoint(request, invoice_id: str, comment: str = ""):
     invoice = get_object_or_404(AccMove, id=invoice_id)
     try:
@@ -151,6 +169,7 @@ def validate_invoice_endpoint(request, invoice_id: str, comment: str = ""):
 
 
 @router.post("/accounting/invoices/{invoice_id}/register-payment")
+@require_permission("accounting.change_accmove")
 def register_payment_endpoint(request, invoice_id: str, payload: RegisterPaymentIn):
     invoice = get_object_or_404(AccMove, id=invoice_id)
     period = get_object_or_404(AccPeriod, id=payload.period_id)
@@ -179,6 +198,7 @@ def register_payment_endpoint(request, invoice_id: str, payload: RegisterPayment
 
 
 @router.get("/accounting/invoices/{invoice_id}/pdf")
+@require_permission("accounting.view_accmove")
 def invoice_pdf_endpoint(request, invoice_id: str):
     invoice = get_object_or_404(AccMove, id=invoice_id)
     pdf_bytes = invoice_pdf(invoice)
@@ -188,6 +208,7 @@ def invoice_pdf_endpoint(request, invoice_id: str):
 
 
 @router.get("/accounting/payments")
+@require_permission("accounting.view_accpayment")
 def list_payments(request):
     return {
         "results": [
@@ -198,6 +219,7 @@ def list_payments(request):
 
 
 @router.get("/accounting/reports/trial-balance")
+@require_permission("accounting.view_accaccount")
 def trial_balance_endpoint(request, fiscal_year_id: str, format: str = "json"):
     from apps.accounting.models import AccFiscalYear
 
@@ -213,6 +235,7 @@ def trial_balance_endpoint(request, fiscal_year_id: str, format: str = "json"):
 
 
 @router.get("/accounting/reports/general-ledger")
+@require_permission("accounting.view_accmove")
 def general_ledger_endpoint(request, account_id: str, fiscal_year_id: str, format: str = "json"):
     from apps.accounting.models import AccFiscalYear
 
@@ -229,6 +252,7 @@ def general_ledger_endpoint(request, account_id: str, fiscal_year_id: str, forma
 
 
 @router.get("/accounting/reports/journal")
+@require_permission("accounting.view_accmove")
 def journal_report_endpoint(request, journal_id: str, fiscal_year_id: str, format: str = "json"):
     from apps.accounting.models import AccFiscalYear
 

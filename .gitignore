@@ -21,3 +21,7 @@ node_modules/
 .DS_Store
 *.mo
 dump.rdb
+
+# Regenere a chaque execution de apps/core/tests/test_rbac_matrix.py — le
+# contenu vit dans le test, pas dans ce fichier (voir T6).
+widehalo/apps/core/tests/rbac_matrix_report.txt

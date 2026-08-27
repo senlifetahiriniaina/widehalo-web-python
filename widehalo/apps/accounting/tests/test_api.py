@@ -9,7 +9,7 @@ from django.test import Client
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -29,11 +29,25 @@ def api_ledger():
     user = User.objects.create_user(email="acc-api@example.com", password="Str0ngPassw0rd!23")
     # Un groupe distinct de "comptable" : ce dernier fait partie de
     # CORE_MFA_REQUIRED_ROLES (Lot 1, etape 4) et bloquerait la connexion
-    # JWT de ce test tant qu'un device TOTP n'est pas enrole — hors sujet
-    # ici, on ne teste que l'autorisation sur la transition FSM.
+    # JWT de ce test tant qu'un device TOTP n'est pas enrole. Note (T6,
+    # wiring require_permission) : on ne peut donc PAS simplifier ceci en
+    # `grant_role(user, "comptable")` malgre que ce role couvre desormais
+    # les permissions necessaires via ROLE_APP_PERMISSIONS/CUSTOM_
+    # PERMISSIONS — verifie, "comptable"/"direction"/"admin" sont TOUS
+    # dans CORE_MFA_REQUIRED_ROLES. On reste donc sur un groupe ad hoc,
+    # etendu avec les permissions Django reellement exercees par les tests
+    # de ce fichier (vue comptes, creation + validation de facture, PDF).
     group, _ = Group.objects.get_or_create(name="accounting-api-test-validators")
     group.permissions.add(
-        Permission.objects.get(codename="validate_accmove", content_type__app_label="accounting")
+        *Permission.objects.filter(
+            content_type__app_label="accounting",
+            codename__in=[
+                "validate_accmove",
+                "view_accaccount",
+                "view_accmove",
+                "add_accmove",
+            ],
+        )
     )
     user.groups.add(group)
 
@@ -143,3 +157,38 @@ def test_invoice_pdf_endpoint_returns_a_pdf(api_ledger) -> None:
     assert pdf_response.status_code == 200
     assert pdf_response["Content-Type"] == "application/pdf"
     assert pdf_response.content.startswith(b"%PDF")
+
+
+def test_validate_invoice_via_api_denied_without_permission(api_ledger) -> None:
+    """Regression T6/RBAC : require_permission("accounting.validate_accmove")
+    doit refuser (403) un utilisateur authentifie qui n'a pas cette
+    permission — ici un "collaborateur", role par defaut sans acces au
+    module accounting."""
+    tenant, user, _fy, period, journal, receivable, income = api_ledger
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/accounting/invoices",
+        {
+            "journal_id": str(journal.id),
+            "period_id": str(period.id),
+            "date": "2026-01-15",
+            "receivable_account_id": str(receivable.id),
+            "lines": [{"account_id": str(income.id), "amount": "1000", "label": "Vente"}],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    invoice_id = create_response.json()["id"]
+
+    outsider = User.objects.create_user(
+        email="acc-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    outsider_token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    outsider_headers = _headers(outsider_token, str(tenant.id))
+
+    response = client.post(f"/api/v1/accounting/invoices/{invoice_id}/validate", **outsider_headers)
+    assert response.status_code == 403

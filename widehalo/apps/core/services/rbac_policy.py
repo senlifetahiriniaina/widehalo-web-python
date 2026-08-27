@@ -1,0 +1,168 @@
+"""Politique RBAC N2 (objet-type) par role, au-dessus de
+`apps.core.services.permissions.require_permission()`.
+
+**Contexte** : `require_permission()` et les 11 roles (`load_roles`) existent
+depuis le Lot 1 (etape 5), mais n'ont jamais ete effectivement rattaches a
+un seul endpoint API des modules metier — decouvert lors de la verification
+des 14 couches du CDC (§8, T6, matrice RBAC). Ce module comble ce trou en
+definissant explicitement quelles permissions Django (auto-generees
+`view_<model>`/`add_<model>`/`change_<model>` pour chaque modele, plus les
+permissions personnalisees deja declarees comme `accounting.validate_accmove`)
+chaque role recoit.
+
+**Granularite retenue (simplification assumee)** : par app plutot que par
+modele individuel — un role a acces view/add/change a TOUS les modeles d'une
+app metier donnee, ou aucun. Une matrice fine par modele (ex. `magasinier`
+peut modifier `MrpOrderComponent` mais pas `MrpBom`) demanderait une analyse
+metier modele par modele qui n'a pas encore ete faite avec le commanditaire
+et qui multiplierait le nombre de regles a maintenir avant meme que les
+modules `purchase`/`stocks`/`presence`/`paie` (dont dependent plusieurs de
+ces roles) existent. Ce compromis reste un progres net : il remplace
+« n'importe quel utilisateur authentifie peut tout faire partout » (l'etat
+constate) par une frontiere par role et par module, alignee sur les
+descriptions de role du cahier des charges. A affiner (permissions par
+modele, scopes N3 supplementaires) au fur et a mesure que les modules
+restants du Lot 2 sont construits.
+
+`chat` est deliberement EXCLU de cette politique : c'est une messagerie
+interne transversale, pas une donnee metier sensible — tout utilisateur
+authentifie y a acces (seule l'appartenance au canal, deja verifiee cote
+service, protege son contenu)."""
+
+from __future__ import annotations
+
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
+
+# {role_code: {app_label: {actions}}} — actions parmi "view"/"add"/"change".
+# "delete" est volontairement absent : toutes les entites du projet
+# utilisent le soft-delete applicatif (`is_active`/`archived_at`), jamais
+# une suppression SQL DELETE exposee via l'API.
+ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
+    "admin": {
+        "accounting": {"view", "add", "change"},
+        "crm": {"view", "add", "change"},
+        "mrp": {"view", "add", "change"},
+        "patronage": {"view", "add", "change"},
+        "partners": {"view", "add", "change"},
+        "catalog": {"view", "add", "change"},
+    },
+    "direction": {
+        # Role de pilotage/validation transverse (approbateur frequent des
+        # `ApprovalRule` de chaque module) : consultation large + capacite
+        # de faire evoluer un enregistrement (valider/annuler/approuver),
+        # jamais de creation de donnees operationnelles de premier niveau.
+        "accounting": {"view", "change"},
+        "crm": {"view", "change"},
+        "mrp": {"view", "change"},
+        "patronage": {"view", "change"},
+        "partners": {"view", "change"},
+        "catalog": {"view", "change"},
+    },
+    "comptable": {
+        "accounting": {"view", "add", "change"},
+        "partners": {"view"},
+        "catalog": {"view"},
+    },
+    "commercial": {
+        "crm": {"view", "add", "change"},
+        "partners": {"view", "add", "change"},
+        "catalog": {"view"},
+    },
+    "resp_commercial": {
+        "crm": {"view", "add", "change"},
+        "accounting": {"view"},
+        "partners": {"view", "add", "change"},
+        "catalog": {"view"},
+    },
+    "acheteur": {
+        # Domaine cible = futur module `purchase` (pas encore construit) ;
+        # en attendant, acces aux briques mrp deja liees a l'achat
+        # (evaluation fournisseur, echantillons, etats de procurement).
+        "mrp": {"view", "change"},
+        "partners": {"view", "add", "change"},
+        "catalog": {"view", "add", "change"},
+    },
+    "resp_production": {
+        "mrp": {"view", "add", "change"},
+        "patronage": {"view", "add", "change"},
+        "catalog": {"view"},
+    },
+    "chef_atelier": {
+        # Supervision d'atelier : execute/actualise la production, ne cree
+        # pas de donnees de configuration (ateliers, nomenclatures...).
+        "mrp": {"view", "change"},
+        "catalog": {"view"},
+    },
+    "magasinier": {
+        # Domaine cible = futur module `stocks` ; en attendant, acces aux
+        # mouvements de composants deja portes par mrp.
+        "mrp": {"view", "change"},
+        "catalog": {"view"},
+    },
+    "rh": {
+        # Domaines cibles = futurs modules `presence`/`paie`, pas encore
+        # construits — aucune permission metier a accorder pour l'instant.
+    },
+    "collaborateur": {
+        # Role par defaut, acces en lecture aux referentiels partages
+        # uniquement.
+        "partners": {"view"},
+        "catalog": {"view"},
+    },
+}
+
+# Permissions personnalisees (non auto-generees, declarees explicitement
+# dans un `Meta.permissions` de modele — ex. `AccMove.Meta.permissions`) a
+# accorder en plus du view/add/change generique ci-dessus. Ajout minimal
+# pour ce lot (T6, wiring accounting/crm) : comptable/direction/admin
+# recoivent les deux permissions de transition FSM sur les factures
+# (`accounting.validate_accmove`, `accounting.cancel_accmove`) — la
+# premiere est desormais utilisee par `apps.accounting.api.validate_invoice_
+# endpoint`, la seconde par l'ecran HTMX `apps.accounting.views.invoice_
+# detail` (action "cancel"). {role_code: {"app_label.codename", ...}}
+CUSTOM_PERMISSIONS: dict[str, set[str]] = {
+    "admin": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+    "direction": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+    "comptable": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+}
+
+_DJANGO_ACTIONS = ("view", "add", "change")
+
+
+def _custom_permissions_for_role(role_code: str) -> list[Permission]:
+    """Resout les permissions personnalisees (non auto-generees) de
+    `CUSTOM_PERMISSIONS` pour un role donne, en objets `Permission`."""
+    permissions: list[Permission] = []
+    for full_codename in CUSTOM_PERMISSIONS.get(role_code, set()):
+        app_label, codename = full_codename.split(".", 1)
+        permissions.append(
+            Permission.objects.get(codename=codename, content_type__app_label=app_label)
+        )
+    return permissions
+
+
+def _permissions_for_app(app_label: str, actions: set[str]) -> list[Permission]:
+    prefixes = tuple(f"{action}_" for action in actions if action in _DJANGO_ACTIONS)
+    if not prefixes:
+        return []
+    content_types = ContentType.objects.filter(app_label=app_label)
+    return [
+        perm
+        for perm in Permission.objects.filter(content_type__in=content_types)
+        if perm.codename.startswith(prefixes)
+    ]
+
+
+def sync_group_permissions(group: Group, role_code: str) -> int:
+    """Aligne les permissions Django d'un `Group` sur `ROLE_APP_PERMISSIONS`
+    pour le role donne — idempotent (remplace integralement l'ensemble des
+    permissions du groupe pour rester coherent si la matrice change).
+    Retourne le nombre de permissions assignees."""
+    app_permissions = ROLE_APP_PERMISSIONS.get(role_code, {})
+    permissions: list[Permission] = []
+    for app_label, actions in app_permissions.items():
+        permissions.extend(_permissions_for_app(app_label, actions))
+    permissions.extend(_custom_permissions_for_role(role_code))
+    group.permissions.set(permissions)
+    return len(permissions)

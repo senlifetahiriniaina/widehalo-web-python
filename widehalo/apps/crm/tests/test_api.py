@@ -5,7 +5,7 @@ from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.crm.models import CrmPipeline, CrmStage
 
 pytestmark = pytest.mark.django_db
@@ -24,6 +24,10 @@ def _access_token(client: Client, email: str, password: str) -> str:
 def api_crm():
     tenant = Tenant.objects.create(code="CRM-API", name="CRM API Tenant")
     user = User.objects.create_user(email="crm-api@example.com", password="Str0ngPassw0rd!23")
+    # "commercial" n'est pas dans CORE_MFA_REQUIRED_ROLES (contrairement a
+    # "comptable"/"direction"/"admin" cote accounting) : grant_role suffit
+    # ici, pas besoin d'un groupe ad hoc.
+    grant_role(user, "commercial")
     with use_tenant(tenant.id):
         pipeline = CrmPipeline.objects.create(tenant=tenant, name="Ventes", is_default=True)
         stage = CrmStage.objects.create(
@@ -131,3 +135,25 @@ def test_pipeline_report_via_api(api_crm) -> None:
     assert response.status_code == 200
     rows = response.json()
     assert rows[0]["lead_count"] == 1
+
+
+def test_create_lead_via_api_denied_without_permission(api_crm) -> None:
+    """Regression T6/RBAC : require_permission("crm.add_crmlead") doit
+    refuser (403) un utilisateur authentifie sans ce role — ici un
+    "collaborateur", role par defaut sans acces au module crm."""
+    tenant, _user, pipeline, _stage, _won = api_crm
+    client = Client()
+    outsider = User.objects.create_user(
+        email="crm-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/crm/leads",
+        {"name": "Opportunite Refusee", "pipeline_id": str(pipeline.id)},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403

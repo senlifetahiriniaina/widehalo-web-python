@@ -5,7 +5,7 @@ from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.mrp.models import MrpWorkshop
 
 pytestmark = pytest.mark.django_db
@@ -35,6 +35,7 @@ def _headers(token: str, tenant_id: str) -> dict:
 
 def test_create_bom_and_order_and_run_workflow_via_api(api_mrp) -> None:
     tenant, user, workshop = api_mrp
+    grant_role(user, "resp_production")
     client = Client()
     token = _access_token(client, user.email, "Str0ngPassw0rd!23")
     headers = _headers(token, str(tenant.id))
@@ -69,6 +70,7 @@ def test_create_bom_and_order_and_run_workflow_via_api(api_mrp) -> None:
 
 def test_list_workshops_via_api(api_mrp) -> None:
     tenant, user, workshop = api_mrp
+    grant_role(user, "resp_production")
     client = Client()
     token = _access_token(client, user.email, "Str0ngPassw0rd!23")
     headers = _headers(token, str(tenant.id))
@@ -77,3 +79,23 @@ def test_list_workshops_via_api(api_mrp) -> None:
     assert response.status_code == 200
     codes = {w["code"] for w in response.json()["results"]}
     assert workshop.code in codes
+
+
+def test_create_order_denied_without_role(api_mrp) -> None:
+    tenant, user, workshop = api_mrp
+    grant_role(user, "collaborateur")
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/mrp/orders",
+        {
+            "bom_id": "11111111-1111-1111-1111-111111111111",
+            "workshop_id": str(workshop.id),
+            "qty": "5",
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403

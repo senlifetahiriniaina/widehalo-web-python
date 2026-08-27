@@ -10,6 +10,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.services.permissions import require_permission
 from apps.patronage.models import PatPattern, PatSizeChart
 from apps.patronage.services.consumption import compute_consumption, compute_marker, push_to_bom
 from apps.patronage.services.eco import EcoApprovalRequiredError, validate_pattern_version
@@ -70,11 +71,13 @@ def _serialize_pattern(pattern: PatPattern) -> dict[str, Any]:
 
 
 @router.get("/patronage/size-charts")
+@require_permission("patronage.view_patsizechart")
 def list_size_charts(request):
     return {"results": [{"id": str(s.id), "code": s.code} for s in PatSizeChart.objects.all()]}
 
 
 @router.post("/patronage/size-charts/{size_chart_id}/grade")
+@require_permission("patronage.change_patsizechart")
 def grade_size_chart_endpoint(request, size_chart_id: str):
     size_chart = get_object_or_404(PatSizeChart, id=size_chart_id)
     try:
@@ -87,11 +90,13 @@ def grade_size_chart_endpoint(request, size_chart_id: str):
 
 
 @router.get("/patronage/patterns")
+@require_permission("patronage.view_patpattern")
 def list_patterns(request):
     return {"results": [_serialize_pattern(p) for p in PatPattern.objects.all()]}
 
 
 @router.post("/patronage/patterns")
+@require_permission("patronage.add_patpattern")
 def create_pattern_endpoint(request, payload: PatternIn):
     from apps.core.models.tenant import Tenant
 
@@ -104,12 +109,14 @@ def create_pattern_endpoint(request, payload: PatternIn):
 
 
 @router.post("/patronage/patterns/{pattern_id}/new-version")
+@require_permission("patronage.change_patpattern")
 def new_version_endpoint(request, pattern_id: str):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     return _serialize_pattern(new_pattern_version(pattern))
 
 
 @router.post("/patronage/patterns/{pattern_id}/validate")
+@require_permission("patronage.change_patpattern")
 def validate_pattern_endpoint(request, pattern_id: str):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     try:
@@ -120,6 +127,7 @@ def validate_pattern_endpoint(request, pattern_id: str):
 
 
 @router.get("/patronage/patterns/{pattern_id}/pieces")
+@require_permission("patronage.view_patpatternpiece")
 def list_pieces_endpoint(request, pattern_id: str):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     return {
@@ -128,6 +136,7 @@ def list_pieces_endpoint(request, pattern_id: str):
 
 
 @router.post("/patronage/patterns/{pattern_id}/pieces")
+@require_permission("patronage.add_patpatternpiece")
 def add_piece_endpoint(request, pattern_id: str, payload: PieceIn):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     try:
@@ -144,6 +153,7 @@ def add_piece_endpoint(request, pattern_id: str, payload: PieceIn):
 
 
 @router.post("/patronage/patterns/{pattern_id}/compute-consumption")
+@require_permission("patronage.add_patconsumption")
 def compute_consumption_endpoint(request, pattern_id: str, payload: ConsumptionIn):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     try:
@@ -160,6 +170,7 @@ def compute_consumption_endpoint(request, pattern_id: str, payload: ConsumptionI
 
 
 @router.post("/patronage/patterns/{pattern_id}/compute-marker")
+@require_permission("patronage.add_patmarker")
 def compute_marker_endpoint(request, pattern_id: str, payload: MarkerIn):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     try:
@@ -175,7 +186,11 @@ def compute_marker_endpoint(request, pattern_id: str, payload: MarkerIn):
     return {"id": str(marker.id), "length_m": str(marker.length_m)}
 
 
+# push_to_bom mutates MrpBomLine (via set_bom_line_qty_by_size), not a
+# patronage model, even though it hangs off the /patronage/patterns router —
+# the permission checked is on the model actually written.
 @router.post("/patronage/patterns/{pattern_id}/push-to-bom")
+@require_permission("mrp.change_mrpbomline")
 def push_to_bom_endpoint(request, pattern_id: str, payload: PushToBomIn):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     try:
@@ -191,6 +206,7 @@ def push_to_bom_endpoint(request, pattern_id: str, payload: PushToBomIn):
 
 
 @router.get("/patronage/patterns/{pattern_id}/tech-pack.pdf")
+@require_permission("patronage.view_patpattern")
 def tech_pack_endpoint(request, pattern_id: str):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     tech_pack = generate_tech_pack(pattern, actor=request.auth)
@@ -203,12 +219,14 @@ def tech_pack_endpoint(request, pattern_id: str):
 
 
 @router.get("/patronage/patterns/{pattern_id}/variation-points")
+@require_permission("patronage.view_patpattern")
 def variation_points_endpoint(request, pattern_id: str):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     return variation_points(pattern)
 
 
 @router.get("/patronage/reports/measurements/{pattern_id}")
+@require_permission("patronage.view_patsizechart")
 def measurements_report_endpoint(request, pattern_id: str, format: str = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = measurement_chart_report(pattern)
@@ -217,6 +235,7 @@ def measurements_report_endpoint(request, pattern_id: str, format: str = "json")
 
 
 @router.get("/patronage/reports/consumption/{pattern_id}")
+@require_permission("patronage.view_patconsumption")
 def consumption_report_endpoint(request, pattern_id: str, format: str = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = consumption_report(pattern)
@@ -229,6 +248,7 @@ def consumption_report_endpoint(request, pattern_id: str, format: str = "json"):
 
 
 @router.get("/patronage/reports/marker/{pattern_id}")
+@require_permission("patronage.view_patmarker")
 def marker_report_endpoint(request, pattern_id: str, format: str = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = marker_report(pattern)
@@ -241,6 +261,7 @@ def marker_report_endpoint(request, pattern_id: str, format: str = "json"):
 
 
 @router.get("/patronage/reports/versions/{pattern_id}")
+@require_permission("patronage.view_patpattern")
 def version_report_endpoint(request, pattern_id: str, format: str = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = version_comparison_report(pattern)

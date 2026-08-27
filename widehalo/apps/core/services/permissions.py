@@ -27,24 +27,72 @@ from apps.core.models.user import User
 SENSITIVE_FIELDS: dict[str, dict[str, set[str]]] = {}
 
 
+class _PermissionGuardedView:
+    """Objet appelable (plutot qu'une fermeture `def wrapper(...)`) qui
+    porte le controle de permission de `require_permission`.
+
+    Pourquoi un objet et pas une fermeture : cote routage, django-ninja
+    doit reconstruire le type des parametres annotes par une chaine (a
+    cause de `from __future__ import annotations` dans les modules
+    `apps/*/api.py`) via `ninja.signature.utils.get_typed_signature`, qui
+    resout ces annotations avec `getattr(call, "__globals__", {})` — SANS
+    remonter la chaine `__wrapped__` (contrairement a
+    `inspect.signature`/`typing.get_type_hints`, qui eux la suivent).
+    Une fermeture Python a un `__globals__` fige sur le module ou elle est
+    *definie* (ici `apps.core.services.permissions`), meme apres
+    `functools.wraps` : celui-ci copie `__name__`/`__module module__`/
+    `__doc__`/`__dict__`/`__wrapped__` mais ne peut PAS reaffecter
+    `__globals__` (attribut natif en lecture seule d'un objet fonction).
+    Consequence concrete observee : tout endpoint POST/PATCH dont le
+    payload est un `Schema` (ex. `InvoiceIn`) etait alors mal classifie
+    par ninja (ForwardRef non resolue -> traite comme parametre de query
+    au lieu du corps -> 500 pour tout appelant, meme autorise).
+
+    Un objet appelable expose `__globals__` via `__getattr__` en le
+    delegant a la fonction d'origine (`self._func.__globals__`), ce qui
+    satisfait `getattr(call, "__globals__", {})` avec le bon namespace
+    (celui du module ou vit reellement la vue, ex. `apps.accounting.api`)
+    tout en laissant `inspect.signature`/`typing.get_type_hints` suivre
+    `__wrapped__` comme avant. Pas de dependance supplementaire (type
+    `wrapt`) requise."""
+
+    def __init__(self, func: Callable[..., Any], codename: str) -> None:
+        functools.update_wrapper(self, func)
+        self._func = func
+        self._codename = codename
+        self._required_permission = codename
+
+    def __call__(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+        user = getattr(request, "auth", None) or getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return JsonResponse({"detail": _("authentification requise")}, status=401)
+        if not user.has_perm(self._codename):
+            return JsonResponse({"detail": _("permission refusée")}, status=403)
+        return self._func(request, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        # Uniquement pour les attributs absents de `self.__dict__` (ex.
+        # `__globals__`, jamais copie par `functools.update_wrapper`) :
+        # delegue a la fonction d'origine plutot que de lever AttributeError.
+        return getattr(self._func, name)
+
+
 def require_permission(codename: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorateur pour endpoint django-ninja : renvoie 401 si non
     authentifie, 403 si authentifie mais sans la permission `codename`
     (verifiee via User.has_perm, donc satisfaite par l'appartenance a un
-    Group Django porteur de cette permission)."""
+    Group Django porteur de cette permission).
+
+    IMPORTANT (ordre des decorateurs) : `@router.get/post/...` DOIT rester
+    le decorateur EXTERNE et `@require_permission(...)` l'INTERNE (juste
+    au-dessus de `def`) — `Router.api_operation` enregistre dans sa table
+    de routage la fonction qui lui est passee directement, puis la
+    retourne INCHANGEE ; place a l'exterieur, `require_permission`
+    n'intercepterait donc plus jamais aucune requete HTTP reelle (verifie
+    empiriquement)."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @functools.wraps(func)
-        def wrapper(request: Any, *args: Any, **kwargs: Any) -> Any:
-            user = getattr(request, "auth", None) or getattr(request, "user", None)
-            if user is None or not getattr(user, "is_authenticated", False):
-                return JsonResponse({"detail": _("authentification requise")}, status=401)
-            if not user.has_perm(codename):
-                return JsonResponse({"detail": _("permission refusée")}, status=403)
-            return func(request, *args, **kwargs)
-
-        wrapper._required_permission = codename  # type: ignore[attr-defined]
-        return wrapper
+        return _PermissionGuardedView(func, codename)
 
     return decorator
 

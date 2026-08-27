@@ -11,6 +11,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.services.permissions import require_permission
 from apps.mrp.models import (
     MrpBom,
     MrpCra,
@@ -78,6 +79,7 @@ def _serialize_order(order: MrpOrder) -> dict[str, Any]:
 
 
 @router.get("/mrp/workshops")
+@require_permission("mrp.view_mrpworkshop")
 def list_workshops(request):
     return {
         "results": [
@@ -87,11 +89,13 @@ def list_workshops(request):
 
 
 @router.get("/mrp/boms")
+@require_permission("mrp.view_mrpbom")
 def list_boms(request):
     return {"results": [_serialize_bom(b) for b in MrpBom.objects.all()]}
 
 
 @router.post("/mrp/boms")
+@require_permission("mrp.add_mrpbom")
 def create_bom_endpoint(request, payload: BomIn):
     from apps.core.models.tenant import Tenant
 
@@ -108,12 +112,14 @@ def create_bom_endpoint(request, payload: BomIn):
 
 
 @router.post("/mrp/boms/{bom_id}/new-version")
+@require_permission("mrp.change_mrpbom")
 def new_version_endpoint(request, bom_id: str):
     bom = get_object_or_404(MrpBom, id=bom_id)
     return _serialize_bom(new_version(bom))
 
 
 @router.get("/mrp/boms/{bom_id}/explode")
+@require_permission("mrp.view_mrpbom")
 def explode_endpoint(request, bom_id: str, qty: Decimal, size: str | None = None):
     bom = get_object_or_404(MrpBom, id=bom_id)
     rows = explode(bom, qty, size=size)
@@ -129,6 +135,7 @@ def explode_endpoint(request, bom_id: str, qty: Decimal, size: str | None = None
 
 
 @router.get("/mrp/orders")
+@require_permission("mrp.view_mrporder")
 def list_orders(request):
     return {
         "results": [_serialize_order(o) for o in MrpOrder.objects.all().order_by("-created_at")]
@@ -136,6 +143,7 @@ def list_orders(request):
 
 
 @router.post("/mrp/orders")
+@require_permission("mrp.add_mrporder")
 def create_order_endpoint(request, payload: OrderIn):
     from apps.core.models.tenant import Tenant
 
@@ -147,6 +155,7 @@ def create_order_endpoint(request, payload: OrderIn):
 
 
 @router.post("/mrp/orders/{order_id}/confirm")
+@require_permission("mrp.change_mrporder")
 def confirm_order_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     try:
@@ -157,6 +166,7 @@ def confirm_order_endpoint(request, order_id: str):
 
 
 @router.post("/mrp/orders/{order_id}/reserve")
+@require_permission("mrp.change_mrporder")
 def reserve_order_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     reserve_order(order, request.auth)
@@ -164,6 +174,7 @@ def reserve_order_endpoint(request, order_id: str):
 
 
 @router.post("/mrp/orders/{order_id}/start")
+@require_permission("mrp.change_mrporder")
 def start_order_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     start_order(order, request.auth)
@@ -171,6 +182,7 @@ def start_order_endpoint(request, order_id: str):
 
 
 @router.post("/mrp/orders/{order_id}/finish")
+@require_permission("mrp.change_mrporder")
 def finish_order_endpoint(
     request, order_id: str, qty_produced: Decimal, qty_scrapped: Decimal = Decimal(0)
 ):
@@ -180,6 +192,7 @@ def finish_order_endpoint(
 
 
 @router.post("/mrp/orders/{order_id}/close")
+@require_permission("mrp.change_mrporder")
 def close_order_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     close_order(order, request.auth)
@@ -187,6 +200,7 @@ def close_order_endpoint(request, order_id: str):
 
 
 @router.post("/mrp/orders/{order_id}/cancel")
+@require_permission("mrp.change_mrporder")
 def cancel_order_endpoint(request, order_id: str, payload: CancelIn):
     order = get_object_or_404(MrpOrder, id=order_id)
     try:
@@ -197,6 +211,7 @@ def cancel_order_endpoint(request, order_id: str, payload: CancelIn):
 
 
 @router.post("/mrp/work-orders/{work_order_id}/start")
+@require_permission("mrp.change_mrpworkorder")
 def start_work_order_endpoint(request, work_order_id: str):
     work_order = get_object_or_404(MrpWorkOrder, id=work_order_id)
     start_work_order(work_order, operator=request.auth)
@@ -204,6 +219,7 @@ def start_work_order_endpoint(request, work_order_id: str):
 
 
 @router.post("/mrp/work-orders/{work_order_id}/pause")
+@require_permission("mrp.change_mrpworkorder")
 def pause_work_order_endpoint(request, work_order_id: str):
     work_order = get_object_or_404(MrpWorkOrder, id=work_order_id)
     pause_work_order(work_order)
@@ -211,6 +227,7 @@ def pause_work_order_endpoint(request, work_order_id: str):
 
 
 @router.post("/mrp/work-orders/{work_order_id}/done")
+@require_permission("mrp.change_mrpworkorder")
 def done_work_order_endpoint(
     request, work_order_id: str, qty_done: Decimal, qty_rejected: Decimal = Decimal(0)
 ):
@@ -220,6 +237,7 @@ def done_work_order_endpoint(
 
 
 @router.post("/mrp/cra/{cra_id}/submit")
+@require_permission("mrp.change_mrpcra")
 def submit_cra_endpoint(request, cra_id: str):
     cra = get_object_or_404(MrpCra, id=cra_id)
     submit_cra(cra, request.auth)
@@ -227,6 +245,7 @@ def submit_cra_endpoint(request, cra_id: str):
 
 
 @router.post("/mrp/cra/{cra_id}/validate")
+@require_permission("mrp.change_mrpcra")
 def validate_cra_endpoint(request, cra_id: str):
     cra = get_object_or_404(MrpCra, id=cra_id)
     validate_cra(cra, request.auth)
@@ -234,6 +253,7 @@ def validate_cra_endpoint(request, cra_id: str):
 
 
 @router.post("/mrp/cra/{cra_id}/reject")
+@require_permission("mrp.change_mrpcra")
 def reject_cra_endpoint(request, cra_id: str):
     cra = get_object_or_404(MrpCra, id=cra_id)
     reject_cra(cra, request.auth)
@@ -241,6 +261,7 @@ def reject_cra_endpoint(request, cra_id: str):
 
 
 @router.get("/mrp/reports/order/{order_id}.pdf")
+@require_permission("mrp.view_mrporder")
 def order_pdf_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     pdf_bytes = order_pdf(order)
@@ -250,12 +271,14 @@ def order_pdf_endpoint(request, order_id: str):
 
 
 @router.get("/mrp/reports/cost/{order_id}")
+@require_permission("mrp.view_mrporder")
 def cost_report_endpoint(request, order_id: str):
     order = get_object_or_404(MrpOrder, id=order_id)
     return cost_report(order)
 
 
 @router.get("/mrp/reports/cra")
+@require_permission("mrp.view_mrpcra")
 def cra_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
     rows = cra_summary(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(
@@ -265,6 +288,7 @@ def cra_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: s
 
 
 @router.get("/mrp/reports/cri")
+@require_permission("mrp.view_mrpcri")
 def cri_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
     rows = cri_summary(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(rows, ["workcenter", "type", "total_downtime_min", "count"], format=format)
@@ -272,6 +296,7 @@ def cri_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: s
 
 
 @router.get("/mrp/reports/efficiency")
+@require_permission("mrp.view_mrpworkcenter")
 def efficiency_report_endpoint(request, workcenter_code: str | None = None, format: str = "json"):
     rows = efficiency_report(workcenter_code)
     data = rows_to_bytes(
@@ -281,6 +306,7 @@ def efficiency_report_endpoint(request, workcenter_code: str | None = None, form
 
 
 @router.get("/mrp/reports/scrap")
+@require_permission("mrp.view_mrpscrap")
 def scrap_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
     rows = scrap_report(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(rows, ["reason", "total_qty", "total_cost_mga"], format=format)
@@ -288,6 +314,7 @@ def scrap_report_endpoint(request, date_from: dt.date, date_to: dt.date, format:
 
 
 @router.get("/mrp/reports/workload/{workshop_id}")
+@require_permission("mrp.view_mrpworkshop")
 def workload_report_endpoint(request, workshop_id: str, format: str = "json"):
     workshop = get_object_or_404(MrpWorkshop, id=workshop_id)
     rows = workload_report(workshop)
