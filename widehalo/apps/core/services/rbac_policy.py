@@ -46,6 +46,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "patronage": {"view", "add", "change"},
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},
+        "sales": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -58,6 +59,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "patronage": {"view", "change"},
         "partners": {"view", "change"},
         "catalog": {"view", "change"},
+        "sales": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -68,12 +70,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "crm": {"view", "add", "change"},
         "partners": {"view", "add", "change"},
         "catalog": {"view"},
+        "sales": {"view", "add", "change"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
         "accounting": {"view"},
         "partners": {"view", "add", "change"},
         "catalog": {"view"},
+        "sales": {"view", "add", "change"},
     },
     "acheteur": {
         # Domaine cible = futur module `purchase` (pas encore construit) ;
