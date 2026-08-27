@@ -4,8 +4,10 @@ commande de vente (`SalesOrder`/`SalesOrderLine`, S2, FSM complete
 d'origine par ligne (RG-SAL-3, champ `source` ecrit des S1) est traitee a
 la confirmation depuis S3 (`services.procurement.qualify_and_process_order`,
 reel pour "a produire", stube pour "sur stock"/"a acheter" tant que
-`stocks`/`purchase` n'existent pas), la facturation reelle (RG-SAL-2) est
-differee a S4, la recurrence a S5.
+`stocks`/`purchase` n'existent pas). La facturation reelle (RG-SAL-2,
+`billing_policy` par ligne, + SAL-AVCT1 "a l'avancement de production")
+est cablee depuis S4 (`services.invoicing`), la recurrence reste differee
+a S5.
 
 Regle de couplage n1 : `sales` ne fait jamais de FK Django vers
 `apps.partners`/`apps.catalog`/`apps.crm`/`apps.accounting`/`apps.mrp` —
@@ -213,6 +215,12 @@ class SalesOrder(BaseModel, ReferenceMixin):
     # `SalesRecurrence`/la logique de generation sont S5.
     is_recurring = models.BooleanField(default=False)
     recurrence_id = models.UUIDField(null=True, blank=True)
+    # RG-SAL-2 (S4) : cumul de ce qui a deja ete facture pour cette
+    # commande (toutes lignes confondues), en MGA — sert a determiner
+    # quand la commande est entierement facturee (cf.
+    # `services.invoicing.invoice_order`), independamment du detail par
+    # ligne (`SalesOrderLine.qty_invoiced`).
+    invoiced_amount_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
 
     class Meta:
         db_table = "sales_order"
@@ -252,12 +260,11 @@ class SalesOrder(BaseModel, ReferenceMixin):
     def mark_delivered(self) -> None:
         pass
 
-    # RG-SAL-2 (facturation reelle) differee a S4 : cette transition est
-    # declaree pour completude du diagramme §5.5.4 mais n'est encore
-    # declenchee par aucune fonction de service reelle (cf. tests, qui
-    # l'exercent directement via `attempt_transition` pour la couverture
-    # d'aretes FSM, meme patron que les aretes non encore cablees de
-    # `AccMove.invoice_state`).
+    # RG-SAL-2 (facturation reelle) : cablee depuis S4 par
+    # `services.invoicing.invoice_order`, qui ne declenche cette
+    # transition que lorsque `invoiced_amount_mga` couvre desormais
+    # `amount_total_mga` (tolerance documentee sur `invoice_order`) —
+    # une facturation partielle laisse la commande dans son etat courant.
     @transition(field=state, source=STATE_DELIVERED, target=STATE_INVOICED)
     def mark_invoiced(self) -> None:
         pass
@@ -287,6 +294,22 @@ class SalesOrderLine(BaseModel):
     SOURCE_PRODUCTION = SalesQuotationLine.SOURCE_PRODUCTION
     SOURCE_ACHAT = SalesQuotationLine.SOURCE_ACHAT
     SOURCE_CHOICES = SalesQuotationLine.SOURCE_CHOICES
+
+    # RG-SAL-2 (§5.5.3) : politique de facturation parametrable par
+    # ligne. SAL-AVCT1 (§5.5.9) ajoute le 4e mode "a l'avancement de
+    # production", uniquement pertinent pour une ligne `source=
+    # "production"` ayant un `mrp_order_id` reel (branche reelle de
+    # RG-SAL-3, jamais les stubs "sur stock"/"a acheter").
+    BILLING_ON_ORDERED_QTY = "on_ordered_qty"
+    BILLING_ON_DELIVERED_QTY = "on_delivered_qty"
+    BILLING_ON_DEPOSIT = "on_deposit"
+    BILLING_ON_PRODUCTION_PROGRESS = "on_production_progress"
+    BILLING_POLICY_CHOICES = [
+        (BILLING_ON_ORDERED_QTY, "Sur quantite commandee"),
+        (BILLING_ON_DELIVERED_QTY, "Sur quantite livree"),
+        (BILLING_ON_DEPOSIT, "Sur acompte"),
+        (BILLING_ON_PRODUCTION_PROGRESS, "A l'avancement de production"),
+    ]
 
     order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name="lines")
     sequence = models.PositiveIntegerField(default=0)
@@ -324,6 +347,12 @@ class SalesOrderLine(BaseModel):
     # maintenant conformement au schema du CDC, reste nul indefiniment
     # tant que `purchase` n'existe pas.
     purchase_order_line_id = models.UUIDField(null=True, blank=True)
+    billing_policy = models.CharField(
+        max_length=24, choices=BILLING_POLICY_CHOICES, default=BILLING_ON_ORDERED_QTY
+    )
+    # Uniquement significatif quand `billing_policy == BILLING_ON_DEPOSIT`
+    # (ex. 30.00 pour un acompte de 30% a la commande). Nul sinon.
+    deposit_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         db_table = "sales_order_line"

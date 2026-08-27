@@ -84,6 +84,8 @@ class OrderLineIn(Schema):
     discount_pct: Decimal = Decimal(0)
     is_custom: bool = False
     source: str = "stock"
+    billing_policy: str = "on_ordered_qty"
+    deposit_pct: Decimal | None = None
 
 
 class OrderIn(Schema):
@@ -111,6 +113,17 @@ class OrderDeliverIn(Schema):
     partial: bool = False
 
 
+class OrderInvoiceIn(Schema):
+    # Ids de `SalesOrderLine` a facturer (facturation partielle) ; liste
+    # vide/omise = toutes les lignes de la commande.
+    line_ids: list[str] = []
+
+
+class OrderInvoiceOut(Schema):
+    invoice_id: str | None
+    detail: str = ""
+
+
 class OrderLineOut(Schema):
     id: str
     sequence: int
@@ -125,6 +138,8 @@ class OrderLineOut(Schema):
     source: str
     qty_delivered: Decimal
     qty_invoiced: Decimal
+    billing_policy: str
+    deposit_pct: Decimal | None
 
 
 class OrderOut(Schema):
@@ -149,4 +164,5 @@ class OrderOut(Schema):
     amount_total_mga: Decimal
     notes: str
     is_recurring: bool
+    invoiced_amount_mga: Decimal
     lines: list[OrderLineOut]

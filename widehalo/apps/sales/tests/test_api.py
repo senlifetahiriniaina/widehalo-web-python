@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 import uuid
 from decimal import Decimal
@@ -7,11 +8,13 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
+from apps.accounting.models import AccAccount, AccJournal
+from apps.accounting.tests.factories import AccAccountFactory, AccJournalFactory, AccPeriodFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.sales.models import SalesOrder
-from apps.sales.services.orders import start_preparation
+from apps.sales.services.orders import mark_delivered, start_preparation
 
 pytestmark = pytest.mark.django_db
 
@@ -296,6 +299,131 @@ def test_cancel_order_requires_reason_via_api(api_sales) -> None:
         **headers,
     )
     assert cancel_response.status_code == 400
+
+
+def test_invoice_order_via_api_success_transitions_to_invoiced(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_SALE)
+        today = dt.date.today()
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        AccPeriodFactory(
+            tenant=tenant,
+            date_start=today.replace(day=1),
+            date_end=today.replace(day=last_day),
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_RECEIVABLE)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_INCOME)
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "lines": [
+                {
+                    "description": "Prestation sur mesure",
+                    "qty": "2",
+                    "unit_price": "10000",
+                    "is_custom": True,
+                }
+            ],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    order_id = create_response.json()["id"]
+
+    client.post(
+        f"/api/v1/sales/orders/{order_id}/confirm", content_type="application/json", **headers
+    )
+    with use_tenant(tenant.id):
+        order = SalesOrder.objects.get(id=order_id)
+        start_preparation(order, user)
+        mark_delivered(order, user)
+
+    invoice_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/invoice", content_type="application/json", **headers
+    )
+    assert invoice_response.status_code == 200
+    body = invoice_response.json()
+    assert body["invoice_id"] is not None
+
+    get_response = client.get(f"/api/v1/sales/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "invoiced"
+    assert Decimal(get_response.json()["invoiced_amount_mga"]) == Decimal("20000.0000")
+
+
+def test_invoice_order_via_api_returns_none_without_accounting_config(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "lines": [
+                {"description": "Prestation", "qty": "1", "unit_price": "5000", "is_custom": True}
+            ],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    order_id = create_response.json()["id"]
+    client.post(
+        f"/api/v1/sales/orders/{order_id}/confirm", content_type="application/json", **headers
+    )
+    with use_tenant(tenant.id):
+        order = SalesOrder.objects.get(id=order_id)
+        start_preparation(order, user)
+        mark_delivered(order, user)
+
+    invoice_response = client.post(
+        f"/api/v1/sales/orders/{order_id}/invoice", content_type="application/json", **headers
+    )
+    assert invoice_response.status_code == 200
+    body = invoice_response.json()
+    assert body["invoice_id"] is None
+    assert body["detail"]
+
+    get_response = client.get(f"/api/v1/sales/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "delivered"
+
+
+def test_invoice_order_via_api_denied_without_permission(api_sales) -> None:
+    tenant, user = api_sales
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/sales/orders",
+        {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())},
+        content_type="application/json",
+        **headers,
+    )
+    order_id = create_response.json()["id"]
+
+    outsider = User.objects.create_user(
+        email="sales-invoice-outsider@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(outsider, "collaborateur")
+    outsider_token = _access_token(client, outsider.email, "Str0ngPassw0rd!23")
+    outsider_headers = _headers(outsider_token, str(tenant.id))
+
+    response = client.post(
+        f"/api/v1/sales/orders/{order_id}/invoice",
+        content_type="application/json",
+        **outsider_headers,
+    )
+    assert response.status_code == 403
 
 
 def test_create_order_via_api_denied_without_permission(api_sales) -> None:

@@ -2,8 +2,9 @@
 de vente. Depuis S3, `POST .../confirm` declenche aussi la qualification
 d'origine par ligne (RG-SAL-3) comme effet de bord de `confirm_order` — pas
 de nouvel endpoint dedie dans ce lot (le futur `GET .../procurement-plan`
-du §5.5.7 est differe a S7, cf. plan). Facturation/recurrence/previsions
-restent differees a S4-S7."""
+du §5.5.7 est differe a S7, cf. plan). Depuis S4, `POST .../invoice`
+declenche la facturation reelle (RG-SAL-2/SAL-AVCT1). Recurrence/previsions
+restent differees a S5-S7."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext as _
 from ninja import Router
 
 from apps.core.services.permissions import require_permission
@@ -21,6 +23,8 @@ from apps.sales.schemas import (
     OrderCancelIn,
     OrderDeliverIn,
     OrderIn,
+    OrderInvoiceIn,
+    OrderInvoiceOut,
     OrderLineOut,
     OrderOut,
     QuotationDeclineIn,
@@ -29,6 +33,7 @@ from apps.sales.schemas import (
     QuotationLineOut,
     QuotationOut,
 )
+from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.orders import (
     add_order_line,
     cancel_order,
@@ -215,6 +220,8 @@ def _serialize_order_line(line) -> OrderLineOut:  # type: ignore[no-untyped-def]
         source=line.source,
         qty_delivered=line.qty_delivered,
         qty_invoiced=line.qty_invoiced,
+        billing_policy=line.billing_policy,
+        deposit_pct=line.deposit_pct,
     )
 
 
@@ -242,6 +249,7 @@ def _serialize_order(order: SalesOrder) -> OrderOut:
         amount_total_mga=order.amount_total_mga,
         notes=order.notes,
         is_recurring=order.is_recurring,
+        invoiced_amount_mga=order.invoiced_amount_mga,
         lines=[_serialize_order_line(line) for line in order.lines.all()],
     )
 
@@ -286,6 +294,8 @@ def create_order_endpoint(request, payload: OrderIn):
             discount_pct=line.discount_pct,
             is_custom=line.is_custom,
             source=line.source,
+            billing_policy=line.billing_policy,
+            deposit_pct=line.deposit_pct,
             sequence=index,
         )
     order.refresh_from_db()
@@ -330,3 +340,31 @@ def cancel_order_endpoint(request, order_id: str, payload: OrderCancelIn):
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return _serialize_order(order)
+
+
+@router.post("/sales/orders/{order_id}/invoice", response=OrderInvoiceOut)
+@require_permission("sales.change_salesorder")
+def invoice_order_endpoint(request, order_id: str, payload: OrderInvoiceIn):
+    """RG-SAL-2 (§5.5.7) : facturation reelle, S4. `line_ids` omis/vide =
+    toutes les lignes de la commande. Un retour `invoice_id=None` signale
+    une configuration comptable manquante cote tenant (aucun journal de
+    vente / periode ouverte / compte de creance ou de produit) — jamais
+    une erreur HTTP, l'appelant doit orienter vers la configuration du
+    plan comptable."""
+    order = get_object_or_404(SalesOrder, id=order_id)
+    lines = None
+    if payload.line_ids:
+        lines = list(
+            order.lines.filter(id__in=[uuid.UUID(line_id) for line_id in payload.line_ids])
+        )
+
+    invoice_id = invoice_order(order, request.auth, lines=lines)
+    if invoice_id is None:
+        return OrderInvoiceOut(
+            invoice_id=None,
+            detail=_(
+                "Impossible de facturer : configuration comptable manquante ou "
+                "rien a facturer actuellement."
+            ),
+        )
+    return OrderInvoiceOut(invoice_id=str(invoice_id))

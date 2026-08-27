@@ -8,10 +8,10 @@ aussi, une fois la confirmation effective (jamais sur une commande
 `blocked`), la qualification d'origine par ligne RG-SAL-3 (S3, cf.
 `apps.sales.services.procurement`).
 
-RG-SAL-2 (facturation reelle) est differee a S4 : `mark_invoiced`/`close`
-restent declarees sur le modele mais aucune fonction de service reelle ne
-les declenche encore ici (cf. tests, qui exercent ces aretes directement
-via `attempt_transition` pour la couverture FSM)."""
+RG-SAL-2 (facturation reelle) est cablee depuis S4 dans
+`apps.sales.services.invoicing` (pas dans ce module) : `mark_invoiced` y
+est declenchee, `close_order` reste ici une simple transition sans
+logique metier supplementaire."""
 
 from __future__ import annotations
 

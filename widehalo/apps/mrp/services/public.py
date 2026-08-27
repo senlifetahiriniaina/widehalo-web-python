@@ -14,7 +14,7 @@ from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.mrp.models import MrpBom, MrpBomLine, MrpWorkcenter, MrpWorkshop
+from apps.mrp.models import MrpBom, MrpBomLine, MrpOrder, MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.interventions import create_cri
 from apps.mrp.services.orders import create_order
 
@@ -122,3 +122,25 @@ def create_manufacturing_order(
     order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=qty, variant_id=variant_id)
     order_id: UUID = order.id
     return order_id
+
+
+def get_order_produced_qty(mrp_order_id: Any) -> Decimal | None:
+    """Gap identifie par le sous-sequencement S4 de `sales` (SAL-AVCT1,
+    facturation a l'avancement de production) : remonte la quantite deja
+    produite d'un `MrpOrder`, necessaire a
+    `sales.services.invoicing.invoiceable_amount_for_line` pour calculer
+    la part facturable d'une ligne en `billing_policy="on_production_progress"`.
+
+    Source retenue : `MrpOrder.qty_produced`, le seul champ agrege deja
+    tenu a jour par `mrp` (incremente a chaque cloture de composant/OF,
+    cf. `apps.mrp.models.MrpOrder`) — plus fiable qu'une resommation des
+    `qty_done` de `MrpWorkOrder`/`MrpOrderComponent`, qui ne couvre que le
+    detail operation/composant, pas l'avancement global de l'ordre.
+
+    Retourne `None`, jamais une exception, si l'ordre n'existe pas — meme
+    discipline que le reste de ce module (`create_manufacturing_order`)."""
+    order = MrpOrder.objects.filter(id=mrp_order_id).first()
+    if order is None:
+        return None
+    qty_produced: Decimal = order.qty_produced
+    return qty_produced

@@ -1,7 +1,8 @@
 """Tests du contrat public de `mrp` (`apps/mrp/services/public.py`) —
 seule surface que `sales` (et les autres apps metier) ont le droit
 d'importer. Couvre ici le gap ajoute pour RG-SAL-3 (S3 du
-sous-sequencement `sales`, cf. plan) : `create_manufacturing_order`."""
+sous-sequencement `sales`, cf. plan) : `create_manufacturing_order`, et le
+gap ajoute pour SAL-AVCT1 (S4) : `get_order_produced_qty`."""
 
 from __future__ import annotations
 
@@ -14,8 +15,8 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder
 from apps.mrp.services.bom import activate_bom, create_bom
-from apps.mrp.services.public import create_manufacturing_order
-from apps.mrp.tests.factories import MrpWorkshopFactory
+from apps.mrp.services.public import create_manufacturing_order, get_order_produced_qty
+from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -81,3 +82,16 @@ def test_create_manufacturing_order_returns_none_without_workshop(public_setup) 
 
         assert order_id is None
         assert not MrpOrder.objects.exists()
+
+
+def test_get_order_produced_qty_returns_current_value(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        order = MrpOrderFactory(tenant=tenant, qty=Decimal("10"), qty_produced=Decimal("4"))
+        assert get_order_produced_qty(order.id) == Decimal("4")
+
+
+def test_get_order_produced_qty_returns_none_for_unknown_order(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert get_order_produced_qty(uuid.uuid4()) is None
