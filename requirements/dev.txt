@@ -16,3 +16,4 @@ pre-commit>=4.0
 django-debug-toolbar>=4.4
 ipython>=8.28
 pytest-playwright>=0.5
+django-test-migrations>=1.4
