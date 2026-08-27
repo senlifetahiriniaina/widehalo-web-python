@@ -4,6 +4,8 @@ ajoutes a l'etape A3 (le champ `tax` d'AccMoveLine y sera ajoute)."""
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django.db import models
 from django_fsm import FSMField, transition
 
@@ -728,6 +730,152 @@ class AccProvision(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or f"{self.nature} ({self.fiscal_year})"
+
+
+class AccDcomDeclaration(BaseModel, ReferenceMixin):
+    """ACC-DCOM1 (§1.8 du document annexe) : declaration du droit de
+    communication (DCOM) — PAS un impot, une obligation declarative de
+    recoupement (Art. 20.06.12 al. 3 et 20.06.15 al. 4 du CGI), due par
+    toute entite dont le CA > 100 M Ar, agregeant les transactions
+    commerciales PAR TIERS et par "nature de transaction" en 9 canevas
+    normalises DGI.
+
+    Reserve OECFM/DGI (§0.5, §3.5 du document annexe) : le document source
+    NOMME les "9 canevas normalises de transactions par tiers (classification
+    des rubriques : achats immobilises, etc.)" sans les enumerer
+    integralement — ce n'est pas une omission de cette implementation mais
+    une limite du document source lui-meme. `AccDcomLine.classification`
+    utilise donc un classement de repli, deja modelisable depuis l'existant :
+    la classe PCG (`AccAccount.account_class`, 1 a 7) du compte de
+    contrepartie de chaque ligne d'ecriture, PAR tiers. C'est un
+    classement RAISONNABLE mais PROVISOIRE, pas les 9 canevas DGI exacts —
+    a confirmer/reconcilier avec un expert-comptable OECFM ou la DGI avant
+    tout usage en production reelle (depot effectif sur
+    entreprises.impots.mg/dconline)."""
+
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
+    date_generated = models.DateField(auto_now_add=True)
+    total_amount_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+
+    class Meta:
+        db_table = "acc_dcom_declaration"
+
+    def __str__(self) -> str:
+        return self.reference or f"DCOM {self.fiscal_year} ({self.id})"
+
+
+class AccDcomLine(BaseModel):
+    """Une ligne agregee (tiers, classification) de `AccDcomDeclaration` —
+    cf. reserve de classification sur le modele parent. `partner_id` :
+    jamais de FK Django vers `apps.partners.models.Partner` (regle de
+    couplage n°1) — le nom d'affichage du tiers n'est resolu qu'a
+    l'affichage du rapport (`services/reports.py::dcom_report`), via
+    `apps.partners.services.public.get_partner_display_name`, jamais stocke
+    ici."""
+
+    declaration = models.ForeignKey(
+        AccDcomDeclaration, on_delete=models.CASCADE, related_name="lines"
+    )
+    partner_id = models.UUIDField()
+    classification = models.CharField(max_length=32)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+
+    class Meta:
+        db_table = "acc_dcom_line"
+        indexes = [models.Index(fields=["declaration", "partner_id"])]
+
+    def __str__(self) -> str:
+        return f"{self.partner_id} — {self.classification} : {self.amount_mga}"
+
+
+class AccIrcmDeclaration(BaseModel, ReferenceMixin):
+    """ACC-IRCM (§1.7 du document annexe) : declaration annuelle de l'Impot
+    sur les Revenus des Capitaux Mobiliers — 20% sur les interets/revenus et
+    produits des obligations et emprunts (assiette = comptes de produits
+    financiers, classe 76-77 du PCG 2005), due par les entreprises au regime
+    reel (IR), echeance le 15 mai N+1.
+
+    `rate_pct` : champ (et non constante Python) pour permettre une
+    correction ulterieure sans deploiement de code si la DGI revoit ce taux
+    — defaut 20% (§1.7 du document annexe). Reserve OECFM/DGI (§0.5,
+    §3.5) : ce taux, comme les autres parametres fiscaux de ce module, est
+    repris d'un document non primaire, a confirmer avant tout usage en
+    production reelle. Ideal cible (hors V1, cf. docstring de
+    `services/ircm.py`) : source ce taux depuis
+    `apps.core.services.regulatory.get_parameter`/`RegulatoryParameter`
+    plutot que ce defaut de champ, une fois ce module lui-meme dote d'un
+    jeu de parametres fiscaux malgaches verifies."""
+
+    STATE_DRAFT = "draft"
+    STATE_FILED = "filed"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_FILED, "Deposee"),
+    ]
+
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
+    taxable_base_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    rate_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("20"))
+    amount_due_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "acc_ircm_declaration"
+
+    def __str__(self) -> str:
+        return self.reference or f"IRCM {self.fiscal_year} ({self.id})"
+
+
+class AccLocalTax(BaseModel, ReferenceMixin):
+    """ACC-FONCIER (§1.9 du document annexe) : impots locaux fonciers geres
+    au niveau communal (Madagascar n'a pas de "patente"/taxe professionnelle
+    au sens marocain/francais/OHADA, contrairement a une hypothese initiale
+    a verifier selon le document source) — IFT (Impot Foncier sur les
+    Terrains, 1% de la valeur marchande du terrain nu) et IFPB (Impot
+    Foncier sur la Propriete Batie, 5 a 10% de la valeur locative de
+    l'immeuble, 1/3 de cette valeur pour le residentiel).
+
+    Priorite BASSE (V2 au CDC) : pertinent seulement si le tenant est
+    proprietaire de ses locaux/ateliers/entrepots — pas de generation
+    automatique depuis le grand livre (donnee de propriete fonciere, pas
+    une ecriture comptable), simple enregistrement manuel via
+    `services/local_tax.py::record_local_tax`.
+
+    `rate_pct` : pas de defaut "intelligent" pour l'IFPB — la fourchette
+    5-10% (ou 1/3 de la valeur locative pour le residentiel) exige un taux
+    par commune/type de propriete que seul le tenant connait ; seul l'IFT
+    a un taux fixe (1%) au sens du document. Reserve OECFM/DGI (§0.5, §3.5
+    du document annexe) : ces taux sont repris d'un document non primaire,
+    a confirmer aupres de la commune/DGI competente avant tout usage en
+    production reelle."""
+
+    TAX_TYPE_IFT = "ift"
+    TAX_TYPE_IFPB = "ifpb"
+    TAX_TYPE_CHOICES = [
+        (TAX_TYPE_IFT, "IFT — Impot foncier sur les terrains"),
+        (TAX_TYPE_IFPB, "IFPB — Impot foncier sur la propriete batie"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_FILED = "filed"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_FILED, "Deposee"),
+    ]
+
+    tax_type = models.CharField(max_length=16, choices=TAX_TYPE_CHOICES)
+    property_label = models.CharField(max_length=200)
+    assessed_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    rate_pct = models.DecimalField(max_digits=5, decimal_places=2)
+    fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
+    amount_due_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "acc_local_tax"
+
+    def __str__(self) -> str:
+        return self.reference or f"{self.get_tax_type_display()} — {self.property_label}"
 
 
 class AccAnalyticLine(BaseModel):

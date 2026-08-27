@@ -27,6 +27,7 @@ from apps.accounting.models import (
     AccAsset,
     AccAssetDepreciation,
     AccAssetMovement,
+    AccDcomDeclaration,
     AccFiscalYear,
     AccJournal,
     AccMove,
@@ -1072,6 +1073,32 @@ def fixed_asset_annexes(fiscal_year: AccFiscalYear) -> dict[str, list[dict[str, 
         "provisions": _provisions_annex(fiscal_year),
         "creances_dettes": _creances_dettes_annex(fiscal_year),
     }
+
+
+def dcom_report(declaration: AccDcomDeclaration) -> list[dict[str, Any]]:
+    """ACC-DCOM1 — rapport plat du droit de communication, format XLSX-friendly
+    proche des canevas DGI (§1.8 du document annexe) : une ligne par
+    (tiers, classification), nom d'affichage du tiers resolu ICI, au moment
+    du rendu, JAMAIS stocke sur `AccDcomLine` (regle de couplage n°1 —
+    `apps.partners.services.public.get_partner_display_name`, seule surface
+    autorisee vers `partners`).
+
+    Reserve OECFM/DGI : `classification` est le classement de repli par
+    classe PCG documente sur `services/dcom.py` — pas les 9 canevas DGI
+    exacts, cf. reserve en tete de ce module."""
+    from apps.partners.services.public import get_partner_display_name
+
+    rows: list[dict[str, Any]] = []
+    for line in declaration.lines.all().order_by("partner_id", "classification"):
+        rows.append(
+            {
+                "partner_id": str(line.partner_id),
+                "partner_name": get_partner_display_name(line.partner_id),
+                "classification": line.classification,
+                "amount_mga": line.amount_mga,
+            }
+        )
+    return rows
 
 
 def invoice_pdf(invoice: AccMove) -> bytes:

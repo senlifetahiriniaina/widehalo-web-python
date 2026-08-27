@@ -12,8 +12,11 @@ from ninja import Router, Schema
 from apps.accounting.models import (
     AccAccount,
     AccAsset,
+    AccDcomDeclaration,
     AccFiscalYear,
+    AccIrcmDeclaration,
     AccJournal,
+    AccLocalTax,
     AccMove,
     AccPayment,
     AccPeriod,
@@ -26,11 +29,14 @@ from apps.accounting.services.assets import (
     record_provision_movement,
     register_asset,
 )
+from apps.accounting.services.dcom import generate_dcom_declaration
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     create_invoice,
     validate_invoice,
 )
+from apps.accounting.services.ircm import generate_ircm_declaration
+from apps.accounting.services.local_tax import record_local_tax
 from apps.accounting.services.moves import post_move, reverse_move
 from apps.accounting.services.payments import register_payment
 from apps.accounting.services.reports import (
@@ -38,6 +44,7 @@ from apps.accounting.services.reports import (
     aged_receivables,
     balance_sheet,
     cash_flow_statement,
+    dcom_report,
     equity_variation_statement,
     fixed_asset_annexes,
     general_ledger,
@@ -111,6 +118,23 @@ class ProvisionIn(Schema):
     opening_amount_mga: Decimal = Decimal(0)
     dotation_mga: Decimal = Decimal(0)
     reprise_mga: Decimal = Decimal(0)
+
+
+class DcomGenerateIn(Schema):
+    fiscal_year_id: str
+
+
+class IrcmGenerateIn(Schema):
+    fiscal_year_id: str
+    rate_pct: Decimal = Decimal("20")
+
+
+class LocalTaxIn(Schema):
+    tax_type: str
+    property_label: str
+    assessed_value_mga: Decimal
+    rate_pct: Decimal
+    fiscal_year_id: str
 
 
 class RegisterPaymentIn(Schema):
@@ -676,3 +700,110 @@ def fixed_asset_annexes_endpoint(request, fiscal_year_id: str):
     ACC-EXPORT-FISC1, etape A12)."""
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
     return JsonResponse(fixed_asset_annexes(fiscal_year))
+
+
+# ---------------------------------------------------------------------------
+# A11 — Declarations fiscales specifiques (ACC-DCOM1, ACC-IRCM, ACC-FONCIER)
+# ---------------------------------------------------------------------------
+
+
+def _serialize_dcom_declaration(declaration: AccDcomDeclaration) -> dict:
+    return {
+        "id": str(declaration.id),
+        "reference": declaration.reference,
+        "fiscal_year_id": str(declaration.fiscal_year_id),
+        "date_generated": declaration.date_generated.isoformat(),
+        "total_amount_mga": str(declaration.total_amount_mga),
+    }
+
+
+@router.post("/accounting/reports/dcom/generate")
+@require_permission("accounting.add_accdcomdeclaration")
+def generate_dcom_endpoint(request, payload: DcomGenerateIn):
+    """ACC-DCOM1 — genere (ou regenere) la declaration DCOM de l'exercice.
+    Reserve OECFM/DGI sur la classification : cf. docstring de
+    `services/dcom.py`."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    declaration = generate_dcom_declaration(fiscal_year)
+    return _serialize_dcom_declaration(declaration)
+
+
+@router.get("/accounting/reports/dcom/{declaration_id}")
+@require_permission("accounting.view_accdcomdeclaration")
+def dcom_report_endpoint(request, declaration_id: str, format: str = "json"):
+    """ACC-DCOM1 — rapport plat (canevas DGI approche), noms de tiers
+    resolus via `apps.partners.services.public.get_partner_display_name`."""
+    declaration = get_object_or_404(AccDcomDeclaration, id=declaration_id)
+    rows = dcom_report(declaration)
+    data = rows_to_bytes(
+        rows, ["partner_id", "partner_name", "classification", "amount_mga"], format=format
+    )
+    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+def _serialize_ircm_declaration(declaration: AccIrcmDeclaration) -> dict:
+    return {
+        "id": str(declaration.id),
+        "reference": declaration.reference,
+        "fiscal_year_id": str(declaration.fiscal_year_id),
+        "taxable_base_mga": str(declaration.taxable_base_mga),
+        "rate_pct": str(declaration.rate_pct),
+        "amount_due_mga": str(declaration.amount_due_mga),
+        "state": declaration.state,
+    }
+
+
+@router.post("/accounting/reports/ircm/generate")
+@require_permission("accounting.add_accircmdeclaration")
+def generate_ircm_endpoint(request, payload: IrcmGenerateIn):
+    """ACC-IRCM — genere (ou regenere) la declaration IRCM annuelle de
+    l'exercice. Reserve au regime reel (ValidationError sinon) — cf.
+    docstring de `services/ircm.py`."""
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    try:
+        declaration = generate_ircm_declaration(fiscal_year, rate_pct=payload.rate_pct)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_ircm_declaration(declaration)
+
+
+def _serialize_local_tax(local_tax: AccLocalTax) -> dict:
+    return {
+        "id": str(local_tax.id),
+        "reference": local_tax.reference,
+        "tax_type": local_tax.tax_type,
+        "property_label": local_tax.property_label,
+        "assessed_value_mga": str(local_tax.assessed_value_mga),
+        "rate_pct": str(local_tax.rate_pct),
+        "fiscal_year_id": str(local_tax.fiscal_year_id),
+        "amount_due_mga": str(local_tax.amount_due_mga),
+        "state": local_tax.state,
+    }
+
+
+@router.get("/accounting/local-taxes")
+@require_permission("accounting.view_acclocaltax")
+def list_local_taxes_endpoint(request):
+    """ACC-FONCIER — liste des impots locaux fonciers (IFT/IFPB) enregistres
+    manuellement (priorite basse, cf. docstring de `services/local_tax.py`)."""
+    return {
+        "results": [
+            _serialize_local_tax(t)
+            for t in AccLocalTax.objects.all().order_by("-fiscal_year__date_end")
+        ]
+    }
+
+
+@router.post("/accounting/local-taxes")
+@require_permission("accounting.add_acclocaltax")
+def create_local_tax_endpoint(request, payload: LocalTaxIn):
+    fiscal_year = get_object_or_404(AccFiscalYear, id=payload.fiscal_year_id)
+    local_tax = record_local_tax(
+        tenant=fiscal_year.tenant,
+        tax_type=payload.tax_type,
+        property_label=payload.property_label,
+        assessed_value_mga=payload.assessed_value_mga,
+        rate_pct=payload.rate_pct,
+        fiscal_year=fiscal_year,
+    )
+    return _serialize_local_tax(local_tax)

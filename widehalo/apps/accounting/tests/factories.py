@@ -29,9 +29,13 @@ from apps.accounting.models import (
     AccAsset,
     AccAssetDepreciation,
     AccAssetMovement,
+    AccDcomDeclaration,
+    AccDcomLine,
     AccExchangeRate,
     AccFiscalYear,
+    AccIrcmDeclaration,
     AccJournal,
+    AccLocalTax,
     AccMove,
     AccMoveLine,
     AccPayment,
@@ -268,3 +272,48 @@ class AccProvisionFactory(factory.django.DjangoModelFactory):
     fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
     opening_amount_mga = Decimal("0.0000")
     closing_amount_mga = Decimal("0.0000")
+
+
+class AccDcomDeclarationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccDcomDeclaration
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+
+
+class AccDcomLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccDcomLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    declaration = factory.SubFactory(
+        AccDcomDeclarationFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    classification = "achats"
+    amount_mga = Decimal("100000.0000")
+
+
+class AccIrcmDeclarationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccIrcmDeclaration
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    taxable_base_mga = Decimal("1000000.0000")
+    rate_pct = Decimal("20.00")
+    amount_due_mga = Decimal("200000.0000")
+
+
+class AccLocalTaxFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccLocalTax
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    tax_type = AccLocalTax.TAX_TYPE_IFT
+    property_label = factory.Sequence(lambda n: f"Terrain {n}")
+    assessed_value_mga = Decimal("10000000.0000")
+    rate_pct = Decimal("1.00")
+    fiscal_year = factory.SubFactory(AccFiscalYearFactory, tenant=factory.SelfAttribute("..tenant"))
+    amount_due_mga = Decimal("100000.0000")
