@@ -23,11 +23,13 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from ninja import Router, Schema
+from ninja import File, Router, Schema
+from ninja.files import UploadedFile
 
 from apps.core.services.permissions import require_permission
 from apps.stocks.models import (
     StkDefectType,
+    StkImportRow,
     StkInventory,
     StkLocation,
     StkLot,
@@ -53,6 +55,12 @@ from apps.stocks.services.pickings import (
 )
 from apps.stocks.services.quality import set_quality_state
 from apps.stocks.services.quants import available_qty, on_hand_qty
+from apps.stocks.services.stock_import import (
+    import_stock_quantities_xlsx,
+)
+from apps.stocks.services.stock_import import (
+    resolve_import_row as resolve_stock_import_row,
+)
 from apps.stocks.services.traceability import lot_traceability
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
@@ -637,3 +645,75 @@ def consistency_report_endpoint(request):
             for row in rows
         ]
     }
+
+
+# ---------------------------------------------------------------------------
+# Import quantites initiales depuis Excel (cf. docs/IMPORT_FORMATS.md)
+# ---------------------------------------------------------------------------
+
+
+class StockImportRowResolveIn(Schema):
+    variant_code: str | None = None
+    warehouse_id: str | None = None
+    location_id: str | None = None
+    qty: Decimal | None = None
+    discard: bool = False
+
+
+def _serialize_stock_import_row(row: StkImportRow) -> dict:
+    return {
+        "id": str(row.id),
+        "row_number": row.row_number,
+        "status": row.status,
+        "anomaly_codes": row.anomaly_codes,
+        "move_id": str(row.move_id) if row.move_id else None,
+    }
+
+
+@router.post("/stocks/imports/initial-quantities")
+@require_permission("stocks.add_stkimportbatch")
+def import_stock_quantities_endpoint(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import xlsx des quantites initiales de stock — cf. docstring de
+    `services/stock_import.py`/`docs/IMPORT_FORMATS.md`. Meme idiome
+    multipart que `accounting.import_cash_journal_endpoint`."""
+    tenant = _tenant(request)
+    try:
+        summary = import_stock_quantities_xlsx(tenant, file.read(), filename=file.name)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    anomaly_rows = summary.batch.rows.filter(status=StkImportRow.STATUS_ANOMALY)
+    return {
+        "batch_id": str(summary.batch.id),
+        "total_rows": summary.total_rows,
+        "ok_count": summary.ok_count,
+        "anomaly_count": summary.anomaly_count,
+        "anomaly_rows": [_serialize_stock_import_row(row) for row in anomaly_rows],
+    }
+
+
+@router.post("/stocks/imports/initial-quantities/rows/{row_id}/resolve")
+@require_permission("stocks.change_stkimportrow")
+def resolve_stock_import_row_endpoint(request, row_id: str, payload: StockImportRowResolveIn):
+    """Applique `resolve_import_row` — corrige (variante/entrepot/
+    emplacement/quantite) ou ecarte volontairement une ligne en anomalie.
+    Jamais de resolution devinee : les valeurs corrigees viennent toujours
+    d'une action humaine explicite."""
+    row = get_object_or_404(StkImportRow, id=row_id)
+    warehouse = (
+        get_object_or_404(StkWarehouse, id=payload.warehouse_id) if payload.warehouse_id else None
+    )
+    location = (
+        get_object_or_404(StkLocation, id=payload.location_id) if payload.location_id else None
+    )
+    resolved = resolve_stock_import_row(
+        row,
+        variant_code=payload.variant_code,
+        warehouse=warehouse,
+        location=location,
+        qty=payload.qty,
+        discard=payload.discard,
+    )
+    return _serialize_stock_import_row(resolved)

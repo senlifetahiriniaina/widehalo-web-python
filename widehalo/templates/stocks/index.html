@@ -18,6 +18,7 @@
     <a href="{% url 'stocks:abc_view' %}">{% trans "Classification ABC" %}</a>
     <a href="{% url 'stocks:reports_index' %}">{% trans "Rapports" %}</a>
     <a href="{% url 'stocks:config_index' %}">{% trans "Configuration" %}</a>
+    <a href="{% url 'stocks:imports_index' %}">{% trans "Import quantités initiales" %}</a>
   </nav>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

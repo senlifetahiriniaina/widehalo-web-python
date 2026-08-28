@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Import des quantités initiales" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Import des quantités initiales de stock" %}</h1>
+  <p>{% trans "Format attendu : colonnes Variant_code/Warehouse_code/Location_code/Qty/Unit_cost_mga/Lot_reference — voir docs/IMPORT_FORMATS.md." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="file">{% trans "Fichier xlsx" %}</label>
+      <input id="file" type="file" name="file" accept=".xlsx" required>
+    </div>
+    <button type="submit">{% trans "Importer" %}</button>
+  </form>
+
+  {% if summary %}
+    <h2>{% trans "Résultat" %}</h2>
+    <ul>
+      <li>{% blocktrans with count=summary.ok_count %}{{ count }} ligne(s) importée(s){% endblocktrans %}</li>
+      <li>{% blocktrans with count=summary.anomaly_count %}{{ count }} ligne(s) en anomalie, à corriger{% endblocktrans %}</li>
+    </ul>
+    <a href="{% url 'stocks:imports_batch_detail' summary.batch.id %}">{% trans "Consulter le détail des lignes" %}</a>
+  {% endif %}
+
+  <h2>{% trans "Lots d'import récents" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Fichier" %}</th>
+        <th>{% trans "Lignes" %}</th>
+        <th>{% trans "Anomalies" %}</th>
+        <th>{% trans "Appliquées" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for batch in batches %}
+        <tr>
+          <td>{{ batch.created_at }}</td>
+          <td>{{ batch.source_filename|default:"—" }}</td>
+          <td>{{ batch.total_rows }}</td>
+          <td>{{ batch.anomaly_rows_count }}</td>
+          <td>{{ batch.applied_rows_count }}</td>
+          <td><a href="{% url 'stocks:imports_batch_detail' batch.id %}">{% trans "Détail" %}</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun import." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

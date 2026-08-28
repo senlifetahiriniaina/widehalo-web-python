@@ -13,6 +13,8 @@ from django.utils import timezone
 from apps.stocks.models import (
     StkAbcClassification,
     StkDefectType,
+    StkImportBatch,
+    StkImportRow,
     StkInventory,
     StkInventoryLine,
     StkLocation,
@@ -216,3 +218,21 @@ class StkAbcClassificationFactory(factory.django.DjangoModelFactory):
     abc_class = StkAbcClassification.CLASS_A
     consumption_value_mga = Decimal("0")
     computed_at = factory.LazyFunction(timezone.now)
+
+
+class StkImportBatchFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkImportBatch
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    kind = StkImportBatch.KIND_INITIAL_QUANTITIES
+    format_version = 1
+
+
+class StkImportRowFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkImportRow
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    batch = factory.SubFactory(StkImportBatchFactory, tenant=factory.SelfAttribute("..tenant"))
+    row_number = factory.Sequence(lambda n: n + 1)
