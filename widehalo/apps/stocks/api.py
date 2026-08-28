@@ -1,9 +1,23 @@
-"""API django-ninja du module `stocks` (§5.8.6) — ST1 : entrepots
+"""API django-ninja du module `stocks` (§5.8.6). ST1 : entrepots
 (`StkWarehouse`), emplacements (`StkLocation`), types de defaut
-(`StkDefectType`). Montee sous `/api/v1/stocks` via `config/api.py`."""
+(`StkDefectType`). ST8 (cf. plan) : quants, mouvements (+validation/
+annulation), pickings (+validation), mesures, etats qualite, inventaires
+(+validation), tracabilite, disponibilite, rapport de coherence — §5.8.6
+liste ces endpoints litteralement. Montee sous `/api/v1/stocks` via
+`config/api.py`.
+
+**Endpoints de transition non listes explicitement par le CDC (moves
+validate/cancel, pickings ready/validate)** : ajoutes par symetrie avec
+CHAQUE autre entite porteuse d'un cycle de vie de ce depot
+(`PurOrder`/`SalesOrder`/`MrpOrder`...), qui expose systematiquement ses
+transitions via l'API — meme discipline documentee explicitement par la
+consigne de ce lot ("la liste du CDC ne montre pas d'action
+valider/annuler explicite, mirroir la convention" ST8)."""
 
 from __future__ import annotations
 
+import datetime as dt
+import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -12,8 +26,34 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
 from apps.core.services.permissions import require_permission
-from apps.stocks.models import StkDefectType, StkLocation, StkWarehouse
+from apps.stocks.models import (
+    StkDefectType,
+    StkInventory,
+    StkLocation,
+    StkLot,
+    StkMove,
+    StkPicking,
+    StkQuant,
+    StkWarehouse,
+)
+from apps.stocks.services.consistency import production_consistency_report
 from apps.stocks.services.defect_types import create_defect_type
+from apps.stocks.services.inventory import (
+    add_inventory_line,
+    create_inventory,
+    validate_inventory,
+)
+from apps.stocks.services.measurements import record_measurement
+from apps.stocks.services.moves import cancel_move, create_move, validate_move
+from apps.stocks.services.pickings import (
+    add_picking_line,
+    create_picking,
+    mark_picking_ready,
+    validate_picking,
+)
+from apps.stocks.services.quality import set_quality_state
+from apps.stocks.services.quants import available_qty, on_hand_qty
+from apps.stocks.services.traceability import lot_traceability
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
 router = Router(tags=["stocks"])
@@ -168,3 +208,432 @@ def create_defect_type_endpoint(request, payload: DefectTypeIn):
         default_action=payload.default_action,
     )
     return _serialize_defect_type(defect_type)
+
+
+# ---------------------------------------------------------------------------
+# ST8 (§5.8.6) : quants, mouvements, pickings, mesures, etats qualite,
+# inventaires, tracabilite, disponibilite, rapport de coherence.
+# ---------------------------------------------------------------------------
+
+
+class MoveIn(Schema):
+    variant_id: str
+    qty: Decimal
+    uom: str = ""
+    location_from_id: str
+    location_to_id: str
+    date: str
+    move_type: str
+    source_document: str = ""
+    unit_cost_mga: Decimal = Decimal(0)
+    lot_id: str | None = None
+
+
+class PickingIn(Schema):
+    type: str
+    location_from_id: str
+    location_to_id: str
+    partner_id: str | None = None
+    date_scheduled: str | None = None
+    source_document: str = ""
+    carrier: str = ""
+    tracking: str = ""
+
+
+class PickingLineIn(Schema):
+    variant_id: str
+    qty: Decimal
+    uom: str = ""
+    unit_cost_mga: Decimal = Decimal(0)
+    lot_id: str | None = None
+
+
+class MeasurementIn(Schema):
+    type: str
+    value: Decimal
+    uom: str = ""
+    theoretical_value: Decimal | None = None
+    device: str = ""
+    partner_id_for_dispute: str | None = None
+
+
+class QualityStateIn(Schema):
+    quant_id: str | None = None
+    lot_id: str | None = None
+    state: str
+    defect_type_id: str | None = None
+    defect_qty: Decimal = Decimal(0)
+    description: str = ""
+
+
+class InventoryIn(Schema):
+    warehouse_id: str
+    date: str
+    type: str = StkInventory.TYPE_PONCTUEL
+
+
+class InventoryLineIn(Schema):
+    variant_id: str
+    location_id: str
+    lot_id: str | None = None
+
+
+def _serialize_move(move: StkMove) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(move.id),
+        "reference": move.reference,
+        "variant_id": str(move.variant_id),
+        "lot_id": str(move.lot_id) if move.lot_id else None,
+        "qty": move.qty,
+        "uom": move.uom,
+        "location_from_id": str(move.location_from_id),
+        "location_to_id": str(move.location_to_id),
+        "date": move.date,
+        "state": move.state,
+        "move_type": move.move_type,
+        "source_document": move.source_document,
+        "unit_cost_mga": move.unit_cost_mga,
+        "value_mga": move.value_mga,
+    }
+
+
+def _serialize_picking(picking: StkPicking) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(picking.id),
+        "reference": picking.reference,
+        "type": picking.type,
+        "state": picking.state,
+        "location_from_id": str(picking.location_from_id),
+        "location_to_id": str(picking.location_to_id),
+        "partner_id": str(picking.partner_id) if picking.partner_id else None,
+    }
+
+
+def _tenant(request):  # type: ignore[no-untyped-def]
+    from apps.core.models.tenant import Tenant
+
+    return Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+
+
+@router.get("/stocks/quants")
+@require_permission("stocks.view_stkquant")
+def list_quants(
+    request, variant: str | None = None, location: str | None = None, lot: str | None = None
+):  # noqa: E501
+    quants = StkQuant.objects.all()
+    if variant:
+        quants = quants.filter(variant_id=variant)
+    if location:
+        quants = quants.filter(location_id=location)
+    if lot:
+        quants = quants.filter(lot_id=lot)
+    return {
+        "results": [
+            {
+                "id": str(quant.id),
+                "variant_id": str(quant.variant_id),
+                "location_id": str(quant.location_id),
+                "lot_id": str(quant.lot_id) if quant.lot_id else None,
+                "qty": quant.qty,
+                "qty_reserved": quant.qty_reserved,
+                "unit_cost_mga": quant.unit_cost_mga,
+                "value_mga": quant.value_mga,
+            }
+            for quant in quants
+        ]
+    }
+
+
+@router.get("/stocks/moves")
+@require_permission("stocks.view_stkmove")
+def list_moves(request):
+    moves = StkMove.objects.all().order_by("-date", "-created_at")
+    return {"results": [_serialize_move(move) for move in moves]}
+
+
+@router.post("/stocks/moves")
+@require_permission("stocks.add_stkmove")
+def create_move_endpoint(request, payload: MoveIn):
+    tenant = _tenant(request)
+    lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
+    try:
+        move = create_move(
+            tenant=tenant,
+            variant_id=uuid.UUID(payload.variant_id),
+            qty=payload.qty,
+            uom=payload.uom,
+            location_from=get_object_or_404(StkLocation, id=payload.location_from_id),
+            location_to=get_object_or_404(StkLocation, id=payload.location_to_id),
+            date=dt.date.fromisoformat(payload.date),
+            move_type=payload.move_type,
+            source_document=payload.source_document,
+            unit_cost_mga=payload.unit_cost_mga,
+            lot=lot,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_move(move)
+
+
+@router.post("/stocks/moves/{move_id}/validate")
+@require_permission("stocks.change_stkmove")
+def validate_move_endpoint(request, move_id: str):
+    move = get_object_or_404(StkMove, id=move_id)
+    try:
+        validate_move(move)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_move(move)
+
+
+@router.post("/stocks/moves/{move_id}/cancel")
+@require_permission("stocks.change_stkmove")
+def cancel_move_endpoint(request, move_id: str, reason: str = ""):
+    move = get_object_or_404(StkMove, id=move_id)
+    try:
+        cancel_move(move, reason=reason)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_move(move)
+
+
+@router.get("/stocks/pickings")
+@require_permission("stocks.view_stkpicking")
+def list_pickings(request):
+    pickings = StkPicking.objects.all().order_by("-created_at")
+    return {"results": [_serialize_picking(picking) for picking in pickings]}
+
+
+@router.post("/stocks/pickings")
+@require_permission("stocks.add_stkpicking")
+def create_picking_endpoint(request, payload: PickingIn):
+    tenant = _tenant(request)
+    try:
+        picking = create_picking(
+            tenant=tenant,
+            type=payload.type,
+            location_from=get_object_or_404(StkLocation, id=payload.location_from_id),
+            location_to=get_object_or_404(StkLocation, id=payload.location_to_id),
+            partner_id=uuid.UUID(payload.partner_id) if payload.partner_id else None,
+            date_scheduled=dt.date.fromisoformat(payload.date_scheduled)
+            if payload.date_scheduled
+            else None,
+            source_document=payload.source_document,
+            carrier=payload.carrier,
+            tracking=payload.tracking,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_picking(picking)
+
+
+@router.post("/stocks/pickings/{picking_id}/lines")
+@require_permission("stocks.change_stkpicking")
+def add_picking_line_endpoint(request, picking_id: str, payload: PickingLineIn):
+    picking = get_object_or_404(StkPicking, id=picking_id)
+    lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
+    try:
+        add_picking_line(
+            picking,
+            variant_id=uuid.UUID(payload.variant_id),
+            qty=payload.qty,
+            uom=payload.uom,
+            unit_cost_mga=payload.unit_cost_mga,
+            lot=lot,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_picking(picking)
+
+
+@router.post("/stocks/pickings/{picking_id}/ready")
+@require_permission("stocks.change_stkpicking")
+def picking_ready_endpoint(request, picking_id: str):
+    picking = get_object_or_404(StkPicking, id=picking_id)
+    try:
+        mark_picking_ready(picking)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_picking(picking)
+
+
+@router.post("/stocks/pickings/{picking_id}/validate")
+@require_permission("stocks.change_stkpicking")
+def picking_validate_endpoint(request, picking_id: str):
+    picking = get_object_or_404(StkPicking, id=picking_id)
+    try:
+        validate_picking(picking)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_picking(picking)
+
+
+@router.post("/stocks/measurements")
+@require_permission("stocks.add_stkmeasurement")
+def create_measurement_endpoint(request, payload: MeasurementIn):
+    tenant = _tenant(request)
+    try:
+        measurement = record_measurement(
+            tenant=tenant,
+            type=payload.type,
+            value=payload.value,
+            uom=payload.uom,
+            theoretical_value=payload.theoretical_value,
+            device=payload.device,
+            partner_id_for_dispute=uuid.UUID(payload.partner_id_for_dispute)
+            if payload.partner_id_for_dispute
+            else None,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {
+        "id": str(measurement.id),
+        "type": measurement.type,
+        "value": measurement.value,
+        "variance_pct": measurement.variance_pct,
+    }
+
+
+@router.post("/stocks/quality-states")
+@require_permission("stocks.add_stkqualitystate")
+def create_quality_state_endpoint(request, payload: QualityStateIn):
+    tenant = _tenant(request)
+    quant = get_object_or_404(StkQuant, id=payload.quant_id) if payload.quant_id else None
+    lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
+    defect_type = (
+        get_object_or_404(StkDefectType, id=payload.defect_type_id)
+        if payload.defect_type_id
+        else None
+    )
+    try:
+        quality_state = set_quality_state(
+            tenant=tenant,
+            quant=quant,
+            lot=lot,
+            state=payload.state,
+            defect_type=defect_type,
+            defect_qty=payload.defect_qty,
+            description=payload.description,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {"id": str(quality_state.id), "state": quality_state.state}
+
+
+@router.get("/stocks/inventories")
+@require_permission("stocks.view_stkinventory")
+def list_inventories(request):
+    inventories = StkInventory.objects.all().order_by("-date")
+    return {
+        "results": [
+            {
+                "id": str(inventory.id),
+                "reference": inventory.reference,
+                "warehouse_id": str(inventory.warehouse_id),
+                "date": inventory.date,
+                "type": inventory.type,
+                "state": inventory.state,
+            }
+            for inventory in inventories
+        ]
+    }
+
+
+@router.post("/stocks/inventories")
+@require_permission("stocks.add_stkinventory")
+def create_inventory_endpoint(request, payload: InventoryIn):
+    tenant = _tenant(request)
+    warehouse = get_object_or_404(StkWarehouse, id=payload.warehouse_id)
+    inventory = create_inventory(
+        tenant=tenant,
+        warehouse=warehouse,
+        date=dt.date.fromisoformat(payload.date),
+        type=payload.type,
+    )
+    return {"id": str(inventory.id), "reference": inventory.reference, "state": inventory.state}
+
+
+@router.post("/stocks/inventories/{inventory_id}/lines")
+@require_permission("stocks.change_stkinventory")
+def add_inventory_line_endpoint(request, inventory_id: str, payload: InventoryLineIn):
+    inventory = get_object_or_404(StkInventory, id=inventory_id)
+    location = get_object_or_404(StkLocation, id=payload.location_id)
+    lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
+    try:
+        line = add_inventory_line(
+            inventory, variant_id=uuid.UUID(payload.variant_id), location=location, lot=lot
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {"id": str(line.id), "qty_theoretical": line.qty_theoretical}
+
+
+@router.post("/stocks/inventories/{inventory_id}/validate")
+@require_permission("stocks.change_stkinventory")
+def validate_inventory_endpoint(request, inventory_id: str):
+    inventory = get_object_or_404(StkInventory, id=inventory_id)
+    try:
+        validate_inventory(inventory, validated_by=request.auth)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {"id": str(inventory.id), "state": inventory.state}
+
+
+@router.get("/stocks/traceability/{lot_id}")
+@require_permission("stocks.view_stklot")
+def traceability_endpoint(request, lot_id: str):
+    lot = get_object_or_404(StkLot, id=lot_id)
+    data = lot_traceability(lot)
+    return {
+        "lot": {
+            "id": str(data["lot"]["id"]),
+            "name": data["lot"]["name"],
+            "variant_id": str(data["lot"]["variant_id"]),
+        },
+        "upstream": [{**row, "move_id": str(row["move_id"])} for row in data["upstream"]],
+        "downstream": [{**row, "move_id": str(row["move_id"])} for row in data["downstream"]],
+        "current_locations": data["current_locations"],
+    }
+
+
+@router.get("/stocks/availability")
+@require_permission("stocks.view_stkquant")
+def availability_endpoint(
+    request, variant: str, qty: Decimal | None = None, date: str | None = None
+):
+    """`date` accepte pour coller a la liste d'endpoints du CDC (§5.8.6)
+    MAIS n'a aucune signification exploitable ici : `StkQuant` est une
+    PHOTO INSTANTANEE (cf. sa docstring dans `models.py`), pas un historique
+    de disponibilite reconstituable a une date passee — seule la
+    disponibilite COURANTE est reellement calculee, `date` est acceptee
+    (pour rester compatible avec l'appelant) mais IGNOREE. Documente ici
+    honnetement plutot que de repondre silencieusement une valeur fausse
+    pour une date passee."""
+    variant_id = uuid.UUID(variant)
+    return {
+        "variant_id": variant,
+        "on_hand_qty": on_hand_qty(variant_id),
+        "available_qty": available_qty(variant_id),
+        "requested_qty": qty,
+        "date_ignored": date is not None,
+    }
+
+
+@router.get("/stocks/consistency-report")
+@require_permission("stocks.view_stkmove")
+def consistency_report_endpoint(request):
+    tenant = _tenant(request)
+    rows = production_consistency_report(tenant)
+    return {
+        "results": [
+            {
+                "order_id": str(row["order_id"]),
+                "order_reference": row["order_reference"],
+                "qty_declared": row["qty_declared"],
+                "qty_entered_stock": row["qty_entered_stock"],
+                "variance": row["variance"],
+                "anomaly": row["anomaly"],
+            }
+            for row in rows
+        ]
+    }

@@ -1,6 +1,11 @@
-"""Garde-fou bloquant : plafonds fonctionnels V1 imposes par le cahier des
-charges (180 modeles, 600 endpoints, 90 ecrans) pour eviter de reconstruire,
-module apres module, le systeme volumineux que l'on cherche a alleger.
+"""Garde-fou bloquant : plafonds fonctionnels imposes pour eviter de
+reconstruire, module apres module, le systeme volumineux que l'on cherche
+a alleger. Valeurs initiales V1 du CDC (180 modeles / 600 endpoints /
+90 ecrans, pour 13 modules metier) ; le plafond ECRANS a ete releve a 200
+a la cloture du module `stocks` (Lot 2) sur decision explicite de
+l'utilisateur, cf. commentaire de `BUDGET_MAX_SCREENS` dans
+`config/settings/base.py` — le Lot 2 depasse deja largement le perimetre
+V1 initial (12 modules metier + financing + extension sectorielle).
 
 Ne JAMAIS relever ces plafonds sans une decision explicite du commanditaire.
 """

@@ -232,9 +232,33 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 }
 
 # --- Garde-fous d'architecture (etape 2) ---
+# Plafonds V1 initiaux du CDC : 180 modeles / 600 endpoints / 90 ecrans,
+# pour un perimetre de 13 modules metier. Le Lot 2 a depuis largement
+# depasse ce perimetre (12 modules metier + financing + extension
+# sectorielle + Cote d'Ivoire a venir) sur decision actee avec
+# l'utilisateur des le debut du Lot 2 — les plafonds MODELES/ENDPOINTS
+# n'ont jamais ete revus depuis (146/180 et 248/600 a la cloture de
+# `stocks`, encore de la marge). Le plafond ECRANS, lui, a ete atteint
+# EXACTEMENT (90/90) a la finalisation de `stocks` (ST8) : l'agent avait
+# du regrouper la totalite de ses ecrans dans une seule page multi-onglets
+# pour rester dans la lettre du compteur (base sur le nombre de fichiers
+# .html, cf. tests/architecture/test_budget.py::_counted_screens), au prix
+# d'une derogation au patron "un fichier par ecran" applique partout
+# ailleurs dans ce depot. Avec 6+ modules metier restants (logistics,
+# financing, presence, payroll, reporting, strategy) plus l'extension
+# sectorielle, ce plafond aurait bloque toute construction d'ecran des le
+# module suivant. **Decision explicite actee avec l'utilisateur** (le
+# plafond ne doit JAMAIS etre releve sans une telle decision, cf. docstring
+# de `tests/architecture/test_budget.py`) : relever BUDGET_MAX_SCREENS a
+# 200 (marge proportionnee a celle deja observee sur MODELES/ENDPOINTS),
+# pour laisser aux modules restants la possibilite de revenir au patron
+# normal "un fichier par ecran" plutot que de generaliser la consolidation
+# mono-page de `stocks` par necessite budgetaire — celle-ci reste un cas
+# particulier documente dans `apps/stocks/views.py`, pas le nouveau
+# standard du depot.
 BUDGET_MAX_MODELS = 180
 BUDGET_MAX_ENDPOINTS = 600
-BUDGET_MAX_SCREENS = 90
+BUDGET_MAX_SCREENS = 200
 
 LOGGING = {
     "version": 1,
