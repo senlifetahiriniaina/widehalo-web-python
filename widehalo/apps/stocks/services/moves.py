@@ -20,7 +20,27 @@ ne cree ni ne consomme aucune couche (la valeur ne change pas de
 perimetre), un mouvement virtuel->virtuel non plus (aucun des deux cotes
 n'est un stock reellement possede). C'est un perimetre distinct de la
 materialisation des `StkQuant` (RG-STK-1), qui elle couvre TOUS les
-emplacements sans exception."""
+emplacements sans exception.
+
+**Ajustement ST3 (RG-STK-7) : `TYPE_REBUT` compte comme "interne" pour ce
+perimetre de valorisation.** RG-STK-7 exige qu'une quantite passee en
+`defaut_majeur`/`rebut` "reste valorisee jusqu'a decision" — un transfert
+vers un emplacement `TYPE_REBUT` ne doit donc PAS etre traite comme une
+sortie reelle du perimetre trace (ce qui consommerait des couches FIFO et
+ferait disparaitre la valeur des `StkValuationLayer`), contrairement a ce
+qu'un simple `type == TYPE_INTERNE` donnerait (`TYPE_REBUT` est un type
+distinct de `TYPE_INTERNE` dans `StkLocation.TYPE_CHOICES`, cf. ST1). La
+fonction privee `_is_valuation_internal` ci-dessous porte cette exception,
+UNIQUEMENT pour cette classification interne/externe de `validate_move` —
+elle ne change rien a RG-STK-1 (materialisation des quants, qui reste
+inconditionnelle sur tous les types de `StkLocation`) ni au CHECK DB/garde
+`create_move` (RG-STK-1 stricte, non touchee). `TYPE_INVENTAIRE` (reutilise
+en ST3 comme emplacement de quarantaine faute de type dedie, cf.
+`services/quality.py`) n'a PAS besoin du meme traitement : une quarantaine
+(`en_quarantaine`) ne declenche aucun `StkMove` dans le perimetre ST3 (cf.
+`apply_quality_decision`), donc aucun cas reel n'exercerait cette branche
+pour `TYPE_INVENTAIRE` — extension non faite faute de besoin demontre,
+plutot qu'ajoutee par precaution."""
 
 from __future__ import annotations
 
@@ -56,6 +76,17 @@ def _ratio_or_none(numerator: Decimal, denominator: Decimal) -> Decimal | None:
     if denominator == 0:
         return None
     return numerator / denominator
+
+
+def _is_valuation_internal(location: StkLocation) -> bool:
+    """Perimetre "interne" au sens VALORISATION (RG-STK-2/RG-STK-7),
+    distinct du filtre `StkLocation.type == TYPE_INTERNE` utilise ailleurs
+    (ex. `services.quants.on_hand_qty`, qui lui reste volontairement
+    inchange — "stock physique disponible" et "perimetre de valorisation"
+    sont deux notions differentes qui n'ont pas a co-evoluer). Inclut
+    `TYPE_REBUT` en plus de `TYPE_INTERNE` : cf. docstring de module
+    ci-dessus (ajustement ST3, RG-STK-7)."""
+    return location.type in (StkLocation.TYPE_INTERNE, StkLocation.TYPE_REBUT)
 
 
 def _quantize_mga(value: Decimal) -> Decimal:
@@ -208,8 +239,8 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIF
             _("Methode de valorisation inconnue : %(method)s") % {"method": valuation_method}
         )
 
-    to_internal = move.location_to.type == StkLocation.TYPE_INTERNE
-    from_internal = move.location_from.type == StkLocation.TYPE_INTERNE
+    to_internal = _is_valuation_internal(move.location_to)
+    from_internal = _is_valuation_internal(move.location_from)
 
     # RG-STK-2 : la couche/valeur consommee ou creee determine le
     # `value_delta` EXACT applique symetriquement aux deux quants (RG-STK-1)

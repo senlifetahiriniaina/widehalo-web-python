@@ -9,9 +9,17 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 
-from apps.catalog.models import ProductSupplierInfo, ProductTemplate, ProductVariant, UnitOfMeasure
+from apps.catalog.models import (
+    ProductSupplierInfo,
+    ProductTemplate,
+    ProductVariant,
+    TextileSpec,
+    UnitOfMeasure,
+)
 from apps.catalog.services.public import (
+    convert_textile_measurement,
     get_supplier_lead_time_days,
     get_variant_template_id,
     select_preferred_supplier,
@@ -153,3 +161,51 @@ def test_select_preferred_supplier_returns_none_for_unknown_variant(variant_setu
     tenant, _template, _variant = variant_setup
     with use_tenant(tenant.id):
         assert select_preferred_supplier(uuid.uuid4()) is None
+
+
+# RG-STK-5 (gap ST3 du sous-sequencement `stocks`) : conversion m/kg textile.
+def test_convert_textile_measurement_round_trips_length_to_weight_and_back(variant_setup) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        TextileSpec.objects.create(
+            tenant=tenant, variant=variant, weight_gsm=Decimal("200"), width_cm=Decimal("150")
+        )
+
+        result = convert_textile_measurement(variant.id, length_m=Decimal("100"))
+        assert result is not None
+        # 100 m * 1.5 m * 200 g/m2 = 30000 g = 30 kg.
+        assert result["weight_kg"] == Decimal("30")
+        assert result["length_m"] == Decimal("100")
+
+        back = convert_textile_measurement(variant.id, weight_kg=result["weight_kg"])
+        assert back is not None
+        assert back["length_m"] == Decimal("100")
+        assert back["weight_kg"] == Decimal("30")
+
+
+def test_convert_textile_measurement_returns_none_without_textile_spec(variant_setup) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        assert convert_textile_measurement(variant.id, length_m=Decimal("10")) is None
+
+
+def test_convert_textile_measurement_returns_none_when_dimensions_missing(variant_setup) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        TextileSpec.objects.create(tenant=tenant, variant=variant)
+        assert convert_textile_measurement(variant.id, length_m=Decimal("10")) is None
+
+
+def test_convert_textile_measurement_returns_none_for_unknown_variant(variant_setup) -> None:
+    tenant, _template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        assert convert_textile_measurement(uuid.uuid4(), length_m=Decimal("10")) is None
+
+
+def test_convert_textile_measurement_refuses_both_or_neither(variant_setup) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        with pytest.raises(ValidationError):
+            convert_textile_measurement(variant.id)
+        with pytest.raises(ValidationError):
+            convert_textile_measurement(variant.id, length_m=Decimal("1"), weight_kg=Decimal("1"))

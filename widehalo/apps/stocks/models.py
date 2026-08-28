@@ -490,3 +490,162 @@ class StkValuationLayer(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} +{self.qty}@{self.unit_cost_mga} (reste {self.remaining_qty})"
+
+
+# ST3 (cf. plan, §5.8) : `StkMeasurement` (RG-STK-4, mesures physiques) et
+# `StkQualityState` (RG-STK-7, defauts/etats qualite). Toutes deux
+# consomment le referentiel `StkDefectType` (ST1) et le coeur `StkMove`/
+# `StkQuant` (ST2), et sont, comme `StkQuant`/`StkValuationLayer`, des
+# enregistrements d'evenement/de classification derives — pas de
+# `ReferenceMixin` sur l'une ou l'autre (le CDC ne liste pas de champ
+# "reference" sequence dans le tableau §5.8 pour ces deux entites,
+# contrairement a `StkMove`).
+
+
+class StkMeasurement(BaseModel):
+    """Mesure physique (RG-STK-4, §5.8, ST3) — poids/longueur/largeur/
+    surface/epaisseur relevee sur un mouvement ou un quant, avec ecart
+    calcule contre une valeur theorique quand elle est fournie.
+
+    **`move`/`quant` (tous deux nullables, `on_delete=SET_NULL`)** : le CDC
+    dit "move OU quant" (§5.8, entite `stk_measurement`). Contrairement a
+    `StkQualityState.quant`/`lot` ci-dessous, PAS de contrainte XOR stricte
+    en base ici — une mesure est d'abord un enregistrement d'evenement
+    factuel ("on a mesure X a tel instant"), pas une decision de
+    classification qui engagerait un etat de stock : rien n'empeche
+    metier-parlant une mesure de reference sans mouvement ni quant precis
+    (ex. controle d'un instrument, mesure d'echantillon hors contexte
+    stock), et rien n'empeche non plus une mesure qui documente A LA FOIS
+    le mouvement qui l'a genere ET le quant qu'elle affecte. Une vraie XOR
+    ici serait une contrainte inventee au-dela de ce que le CDC exige.
+
+    **"Quantite mesuree, jamais theorique" (RG-STK-4, acceptance test
+    §5.8.7 n°3)** : ce n'est PAS ce modele qui applique cette regle — c'est
+    une discipline d'appel de `services.moves.create_move` (cf. docstring
+    `services/measurements.py`). `StkMeasurement` se contente d'enregistrer
+    fidelement la valeur mesuree (`value`) et, le cas echeant, l'ecart
+    (`variance_pct`) contre une theorique passee en parametre au moment du
+    calcul (jamais stockee ici — seul l'ecart en pourcentage l'est).
+
+    `photo_document_id` (UUID nu, singulier) : le CDC (§5.8, tableau
+    `stk_measurement`) liste un champ `photo` au SINGULIER — a la
+    difference de `stk_quality_state.photos[]` (pluriel) ci-dessous, une
+    seule photo est prevue pour une mesure. Meme convention "UUID nu vers
+    `core.Document`, jamais de FK Django" que `StkLot.certificate_document_id`."""
+
+    TYPE_POIDS = "poids"
+    TYPE_LONGUEUR = "longueur"
+    TYPE_LARGEUR = "largeur"
+    TYPE_SURFACE = "surface"
+    TYPE_EPAISSEUR = "epaisseur"
+    TYPE_CHOICES = [
+        (TYPE_POIDS, "Poids"),
+        (TYPE_LONGUEUR, "Longueur"),
+        (TYPE_LARGEUR, "Largeur"),
+        (TYPE_SURFACE, "Surface"),
+        (TYPE_EPAISSEUR, "Epaisseur"),
+    ]
+
+    move = models.ForeignKey(
+        StkMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="measurements"
+    )
+    quant = models.ForeignKey(
+        StkQuant, null=True, blank=True, on_delete=models.SET_NULL, related_name="measurements"
+    )
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    value = models.DecimalField(max_digits=18, decimal_places=4)
+    # Pas de FK `catalog.UnitOfMeasure` (regle de couplage n1), meme
+    # discipline que `StkQuant.uom`/`StkMove.uom`.
+    uom = models.CharField(max_length=16, blank=True)
+    # Instrument de mesure utilise — texte libre, aucun referentiel
+    # d'instruments dans le perimetre du CDC.
+    device = models.CharField(max_length=120, blank=True)
+    measured_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    measured_at = models.DateTimeField()
+    # Ecart en % contre une valeur theorique, calcule par
+    # `services.measurements.record_measurement` — `None` quand aucune
+    # theorique n'a ete fournie a l'appel (pas toujours pertinent, ex.
+    # mesure d'inventaire sans quantite attendue).
+    variance_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    photo_document_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "stk_measurement"
+
+    def __str__(self) -> str:
+        return f"{self.type} = {self.value} {self.uom}"
+
+
+class StkQualityState(BaseModel):
+    """Etat de qualite/decision de classification (RG-STK-7, §5.8, ST3) sur
+    un `quant` ou un `lot` precis.
+
+    **`quant`/`lot` : XOR STRICT, applique par `services.quality.
+    set_quality_state`** (`ValidationError` si les deux sont `None` ou les
+    deux sont renseignes) — contrairement au traitement plus souple de
+    `StkMeasurement.move`/`quant` ci-dessus. Difference assumee : une
+    `StkQualityState` EST la decision de classification elle-meme
+    (conforme/defaut/rebut...) et doit toujours porter sans ambiguite sur
+    UNE unite de stock precise (soit un quant emplacement-par-emplacement,
+    soit un lot dans son ensemble) — une mesure, elle, ne fait
+    qu'enregistrer un fait, sans engager de decision, d'ou l'absence de
+    garde equivalente sur `StkMeasurement`.
+
+    **"Restant valorisee jusqu'a decision" (RG-STK-7)** : `defaut_majeur`/
+    `rebut` deplacent la quantite defectueuse vers un emplacement dedie
+    via un `StkMove` REEL (`services.quality.apply_quality_decision`,
+    reutilisant `services.moves` de ST2) plutot que de la faire
+    "disparaitre" — cf. docstring de ce service pour l'ajustement de
+    perimetre de valorisation necessaire dans `services.moves.validate_move`
+    (`TYPE_REBUT` traite comme "interne" au sens valorisation)."""
+
+    STATE_CONFORME = "conforme"
+    STATE_DEFAUT_MINEUR = "defaut_mineur"
+    STATE_DEFAUT_MAJEUR = "defaut_majeur"
+    STATE_REBUT = "rebut"
+    STATE_EN_QUARANTAINE = "en_quarantaine"
+    STATE_DECLASSE = "declasse"
+    STATE_CHOICES = [
+        (STATE_CONFORME, "Conforme"),
+        (STATE_DEFAUT_MINEUR, "Defaut mineur"),
+        (STATE_DEFAUT_MAJEUR, "Defaut majeur"),
+        (STATE_REBUT, "Rebut"),
+        (STATE_EN_QUARANTAINE, "En quarantaine"),
+        (STATE_DECLASSE, "Declasse"),
+    ]
+
+    quant = models.ForeignKey(
+        StkQuant, null=True, blank=True, on_delete=models.SET_NULL, related_name="quality_states"
+    )
+    lot = models.ForeignKey(
+        StkLot, null=True, blank=True, on_delete=models.SET_NULL, related_name="quality_states"
+    )
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_CONFORME)
+    defect_type = models.ForeignKey(
+        StkDefectType,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="quality_states",
+    )
+    defect_qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    description = models.TextField(blank=True)
+    # Liste JSON d'UUID `core.Document`, JAMAIS une FK Django/M2M — meme
+    # patron que `PurCri.attachment_document_ids`. Pluriel (`photos`) ici,
+    # a la difference du `photo_document_id` singulier de `StkMeasurement`
+    # ci-dessus : le CDC (§5.8, tableau `stk_quality_state`) liste
+    # explicitement `photos[]`.
+    photos = models.JSONField(default=list, blank=True)
+    decided_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "stk_quality_state"
+
+    def __str__(self) -> str:
+        target = self.quant_id or self.lot_id
+        return f"{self.state} @ {target}"

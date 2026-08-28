@@ -2,15 +2,14 @@ from apps.core.module import ModuleSpec
 
 MODULE = ModuleSpec(
     name="stocks",
-    # ST1 (cf. plan) ne consomme que `core.User` (FK manager de
-    # `StkWarehouse`, appartient au socle) — aucun import de
-    # `catalog.services.public` a ce stade malgre la dependance prevue au
-    # sous-sequencement complet (ST2+ : conversion m/kg RG-STK-5). Ne PAS
-    # declarer "catalog" tant qu'aucune fonction n'est reellement importee
-    # (discipline "ne declarer que ce qui est importe", identique a tous
-    # les modules precedents) — a ajouter en ST2/ST3 quand
-    # `catalog.services.public.get_variant_conversion`/equivalent sera
-    # effectivement utilise.
-    dependencies=("core",),
+    # "catalog" ajoute par ST3 (RG-STK-5, cf. plan) : premiere fois que
+    # `stocks` consomme `catalog.services.public.convert_textile_measurement`
+    # (`services/measurements.py`) — jamais `apps.catalog.models`.
+    # "purchase" ajoute par ST3 (RG-STK-4, cf. plan) : premiere fois que
+    # `stocks` consomme `purchase.services.public.open_purchase_incident`
+    # (`services/measurements.py`, ouverture automatique d'un litige
+    # fournisseur au-dela du seuil d'ecart de mesure) — jamais
+    # `apps.purchase.models`.
+    dependencies=("core", "catalog", "purchase"),
     verbose_name="Stocks",
 )

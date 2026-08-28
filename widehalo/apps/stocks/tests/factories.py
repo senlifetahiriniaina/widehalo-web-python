@@ -8,12 +8,15 @@ import uuid
 from decimal import Decimal
 
 import factory
+from django.utils import timezone
 
 from apps.stocks.models import (
     StkDefectType,
     StkLocation,
     StkLot,
+    StkMeasurement,
     StkMove,
+    StkQualityState,
     StkQuant,
     StkValuationLayer,
     StkWarehouse,
@@ -105,3 +108,24 @@ class StkValuationLayerFactory(factory.django.DjangoModelFactory):
     remaining_qty = Decimal("1")
     remaining_value_mga = Decimal("0")
     date = factory.LazyFunction(dt.date.today)
+
+
+class StkMeasurementFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkMeasurement
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    type = StkMeasurement.TYPE_LONGUEUR
+    value = Decimal("1")
+    uom = "m"
+    measured_at = factory.LazyFunction(timezone.now)
+
+
+class StkQualityStateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkQualityState
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    quant = factory.SubFactory(StkQuantFactory, tenant=factory.SelfAttribute("..tenant"))
+    state = StkQualityState.STATE_CONFORME
+    defect_qty = Decimal("0")

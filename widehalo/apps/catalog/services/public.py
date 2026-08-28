@@ -8,10 +8,18 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
-from apps.catalog.models import CatalogCertification, ProductSupplierInfo, ProductVariant
+from apps.catalog.models import (
+    CatalogCertification,
+    ProductSupplierInfo,
+    ProductVariant,
+    TextileSpec,
+)
 from apps.catalog.services.pricing import get_price
+from apps.catalog.services.textile import length_from_weight_kg, weight_kg_from_length
 
 
 def get_variant_price(variant_id: Any, *, partner_id: Any = None) -> Decimal:
@@ -124,6 +132,58 @@ def set_supplier_priority(
     if variant_ids is not None:
         queryset = queryset.filter(variant_id__in=variant_ids)
     return queryset.update(priority=priority)
+
+
+def convert_textile_measurement(
+    variant_id: Any, *, length_m: Decimal | None = None, weight_kg: Decimal | None = None
+) -> dict[str, Decimal] | None:
+    """Gap ajoute pour ST3 de `stocks` (RG-STK-5, cf. plan) : convertit une
+    mesure poids <-> longueur pour une variante textile a partir de son
+    `TextileSpec` (grammage/laize), resolu ICI et jamais transmis a
+    l'appelant — `stocks` ne doit jamais manipuler un objet `TextileSpec`
+    ni `ProductVariant` (regle de couplage n°1). Retourne les DEUX valeurs
+    (`length_m` et `weight_kg`), celle fournie par l'appelant renvoyee
+    telle quelle, l'autre calculee via `apps.catalog.services.textile`
+    (jamais de duplication de la formule de conversion dans `stocks`).
+
+    Exactement un des deux parametres doit etre fourni (`ValidationError`
+    i18n sinon — les deux a la fois ou aucun des deux n'a de sens pour une
+    conversion).
+
+    Retourne `None`, jamais une exception, si la variante n'existe pas, si
+    elle n'a pas de `TextileSpec`, ou si ce `TextileSpec` n'a pas les
+    dimensions necessaires (grammage/laize) — meme discipline "ne jamais
+    lever sur une simple absence de donnee" que `get_supplier_lead_time_days`
+    ci-dessus. `apps.catalog.services.textile._require_dimensions` leve une
+    `ValidationError` dans ce dernier cas precis : capturee ici plutot que
+    laissee se propager, pour ne pas exposer ce type d'exception a
+    l'appelant pour un cas qui n'est, de son point de vue, qu'une donnee
+    indisponible."""
+    if (length_m is None) == (weight_kg is None):
+        raise ValidationError(
+            _(
+                "Fournir exactement une mesure a convertir : soit la longueur (m), "
+                "soit le poids (kg), jamais les deux ni aucune des deux."
+            )
+        )
+    variant = ProductVariant.objects.filter(id=variant_id).first()
+    if variant is None:
+        return None
+    spec = TextileSpec.objects.filter(variant=variant).first()
+    if spec is None:
+        return None
+    try:
+        if length_m is not None:
+            weight_kg = weight_kg_from_length(spec, length_m)
+        else:
+            # Garanti non-`None` par la garde XOR ci-dessus (exactement un
+            # des deux est fourni) — assertion uniquement pour le
+            # narrowing mypy, jamais atteignable en pratique.
+            assert weight_kg is not None
+            length_m = length_from_weight_kg(spec, weight_kg)
+    except ValidationError:
+        return None
+    return {"length_m": length_m, "weight_kg": weight_kg}
 
 
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:
