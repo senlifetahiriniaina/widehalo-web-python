@@ -18,6 +18,6 @@ django-debug-toolbar>=4.4
 ipython>=8.28
 pytest-playwright>=0.5
 django-test-migrations>=1.4
-bandit>=1.7
+bandit[toml]>=1.7
 pip-audit>=2.7
 schemathesis>=3.30

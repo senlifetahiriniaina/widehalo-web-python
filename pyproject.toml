@@ -20,6 +20,20 @@ ignore = ["S101"]
 [tool.ruff.format]
 quote-style = "double"
 
+[tool.bandit]
+# B101 (assert_used) : "assert" est utilise dans ce depot exclusivement pour
+# le narrowing mypy APRES qu'une garde reelle (filtre queryset __isnull=False,
+# verification explicite) a deja garanti la condition a l'execution — jamais
+# comme mecanisme d'application d'une regle metier/securite (qui utilise
+# toujours ValidationError/PermissionDenied, jamais assert). Documente au cas
+# par cas dans le code (cf. commentaires "garanti par ... ci-dessus"), inutile
+# de repeter un "# nosec" a chaque occurrence future de ce meme patron etabli.
+# B105 (hardcoded_password_string) : mots de passe de comptes de DEMONSTRATION
+# uniquement (commandes seed_*), deja annotes `# noqa: S105` cote ruff — jamais
+# un secret de production. Meme raisonnement, evite de dupliquer l'annotation
+# pour chaque nouvelle commande seed_<module> a venir.
+skips = ["B101", "B105"]
+
 [tool.mypy]
 python_version = "3.12"
 plugins = ["mypy_django_plugin.main"]

@@ -1,11 +1,35 @@
--- Le role applicatif Django est deja cree via POSTGRES_USER (widehalo_app) par l'image postgres.
--- Les protections suivantes sont appliquees automatiquement par les migrations Django
--- (pas par ce script), car elles doivent survivre a une reinitialisation de la base :
---   - RLS FORCE sur toutes les tables heritant BaseModel, reappliquee a chaque migrate
---     (apps/core/management/commands/apply_rls.py, signal post_migrate).
---   - Immuabilite de core_audit_log via un TRIGGER Postgres (pas un simple REVOKE de
---     privileges, inefficace contre le proprietaire de la table) : voir la migration
---     core.0010_audit_log_immutable — le trigger rejette tout UPDATE/DELETE, y compris
---     pour le role proprietaire.
--- Rien a executer ici pour l'instant : cree pour que le point de montage /docker-entrypoint-initdb.d
--- existe et soit versionne des le squelette du depot.
+-- Le role applicatif Django est deja cree via POSTGRES_USER (widehalo_app) par
+-- l'image postgres officielle — MAIS cette image fait de ce role le SUPERUSER
+-- initial du cluster (createur de POSTGRES_DB, proprietaire de toutes les
+-- tables). Un superuser Postgres CONTOURNE TOUJOURS le RLS, y compris avec
+-- FORCE ROW LEVEL SECURITY sur les tables (FORCE ne s'applique qu'aux
+-- proprietaires non-superuser) — sans la restriction ci-dessous, l'isolation
+-- multi-tenant par RLS (etape 3, apps/core/models/base.py) serait un theatre
+-- de securite dans TOUT deploiement partant de cette image telle quelle
+-- (docker-compose local, CI, production Hetzner), meme si les migrations
+-- appliquent correctement FORCE ROW LEVEL SECURITY.
+--
+-- Bug reel trouve et corrige : ce fichier ne faisait jusqu'ici RIEN (voir
+-- historique git) — les tests d'isolation RLS (test_tenant_isolation.py)
+-- passaient dans les environnements de developpement de cette session
+-- uniquement parce que le role Postgres natif y avait ete cree manuellement
+-- SANS le privilege SUPERUSER, une configuration qui ne reflete PAS ce que
+-- docker-compose/CI produisent reellement avec cette image. Corrige ici pour
+-- que la restriction soit appliquee automatiquement partout ou ce script
+-- s'execute (docker-compose.yml monte ce repertoire en
+-- /docker-entrypoint-initdb.d ; CI l'applique explicitement via psql, cf.
+-- .github/workflows/ci.yml).
+ALTER ROLE widehalo_app WITH NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+
+-- Les protections suivantes restent appliquees automatiquement par les
+-- migrations Django (pas par ce script), car elles doivent survivre a une
+-- reinitialisation de la base :
+--   - RLS FORCE sur toutes les tables heritant BaseModel, reappliquee a chaque
+--     migrate (apps/core/management/commands/apply_rls.py, signal
+--     post_migrate) — desormais reellement efficace grace a l'ALTER ROLE
+--     ci-dessus (widehalo_app reste proprietaire des tables, mais n'est plus
+--     superuser : FORCE ROW LEVEL SECURITY s'applique donc a lui).
+--   - Immuabilite de core_audit_log via un TRIGGER Postgres (pas un simple
+--     REVOKE de privileges, inefficace contre le proprietaire de la table) :
+--     voir la migration core.0010_audit_log_immutable — le trigger rejette
+--     tout UPDATE/DELETE, y compris pour le role proprietaire.

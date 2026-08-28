@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements/dev.txt
-      - run: bandit -r widehalo/apps widehalo/config -x '*/tests/*,*/migrations/*'
+      - run: bandit -c pyproject.toml -r widehalo/apps widehalo/config -x '*/tests/*,*/migrations/*'
       - run: pip-audit -r requirements/base.txt -r requirements/dev.txt -r requirements/prod.txt
 
   typecheck:
@@ -105,6 +105,17 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements/dev.txt
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
+      # L'image postgres officielle fait de POSTGRES_USER un SUPERUSER, qui
+      # contourne TOUJOURS le RLS (meme avec FORCE ROW LEVEL SECURITY) — sans
+      # cette restriction, test_tenant_isolation.py echoue systematiquement
+      # en CI (bug reel trouve : passait uniquement en local car ce role y
+      # avait ete cree manuellement sans le privilege SUPERUSER). Reutilise le
+      # meme script que docker-compose.yml (docker/init-db/001-roles.sql),
+      # une seule source de verite pour cette restriction.
+      - env:
+          PGPASSWORD: widehalo_app
+        run: psql -h localhost -U widehalo_app -d widehalo -f docker/init-db/001-roles.sql
       - env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           POSTGRES_HOST: localhost
@@ -114,6 +125,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: |
           cd widehalo
+          python manage.py compilemessages
           python -m pytest --ignore=tests/e2e --cov=apps --cov-report=term-missing --cov-fail-under=80 -q
 
   e2e:
@@ -147,6 +159,12 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements/dev.txt
       - run: playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
+      # Meme restriction que le job `tests` ci-dessus (cf. son commentaire) :
+      # sans elle, le RLS multi-tenant est contourne par ce role superuser.
+      - env:
+          PGPASSWORD: widehalo_app
+        run: psql -h localhost -U widehalo_app -d widehalo -f docker/init-db/001-roles.sql
       - env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           POSTGRES_HOST: localhost
@@ -156,6 +174,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: |
           cd widehalo
+          python manage.py compilemessages
           python -m pytest tests/e2e -q -m playwright
 
   docker-build:
