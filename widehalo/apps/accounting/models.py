@@ -124,6 +124,12 @@ class AccAccount(BaseModel):
     functional_destination = models.CharField(
         max_length=16, choices=FUNCTIONAL_DESTINATION_CHOICES, blank=True
     )
+    # Compte d'attente ("suspense") cree par
+    # `apps.accounting.services.chart_of_accounts.ensure_suspense_account`
+    # quand un import n'a pas identifie avec certitude le compte reel
+    # (chantier RG-QUALIF) — meme discipline que `partners.Partner.
+    # is_placeholder`/`catalog.ProductVariant.is_placeholder`.
+    is_placeholder = models.BooleanField(default=False)
 
     class Meta:
         db_table = "acc_account"

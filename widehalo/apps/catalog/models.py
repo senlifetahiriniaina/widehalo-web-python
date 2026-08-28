@@ -109,6 +109,12 @@ class ProductVariant(BaseModel, ReferenceMixin):
     template = models.ForeignKey(ProductTemplate, on_delete=models.CASCADE, related_name="variants")
     attribute_values = models.ManyToManyField(AttributeValue, related_name="variants")
 
+    # Variante generique creee par
+    # `apps.catalog.services.defaults.ensure_default_variant` quand un
+    # import n'a pas identifie avec certitude la variante reelle (chantier
+    # RG-QUALIF) — meme discipline que `partners.Partner.is_placeholder`.
+    is_placeholder = models.BooleanField(default=False)
+
     class Meta:
         db_table = "catalog_product_variant"
 

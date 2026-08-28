@@ -5,7 +5,7 @@ import datetime as dt
 import pytest
 
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
-from apps.accounting.services.chart_of_accounts import load_pcg2005
+from apps.accounting.services.chart_of_accounts import ensure_suspense_account, load_pcg2005
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 
@@ -92,3 +92,19 @@ def test_load_pcg2005_is_idempotent(tenant: Tenant) -> None:
         second_run = load_pcg2005(tenant)
         assert first_run > 0
         assert second_run == 0
+
+
+def test_ensure_suspense_account_creates_a_placeholder_account(tenant: Tenant) -> None:
+    with use_tenant(tenant.id):
+        account = ensure_suspense_account(tenant)
+        assert account.is_placeholder is True
+        assert account.code == "471"
+
+
+def test_ensure_suspense_account_is_idempotent(tenant: Tenant) -> None:
+    with use_tenant(tenant.id):
+        first = ensure_suspense_account(tenant)
+        second = ensure_suspense_account(tenant)
+        count = AccAccount.objects.filter(tenant=tenant, is_placeholder=True).count()
+        assert first.id == second.id
+        assert count == 1

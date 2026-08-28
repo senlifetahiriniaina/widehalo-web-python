@@ -33,10 +33,20 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.utils.translation import gettext as _
+
 from apps.accounting.models import AccAccount
 from apps.core.models.tenant import Tenant
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg.json"
+
+# Compte d'attente ("suspense") du chantier RG-QUALIF — classe 47x
+# ("Comptes transitoires ou d'attente" du PCG 2005), absent de la fixture
+# pcg2005_mg.json actuelle (comptes reels uniquement) : cree a la demande,
+# jamais dans le chargement initial du plan comptable, pour ne pas
+# polluer un plan comptable qui n'a jamais eu besoin d'un import
+# "degrade" avec identification incertaine.
+SUSPENSE_ACCOUNT_CODE = "471"
 
 
 def _read_fixture() -> list[dict[str, Any]]:
@@ -65,3 +75,25 @@ def load_pcg2005(tenant: Tenant) -> int:
         created += 1
 
     return created
+
+
+def ensure_suspense_account(tenant: Tenant) -> AccAccount:
+    """Cree, s'il n'existe pas encore, LE compte d'attente (`is_placeholder
+    =True`, code `471`, classe 47x) de ce tenant — idempotent par code,
+    meme discipline que `load_pcg2005`. Utilise par
+    `apps.accounting.services.cash_journal_import`/`invoice_import` quand
+    un compte reel n'a pas pu etre identifie avec certitude (chantier
+    RG-QUALIF) : plutot que de bloquer la ligne (`COMPTE_INCONNU`
+    devenait non-defaultable auparavant), un `AccMove` brouillon est
+    materialise immediatement sur ce compte, marque `needs_qualification`."""
+    existing = AccAccount.objects.filter(tenant=tenant, code=SUSPENSE_ACCOUNT_CODE).first()
+    if existing is not None:
+        return existing
+    return AccAccount.objects.create(
+        tenant=tenant,
+        code=SUSPENSE_ACCOUNT_CODE,
+        name=str(_("Compte d'attente (à qualifier)")),
+        account_class=4,
+        type=AccAccount.TYPE_ASSET,
+        is_placeholder=True,
+    )
