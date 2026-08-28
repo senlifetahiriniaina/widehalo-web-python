@@ -48,6 +48,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view", "add", "change"},
         "sales": {"view", "add", "change"},
         "purchase": {"view", "add", "change"},
+        "stocks": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -62,6 +63,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view", "change"},
         "sales": {"view", "change"},
         "purchase": {"view", "change"},
+        "stocks": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -102,8 +104,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
     },
     "magasinier": {
-        # Domaine cible = futur module `stocks` ; en attendant, acces aux
-        # mouvements de composants deja portes par mrp.
+        # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
+        # role de magasinier litteral, acces complet au module. Conserve
+        # aussi l'acces (deja accorde avant `stocks`) aux mouvements de
+        # composants portes par mrp.
+        "stocks": {"view", "add", "change"},
         "mrp": {"view", "change"},
         "catalog": {"view"},
     },
