@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Regles de reapprovisionnement" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Regles de reapprovisionnement (RG-PUR-3)" %}</h1>
+  <p>{% blocktrans %}Chaque regle declenchee genere une demande d'achat en brouillon uniquement, jamais une commande confirmee automatiquement.{% endblocktrans %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Article (UUID)" %}</th><th>{% trans "Min" %}</th><th>{% trans "Max" %}</th><th>{% trans "Multiple" %}</th><th>{% trans "Delai (jours)" %}</th></tr></thead>
+    <tbody>
+      {% for rule in rules %}
+        <tr><td>{{ rule.variant_id }}</td><td>{{ rule.min_qty }}</td><td>{{ rule.max_qty }}</td><td>{{ rule.multiple_qty }}</td><td>{{ rule.lead_time_days }}</td></tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune regle." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle regle" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field"><label>{% trans "Article (UUID)" %}</label><input type="text" name="variant_id" required></div>
+    <div class="form-field"><label>{% trans "Quantite minimum" %}</label><input type="number" name="min_qty" step="0.0001" required></div>
+    <div class="form-field"><label>{% trans "Quantite maximum" %}</label><input type="number" name="max_qty" step="0.0001" required></div>
+    <div class="form-field"><label>{% trans "Multiple de commande" %}</label><input type="number" name="multiple_qty" step="0.0001" value="1"></div>
+    <div class="form-field"><label>{% trans "Delai fournisseur (jours)" %}</label><input type="number" name="lead_time_days" value="0"></div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

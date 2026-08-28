@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports Achats" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports Achats (§5.6.5)" %}</h1>
+  <p>{% blocktrans %}Le bon de commande (PUR-BC), l'appel d'offres (PUR-RFQ), le tableau comparatif (PUR-COMP) et le bon de reception (PUR-REC) se telechargent depuis leur fiche respective (demande d'achat, appel d'offres ou commande).{% endblocktrans %}</p>
+
+  <h2>{% trans "Engagements et echeancier fournisseurs (PUR-ENG)" %}</h2>
+  <form method="get" action="{% url 'purchase:report_engagements' %}">
+    <div class="form-field">
+      <label for="eng_format">{% trans "Format" %}</label>
+      <select id="eng_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Evaluation fournisseurs (PUR-EVAL)" %}</h2>
+  <form method="get" action="{% url 'purchase:report_supplier_evaluations' %}">
+    <div class="form-field">
+      <label for="eval_partner_id">{% trans "Fournisseur (UUID)" %}</label>
+      <input id="eval_partner_id" type="text" name="partner_id" required>
+    </div>
+    <div class="form-field">
+      <label for="eval_format">{% trans "Format" %}</label>
+      <select id="eval_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Commandes en retard (PUR-RET)" %}</h2>
+  <form method="get" action="{% url 'purchase:report_late_orders' %}">
+    <div class="form-field">
+      <label for="ret_format">{% trans "Format" %}</label>
+      <select id="ret_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Incidents achats (PUR-CRI)" %}</h2>
+  <form method="get" action="{% url 'purchase:report_cri' %}">
+    <div class="form-field">
+      <label for="cri_state">{% trans "Statut" %}</label>
+      <select id="cri_state" name="state">
+        <option value="">{% trans "Tous" %}</option>
+        <option value="draft">{% trans "Ouvert" %}</option>
+        <option value="closed">{% trans "Cloture" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cri_type">{% trans "Type" %}</label>
+      <select id="cri_type" name="type">
+        <option value="">{% trans "Tous" %}</option>
+        <option value="retard">{% trans "Retard" %}</option>
+        <option value="non_conformite">{% trans "Non conformite" %}</option>
+        <option value="litige">{% trans "Litige" %}</option>
+        <option value="rupture">{% trans "Rupture" %}</option>
+        <option value="incident_douane">{% trans "Incident douanier" %}</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="cri_format">{% trans "Format" %}</label>
+      <select id="cri_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouvelle demande d'achat" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouvelle demande d'achat" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="department">{% trans "Departement" %}</label>
+      <input id="department" type="text" name="department">
+    </div>
+    <div class="form-field">
+      <label for="date_needed">{% trans "Besoin le" %}</label>
+      <input id="date_needed" type="date" name="date_needed" required>
+    </div>
+    <div class="form-field">
+      <label for="justification">{% trans "Justification" %}</label>
+      <textarea id="justification" name="justification"></textarea>
+    </div>
+    <div class="form-field">
+      <label for="source_document">{% trans "Document d'origine" %}</label>
+      <input id="source_document" type="text" name="source_document">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

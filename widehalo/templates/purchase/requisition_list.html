@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Demandes d'achat" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Demandes d'achat" %}</h1>
+  <p>
+    <a href="{% url 'purchase:requisition_create' %}">{% trans "Nouvelle demande" %}</a>
+    | <a href="{% url 'purchase:rfq_list' %}">{% trans "Appels d'offres" %}</a>
+    | <a href="{% url 'purchase:order_list' %}">{% trans "Commandes" %}</a>
+    | <a href="{% url 'purchase:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% include "components/_smart_table.html" %}
+
+  <h2>{% trans "Grouper des demandes approuvees en commandes (PUR-BULK1)" %}</h2>
+  <p>{% blocktrans %}Regroupe les lignes de plusieurs demandes approuvees par fournisseur prefere en une commande par fournisseur.{% endblocktrans %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="bulk_create_orders">
+    <div class="form-field">
+      <label for="requisition_id">{% trans "Identifiants des demandes (UUID, un par ligne)" %}</label>
+      <textarea id="requisition_id" name="requisition_id" rows="3"></textarea>
+    </div>
+    <button type="submit">{% trans "Grouper en commande(s)" %}</button>
+  </form>
+{% endblock %}

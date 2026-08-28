@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Appels d'offres" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Appels d'offres" %}</h1>
+  <p>
+    <a href="{% url 'purchase:rfq_create' %}">{% trans "Nouvel appel d'offres" %}</a>
+    | <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+    | <a href="{% url 'purchase:order_list' %}">{% trans "Commandes" %}</a>
+  </p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ order.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ order.get_state_display }}
+    {% if order.import_dossier_pending %}<p>{% trans "Dossier d'importation en attente d'ouverture (RG-PUR-7)." %}</p>{% endif %}
+    {% if order.cancel_reason %}<p>{% trans "Motif d'annulation" %}: {{ order.cancel_reason }}</p>{% endif %}
+    {% if order.dispute_reason %}<p>{% trans "Motif de litige" %}: {{ order.dispute_reason }}</p>{% endif %}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation/litige)' %}">
+      {% if order.state == "draft" %}<button type="submit" name="action" value="submit">{% trans "Soumettre a validation" %}</button>{% endif %}
+      {% if order.state == "to_validate" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
+      {% if order.state == "validated" %}<button type="submit" name="action" value="send">{% trans "Envoyer au fournisseur" %}</button>{% endif %}
+      {% if order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
+      {% if order.state == "confirmed" %}<button type="submit" name="action" value="in_transit">{% trans "Marquer en transit" %}</button>{% endif %}
+      {% if order.state == "in_transit" %}<button type="submit" name="action" value="partially_receive">{% trans "Marquer recue partiellement" %}</button>{% endif %}
+      {% if order.state == "in_transit" or order.state == "partially_received" %}<button type="submit" name="action" value="receive">{% trans "Marquer recue" %}</button>{% endif %}
+      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if order.state == "confirmed" or order.state == "in_transit" or order.state == "partially_received" or order.state == "received" or order.state == "invoiced" %}<button type="submit" name="action" value="open_dispute">{% trans "Ouvrir un litige" %}</button>{% endif %}
+      {% if order.state == "in_dispute" %}<button type="submit" name="action" value="resolve_dispute">{% trans "Resoudre le litige" %}</button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Fournisseur" %}: {{ order.partner_id }}</p>
+  <p>{% trans "Origine" %}: {{ order.get_origin_display }} — {% trans "Incoterm" %}: {{ order.incoterm|default:"-" }}</p>
+  <p>{% trans "Axe analytique" %}: {{ order.analytic_account_id|default:"-" }}</p>
+  <p>{% trans "Total" %}: {{ order.amount_total_mga }} {{ order.currency }}</p>
+
+  <h2>{% trans "Rapports" %}</h2>
+  <ul>
+    <li><a href="{% url 'purchase:report_order_pdf' order_id=order.id %}">{% trans "Bon de commande (PDF, PUR-BC)" %}</a></li>
+    <li><a href="{% url 'purchase:report_reception' order_id=order.id %}">{% trans "Bon de reception (PUR-REC)" %}</a></li>
+  </ul>
+
+  <h2>{% trans "Lignes" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Prix unitaire" %}</th>
+        <th>{% trans "Sous-total" %}</th>
+        <th>{% trans "Qte recue" %}</th>
+        <th>{% trans "Qte facturee" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty }}</td>
+          <td>{{ line.unit_price_mga }}</td>
+          <td>{{ line.subtotal_mga }}</td>
+          <td>{{ line.qty_received }}</td>
+          <td>{{ line.qty_invoiced }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune ligne." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if order.state == "draft" %}
+    <h3>{% trans "Ajouter une ligne" %}</h3>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_line">
+      <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID)' %}" required>
+      <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
+      <input type="number" name="qty" step="0.0001" value="1">
+      <input type="number" name="unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire' %}">
+      <input type="text" name="uom" placeholder="{% trans 'Unite' %}">
+      <button type="submit">{% trans "Ajouter" %}</button>
+    </form>
+  {% endif %}
+
+  {% if order.state == "in_transit" or order.state == "partially_received" %}
+    <h3>{% trans "Receptionner une ligne (RG-PUR-5)" %}</h3>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="receive_line">
+      <select name="line_id" required>
+        {% for line in lines %}<option value="{{ line.id }}">{{ line.description }} ({{ line.qty_received }}/{{ line.qty }})</option>{% endfor %}
+      </select>
+      <input type="number" name="qty_received_now" step="0.0001" placeholder="{% trans 'Quantite recue' %}" required>
+      <select name="quality_status">
+        <option value="conforme">{% trans "Conforme" %}</option>
+        <option value="non_conforme">{% trans "Non conforme" %}</option>
+        <option value="sous_reserve">{% trans "Sous reserve" %}</option>
+      </select>
+      <input type="text" name="receive_notes" placeholder="{% trans 'Notes' %}">
+      <button type="submit">{% trans "Receptionner" %}</button>
+    </form>
+
+    <h3>{% trans "Ecart reception vs commande (RG-PUR-5)" %}</h3>
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Article" %}</th><th>{% trans "Commande" %}</th><th>{% trans "Recu" %}</th><th>{% trans "Ecart" %}</th><th>{% trans "Ecart (%)" %}</th></tr></thead>
+      <tbody>
+        {% for row in reception_variance %}
+          <tr><td>{{ row.description }}</td><td>{{ row.qty_ordered }}</td><td>{{ row.qty_received }}</td><td>{{ row.variance }}</td><td>{{ row.variance_pct|default:"-" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if order.state == "received" %}
+    <h3>{% trans "Enregistrer une facture fournisseur (RG-PUR-6, controle 3 voies)" %}</h3>
+    <p>{% blocktrans %}Un ecart superieur au seuil parametrable (2% par defaut) bloque la facture et ouvre automatiquement un litige — visible ci-dessus dans le bandeau de statut apres soumission.{% endblocktrans %}</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="record_invoice">
+      <select name="invoice_line_id" required>
+        {% for line in lines %}<option value="{{ line.id }}">{{ line.description }} ({{ line.qty }} x {{ line.unit_price_mga }})</option>{% endfor %}
+      </select>
+      <input type="number" name="invoice_qty" step="0.0001" placeholder="{% trans 'Quantite facturee' %}" required>
+      <input type="number" name="invoice_unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire facture' %}" required>
+      <input type="date" name="invoice_date">
+      <button type="submit">{% trans "Enregistrer la facture" %}</button>
+    </form>
+  {% endif %}
+{% endblock %}

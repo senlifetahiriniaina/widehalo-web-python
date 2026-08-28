@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Substituts" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Substituts (RG-PUR-2)" %}</h1>
+  <p>{% blocktrans %}Une substitution de niveau degrade sans validation ne peut pas etre utilisee sur une ligne de demande d'achat.{% endblocktrans %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="get" style="margin-bottom:1em;">
+    <label for="variant_id">{% trans "Filtrer par article (UUID)" %}</label>
+    <input id="variant_id" type="text" name="variant_id" value="{{ variant_id }}">
+    <button type="submit">{% trans "Filtrer" %}</button>
+  </form>
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Article" %}</th>
+        <th>{% trans "Substitut" %}</th>
+        <th>{% trans "Compatibilite" %}</th>
+        <th>{% trans "Ratio" %}</th>
+        <th>{% trans "Approuve par" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for substitute in substitutes %}
+        <tr>
+          <td>{{ substitute.variant_id }}</td>
+          <td>{{ substitute.substitute_variant_id }}</td>
+          <td>{{ substitute.get_compatibility_display }}</td>
+          <td>{{ substitute.ratio }}</td>
+          <td>{{ substitute.approved_by|default:"-" }}</td>
+          <td>
+            {% if substitute.compatibility == "degrade" and not substitute.approved_by_id %}
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="substitute_id" value="{{ substitute.id }}">
+                <button type="submit">{% trans "Valider" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun substitut." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau substitut" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-field"><label>{% trans "Article (UUID)" %}</label><input type="text" name="variant_id" required></div>
+    <div class="form-field"><label>{% trans "Substitut (UUID)" %}</label><input type="text" name="substitute_variant_id" required></div>
+    <div class="form-field">
+      <label>{% trans "Compatibilite" %}</label>
+      <select name="compatibility">
+        {% for value, label in compatibility_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field"><label>{% trans "Ratio" %}</label><input type="number" name="ratio" step="0.0001" value="1"></div>
+    <div class="form-field"><label>{% trans "Conditions" %}</label><textarea name="conditions"></textarea></div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

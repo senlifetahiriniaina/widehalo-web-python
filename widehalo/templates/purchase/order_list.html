@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Commandes d'achat" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Commandes d'achat" %}</h1>
+  <p>
+    <a href="{% url 'purchase:order_create' %}">{% trans "Nouvelle commande" %}</a>
+    | <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+    | <a href="{% url 'purchase:rfq_list' %}">{% trans "Appels d'offres" %}</a>
+    | <a href="{% url 'purchase:cra_list' %}">{% trans "CRA achats" %}</a>
+    | <a href="{% url 'purchase:cri_list' %}">{% trans "CRI achats" %}</a>
+    | <a href="{% url 'purchase:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
+  <form method="get" style="margin-bottom:1em;">
+    <label for="state">{% trans "Filtrer par statut" %}</label>
+    <select id="state" name="state" onchange="this.form.submit()">
+      <option value="">{% trans "Tous" %}</option>
+      {% for value, label in state_choices %}
+        <option value="{{ value }}" {% if value == selected_state %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

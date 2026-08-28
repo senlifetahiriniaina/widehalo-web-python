@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ rfq.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ rfq.get_state_display }}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      {% if rfq.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ rfq.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Date" %}: {{ rfq.date }} — {% trans "Echeance" %}: {{ rfq.deadline|default:"-" }}</p>
+  <p>{% trans "Ponderation (prix/delai/qualite)" %}: {{ rfq.award_criteria }}</p>
+  <p>
+    <a href="{% url 'purchase:report_rfq' rfq_id=rfq.id %}">{% trans "Telecharger l'appel d'offres (PUR-RFQ)" %}</a>
+    | <a href="{% url 'purchase:report_rfq_comparison' rfq_id=rfq.id %}">{% trans "Tableau comparatif (PUR-COMP)" %}</a>
+  </p>
+
+  <h2>{% trans "Lignes" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Article (UUID)" %}</th><th>{% trans "Description" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Unite" %}</th></tr></thead>
+    <tbody>
+      {% for line in lines %}
+        <tr><td>{{ line.variant_id }}</td><td>{{ line.description }}</td><td>{{ line.qty }}</td><td>{{ line.uom }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune ligne." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if rfq.state == "draft" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_line">
+      <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID)' %}" required>
+      <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
+      <input type="number" name="qty" step="0.0001" value="1">
+      <input type="text" name="uom" placeholder="{% trans 'Unite' %}">
+      <button type="submit">{% trans "Ajouter une ligne" %}</button>
+    </form>
+  {% endif %}
+
+  <h2>{% trans "Fournisseurs consultes" %}</h2>
+  <ul>
+    {% for supplier in suppliers %}<li>{{ supplier.partner_id }}</li>{% empty %}<li>{% trans "Aucun fournisseur consulte." %}</li>{% endfor %}
+  </ul>
+  {% if rfq.state == "draft" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_supplier">
+      <input type="text" name="partner_id" placeholder="{% trans 'Fournisseur (UUID)' %}" required>
+      <button type="submit">{% trans "Consulter" %}</button>
+    </form>
+  {% endif %}
+
+  <h2>{% trans "Reponses recues" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Fournisseur" %}</th><th>{% trans "Total (MGA)" %}</th><th>{% trans "Delai (jours)" %}</th><th>{% trans "Score" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for response in responses %}
+        <tr>
+          <td>{{ response.partner_id }}</td>
+          <td>{{ response.total_mga }}</td>
+          <td>{{ response.lead_time_days }}</td>
+          <td>{{ response.score|default:"-" }}</td>
+          <td>
+            {% if rfq.state == "sent" %}
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="award">
+                <input type="hidden" name="response_id" value="{{ response.id }}">
+                <button type="submit">{% trans "Attribuer" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune reponse." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if rfq.state == "sent" %}
+    <h3>{% trans "Enregistrer une reponse" %}</h3>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="record_response">
+      <div class="form-field"><label>{% trans "Fournisseur (UUID)" %}</label><input type="text" name="resp_partner_id" required></div>
+      <div class="form-field"><label>{% trans "Date de reception" %}</label><input type="date" name="resp_date_received"></div>
+      <div class="form-field"><label>{% trans "Article (UUID)" %}</label><input type="text" name="resp_variant_id" required></div>
+      <div class="form-field"><label>{% trans "Quantite" %}</label><input type="number" name="resp_qty" step="0.0001" value="1"></div>
+      <div class="form-field"><label>{% trans "Prix unitaire (MGA)" %}</label><input type="number" name="resp_unit_price_mga" step="0.0001"></div>
+      <div class="form-field"><label>{% trans "Delai (jours)" %}</label><input type="number" name="resp_lead_time_days" value="0"></div>
+      <div class="form-field"><label>{% trans "Validite jusqu'au" %}</label><input type="date" name="resp_validity_date"></div>
+      <button type="submit">{% trans "Enregistrer" %}</button>
+    </form>
+  {% endif %}
+
+  {% if comparison %}
+    <h2>{% trans "Tableau comparatif (RG-PUR-4)" %}</h2>
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Fournisseur" %}</th><th>{% trans "Total (MGA)" %}</th><th>{% trans "Delai" %}</th><th>{% trans "Score" %}</th></tr></thead>
+      <tbody>
+        {% for row in comparison %}
+          <tr><td>{{ row.partner_id }}</td><td>{{ row.total_mga }}</td><td>{{ row.lead_time_days }}</td><td>{{ row.score }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

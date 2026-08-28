@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "CRI achats" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Comptes rendus d'incident achats" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Fournisseur" %}</th>
+        <th>{% trans "Cout (MGA)" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+        <tr>
+          <td>{{ entry.reference }}</td>
+          <td>{{ entry.date }}</td>
+          <td>{{ entry.get_type_display }}</td>
+          <td>{{ entry.partner_id }}</td>
+          <td>{{ entry.cost_mga }}</td>
+          <td>{{ entry.get_state_display }}</td>
+          <td>
+            {% if entry.state == "draft" %}
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="cri_id" value="{{ entry.id }}">
+                <input type="text" name="action_taken" placeholder="{% trans 'Action corrective' %}">
+                <button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucun CRI." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau CRI" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-field"><label>{% trans "Date" %}</label><input type="date" name="date"></div>
+    <div class="form-field">
+      <label>{% trans "Type" %}</label>
+      <select name="type">
+        {% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field"><label>{% trans "Fournisseur (UUID)" %}</label><input type="text" name="partner_id" required></div>
+    <div class="form-field"><label>{% trans "Commande liee (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
+    <div class="form-field"><label>{% trans "Description" %}</label><textarea name="description" required></textarea></div>
+    <div class="form-field"><label>{% trans "Impact" %}</label><textarea name="impact"></textarea></div>
+    <div class="form-field"><label>{% trans "Cout (MGA)" %}</label><input type="number" name="cost_mga" step="0.0001" value="0"></div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
