@@ -18,6 +18,7 @@ from apps.core.models.user import User
 from apps.mrp.models import (
     MrpBom,
     MrpBomLine,
+    MrpCra,
     MrpOrder,
     MrpSupplierEvaluation,
     MrpWorkcenter,
@@ -330,3 +331,22 @@ def list_supplier_evaluations(partner_id: Any) -> list[dict[str, Any]]:
         }
         for evaluation in evaluations
     ]
+
+
+def get_employee_cra_hours(
+    tenant: Tenant, user: User, *, date_from: dt.date, date_to: dt.date
+) -> Decimal:
+    """RG-PRS-8 : gap ajoute pour `presence.services.reconciliation`
+    (rapprochement heures de presence / heures declarees en CRA). Seuls
+    les CRA `validated` comptent (un CRA en brouillon/soumis/rejete n'est
+    pas une declaration d'activite fiable), meme discipline que
+    `services/costing.py` qui n'alimente le cout facon reel qu'a partir
+    d'un CRA valide."""
+    total = MrpCra.objects.filter(
+        tenant=tenant,
+        employee=user,
+        date__gte=date_from,
+        date__lte=date_to,
+        state=MrpCra.STATE_VALIDATED,
+    ).aggregate(total=models.Sum("hours"))["total"]
+    return total if total is not None else Decimal(0)
