@@ -60,6 +60,9 @@ MIDDLEWARE = [
     # request.user pour resoudre les tenants autorises) mais AVANT toute vue/API
     # qui accede a l'ORM. Ne jamais deplacer avant Authentication.
     "apps.core.middleware.TenantMiddleware",
+    # OnboardingMiddleware AVANT MFAEnforcementMiddleware : changer le mot de
+    # passe temporaire du compte admin par defaut avant d'enroler MFA dessus.
+    "apps.core.middleware.OnboardingMiddleware",
     "apps.core.middleware.MFAEnforcementMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

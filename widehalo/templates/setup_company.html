@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Paramétrage de la société" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Bienvenue — paramétrez la première société de cette instance" %}</h1>
+  <p>{% trans "Cette étape ne s'affiche qu'une seule fois, tant qu'aucune société n'existe encore sur cette instance." %}</p>
+  {% for error in errors %}
+    <p role="alert">{{ error }}</p>
+  {% endfor %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code société" %}</label>
+      <input id="code" type="text" name="code" maxlength="32" required autofocus>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Raison sociale" %}</label>
+      <input id="name" type="text" name="name" maxlength="255" required>
+    </div>
+    <div class="form-field">
+      <label for="nif">{% trans "NIF" %}</label>
+      <input id="nif" type="text" name="nif" maxlength="32">
+    </div>
+    <div class="form-field">
+      <label for="country_code">{% trans "Pays" %}</label>
+      <select id="country_code" name="country_code" required>
+        {% for code in country_choices %}
+          <option value="{{ code }}">{{ code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">{% trans "Créer la société" %}</button>
+  </form>
+{% endblock %}

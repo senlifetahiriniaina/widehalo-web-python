@@ -3,6 +3,10 @@
 - TenantMiddleware : resout le tenant courant et active la Row-Level
   Security PostgreSQL pour la duree de la requete (implementation complete
   a l'etape 3).
+- OnboardingMiddleware : force, dans l'ordre, le changement du mot de passe
+  temporaire du compte admin par defaut puis le parametrage de la premiere
+  societe de l'instance, avant tout acces web (session) — cf.
+  `apps.core.management.commands.bootstrap_admin`.
 - MFAEnforcementMiddleware : bloque l'acces applicatif tant qu'un
   utilisateur soumis a MFA obligatoire n'a pas enrole son second facteur
   (implementation complete a l'etape 4).
@@ -52,6 +56,54 @@ class TenantMiddleware:
         return None
 
 
+ONBOARDING_EXEMPT_PATH_PREFIXES = (
+    "/api/",
+    "/admin/",
+    "/static/",
+    "/media/",
+    "/login/",
+    "/logout/",
+    "/change-password/",
+    "/setup/",
+    "/__debug__/",
+)
+
+
+class OnboardingMiddleware:
+    """Bloque l'acces web (session, jamais l'API) tant que l'utilisateur
+    authentifie n'a pas, DANS CET ORDRE : (1) change son mot de passe
+    temporaire (`must_change_password`, pose par `bootstrap_admin`), (2)
+    parametre la premiere societe de l'instance si aucune n'existe encore
+    (`Tenant.objects.exists()` — un controle global a l'instance, jamais par
+    utilisateur : ne redirige donc jamais un utilisateur normal d'une
+    instance deja parametree, meme s'il n'a lui-meme aucune societe).
+
+    Volontairement AVANT MFAEnforcementMiddleware dans MIDDLEWARE : changer
+    un mot de passe partage connu avant d'enroler un second facteur dessus,
+    jamais l'inverse."""
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        if request.path.startswith(ONBOARDING_EXEMPT_PATH_PREFIXES):
+            return self.get_response(request)
+
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            from django.shortcuts import redirect
+
+            if getattr(user, "must_change_password", False):
+                return redirect("change_password")
+
+            from apps.core.models.tenant import Tenant
+
+            if not Tenant.objects.exists():
+                return redirect("setup_company")
+
+        return self.get_response(request)
+
+
 EXEMPT_PATH_PREFIXES = (
     "/api/",
     "/admin/",
@@ -59,6 +111,14 @@ EXEMPT_PATH_PREFIXES = (
     "/media/",
     "/mfa/",
     "/login/",
+    # Sans ces deux exemptions, un compte soumis a MFA obligatoire (dont le
+    # compte admin par defaut, is_superuser=True) ne peut JAMAIS atteindre
+    # ces deux ecrans d'amorçage (OnboardingMiddleware, execute juste avant
+    # ce middleware dans MIDDLEWARE) — bloque en boucle vers /mfa/ avant
+    # meme d'avoir pu changer son mot de passe ou creer la premiere societe.
+    # Bug reel trouve par les tests de apps/core/tests/test_onboarding.py.
+    "/change-password/",
+    "/setup/",
     "/__debug__/",
 )
 

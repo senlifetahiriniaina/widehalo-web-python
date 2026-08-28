@@ -1,4 +1,9 @@
-from apps.core.views.auth_web import login_view, logout_view
+from apps.core.views.auth_web import (
+    change_password_view,
+    login_view,
+    logout_view,
+    setup_company_view,
+)
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
@@ -12,6 +17,8 @@ urlpatterns = [
     path("api/v1/", api.urls),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
+    path("change-password/", change_password_view, name="change_password"),
+    path("setup/", setup_company_view, name="setup_company"),
     path("", include("apps.core.urls")),
     path("partners/", include("apps.partners.urls")),
     path("catalog/", include("apps.catalog.urls")),

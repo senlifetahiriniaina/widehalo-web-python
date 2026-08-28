@@ -44,8 +44,12 @@ services:
     # (runserver). collectstatic avant de servir : Caddy sert /static/ et
     # /media/ directement depuis les volumes partages ci-dessous (pas de
     # dependance whitenoise, aucune n'est en place dans ce socle).
+    # bootstrap_admin (idempotent) : cree admin@admin.local/admin UNE SEULE
+    # FOIS sur une instance fraiche — jamais dans docker/entrypoint.sh
+    # (execute aussi par `worker`), pour eviter deux executions paralleles.
     command: >
       sh -c "python manage.py collectstatic --noinput &&
+             python manage.py bootstrap_admin &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     volumes:
       - static_data:/app/staticfiles

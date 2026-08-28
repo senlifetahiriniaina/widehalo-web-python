@@ -198,22 +198,43 @@ Vérifier ensuite dans un navigateur que `https://app.widehalo.cloud`
 répond avec un certificat valide (cadenas vert), et que
 `https://app.widehalo.cloud/api/v1/docs` affiche la documentation OpenAPI.
 
-## 8. Bootstrap applicatif (premier tenant)
+## 8. Premier accès — compte admin par défaut et paramétrage de la société
 
-Une fois les conteneurs sains, initialiser un tenant de test/démonstration
-pour que vous puissiez réellement tester l'application (commandes déjà
-existantes dans ce dépôt, cf. le plan du projet) :
+Au tout premier démarrage (instance sans aucun utilisateur), le service
+`web` crée automatiquement un compte administrateur par défaut avant de
+lancer le serveur (`python manage.py bootstrap_admin`, idempotent — ne fait
+plus rien dès qu'un utilisateur existe déjà) :
+
+- **Identifiant** : `admin@admin.local`
+- **Mot de passe** : `admin`
+
+Se connecter sur `https://app.widehalo.cloud/login/` avec ces identifiants.
+Deux écrans s'affichent alors automatiquement, dans cet ordre, avant tout
+accès au reste de l'application :
+
+1. **Changement de mot de passe obligatoire** — le mot de passe `admin`
+   étant un mot de passe courant, il est de toute façon refusé comme
+   nouveau mot de passe (`CommonPasswordValidator`) : en choisir un fort
+   (12 caractères minimum).
+2. **Paramétrage de la première société de l'instance** — code, raison
+   sociale, NIF (optionnel), pays. Ce formulaire ne s'affiche que tant
+   qu'aucune société n'existe encore sur l'instance ; une fois validé, la
+   société est créée avec les paramètres par défaut du pays choisi
+   (devise, TVA, fuseau horaire — `apps.core.services.smart_defaults`) et
+   le compte admin y est immédiatement rattaché.
+
+Ensuite, selon le rôle du compte (`admin` fait partie des rôles à MFA
+obligatoire), un enrôlement TOTP est demandé avant l'accès au tableau de
+bord — comportement standard du socle (étape 4), pas spécifique à ce compte
+par défaut.
+
+**Jeux de données de démonstration** (optionnel, pour tester plus vite que
+manuellement) — une fois la société créée ci-dessus, les commandes
+`seed_<module>` existantes restent utilisables pour peupler des données
+d'exemple **dans un tenant `DEMO` séparé** (elles créent leur propre tenant
+plutôt que de réutiliser celui paramétré ci-dessus) :
 
 ```bash
-docker compose -f docker-compose.prod.yml exec web \
-  python manage.py create_tenant --code DEMO --name "Tenant de test" --country MG
-
-docker compose -f docker-compose.prod.yml exec web \
-  python manage.py load_pcg2005 --tenant DEMO
-
-# Jeux de démonstration par module déjà livré (core/partners/catalog/chat/
-# accounting/crm/mrp/patronage — chacun crée un utilisateur de démonstration
-# et des données cohérentes pour exercer le module correspondant) :
 docker compose -f docker-compose.prod.yml exec web \
   python manage.py seed_core --tenant-code DEMO
 docker compose -f docker-compose.prod.yml exec web \

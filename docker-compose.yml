@@ -39,7 +39,15 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
+    # bootstrap_admin (idempotent, cf. apps/core/management/commands) : cree
+    # le compte admin@admin.local/admin par defaut UNE SEULE FOIS, seulement
+    # sur une instance totalement fraiche (aucun utilisateur existant).
+    # Volontairement uniquement ici (jamais dans docker/entrypoint.sh, execute
+    # aussi par `worker`) pour ne jamais faire tourner deux fois cette
+    # commande en parallele sur le meme demarrage `docker compose up`.
+    command: >
+      sh -c "python manage.py bootstrap_admin &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:
