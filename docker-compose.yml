@@ -2,16 +2,25 @@ services:
   db:
     image: postgres:16-alpine
     environment:
+      # POSTGRES_USER/POSTGRES_PASSWORD fixent l'identite BOOTSTRAP du cluster
+      # (role initdb, OID 10) — Postgres refuse categoriquement de jamais lui
+      # retirer SUPERUSER (cf. commentaire de docker/init-db/001-init-app-role.sh),
+      # donc ce role ne doit JAMAIS servir a l'application. APP_DB_USER/
+      # APP_DB_PASSWORD (les vraies valeurs applicatives, POSTGRES_USER/
+      # POSTGRES_PASSWORD de .env) sont transmis au script d'init qui cree un
+      # role separe et ordinaire pour Django.
       POSTGRES_DB: ${POSTGRES_DB:-widehalo}
-      POSTGRES_USER: ${POSTGRES_USER:-widehalo_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-widehalo_app}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      APP_DB_USER: ${POSTGRES_USER:-widehalo_app}
+      APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-widehalo_app}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-widehalo_app}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10

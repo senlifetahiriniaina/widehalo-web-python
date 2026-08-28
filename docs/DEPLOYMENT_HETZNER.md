@@ -142,15 +142,23 @@ WIDEHALO_DOMAIN=app.widehalo.cloud
 # expiration de certificat imminente en cas d'echec de renouvellement.
 ACME_EMAIL=vous@exemple.com
 
-# Mot de passe Postgres fort, distinct de la valeur de dev par defaut.
+# Mot de passe du role applicatif Postgres (widehalo_app) — fort, distinct
+# de la valeur de dev par defaut.
 POSTGRES_PASSWORD=<mot de passe fort genere>
+
+# Mot de passe du role BOOTSTRAP du cluster Postgres (distinct du role
+# applicatif ci-dessus — cf. docker/init-db/001-init-app-role.sh pour le
+# detail : Postgres ne permet structurellement jamais de retirer le
+# privilege superuser a ce role, donc l'application ne doit jamais s'y
+# connecter). Fort, different de POSTGRES_PASSWORD.
+POSTGRES_SUPERUSER_PASSWORD=<mot de passe fort genere, different du precedent>
 ```
 
-Les autres variables (`POSTGRES_DB`, `POSTGRES_USER`, `REDIS_URL`,
-`CLAMAV_ENABLED`, `WHATSAPP_*`) peuvent rester à leurs valeurs par défaut de
-`.env.example`, à ajuster selon vos besoins réels (WhatsApp notamment,
-nécessite des identifiants Meta Cloud API — cf. `README.md`/le plan du
-projet).
+Les autres variables (`POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_SUPERUSER`,
+`REDIS_URL`, `CLAMAV_ENABLED`, `WHATSAPP_*`) peuvent rester à leurs valeurs
+par défaut de `.env.example`, à ajuster selon vos besoins réels (WhatsApp
+notamment, nécessite des identifiants Meta Cloud API — cf. `README.md`/le
+plan du projet).
 
 ## 7. Démarrer le déploiement
 
@@ -161,12 +169,16 @@ docker compose -f docker-compose.prod.yml up -d --build
 Ce que ce lancement fait, dans l'ordre :
 
 1. `db`/`redis` démarrent et passent en santé (healthcheck).
-2. `docker/init-db/001-roles.sql` (monté automatiquement dans
-   `/docker-entrypoint-initdb.d`) restreint le rôle applicatif Postgres
-   (`NOSUPERUSER NOBYPASSRLS`) — **étape de sécurité critique** pour que
-   l'isolation multi-tenant par Row-Level Security soit réellement effective
-   (l'image officielle `postgres` fait sinon de ce rôle un superuser qui
-   contourne toujours le RLS, y compris avec `FORCE ROW LEVEL SECURITY`).
+2. `docker/init-db/001-init-app-role.sh` (monté automatiquement dans
+   `/docker-entrypoint-initdb.d`) crée le rôle applicatif Postgres
+   (`widehalo_app`, `NOSUPERUSER NOBYPASSRLS`) — **étape de sécurité
+   critique** pour que l'isolation multi-tenant par Row-Level Security soit
+   réellement effective. Ce rôle est délibérément **distinct** du rôle
+   bootstrap du cluster (`POSTGRES_SUPERUSER`, cf. section 6) : PostgreSQL
+   refuse structurellement de jamais retirer le privilège superuser au rôle
+   bootstrap lui-même (aucune commande ne peut l'y contraindre), c'est
+   pourquoi Django ne doit jamais se connecter avec ce rôle bootstrap — voir
+   les commentaires du script pour le détail complet.
 3. `web`/`worker` démarrent : `docker/entrypoint.sh` compile les traductions
    et applique les migrations Django automatiquement à chaque démarrage,
    avant que `web` ne lance `collectstatic` puis `daphne`.

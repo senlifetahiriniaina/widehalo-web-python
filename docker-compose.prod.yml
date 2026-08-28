@@ -3,16 +3,23 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
+      # Cf. le commentaire equivalent de docker-compose.yml et de
+      # docker/init-db/001-init-app-role.sh : POSTGRES_USER/PASSWORD est
+      # l'identite bootstrap du cluster (jamais utilisee par l'app), distincte
+      # d'APP_DB_USER/APP_DB_PASSWORD (role applicatif reellement cree, memes
+      # valeurs que POSTGRES_USER/POSTGRES_PASSWORD de .env).
       POSTGRES_DB: ${POSTGRES_DB:-widehalo}
-      POSTGRES_USER: ${POSTGRES_USER:-widehalo_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-widehalo_app}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      APP_DB_USER: ${POSTGRES_USER:-widehalo_app}
+      APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-widehalo_app}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d:ro
     # Pas de port publie sur l'hote : seuls web/worker (memes reseau Docker
     # interne) accedent a Postgres, jamais l'exterieur du VM.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-widehalo_app}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10

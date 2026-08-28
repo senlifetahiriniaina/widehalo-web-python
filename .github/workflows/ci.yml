@@ -81,13 +81,19 @@ jobs:
     services:
       db:
         image: postgres:16-alpine
+        # POSTGRES_USER ici est l'identite BOOTSTRAP du cluster (role initdb,
+        # OID 10) — jamais utilisee par Django. Postgres refuse categoriquement
+        # de lui retirer SUPERUSER (cf. docker/init-db/001-init-app-role.sh
+        # pour l'explication complete de ce bug reel, trouve en CI). Le role
+        # applicatif "widehalo_app" (non-superuser, utilise par pytest ci-dessous)
+        # est cree separement par l'etape ci-dessous, jamais confondu avec celui-ci.
         env:
           POSTGRES_DB: widehalo
-          POSTGRES_USER: widehalo_app
-          POSTGRES_PASSWORD: widehalo_app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U widehalo_app"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -106,16 +112,20 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements/dev.txt
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
-      # L'image postgres officielle fait de POSTGRES_USER un SUPERUSER, qui
-      # contourne TOUJOURS le RLS (meme avec FORCE ROW LEVEL SECURITY) — sans
-      # cette restriction, test_tenant_isolation.py echoue systematiquement
-      # en CI (bug reel trouve : passait uniquement en local car ce role y
-      # avait ete cree manuellement sans le privilege SUPERUSER). Reutilise le
-      # meme script que docker-compose.yml (docker/init-db/001-roles.sql),
-      # une seule source de verite pour cette restriction.
+      # Meme script que docker-compose.yml (docker/init-db/001-init-app-role.sh),
+      # execute ici explicitement car les conteneurs de service GitHub Actions
+      # demarrent avant le checkout et ne peuvent donc pas le monter automatiquement.
+      # Cree le role applicatif "widehalo_app" (non-superuser) SEPAREMENT du role
+      # bootstrap "postgres" ci-dessus — lire le script pour le detail du bug reel
+      # que cette separation corrige (Postgres refuse de retrograder le bootstrap).
       - env:
-          PGPASSWORD: widehalo_app
-        run: psql -h localhost -U widehalo_app -d widehalo -f docker/init-db/001-roles.sql
+          PGHOST: localhost
+          PGPASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: widehalo
+          APP_DB_USER: widehalo_app
+          APP_DB_PASSWORD: widehalo_app
+        run: bash docker/init-db/001-init-app-role.sh
       - env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           POSTGRES_HOST: localhost
@@ -134,13 +144,14 @@ jobs:
     services:
       db:
         image: postgres:16-alpine
+        # Cf. le commentaire equivalent du job `tests` ci-dessus.
         env:
           POSTGRES_DB: widehalo
-          POSTGRES_USER: widehalo_app
-          POSTGRES_PASSWORD: widehalo_app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U widehalo_app"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -160,11 +171,15 @@ jobs:
       - run: pip install -r requirements/dev.txt
       - run: playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
-      # Meme restriction que le job `tests` ci-dessus (cf. son commentaire) :
-      # sans elle, le RLS multi-tenant est contourne par ce role superuser.
+      # Meme restriction que le job `tests` ci-dessus (cf. ses commentaires).
       - env:
-          PGPASSWORD: widehalo_app
-        run: psql -h localhost -U widehalo_app -d widehalo -f docker/init-db/001-roles.sql
+          PGHOST: localhost
+          PGPASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: widehalo
+          APP_DB_USER: widehalo_app
+          APP_DB_PASSWORD: widehalo_app
+        run: bash docker/init-db/001-init-app-role.sh
       - env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           POSTGRES_HOST: localhost
