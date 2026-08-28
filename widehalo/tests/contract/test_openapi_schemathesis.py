@@ -2,23 +2,34 @@
 
 Derive le schema OpenAPI reellement expose par `config.api.api`
 (`/api/v1/openapi.json`) et l'exerce contre le jeu de demonstration seede
-par les 8 commandes `seed_<module>` (T10, premiere moitie), via de vraies
-requetes HTTP sur un serveur Django `live_server` (memes considerations
-qu'un test e2e Playwright : vraies requetes, vraie base).
+par les 11 commandes `seed_<module>` (T10, premiere moitie + 4 commandes
+`seed_sales`/`seed_purchase`/`seed_stocks`/`seed_logistics` ajoutees lors du
+retest complet des 14 couches, §8, une fois ces 4 modules construits), via
+de vraies requetes HTTP sur un serveur Django `live_server` (memes
+considerations qu'un test e2e Playwright : vraies requetes, vraie base).
 
 **Choix du/des compte(s) de demonstration** (cf. docstring de
 `apps.core.management.commands.seed_core` pour le raisonnement complet) :
 aucun role de `ROLE_APP_PERMISSIONS` n'est a la fois (a) large sur TOUS les
 modules metier et (b) absent de `settings.CORE_MFA_REQUIRED_ROLES` — "admin"
 est le plus large mais EST dans cet ensemble (bloquerait le login JWT direct,
-Schemathesis n'ayant pas de flux d'enrolement TOTP). On utilise donc les DEUX
-utilisateurs non-MFA crees par `seed_core` et on route chaque requete
-generee vers le jeton le plus permissif pour son module :
+Schemathesis n'ayant pas de flux d'enrolement TOTP). On utilise donc QUATRE
+utilisateurs non-MFA (les 2 crees par `seed_core`, plus 2 crees par
+`seed_purchase`/`seed_stocks` lors de l'extension a sales/purchase/stocks/
+logistics) et on route chaque requete generee vers le jeton le plus
+permissif pour son module :
 - `demo.production@demo.widehalo.local` (role `resp_production` :
   view/add/change sur mrp+patronage, view sur catalog) pour les endpoints
   `/mrp`, `/patronage`, `/catalog`.
 - `demo.commercial@demo.widehalo.local` (role `commercial` : view/add/change
-  sur crm+partners, view sur catalog) pour les endpoints `/crm`, `/partners`.
+  sur crm+partners+sales, view sur catalog) pour les endpoints `/crm`,
+  `/partners`, `/sales`.
+- `demo.acheteur@demo.widehalo.local` (role `acheteur` : view/add/change sur
+  purchase, view/change sur mrp, view/add/change sur partners+catalog) pour
+  les endpoints `/purchase`.
+- `demo.magasinier@demo.widehalo.local` (role `magasinier` : view/add/change
+  sur stocks+logistics, view/change sur mrp, view sur catalog) pour les
+  endpoints `/stocks`, `/logistics`.
 - le premier jeton (production) sert de repli pour tout le reste (auth,
   health, meta, tenants, search, notifications, exports, workflow, chat —
   aucun ne fait l'objet d'une politique RBAC par app, cf. docstring
@@ -45,16 +56,24 @@ hors du perimetre autorise de cette tache (uniquement `requirements/dev.txt`
 et `tests/contract/`) — a considerer pour une prochaine iteration de T10
 premiere moitie plutot que contourne ici.
 
-**Nombre d'exemples** : 101 operations dans le schema OpenAPI expose ; un
-"few dozen to ~100" par operation ferait exploser le temps d'execution
-(~10 000+ requetes HTTP reelles). On retient `max_examples=8` par operation
-(~800 requetes au total sur les deux jeux d'entetes), un compromis assume
-entre couverture et duree pour un test marque `slow` (nightly, pas CI
-standard) — ~80s mesures localement (cf. rapport de session).
+**Nombre d'exemples** : 309 operations dans le schema OpenAPI expose (101
+initialement pour accounting/crm/mrp/patronage/partners/catalog/chat +
+socle, +208 apportees par sales/purchase/stocks/logistics lors du retest
+complet des 14 couches, §8) ; un "few dozen to ~100" par operation ferait
+exploser le temps d'execution (~10 000+ requetes HTTP reelles). On retient
+`max_examples=8` par operation, un compromis assume entre couverture et
+duree pour un test marque `slow` (nightly, pas CI standard) — ~316s mesures
+localement avec les 4 modules supplementaires (cf. rapport de session ;
+~80s avant leur ajout).
 
 **RESULTAT DE LA CAMPAGNE — vrai(s) bug(s) trouve(s), PAS corrige(s) (hors
-perimetre de cette tache) :** ce test echoue actuellement sur ~57 des 101
-operations avec une erreur 500 reelle, jamais une violation de schema. Deux
+perimetre de cette tache) :** ce test echoue actuellement sur 165 des 309
+operations (xfailed) avec une erreur 500 reelle, jamais une violation de
+schema — 144 reussissent legitimement (xpassed), une proportion inchangee
+par l'ajout de sales/purchase/stocks/logistics (le defaut systemique decrit
+ci-dessous les touche exactement de la meme maniere que les modules deja
+couverts, cf. repro ci-dessous transposables tels quels sur leurs
+endpoints). Deux
 causes racines systemiques, toutes deux dans la couche API (`apps/*/api.py`,
 `apps/core/api_auth.py`) plutot que dans les services metier :
 1. Un identifiant UUID recu malforme (chaine vide, `"0"`, etc.) dans un
@@ -79,7 +98,7 @@ retyper ces parametres (UUID/`Literal`) module par module, un chantier
 independant de T10 et hors du perimetre de cette tache (`requirements/
 dev.txt` + `tests/contract/` uniquement). Documente ici tel quel plutot que
 contourne : le test reflete fidelement ce vrai defaut de contrat plutot que
-d'exclure ~57 operations pour forcer un succes artificiel."""
+d'exclure 165 operations pour forcer un succes artificiel."""
 
 from __future__ import annotations
 
@@ -98,20 +117,21 @@ from schemathesis.specs.openapi.checks import response_schema_conformance
 pytestmark = [pytest.mark.django_db, pytest.mark.slow]
 
 # `strict=False` (pas `strict=True`) : `@lazy_schema.parametrize()` genere
-# 101 tests independants (un par operation), et seule une partie d'entre eux
-# (~57/101) rencontre reellement le defaut systemique documente ci-dessus
+# 309 tests independants (un par operation, 101 initiaux + 208 apportes par
+# sales/purchase/stocks/logistics), et seule une partie d'entre eux
+# (165/309) rencontre reellement le defaut systemique documente ci-dessus
 # (parametres UUID/enum declares `str`, provoquant un 500 au lieu d'un
-# 404/422 sur entree malformee generee par Hypothesis) — les autres passent
-# legitimement. `strict=True` ferait donc echouer la suite sur CES operations
-# qui reussissent (XPASS), ce qui est le contraire de l'effet recherche. Ce
-# xfail documente un defaut reel connu (cf. docstring du module pour le
-# detail et les repro) plutot que de masquer ~57 operations une a une pour
-# forcer un succes artificiel — a retirer une fois le retypage module par
-# module effectue (hors perimetre de T10).
+# 404/422 sur entree malformee generee par Hypothesis) — les 144 autres
+# passent legitimement. `strict=True` ferait donc echouer la suite sur CES
+# operations qui reussissent (XPASS), ce qui est le contraire de l'effet
+# recherche. Ce xfail documente un defaut reel connu (cf. docstring du
+# module pour le detail et les repro) plutot que de masquer 165 operations
+# une a une pour forcer un succes artificiel — a retirer une fois le
+# retypage module par module effectue (hors perimetre de T10).
 pytestmark.append(
     pytest.mark.xfail(
         reason=(
-            "Defaut de contrat systemique reel : ~57/101 operations renvoient "
+            "Defaut de contrat systemique reel : 165/309 operations renvoient "
             "500 au lieu de 404/422 sur entree malformee (parametres UUID/enum "
             "declares `str`, non retypes) — cf. docstring du module pour le "
             "detail et les repro. Corriger demande de retyper ces parametres "
@@ -125,6 +145,14 @@ TENANT_CODE = "DEMO"
 DEMO_PASSWORD = "Str0ngPassw0rd!23"  # noqa: S105 - mot de passe de demo (seed_core), jamais en production.
 PRODUCTION_LOGIN = f"demo.production@{TENANT_CODE.lower()}.widehalo.local"
 COMMERCIAL_LOGIN = f"demo.commercial@{TENANT_CODE.lower()}.widehalo.local"
+# Retest des 14 couches (§8) etendu a sales/purchase/stocks/logistics :
+# `acheteur` et `magasinier` (comme `resp_production`/`commercial`) sont
+# HORS `settings.CORE_MFA_REQUIRED_ROLES`, donc utilisables ici pour un
+# login JWT direct — crees par `seed_purchase`/`seed_stocks` respectivement
+# (`seed_logistics` reutilise le compte `magasinier`, deja doté de l'acces
+# `logistics` dans `ROLE_APP_PERMISSIONS`).
+ACHETEUR_LOGIN = f"demo.acheteur@{TENANT_CODE.lower()}.widehalo.local"
+MAGASINIER_LOGIN = f"demo.magasinier@{TENANT_CODE.lower()}.widehalo.local"
 
 # Prefixes de chemin -> login de demo le plus permissif pour ce module
 # (cf. docstring ci-dessus). Verifie dans l'ordre ; premiere correspondance
@@ -132,8 +160,12 @@ COMMERCIAL_LOGIN = f"demo.commercial@{TENANT_CODE.lower()}.widehalo.local"
 _ROUTING: tuple[tuple[str, str], ...] = (
     ("/api/v1/crm", COMMERCIAL_LOGIN),
     ("/api/v1/partners", COMMERCIAL_LOGIN),
+    ("/api/v1/sales", COMMERCIAL_LOGIN),
     ("/api/v1/mrp", PRODUCTION_LOGIN),
     ("/api/v1/patronage", PRODUCTION_LOGIN),
+    ("/api/v1/purchase", ACHETEUR_LOGIN),
+    ("/api/v1/stocks", MAGASINIER_LOGIN),
+    ("/api/v1/logistics", MAGASINIER_LOGIN),
 )
 
 MAX_EXAMPLES = 8
@@ -165,7 +197,19 @@ def _seed_demo_tenant() -> None:
     utilisateurs non-MFA utilises par ce test), puis les autres modules qui
     viennent se greffer dessus via `get_or_create`."""
     call_command("seed_core", "--tenant-code", TENANT_CODE)
-    for module in ("accounting", "crm", "mrp", "patronage", "partners", "catalog", "chat"):
+    for module in (
+        "accounting",
+        "crm",
+        "mrp",
+        "patronage",
+        "partners",
+        "catalog",
+        "chat",
+        "sales",
+        "purchase",
+        "stocks",
+        "logistics",
+    ):
         call_command(f"seed_{module}", "--tenant-code", TENANT_CODE)
 
 
@@ -187,13 +231,14 @@ def _access_token(base_url: str, email: str, password: str) -> str:
 
 @pytest.fixture(scope="module")
 def demo_tokens_and_tenant(live_server, django_db_blocker) -> Iterator[tuple[dict[str, str], str]]:
-    """Seede le tenant de demonstration puis authentifie les deux comptes
-    non-MFA utilises par la campagne — retourne {login -> jeton JWT} et
-    l'identifiant du tenant demo (pour l'entete `X-Tenant-Id`).
+    """Seede le tenant de demonstration puis authentifie les QUATRE comptes
+    non-MFA utilises par la campagne (retest des 14 couches, §8 : etendu de
+    2 a 4 avec sales/purchase/stocks/logistics) — retourne {login -> jeton
+    JWT} et l'identifiant du tenant demo (pour l'entete `X-Tenant-Id`).
 
     Scope module (pas function) : `@lazy_schema.parametrize()` genere un
-    test pytest par operation du schema (101 au total) — reseeder les 8
-    commandes + refaire 2 logins HTTP a chacun ferait exploser la duree du
+    test pytest par operation du schema (au total) — reseeder les 11
+    commandes + refaire 4 logins HTTP a chacun ferait exploser la duree du
     test pour un gain nul (le jeu de demo est idempotent). `django_db_
     blocker` (session-scope, toujours disponible) permet cet acces ORM
     direct depuis une fixture dont le scope depasse celui de `db`/
@@ -205,6 +250,8 @@ def demo_tokens_and_tenant(live_server, django_db_blocker) -> Iterator[tuple[dic
         tokens = {
             PRODUCTION_LOGIN: _access_token(live_server.url, PRODUCTION_LOGIN, DEMO_PASSWORD),
             COMMERCIAL_LOGIN: _access_token(live_server.url, COMMERCIAL_LOGIN, DEMO_PASSWORD),
+            ACHETEUR_LOGIN: _access_token(live_server.url, ACHETEUR_LOGIN, DEMO_PASSWORD),
+            MAGASINIER_LOGIN: _access_token(live_server.url, MAGASINIER_LOGIN, DEMO_PASSWORD),
         }
     yield tokens, tenant_id
 
