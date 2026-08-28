@@ -5,9 +5,11 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from ninja import Router, Schema
+from ninja import File, Router, Schema
+from ninja.files import UploadedFile
 
 from apps.catalog.models import Category, ProductTemplate, ProductVariant, UnitOfMeasure
+from apps.catalog.services.catalog_import import import_catalog_xlsx
 from apps.catalog.services.pricing import get_price
 from apps.catalog.services.variants import generate_variants, set_variant_attributes
 from apps.core.services.permissions import require_permission
@@ -100,3 +102,39 @@ def variant_price_endpoint(request, variant_id: str, partner_id: str = ""):
     variant = get_object_or_404(ProductVariant, id=variant_id)
     price = get_price(variant, partner_id=partner_id or None)
     return {"price_mga": str(price)}
+
+
+# ---------------------------------------------------------------------------
+# Import catalogue depuis Excel (cf. docs/IMPORT_FORMATS.md)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/catalog/imports/catalog")
+@require_permission("catalog.add_producttemplate")
+def import_catalog_endpoint(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import xlsx du catalogue (gammes + variantes generees + specs
+    textiles) — cf. docstring de `services/catalog_import.py`/
+    `docs/IMPORT_FORMATS.md`. Meme idiome multipart que
+    `accounting.import_chart_of_accounts_endpoint`."""
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        summary = import_catalog_xlsx(tenant, file.read(), filename=file.name)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return {
+        "is_valid": summary.is_valid,
+        "total_rows": summary.total_rows,
+        "created_count": summary.created_count,
+        "skipped_existing_count": summary.skipped_existing_count,
+        "variants_created_count": summary.variants_created_count,
+        "textile_specs_created_count": summary.textile_specs_created_count,
+        "row_errors": [
+            {"row_index": row_error.row_index, "errors": row_error.errors}
+            for row_error in summary.row_errors
+        ],
+    }

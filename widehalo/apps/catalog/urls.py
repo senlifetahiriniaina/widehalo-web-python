@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.catalog import views, views_config
+from apps.catalog import views, views_config, views_imports
 
 app_name = "catalog"
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path("templates/<uuid:template_id>/", views.template_detail, name="template_detail"),
     path("textile-converter/", views.textile_converter, name="textile_converter"),
     path("config/", views_config.config_index, name="config_index"),
+    path("config/imports/", views_imports.imports_catalog, name="imports_catalog"),
     path("config/categories/", views_config.config_categories, name="config_categories"),
     path("config/attributes/", views_config.config_attributes, name="config_attributes"),
     path("config/units/", views_config.config_uom, name="config_uom"),
