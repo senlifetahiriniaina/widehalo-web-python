@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.partners import views
+from apps.partners import views, views_imports
 
 app_name = "partners"
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path("new/", views.partner_create_wizard, name="wizard"),
     path("duplicates/", views.duplicate_alert_list, name="duplicates"),
     path("merge/", views.partner_merge, name="merge"),
+    path("imports/", views_imports.imports_partners, name="imports"),
     path("<uuid:partner_id>/", views.partner_detail, name="detail"),
     path("<uuid:partner_id>/edit/", views.partner_edit, name="edit"),
 ]

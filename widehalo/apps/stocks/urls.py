@@ -1,11 +1,22 @@
 from django.urls import path
 
-from apps.stocks import views, views_config, views_reports
+from apps.stocks import views, views_config, views_imports, views_reports
 
 app_name = "stocks"
 
 urlpatterns = [
     path("", views.stock_view, name="index"),
+    path("imports/", views_imports.imports_index, name="imports_index"),
+    path(
+        "imports/<uuid:batch_id>/",
+        views_imports.imports_batch_detail,
+        name="imports_batch_detail",
+    ),
+    path(
+        "imports/rows/<uuid:row_id>/resolve/",
+        views_imports.imports_row_resolve,
+        name="imports_row_resolve",
+    ),
     path("stock-view/", views.stock_view, name="stock_view"),
     path("moves/", views.move_list, name="move_list"),
     path("moves/<uuid:move_id>/", views.move_detail, name="move_detail"),

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Lot d'import" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Lot d'import" %} — {{ batch.source_filename|default:batch.id }}</h1>
+  <p>
+    {% blocktrans with total=batch.total_rows anomalies=batch.anomaly_rows_count applied=batch.applied_rows_count %}
+      {{ total }} ligne(s), {{ anomalies }} en anomalie, {{ applied }} appliquée(s).
+    {% endblocktrans %}
+  </p>
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Ligne" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Emplacement" %}</th>
+        <th>{% trans "Quantité" %}</th>
+        <th>{% trans "Anomalies" %}</th>
+        <th>{% trans "Action" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.row_number }}</td>
+          <td>{{ row.get_status_display }}</td>
+          <td>{{ row.raw_data.variant_code }}</td>
+          <td>{{ row.raw_data.warehouse_code }} / {{ row.raw_data.location_code }}</td>
+          <td>{{ row.raw_data.qty }}</td>
+          <td>{{ row.anomaly_codes|join:", " }}</td>
+          <td>
+            {% if row.status == "anomaly" %}
+              <form method="post" action="{% url 'stocks:imports_row_resolve' row.id %}">
+                {% csrf_token %}
+                <input type="text" name="variant_code" placeholder="{% trans 'Code variante' %}" value="{{ row.raw_data.variant_code }}">
+                <select name="warehouse_id">
+                  <option value="">{% trans "Choisir un entrepôt" %}</option>
+                  {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}">{{ warehouse.code }} — {{ warehouse.name }}</option>
+                  {% endfor %}
+                </select>
+                <input type="text" name="location_id" placeholder="{% trans 'ID emplacement' %}">
+                <input type="text" name="qty" placeholder="{% trans 'Quantité' %}" value="{{ row.raw_data.qty }}">
+                <button type="submit">{% trans "Corriger" %}</button>
+                <button type="submit" name="discard" value="1">{% trans "Écarter" %}</button>
+              </form>
+            {% elif row.move %}
+              <a href="{% url 'stocks:move_detail' row.move.id %}">{% trans "Voir le mouvement" %}</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucune ligne." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

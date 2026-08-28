@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Import du catalogue" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Import du catalogue" %}</h1>
+  <p>{% trans "Format attendu : colonnes Template_code/Template_name/Category/Uom/Variant_attributes (attribut=valeur;...)/Material/Composition/Weight_gsm/Width_cm — voir docs/IMPORT_FORMATS.md." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="file">{% trans "Fichier xlsx" %}</label>
+      <input id="file" type="file" name="file" accept=".xlsx" required>
+    </div>
+    <button type="submit">{% trans "Importer" %}</button>
+  </form>
+
+  {% if summary %}
+    <h2>{% trans "Résultat" %}</h2>
+    {% if summary.is_valid %}
+      <ul>
+        <li>{% blocktrans with count=summary.created_count %}{{ count }} gamme(s) créée(s){% endblocktrans %}</li>
+        <li>{% blocktrans with count=summary.skipped_existing_count %}{{ count }} code(s) déjà existant(s), ignoré(s){% endblocktrans %}</li>
+        <li>{% blocktrans with count=summary.variants_created_count %}{{ count }} variante(s) générée(s){% endblocktrans %}</li>
+        <li>{% blocktrans with count=summary.textile_specs_created_count %}{{ count }} spécification(s) textile créée(s){% endblocktrans %}</li>
+      </ul>
+    {% else %}
+      <p class="form-error">{% trans "Import annulé — aucune donnée n'a été enregistrée." %}</p>
+      <ul>
+        {% for row_error in summary.row_errors %}
+          <li>{% blocktrans with row=row_error.row_index %}Ligne {{ row }}{% endblocktrans %} : {{ row_error.errors }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -1217,3 +1217,76 @@ class StkNegativeStockException(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} [{'active' if self.is_active else 'revoked'}]"
+
+
+class StkImportBatch(BaseModel):
+    """Lot d'import xlsx de quantites initiales (ouverture de stock) —
+    cf. `services/stock_import.py`, `docs/IMPORT_FORMATS.md`. Meme patron
+    exact que `apps.accounting.models.AccImportBatch`/`AccImportRow` : une
+    ligne dont une reference (variante/entrepot/emplacement) ne peut pas
+    etre resolue avec certitude est mise en attente de resolution humaine
+    (`StkImportRow.status=anomaly`) plutot que devinee ou silencieusement
+    ignoree — un import de quantites initiales touche potentiellement des
+    centaines de lignes issues d'un existant externe, avec le meme besoin
+    "corriger les quelques lignes fautives sans rejeter tout le fichier"
+    que l'import du journal de caisse (contrairement au plan comptable/aux
+    partenaires/au catalogue, tout-ou-rien car sans reference externe a
+    resoudre ligne par ligne)."""
+
+    KIND_INITIAL_QUANTITIES = "initial_quantities"
+    KIND_CHOICES = [(KIND_INITIAL_QUANTITIES, "Quantités initiales")]
+
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES, default=KIND_INITIAL_QUANTITIES)
+    source_filename = models.CharField(max_length=255, blank=True)
+    format_version = models.PositiveSmallIntegerField()
+    total_rows = models.PositiveIntegerField(default=0)
+    anomaly_rows_count = models.PositiveIntegerField(default=0)
+    applied_rows_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "stk_import_batch"
+        indexes = [models.Index(fields=["tenant", "kind"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} — {self.source_filename or self.id}"
+
+
+class StkImportRow(BaseModel):
+    """Une ligne d'un `StkImportBatch` — meme cycle de vie que
+    `AccImportRow` (`ok`/`anomaly`/`resolved`/`discarded`). Une ligne SANS
+    anomalie produit immediatement un `StkMove` de type `TYPE_AJUSTEMENT`,
+    VALIDE (pas seulement brouillon, a la difference de l'import
+    comptable) depuis l'emplacement virtuel d'ecart d'inventaire de
+    l'entrepot cible vers l'emplacement interne demande — une quantite
+    initiale n'a pas de circuit d'approbation metier distinct a suivre
+    apres coup (contrairement a une ecriture comptable, qui reste
+    brouillon jusqu'a validation humaine explicite) : l'acte d'import EST
+    la confirmation, exactement comme `services.inventory.validate_inventory`
+    valide immediatement les mouvements d'ecart qu'il genere."""
+
+    STATUS_OK = "ok"
+    STATUS_ANOMALY = "anomaly"
+    STATUS_RESOLVED = "resolved"
+    STATUS_DISCARDED = "discarded"
+    STATUS_CHOICES = [
+        (STATUS_OK, "Importée"),
+        (STATUS_ANOMALY, "Anomalie — à corriger"),
+        (STATUS_RESOLVED, "Anomalie corrigée"),
+        (STATUS_DISCARDED, "Écartée"),
+    ]
+
+    batch = models.ForeignKey(StkImportBatch, on_delete=models.CASCADE, related_name="rows")
+    row_number = models.PositiveIntegerField()
+    raw_data = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ANOMALY)
+    anomaly_codes = models.JSONField(default=list, blank=True)
+    move = models.ForeignKey(
+        StkMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "stk_import_row"
+        indexes = [models.Index(fields=["batch", "status"])]
+
+    def __str__(self) -> str:
+        return f"Ligne {self.row_number} du lot {self.batch_id}"

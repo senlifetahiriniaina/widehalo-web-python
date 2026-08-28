@@ -33,6 +33,21 @@ def get_variant_reference(variant_id: Any) -> str:
     return variant.reference if variant is not None else ""
 
 
+def get_variant_id_by_reference(reference: str) -> UUID | None:
+    """Sens inverse de `get_variant_reference` — necessaire a
+    `stocks.services.stock_import` pour resoudre la colonne `variant_code`
+    d'un import de quantites initiales vers l'UUID de variante attendu par
+    `stocks` (jamais de FK Django vers `catalog`, regle de couplage n°1).
+    Retourne `None`, jamais une exception, si aucune variante ne porte
+    cette reference pour le tenant courant (RLS deja actif) — meme
+    discipline que `get_variant_template_id`."""
+    variant = ProductVariant.objects.filter(reference=reference).first()
+    if variant is None:
+        return None
+    variant_id: UUID = variant.id
+    return variant_id
+
+
 def get_variant_template_id(variant_id: Any) -> UUID | None:
     """Gap identifie par le sous-sequencement S3 de `sales` (RG-SAL-3) :
     remonte le `ProductTemplate` d'une variante — necessaire a
