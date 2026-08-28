@@ -1,11 +1,13 @@
-"""A17 — Couts d'importation (landed costs), ACC-IMP : calculateur autonome
-de repartition de frais additionnels entre les lignes d'un lot d'achat
+"""A17 — Couts d'importation (landed costs), ACC-IMP : calculateur de
+repartition de frais additionnels entre les lignes d'un lot d'achat
 importe. Cf. docstring de `services/landed_costs.py` pour le perimetre
-explicitement exclu (aucune ecriture postee, aucune integration stock)."""
+explicitement exclu (aucune ecriture postee en comptabilite generale) et
+pour l'integration stock reelle desormais cablee dans `finalize_batch`."""
 
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -21,6 +23,7 @@ from apps.accounting.services.landed_costs import (
 )
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
+from apps.stocks.tests.factories import StkValuationLayerFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -234,3 +237,71 @@ def test_double_finalization_rejected(tenant):
 
     with pytest.raises(ValidationError):
         finalize_batch(batch)
+
+
+# ---------------------------------------------------------------------------
+# Chantier de durcissement retroactif : integration stock reelle a la
+# finalisation (`stocks.services.public.apply_landed_cost_to_valuation`).
+# ---------------------------------------------------------------------------
+
+
+def test_finalize_batch_revalues_stock_for_lines_with_variant_id(tenant):
+    variant_id = uuid.uuid4()
+    layer = StkValuationLayerFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=Decimal(500),
+        remaining_qty=Decimal(500),
+        value_mga=Decimal("3000000"),
+        remaining_value_mga=Decimal("3000000"),
+    )
+    batch = _make_batch(tenant, allocation_method=AccLandedCostBatch.METHOD_BY_VALUE)
+    add_landed_cost_line(
+        batch,
+        description="Tissu coton",
+        qty=Decimal(500),
+        purchase_value_mga=Decimal("3000000"),
+        variant_id=variant_id,
+    )
+    add_cost_component(batch, label="Fret maritime", amount_mga=Decimal("375000"))
+
+    finalize_batch(batch)
+
+    layer.refresh_from_db()
+    # Seule ligne du lot : elle recoit l'integralite du cout alloue.
+    assert layer.remaining_value_mga == Decimal("3375000")
+    assert layer.value_mga == Decimal("3375000")
+
+
+def test_finalize_batch_leaves_lines_without_variant_id_untouched(tenant):
+    """Une ligne sans `variant_id` (frais general non rattache a un
+    article) n'a rien a revaloriser cote stock — `finalize_batch` ne doit
+    ni lever ni creer de couche de valorisation fantome."""
+    batch = _make_batch(tenant, allocation_method=AccLandedCostBatch.METHOD_BY_VALUE)
+    add_landed_cost_line(
+        batch, description="Frais general", qty=Decimal(1), purchase_value_mga=Decimal("100000")
+    )
+    add_cost_component(batch, label="Fret", amount_mga=Decimal("10000"))
+
+    finalized = finalize_batch(batch)
+
+    assert finalized.state == AccLandedCostBatch.STATE_FINALIZED
+
+
+def test_finalize_batch_is_noop_on_stock_for_variant_without_active_layers(tenant):
+    """`apply_landed_cost_to_valuation` renvoie `False` (jamais une
+    exception) quand la variante n'a aucune couche de valorisation active
+    — `finalize_batch` doit rester silencieux dans ce cas."""
+    batch = _make_batch(tenant, allocation_method=AccLandedCostBatch.METHOD_BY_VALUE)
+    add_landed_cost_line(
+        batch,
+        description="Variante sans stock receptionne",
+        qty=Decimal(10),
+        purchase_value_mga=Decimal("100000"),
+        variant_id=uuid.uuid4(),
+    )
+    add_cost_component(batch, label="Fret", amount_mga=Decimal("10000"))
+
+    finalized = finalize_batch(batch)
+
+    assert finalized.state == AccLandedCostBatch.STATE_FINALIZED
