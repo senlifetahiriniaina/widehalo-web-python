@@ -25,6 +25,7 @@ from django.utils.translation import gettext as _
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
+from apps.core.services.object_remap import remap_all_references
 from apps.core.tenant_context import activate_tenant
 
 FORMAT_VERSION = 1
@@ -126,40 +127,6 @@ def import_tenant_archive(archive_bytes: bytes, *, target_tenant: Tenant) -> dic
     counts: dict[str, int] = {label: len(objects) for label, objects in all_objects.items()}
     content_type_labels: dict[int, str] = {}
 
-    def _remap_generic_fk(imported: Any) -> None:
-        content_type_id = getattr(imported, "content_type_id", None)
-        object_id = getattr(imported, "object_id", None)
-        if not (content_type_id and object_id):
-            return
-        referenced_label = content_type_labels.get(content_type_id)
-        if referenced_label is None:
-            content_type = ContentType.objects.filter(pk=content_type_id).first()
-            if content_type is not None:
-                referenced_label = f"{content_type.app_label}.{content_type.model}"
-                content_type_labels[content_type_id] = referenced_label
-        if referenced_label is not None:
-            remapped = id_remap.get((referenced_label, str(object_id)))
-            if remapped is not None:
-                imported.object_id = str(remapped)
-
-    def _remap_ordinary_fks(imported: Any) -> None:
-        for field in type(imported)._meta.get_fields():
-            is_to_one = getattr(field, "many_to_one", False) or getattr(field, "one_to_one", False)
-            if not (is_to_one and getattr(field, "concrete", False)):
-                continue
-            related_model = field.related_model
-            if not (isinstance(related_model, type) and issubclass(related_model, BaseModel)):
-                continue
-            old_fk_id = getattr(imported, field.attname)
-            if old_fk_id is None:
-                continue
-            remapped = id_remap.get((related_model._meta.label_lower, str(old_fk_id)))
-            if remapped is not None:
-                setattr(imported, field.attname, remapped)
-            # Sinon : la cible n'est pas dans cette archive (autre tenant
-            # deja present en base, ex. FK vers `core.User` non tenant-scope)
-            # — laissee inchangee.
-
     with activate_tenant(target_tenant.id):
         pending = [
             deserialized_obj for objects in all_objects.values() for deserialized_obj in objects
@@ -168,8 +135,7 @@ def import_tenant_archive(archive_bytes: bytes, *, target_tenant: Tenant) -> dic
             still_pending = []
             for deserialized_obj in pending:
                 imported = deserialized_obj.object
-                _remap_generic_fk(imported)
-                _remap_ordinary_fks(imported)
+                remap_all_references(imported, id_remap, content_type_labels)
                 try:
                     with transaction.atomic():
                         deserialized_obj.save()

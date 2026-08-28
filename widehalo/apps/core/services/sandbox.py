@@ -1,20 +1,33 @@
 """Bac a sable par clonage : copie anonymisee d'un tenant pour tests/
 formation, avec expiration automatique. Implementation simple, non
 optimisee pour de gros volumes (cf. simplifications assumees du lot) —
-suffisante tant que le volume de donnees reel n'existe pas encore."""
+suffisante tant que le volume de donnees reel n'existe pas encore.
+
+**Correctif du chantier backup/restore** : `clone_tenant_to_sandbox`
+recopiait les objets sans jamais reecrire leurs references (FK Django
+classiques vers un autre `BaseModel` copie dans le meme lot, ni les
+references generiques `content_type`/`object_id`) — exactement le bug deja
+trouve et corrige dans `tenant_export.import_tenant_archive` par T3 (cf.
+plan), jamais reporte ici a l'epoque. Desormais partage via
+`apps.core.services.object_remap` (memes fonctions, memes garanties) —
+plus une seule implementation divergente du meme algorithme."""
 
 from __future__ import annotations
 
 import copy
 import uuid
 from datetime import timedelta
+from typing import Any
 
 from django.apps import apps as django_apps
+from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
+from apps.core.services.object_remap import IdRemap, remap_all_references
 from apps.core.tenant_context import activate_tenant
 
 DEFAULT_EXPIRY_DAYS = 30
@@ -59,21 +72,53 @@ def clone_tenant_to_sandbox(source: Tenant, expires_in_days: int = DEFAULT_EXPIR
                 continue
             rows_by_model[model] = list(model.all_objects.filter(tenant=source))
 
+    # Premiere passe : attribue le nouvel id de chaque clone et construit
+    # le registre de remappage AVANT de reecrire la moindre reference —
+    # meme sequence que `tenant_export.import_tenant_archive` (on doit
+    # connaitre TOUS les nouveaux id avant de pouvoir en referencer un
+    # seul, l'ordre d'iteration ne garantissant aucun ordre topologique).
+    id_remap: IdRemap = {}
+    clones: list[Any] = []
     counter = 0
+    for model, rows in rows_by_model.items():
+        label = model._meta.label_lower
+        for obj in rows:
+            counter += 1
+            clone = copy.copy(obj)
+            new_id = uuid7()
+            id_remap[(label, str(obj.pk))] = new_id
+            clone.id = new_id
+            clone.tenant = sandbox
+            clone.tenant_id = sandbox.id
+            clone._state.adding = True
+
+            for field_name in PII_FIELD_NAMES:
+                if hasattr(clone, field_name):
+                    setattr(clone, field_name, _anonymize_field_value(field_name, counter))
+
+            clones.append(clone)
+
+    content_type_labels: dict[int, str] = {}
     with activate_tenant(sandbox.id):
-        for rows in rows_by_model.values():
-            for obj in rows:
-                counter += 1
-                clone = copy.copy(obj)
-                clone.id = uuid7()
-                clone.tenant = sandbox
-                clone._state.adding = True
+        pending = clones
+        while pending:
+            still_pending = []
+            for clone in pending:
+                remap_all_references(clone, id_remap, content_type_labels)
+                try:
+                    with transaction.atomic():
+                        clone.save()
+                except IntegrityError:
+                    still_pending.append(clone)
 
-                for field_name in PII_FIELD_NAMES:
-                    if hasattr(clone, field_name):
-                        setattr(clone, field_name, _anonymize_field_value(field_name, counter))
-
-                clone.save()
+            if len(still_pending) == len(pending):
+                raise ValueError(
+                    _(
+                        "Impossible de cloner le tenant en bac a sable : dependances "
+                        "entre objets non resolvables (reference manquante ou cycle)."
+                    )
+                )
+            pending = still_pending
 
     return sandbox
 
