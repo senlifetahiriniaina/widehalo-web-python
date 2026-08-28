@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import pytest
+from django.contrib.auth.models import Group
 from freezegun import freeze_time
 
 from apps.core.models.notification import Notification, WhatsAppMessage
 from apps.core.models.tenant import Tenant
-from apps.core.models.user import User
+from apps.core.models.user import User, UserTenantMembership
 from apps.core.services.notifications import (
     dispatch_notification,
     group_hourly,
+    notify_role,
     send_whatsapp_notification,
 )
 
@@ -71,6 +73,37 @@ def test_whatsapp_notification_is_stubbed_when_not_configured(user_and_tenant) -
     # Sans WHATSAPP_ENABLED, le client stub renvoie "stubbed" -> journalise comme "failed"
     # (pas d'envoi reel), pour rester honnete sur l'absence d'integration active.
     assert message.status == WhatsAppMessage.STATUS_FAILED
+
+
+def test_notify_role_notifies_every_member_of_the_role_for_this_tenant(user_and_tenant) -> None:
+    tenant, user = user_and_tenant
+    other_tenant = Tenant.objects.create(code="NOTIF-T2", name="Autre tenant")
+    other_tenant_user = User.objects.create_user(
+        email="autretenant@example.com", password="Str0ngPassw0rd!23"
+    )
+    same_role_other_tenant = User.objects.create_user(
+        email="autrerole@example.com", password="Str0ngPassw0rd!23"
+    )
+    group, _ = Group.objects.get_or_create(name="comptable")
+    user.groups.add(group)
+    other_tenant_user.groups.add(group)
+    same_role_other_tenant.groups.add(group)
+    UserTenantMembership.objects.create(user=user, tenant=tenant)
+    UserTenantMembership.objects.create(user=other_tenant_user, tenant=tenant)
+    UserTenantMembership.objects.create(user=same_role_other_tenant, tenant=other_tenant)
+
+    notifications = notify_role(str(tenant.id), "comptable", "import.needs_qualification", {})
+
+    assert {n.user_id for n in notifications} == {user.id, other_tenant_user.id}
+
+
+def test_notify_role_returns_empty_list_when_no_member_of_this_role(user_and_tenant) -> None:
+    tenant, _user = user_and_tenant
+    Group.objects.get_or_create(name="magasinier")
+
+    notifications = notify_role(str(tenant.id), "magasinier", "import.needs_qualification", {})
+
+    assert notifications == []
 
 
 def test_inbound_whatsapp_webhook_records_a_message(client) -> None:

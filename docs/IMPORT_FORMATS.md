@@ -3,7 +3,10 @@
 Ce document décrit les formats de fichier acceptés par les assistants
 d'import de l'application, colonne par colonne. Il couvre cinq imports
 réellement implémentés et testés : plan comptable et journal de caisse
-(§2-3), puis partenaires, catalogue et quantités initiales de stock (§4).
+(§2-3), puis partenaires, catalogue et quantités initiales de stock (§4),
+ainsi que la qualification/identification universelle des données
+importées (§6, chantier RG-QUALIF) et l'import de factures client/
+fournisseur qu'elle démontre de bout en bout.
 
 ## 1. Principes généraux
 
@@ -298,3 +301,12 @@ remplacée par un identifiant structuré incompatible avec la résolution par
 code/nom actuelle, la version serait incrémentée à `2` et l'ancien
 comportement resterait disponible pour tout fichier n'annonçant pas
 explicitement la version `2`.
+
+## 6. Qualification et identification universelle des données importées (RG-QUALIF)
+
+> Squelette (étape Q1 du chantier RG-QUALIF) — complété au fil des étapes
+> Q2 à Q8 : registre défaultable/non-défaultable par code d'anomalie,
+> principe de double couche d'approbation, et le nouvel import de
+> factures client/fournisseur qui démontre le socle de bout en bout.
+> **À compléter intégralement en Q8** — cette section reste provisoire
+> tant que ce commentaire est présent.

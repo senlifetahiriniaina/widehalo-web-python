@@ -42,6 +42,31 @@ def dispatch_notification(
     return notification
 
 
+def notify_role(
+    tenant_id: str, role_code: str, notification_type: str, payload: dict[str, Any]
+) -> list[Notification]:
+    """Notifie TOUS les utilisateurs d'un role donne pour ce tenant — lacune
+    identifiee par le chantier RG-QUALIF (`dispatch_notification` ne
+    notifie jusqu'ici qu'un seul `User`). Un role est porte par un `Group`
+    Django global (nomme par son code, cf. `load_roles`) ; les utilisateurs
+    concernes sont ceux appartenant a ce groupe ET ayant une
+    `UserTenantMembership` pour ce tenant (un role est global au compte
+    mais la notification reste scopee au tenant courant, comme toute
+    donnee metier).
+
+    Retourne la liste des `Notification` creees (une par utilisateur
+    notifie, jamais un envoi groupe implicite) — liste vide si aucun
+    utilisateur de ce role n'est rattache a ce tenant, jamais une
+    exception."""
+    users = User.objects.filter(
+        groups__name=role_code, tenant_memberships__tenant_id=tenant_id
+    ).distinct()
+    return [
+        dispatch_notification(user, notification_type, payload, tenant_id=tenant_id)
+        for user in users
+    ]
+
+
 def send_whatsapp_notification(
     user: User, phone_number: str, template_name: str, params: dict[str, Any], *, tenant_id: str
 ) -> WhatsAppMessage:
