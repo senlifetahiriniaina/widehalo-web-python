@@ -1,10 +1,9 @@
 # Formats d'import comptable, caisse et référentiels
 
 Ce document décrit les formats de fichier acceptés par les assistants
-d'import de l'application, colonne par colonne. Il couvre deux imports
-réellement implémentés et testés (plan comptable, journal de caisse) et
-plusieurs formats **documentés mais dont l'écran d'import reste à
-construire** dans un chantier dédié (partenaires, catalogue, stocks).
+d'import de l'application, colonne par colonne. Il couvre cinq imports
+réellement implémentés et testés : plan comptable et journal de caisse
+(§2-3), puis partenaires, catalogue et quantités initiales de stock (§4).
 
 ## 1. Principes généraux
 
@@ -163,47 +162,104 @@ Date       | Caisse | Categorie        | Compte pcg | Libelle          | Entree 
 2026-01-06 | Caisse |                  | 601        | Achat fournitures|        | 12000
 ```
 
-## 4. Autres imports documentés (écran non encore implémenté)
+## 4. Imports référentiels (partenaires, catalogue, stocks)
 
-Les formats ci-dessous sont documentés pour permettre une migration future
-depuis un existant, mais **aucun écran d'import n'est encore construit**
-pour eux — à traiter dans un chantier dédié, une fois qu'un besoin concret
-se présente. `apps/core/services/import_wizard.py` (mapping colonne→champ,
-validation à blanc, commit atomique tout-ou-rien) est le point de départ
-naturel pour les bâtir.
+Trois imports supplémentaires, construits sur le même socle
+(`apps/core/services/import_xlsx.py` pour la lecture, alias d'en-têtes,
+numéro de version) mais avec des choix de commit différents selon que la
+ligne référence ou non une entité externe qu'il faut pouvoir résoudre plus
+tard :
 
-### Partenaires (`apps.partners.models.Partner`)
+- **Partenaires** et **catalogue** sont **tout-ou-rien** (comme le plan
+  comptable, §2) : une ligne invalide n'a pas de notion de « corriger plus
+  tard » utile côté utilisateur (contrairement à un compte ou une caisse
+  inconnue du journal de caisse) — rien n'est enregistré tant que le
+  fichier n'est pas corrigé, `row_errors` détaille chaque ligne en échec.
+- **Stocks (quantités initiales)** utilise en revanche une **file
+  d'anomalies** (comme le journal de caisse, §3) : une ligne référence
+  jusqu'à trois entités externes (variante, entrepôt, emplacement) et une
+  référence non reconnue ne doit jamais bloquer les autres lignes propres
+  du même classeur.
 
-| Colonne proposée | Type | Description |
-|---|---|---|
-| `code` | texte | Code partenaire (auto-généré si absent). |
-| `name` | texte | Raison sociale. |
-| `nif` | texte | Numéro d'identification fiscale (unicité par tenant, doublon détecté mais non bloquant). |
-| `roles` | liste (texte, séparateur `;`) | Parmi `client`/`fournisseur`/`transporteur`/`sous_traitant`. |
-| `credit_limit_mga` | décimal | Plafond de crédit en Ariary. |
-| `email`, `phone`, `address` | texte | Coordonnées. |
+### 4.1 Partenaires (`apps.partners.models.Partner`)
 
-### Catalogue (`apps.catalog.models.ProductTemplate`/`ProductVariant`/`TextileSpec`)
+Endpoint : `POST /api/v1/partners/imports/partners` (upload multipart,
+champ `file`) ; écran : `/partners/imports/`.
 
-| Colonne proposée | Type | Description |
-|---|---|---|
-| `template_code` | texte | Code du gabarit produit. |
-| `template_name` | texte | Nom du produit. |
-| `category` | texte | Catégorie de catalogue. |
-| `uom` | texte | Unité de mesure de base. |
-| `variant_attributes` | texte (`attribut=valeur;...`) | Attributs générateurs de variantes (max 2, plafond 50 combinaisons). |
-| `material`, `composition`, `weight_gsm`, `width_cm` | texte/décimal | Spécification textile (`TextileSpec`), optionnelle. |
+| Champ canonique | Libellés de colonne acceptés | Type | Obligatoire | Description |
+|---|---|---|---|---|
+| `code` | `Code` | texte | non | Code partenaire → `Partner.reference`. Si fourni, l'import est **idempotent par code** (un code déjà utilisé par ce tenant est ignoré, jamais écrasé) ; si absent, une référence est générée (séquence `PART-<année>-NNNN`, comme la création manuelle) et chaque ré-import crée une nouvelle fiche. |
+| `name` | `Name`, `Nom`, `Raison sociale` | texte | oui | Raison sociale. |
+| `nif` | `NIF` | texte | non | Numéro d'identification fiscale. Un NIF déjà porté par un autre partenaire du même tenant **n'est jamais bloquant** : une `DuplicateAlert` est journalisée pour revue humaine (même comportement que la création manuelle via `services.onboarding.create_partner`). |
+| `roles` | `Roles`, `Role` | liste (texte, séparateur `;`) | non | Parmi `client`/`fournisseur`/`transporteur`/`sous_traitant` (libellés français acceptés, traduits vers les valeurs canoniques du modèle `client`/`supplier`/`carrier`/`subcontractor` — ces valeurs canoniques sont aussi acceptées directement). Une valeur non reconnue n'est **jamais devinée** : elle est laissée telle quelle, ce qui fait échouer la validation (erreur de ligne explicite). |
+| `credit_limit_mga` | `Credit_limit_mga`, `Plafond de crédit`, `Limite de crédit` | décimal | non | Plafond de crédit en Ariary (0 = pas de plafond). |
+| `email`, `phone`, `address` | `Email` ; `Phone`, `Téléphone` ; `Address`, `Adresse` | texte | non | Colonnes lues (compatibilité du format déjà documenté avant l'implémentation de cet écran) mais **non persistées** : `Partner` ne porte aujourd'hui aucun champ coordonnées. Une ligne qui les renseigne est comptée dans `coordinates_ignored_count` du résumé, jamais silencieusement perdue sans trace. |
 
-### Stocks — quantités initiales (`apps.stocks.models.StkQuant`/mouvement d'inventaire initial)
+### 4.2 Catalogue (`apps.catalog.models.ProductTemplate`/`ProductVariant`/`TextileSpec`)
 
-| Colonne proposée | Type | Description |
-|---|---|---|
-| `variant_code` | texte | Référence de la variante produit. |
-| `warehouse_code` | texte | Entrepôt. |
-| `location_code` | texte | Emplacement au sein de l'entrepôt. |
-| `qty` | décimal | Quantité initiale. |
-| `unit_cost_mga` | décimal | Coût unitaire initial (valorisation d'ouverture). |
-| `lot_reference` | texte | Numéro de lot, si la traçabilité par lot est activée pour ce produit. |
+Endpoint : `POST /api/v1/catalog/imports/catalog` (upload multipart, champ
+`file`) ; écran : `/catalog/config/imports/`.
+
+Une ligne = un gabarit produit (`ProductTemplate`). `uom` doit référencer
+une unité de mesure **déjà existante** pour ce tenant (FK obligatoire,
+jamais créée automatiquement — une unité de mesure engage des conversions
+que l'import n'a pas à deviner) ; `category` est créée à la volée si elle
+n'existe pas encore (simple classification par nom).
+
+| Champ canonique | Libellés de colonne acceptés | Type | Obligatoire | Description |
+|---|---|---|---|---|
+| `template_code` | `Template_code`, `Code` | texte | non | Code du gabarit → `ProductTemplate.reference`. Import **idempotent par code**, même principe que les partenaires (§4.1). |
+| `template_name` | `Template_name`, `Nom`, `Name` | texte | oui | Nom du produit. |
+| `category` | `Category`, `Catégorie` | texte | non | Catégorie de catalogue (`Category`, créée si absente). |
+| `uom` | `Uom`, `Unité`, `Unité de mesure` | texte | oui | Code d'une `UnitOfMeasure` existante — code inconnu : erreur de ligne explicite. |
+| `variant_attributes` | `Variant_attributes`, `Attributs de variantes`, `Attributs` | texte (`attribut=valeur;...`) | non | Amorce les attributs générateurs de variantes du gabarit (`Attribute`/`AttributeValue`, créés si absents) — **au maximum 2 attributs distincts** par ligne (RG catalogue). La génération effective des variantes est déléguée à `apps.catalog.services.variants.generate_variants` (plafond de 50 combinaisons, jamais réimplémenté ici). |
+| `material`, `composition`, `weight_gsm`, `width_cm` | `Material`/`Matière` ; `Composition` ; `Weight_gsm`/`Grammage` ; `Width_cm`/`Laize` | texte/décimal | non | Spécification textile (`TextileSpec`), créée pour chaque variante générée si au moins un de ces champs est renseigné. |
+
+### 4.3 Stocks — quantités initiales (`apps.stocks.models.StkQuant`, via `StkMove`)
+
+Fichier `.xlsx`, une ligne d'en-tête suivie d'une ligne par couple
+produit/emplacement. Endpoint : `POST
+/api/v1/stocks/imports/initial-quantities` (upload multipart, champ
+`file`) ; écran : `/stocks/imports/`, avec un écran de résolution des
+lignes en anomalie par lot (`/stocks/imports/<batch_id>/`).
+
+| Champ canonique | Libellés de colonne acceptés | Type | Obligatoire | Description |
+|---|---|---|---|---|
+| `variant_code` | `Variant_code`, `Code variante`, `Référence variante` | texte | oui | Référence de la variante produit (`ProductVariant.reference`), résolue via `apps.catalog.services.public.get_variant_id_by_reference` (règle de couplage n°1 — jamais un import direct de `apps.catalog.models` depuis `stocks`). |
+| `warehouse_code` | `Warehouse_code`, `Entrepôt`, `Code entrepôt` | texte | oui | Code d'un `StkWarehouse` existant (insensible à la casse). |
+| `location_code` | `Location_code`, `Emplacement`, `Code emplacement` | texte | oui | Code d'un `StkLocation` existant au sein de l'entrepôt ci-dessus. |
+| `qty` | `Qty`, `Quantité`, `Quantité initiale` | décimal | oui | Quantité d'ouverture — doit être strictement positive. |
+| `unit_cost_mga` | `Unit_cost_mga`, `Coût unitaire`, `Coût unitaire MGA` | décimal | non | Coût unitaire d'ouverture (valorisation FIFO de la première couche créée). |
+| `lot_reference` | `Lot_reference`, `Lot`, `Numéro de lot` | texte | non | Numéro de lot — un `StkLot` est créé s'il n'existe pas encore pour ce couple (produit, nom de lot). |
+
+**Chaque ligne propre produit un `StkMove` de type `ajustement`, déjà
+VALIDÉ** (pas seulement brouillon, à la différence de l'import comptable) :
+depuis un emplacement virtuel dédié à l'ouverture de stock
+(`StkLocation.type=inventaire`, code `STOCK-INITIAL`, un par entrepôt,
+créé au premier import) vers l'emplacement interne demandé — une quantité
+initiale n'a pas de circuit d'approbation à suivre après coup, l'acte
+d'import EST la confirmation (même principe que
+`services.inventory.validate_inventory`, qui valide immédiatement les
+mouvements d'écart qu'il génère).
+
+### Codes d'anomalie
+
+| Code | Signification |
+|---|---|
+| `VARIANTE_INCONNUE` | `variant_code` ne correspond à aucune variante du tenant. |
+| `ENTREPOT_INCONNU` | `warehouse_code` ne correspond à aucun entrepôt du tenant. |
+| `EMPLACEMENT_INCONNU` | `location_code` ne correspond à aucun emplacement de l'entrepôt résolu. |
+| `QUANTITE_INVALIDE` | `qty` absente, non numérique ou inférieure ou égale à zéro. |
+
+### Résolution d'une ligne en anomalie
+
+`POST /api/v1/stocks/imports/initial-quantities/rows/{row_id}/resolve` (ou
+formulaire de l'écran de détail du lot) : corrige la ligne (code variante,
+entrepôt, emplacement, quantité) ou l'écarte volontairement
+(`discard=true`). Si la ligne devient propre, le mouvement validé est
+créé et son statut passe à `resolved` ; sinon elle reste `anomaly` avec
+les codes mis à jour. **Jamais de résolution devinée**, même discipline
+que la résolution d'une ligne du journal de caisse (§3).
 
 ## 5. Compatibilité ascendante et évolution du format
 
