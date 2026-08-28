@@ -41,6 +41,8 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccImportBatch,
     AccImportRow,
+    AccInvoiceImportBatch,
+    AccInvoiceImportRow,
     AccIrcmDeclaration,
     AccJournal,
     AccLandedCostBatch,
@@ -472,4 +474,29 @@ class AccImportRowFactory(factory.django.DjangoModelFactory):
     row_number = factory.Sequence(lambda n: n + 1)
     raw_data = factory.LazyFunction(dict)
     status = AccImportRow.STATUS_UNRESOLVABLE
+    anomaly_codes = factory.LazyFunction(list)
+
+
+class AccInvoiceImportBatchFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccInvoiceImportBatch
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_filename = factory.Sequence(lambda n: f"factures-{n}.xlsx")
+    format_version = 1
+
+
+class AccInvoiceImportRowFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccInvoiceImportRow
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    batch = factory.SubFactory(
+        AccInvoiceImportBatchFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    row_number = factory.Sequence(lambda n: n + 1)
+    raw_data = factory.LazyFunction(dict)
+    invoice_reference = factory.Sequence(lambda n: f"FAC-{n:04d}")
+    sens = AccInvoiceImportRow.SENS_CLIENT
+    status = AccInvoiceImportRow.STATUS_UNRESOLVABLE
     anomaly_codes = factory.LazyFunction(list)

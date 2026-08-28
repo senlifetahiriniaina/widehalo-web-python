@@ -1403,3 +1403,97 @@ class AccImportRow(BaseModel):
 
     def __str__(self) -> str:
         return f"Ligne {self.row_number} du lot {self.batch_id}"
+
+
+class AccInvoiceImportBatch(BaseModel):
+    """Lot d'import xlsx de factures client/fournisseur — chantier
+    RG-QUALIF (nouvel importeur construit comme demonstration de bout en
+    bout du socle de qualification, cf. `services/invoice_import.py`).
+    Meme structure que `AccImportBatch`, dediee a ce format distinct (une
+    ligne = une ligne de facture, plusieurs lignes regroupees par
+    reference de facture — contrairement au journal de caisse, une ligne
+    seule ne suffit pas a materialiser un document)."""
+
+    KIND_CUSTOMER_SUPPLIER_INVOICES = "customer_supplier_invoices"
+    KIND_CHOICES = [(KIND_CUSTOMER_SUPPLIER_INVOICES, "Factures client/fournisseur")]
+
+    kind = models.CharField(
+        max_length=32, choices=KIND_CHOICES, default=KIND_CUSTOMER_SUPPLIER_INVOICES
+    )
+    source_filename = models.CharField(max_length=255, blank=True)
+    format_version = models.PositiveSmallIntegerField()
+    total_rows = models.PositiveIntegerField(default=0)
+    anomaly_rows_count = models.PositiveIntegerField(default=0)
+    applied_rows_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "acc_invoice_import_batch"
+        indexes = [models.Index(fields=["tenant", "kind"])]
+
+    def __str__(self) -> str:
+        return f"Import factures — {self.source_filename or self.id}"
+
+
+class AccInvoiceImportRow(BaseModel):
+    """Une ligne d'un `AccInvoiceImportBatch` — une ligne de facture
+    (produit/service, quantite, prix, taux de TVA), regroupee avec les
+    autres lignes portant la meme `invoice_reference`/`sens` pour
+    materialiser UNE facture (`move`, partage par toutes les lignes du
+    meme groupe). Meme vocabulaire de statut unifie que `AccImportRow`/
+    `StkImportRow` (chantier RG-QUALIF, cf. `services/invoice_import.py`
+    pour le registre defaultable/non-defaultable complet)."""
+
+    SENS_CLIENT = "client"
+    SENS_FOURNISSEUR = "fournisseur"
+    SENS_CHOICES = [(SENS_CLIENT, "Facture client"), (SENS_FOURNISSEUR, "Facture fournisseur")]
+
+    STATUS_OK = "ok"
+    STATUS_NEEDS_QUALIFICATION = "needs_qualification"
+    STATUS_PENDING_APPROVAL = "pending_approval"
+    STATUS_QUALIFIED = "qualified"
+    STATUS_UNRESOLVABLE = "unresolvable"
+    STATUS_DISCARDED = "discarded"
+    STATUS_CHOICES = [
+        (STATUS_OK, "Importée"),
+        (STATUS_NEEDS_QUALIFICATION, "À qualifier"),
+        (STATUS_PENDING_APPROVAL, "Qualification en attente d'approbation"),
+        (STATUS_QUALIFIED, "Qualifiée"),
+        (STATUS_UNRESOLVABLE, "Non résoluble — à corriger"),
+        (STATUS_DISCARDED, "Écartée"),
+    ]
+
+    batch = models.ForeignKey(AccInvoiceImportBatch, on_delete=models.CASCADE, related_name="rows")
+    row_number = models.PositiveIntegerField()
+    raw_data = models.JSONField(default=dict)
+    invoice_reference = models.CharField(max_length=64, blank=True)
+    sens = models.CharField(max_length=16, choices=SENS_CHOICES, blank=True)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_UNRESOLVABLE)
+    anomaly_codes = models.JSONField(default=list, blank=True)
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Jamais de FK Django vers `apps.partners.models.Partner`/
+    # `apps.catalog.models.ProductVariant` (regle de couplage n°1).
+    partner_id = models.UUIDField(null=True, blank=True)
+    resolved_variant_id = models.UUIDField(null=True, blank=True)
+    resolved_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    resolved_tax_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    uses_placeholder_partner = models.BooleanField(default=False)
+    uses_placeholder_variant = models.BooleanField(default=False)
+    uses_placeholder_account = models.BooleanField(default=False)
+    uses_placeholder_tax = models.BooleanField(default=False)
+    uses_default_date = models.BooleanField(default=False)
+    qualification_approval_request = models.ForeignKey(
+        "core.ApprovalRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_invoice_import_row"
+        indexes = [models.Index(fields=["batch", "status"])]
+
+    def __str__(self) -> str:
+        return f"Ligne {self.row_number} du lot {self.batch_id}"
