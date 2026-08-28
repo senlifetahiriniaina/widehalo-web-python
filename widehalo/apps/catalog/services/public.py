@@ -107,6 +107,25 @@ def select_preferred_supplier(variant_id: Any) -> dict[str, Any] | None:
     }
 
 
+def set_supplier_priority(
+    partner_id: Any, *, priority: int, variant_ids: list[Any] | None = None
+) -> int:
+    """RG-PUR-8 (gap PU7 du sous-sequencement `purchase`, cf. plan) : met a
+    jour `ProductSupplierInfo.priority` pour TOUTES les lignes de ce
+    fournisseur (`partner_id`), optionnellement restreintes a
+    `variant_ids`. Point d'entree unique pour
+    `purchase.services.evaluation.apply_score_to_priority` — `purchase` ne
+    doit jamais manipuler `ProductSupplierInfo` directement (regle de
+    couplage n°1).
+
+    Retourne le nombre de lignes mises a jour (`0` si aucune ligne ne
+    correspond, jamais une exception)."""
+    queryset = ProductSupplierInfo.objects.filter(partner_id=partner_id)
+    if variant_ids is not None:
+        queryset = queryset.filter(variant_id__in=variant_ids)
+    return queryset.update(priority=priority)
+
+
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:
     """CAT-NORM1 : codes de normes valides a `on_date` (aujourd'hui par
     defaut) pour une variante — utilise par `mrp` pour le controle de

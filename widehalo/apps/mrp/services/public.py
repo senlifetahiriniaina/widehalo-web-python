@@ -15,9 +15,17 @@ from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.mrp.models import MrpBom, MrpBomLine, MrpOrder, MrpWorkcenter, MrpWorkshop
+from apps.mrp.models import (
+    MrpBom,
+    MrpBomLine,
+    MrpOrder,
+    MrpSupplierEvaluation,
+    MrpWorkcenter,
+    MrpWorkshop,
+)
 from apps.mrp.services.interventions import create_cri
 from apps.mrp.services.orders import create_order
+from apps.mrp.services.suppliers import evaluate_supplier
 
 
 def set_bom_line_qty_by_size(
@@ -169,3 +177,115 @@ def get_order_produced_qty(mrp_order_id: Any) -> Decimal | None:
         return None
     qty_produced: Decimal = order.qty_produced
     return qty_produced
+
+
+def record_supplier_evaluation(
+    *,
+    tenant: Tenant,
+    partner_id: Any,
+    date: dt.date,
+    score_quantity: Decimal,
+    score_quality: Decimal,
+    score_cost: Decimal,
+    score_delay: Decimal,
+    score_conformity: Decimal,
+    weights: dict[str, int] | None = None,
+    conformity_blocking: bool = False,
+    notes: str = "",
+) -> UUID:
+    """RG-PUR-8 (mutualisation MRP-QQCD1, PU7 du sous-sequencement
+    `purchase` — cf. plan) : "une seule implementation, deux points
+    d'entree" — delegue entierement le calcul de `weighted_score` a
+    `apps.mrp.services.suppliers.evaluate_supplier` (deja livre M6),
+    jamais reimplemente ici. `component_template_id` reste `None` : une
+    evaluation initiee cote `purchase` porte sur le FOURNISSEUR dans son
+    ensemble, pas sur un composant `mrp` particulier (le champ est deja
+    nullable sur `MrpSupplierEvaluation`, cf. sa docstring).
+
+    `weights` : dict optionnel `{"quantity": int, "quality": int, "cost":
+    int, "delay": int, "conformity": int}` — cle absente => poids par
+    defaut de `MrpSupplierEvaluation` (cf. `evaluate_supplier`). Retourne
+    l'UUID de l'evaluation creee (jamais l'objet `MrpSupplierEvaluation`
+    lui-meme — regle de couplage n°1, `purchase` ne doit jamais manipuler
+    un modele `mrp`)."""
+    weights = weights or {}
+    evaluation = evaluate_supplier(
+        tenant=tenant,
+        partner_id=partner_id,
+        date=date,
+        score_quantity=score_quantity,
+        score_quality=score_quality,
+        score_cost=score_cost,
+        score_delay=score_delay,
+        score_conformity=score_conformity,
+        component_template_id=None,
+        weight_quantity=weights.get("quantity", MrpSupplierEvaluation.DEFAULT_WEIGHT_QUANTITY),
+        weight_quality=weights.get("quality", MrpSupplierEvaluation.DEFAULT_WEIGHT_QUALITY),
+        weight_cost=weights.get("cost", MrpSupplierEvaluation.DEFAULT_WEIGHT_COST),
+        weight_delay=weights.get("delay", MrpSupplierEvaluation.DEFAULT_WEIGHT_DELAY),
+        weight_conformity=weights.get(
+            "conformity", MrpSupplierEvaluation.DEFAULT_WEIGHT_CONFORMITY
+        ),
+        conformity_blocking=conformity_blocking,
+        notes=notes,
+    )
+    evaluation_id: UUID = evaluation.id
+    return evaluation_id
+
+
+def get_supplier_score(partner_id: Any, *, since: dt.date | None = None) -> Decimal | None:
+    """RG-PUR-8 : score fournisseur consolide, TOUTES evaluations confondues
+    (rattachees ou non a un `component_template_id` — RG-PUR-8 evalue le
+    FOURNISSEUR, contrairement a l'usage interne de `mrp` qui peut etre
+    par composant).
+
+    **Choix documente** : "la plus recente evaluation" plutot qu'une
+    moyenne sur `since` — plus simple et plus defendable pour une echelle
+    "calcul trimestriel" (RG-PUR-8) ou une seule evaluation est
+    generalement produite par periode ; une moyenne masquerait une
+    amelioration/degradation recente derriere d'anciennes notes. Si
+    `since` est fourni, restreint la recherche a cette fenetre (la plus
+    recente DANS cette fenetre) plutot que de moyenner — coherent avec le
+    choix "plus recente" ci-dessus.
+
+    Retourne `None`, JAMAIS une exception, si le fournisseur n'a aucune
+    evaluation (dans la fenetre demandee ou globalement) — meme discipline
+    "jamais de faux positif" que le reste de `mrp.services.public`.
+    Ne tient JAMAIS compte de `conformity_blocking` : c'est une decision
+    d'usage (bloquer un approvisionnement/une priorite) qui appartient a
+    l'appelant, pas a ce getter de lecture pure."""
+    queryset = MrpSupplierEvaluation.objects.filter(partner_id=partner_id)
+    if since is not None:
+        queryset = queryset.filter(date__gte=since)
+    latest = queryset.order_by("-date", "-created_at").first()
+    if latest is None:
+        return None
+    weighted_score: Decimal = latest.weighted_score
+    return weighted_score
+
+
+def list_supplier_evaluations(partner_id: Any) -> list[dict[str, Any]]:
+    """Lecture pure pour `purchase` (endpoint `GET /purchase/supplier-
+    evaluations`, §5.6.6) : toutes les evaluations d'un fournisseur,
+    primitives uniquement (jamais un objet `MrpSupplierEvaluation` —
+    regle de couplage n°1), plus recentes d'abord."""
+    evaluations = MrpSupplierEvaluation.objects.filter(partner_id=partner_id).order_by(
+        "-date", "-created_at"
+    )
+    return [
+        {
+            "id": evaluation.id,
+            "partner_id": evaluation.partner_id,
+            "component_template_id": evaluation.component_template_id,
+            "date": evaluation.date,
+            "score_quantity": evaluation.score_quantity,
+            "score_quality": evaluation.score_quality,
+            "score_cost": evaluation.score_cost,
+            "score_delay": evaluation.score_delay,
+            "score_conformity": evaluation.score_conformity,
+            "conformity_blocking": evaluation.conformity_blocking,
+            "weighted_score": evaluation.weighted_score,
+            "notes": evaluation.notes,
+        }
+        for evaluation in evaluations
+    ]

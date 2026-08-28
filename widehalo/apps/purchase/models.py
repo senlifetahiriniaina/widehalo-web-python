@@ -573,6 +573,136 @@ class PurReorderingRule(BaseModel):
         return f"{self.variant_id} (min={self.min_qty}, max={self.max_qty})"
 
 
+class PurCra(BaseModel, ReferenceMixin):
+    """Compte rendu d'activite achats (§5.6.2, PU7 du sous-sequencement
+    `purchase` — cf. plan) : temps passe par un acheteur sur une activite
+    d'achat (sourcing, negociation, relance, visite fournisseur, audit),
+    circuit de validation `draft -> submitted -> validated/rejected`.
+
+    **Pas de mutualisation avec `apps.mrp.models.MrpCra`** malgre le nom
+    identique : le CDC decrit deux entites `pur_cra`/`mrp_cra` aux champs
+    fondamentalement differents (ici pas de notion d'atelier/ordre de
+    fabrication, mais un fournisseur et un type d'activite commerciale) —
+    a la difference de RG-PUR-8 (evaluation fournisseur), le CDC ne demande
+    PAS de mutualisation ici. Meme discipline de workflow que `MrpCra`
+    (`draft -> submitted -> validated/rejected`), mais reimplementee en
+    CharField simple + garde-fous de service (pas de FSM `django-fsm`,
+    memes 2 transitions terminales triviales que `PurRequisition`, cf. sa
+    docstring — jamais de branche/permission complexe ici)."""
+
+    STATE_DRAFT = "draft"
+    STATE_SUBMITTED = "submitted"
+    STATE_VALIDATED = "validated"
+    STATE_REJECTED = "rejected"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_SUBMITTED, "Soumis"),
+        (STATE_VALIDATED, "Valide"),
+        (STATE_REJECTED, "Rejete"),
+    ]
+
+    TYPE_SOURCING = "sourcing"
+    TYPE_NEGOCIATION = "negociation"
+    TYPE_RELANCE = "relance"
+    TYPE_VISITE = "visite"
+    TYPE_AUDIT = "audit"
+    ACTIVITY_TYPE_CHOICES = [
+        (TYPE_SOURCING, "Sourcing"),
+        (TYPE_NEGOCIATION, "Negociation"),
+        (TYPE_RELANCE, "Relance"),
+        (TYPE_VISITE, "Visite fournisseur"),
+        (TYPE_AUDIT, "Audit"),
+    ]
+
+    date = models.DateField()
+    buyer = models.ForeignKey("core.User", on_delete=models.PROTECT, related_name="+")
+    # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
+    # couplage n1) — un fournisseur est reference par son UUID.
+    partner_id = models.UUIDField()
+    activity_type = models.CharField(max_length=16, choices=ACTIVITY_TYPE_CHOICES)
+    hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    # `PurOrder` appartient au meme app `purchase` — vraie FK Django
+    # autorisee (la regle de couplage n1 n'interdit que les FK vers
+    # D'AUTRES apps metier).
+    order = models.ForeignKey(
+        PurOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="cra_entries"
+    )
+    comment = models.TextField(blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    rejection_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "pur_cra"
+
+    def __str__(self) -> str:
+        return self.reference or f"CRA {self.buyer_id} {self.date}"
+
+
+class PurCri(BaseModel, ReferenceMixin):
+    """Compte rendu d'incident achats (§5.6.2, PU7 du sous-sequencement
+    `purchase` — cf. plan) : incident fournisseur trace (retard, non
+    conformite, litige, rupture, incident douanier) avec impact/action
+    corrective/cout chiffre.
+
+    **Distinct de `PurOrder.open_dispute`/`dispute_reason`** (PU4, branche
+    FSM "en litige") : cette derniere ne fait qu'ouvrir un ETAT sur LA
+    commande elle-meme (un seul champ texte, pas de suivi cout/impact/
+    action) — `PurCri` est l'entite riche demandee par le CDC (`pur_cri`),
+    avec son propre cycle de vie `draft -> closed`, potentiellement SANS
+    commande rattachee (ex. rupture de stock chez un fournisseur avant
+    toute commande passee). `record_supplier_invoice` (PU6,
+    `services/invoicing.py`) cree desormais AUSSI un `PurCri` de type
+    `litige` en plus d'`open_order_dispute`, cf. docstring de ce service —
+    les deux mecanismes cohabitent sciemment.
+
+    **Pas de mutualisation avec `apps.mrp.models.MrpCri`** : memes raisons
+    que `PurCra` ci-dessus — champs fondamentalement differents (cout
+    chiffre, impact, fournisseur, jamais d'atelier/poste de charge)."""
+
+    TYPE_RETARD = "retard"
+    TYPE_NON_CONFORMITE = "non_conformite"
+    TYPE_LITIGE = "litige"
+    TYPE_RUPTURE = "rupture"
+    TYPE_INCIDENT_DOUANE = "incident_douane"
+    TYPE_CHOICES = [
+        (TYPE_RETARD, "Retard"),
+        (TYPE_NON_CONFORMITE, "Non conformite"),
+        (TYPE_LITIGE, "Litige"),
+        (TYPE_RUPTURE, "Rupture"),
+        (TYPE_INCIDENT_DOUANE, "Incident douanier"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Ouvert"),
+        (STATE_CLOSED, "Cloture"),
+    ]
+
+    date = models.DateField()
+    type = models.CharField(max_length=24, choices=TYPE_CHOICES)
+    # Jamais de FK Django vers `apps.partners.models.Partner`.
+    partner_id = models.UUIDField()
+    order = models.ForeignKey(
+        PurOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="cri_entries"
+    )
+    description = models.TextField()
+    impact = models.TextField(blank=True)
+    action_taken = models.TextField(blank=True)
+    cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    # Liste JSON d'UUID `core.Document`, JAMAIS une FK Django/M2M — meme
+    # patron que `PurReceiptLine.photo_document_ids` (PU5, cf. sa
+    # docstring pour le raisonnement complet).
+    attachment_document_ids = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "pur_cri"
+
+    def __str__(self) -> str:
+        return self.reference or f"CRI {self.type} {self.partner_id}"
+
+
 class PurOrderLine(BaseModel):
     order = models.ForeignKey(PurOrder, on_delete=models.CASCADE, related_name="lines")
     sequence = models.PositiveIntegerField(default=0)

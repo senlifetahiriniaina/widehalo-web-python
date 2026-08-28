@@ -15,6 +15,8 @@ import uuid
 import factory
 
 from apps.purchase.models import (
+    PurCra,
+    PurCri,
     PurOrder,
     PurOrderLine,
     PurReceiptLine,
@@ -150,3 +152,26 @@ class PurReorderingRuleFactory(factory.django.DjangoModelFactory):
     variant_id = factory.LazyFunction(uuid.uuid4)
     min_qty = 10
     max_qty = 50
+
+
+class PurCraFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurCra
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    buyer = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    date = factory.LazyFunction(dt.date.today)
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    activity_type = PurCra.TYPE_SOURCING
+    hours = 1
+
+
+class PurCriFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurCri
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    date = factory.LazyFunction(dt.date.today)
+    type = PurCri.TYPE_RETARD
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    description = factory.Sequence(lambda n: f"Incident {n}")

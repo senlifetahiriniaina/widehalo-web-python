@@ -17,7 +17,10 @@ from ninja import Router, Schema
 
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
+from apps.mrp.services.public import list_supplier_evaluations
 from apps.purchase.models import (
+    PurCra,
+    PurCri,
     PurOrder,
     PurOrderLine,
     PurReorderingRule,
@@ -25,6 +28,8 @@ from apps.purchase.models import (
     PurRfq,
     PurRfqResponse,
 )
+from apps.purchase.services.cra import create_cra, reject_cra, submit_cra, validate_cra
+from apps.purchase.services.cri import close_cri, create_cri
 from apps.purchase.services.orders import (
     PurchaseApprovalRequiredError,
     add_order_line,
@@ -858,3 +863,212 @@ def run_reordering_endpoint(request):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     requisitions = run_reordering(tenant)
     return {"results": [_serialize_requisition(requisition) for requisition in requisitions]}
+
+
+# ---------------------------------------------------------------------------
+# PurCra — compte rendu d'activite achats (§5.6.2, PU7, cf. plan)
+# ---------------------------------------------------------------------------
+
+
+class CraIn(Schema):
+    date: dt.date
+    partner_id: str
+    activity_type: str
+    hours: Decimal
+    order_id: str | None = None
+    comment: str = ""
+
+
+class CraRejectIn(Schema):
+    reason: str
+
+
+def _serialize_cra(cra: PurCra) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(cra.id),
+        "reference": cra.reference,
+        "date": cra.date,
+        "buyer_id": str(cra.buyer_id),
+        "partner_id": str(cra.partner_id),
+        "activity_type": cra.activity_type,
+        "hours": cra.hours,
+        "order_id": str(cra.order_id) if cra.order_id else None,
+        "comment": cra.comment,
+        "state": cra.state,
+        "rejection_reason": cra.rejection_reason,
+    }
+
+
+@router.get("/purchase/cra")
+@require_permission("purchase.view_purcra")
+def list_cra_endpoint(request):
+    entries = PurCra.objects.all().order_by("-created_at")
+    return {"results": [_serialize_cra(entry) for entry in entries]}
+
+
+@router.post("/purchase/cra")
+@require_permission("purchase.add_purcra")
+def create_cra_endpoint(request, payload: CraIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    order = get_object_or_404(PurOrder, id=payload.order_id) if payload.order_id else None
+    cra = create_cra(
+        tenant=tenant,
+        date=payload.date,
+        buyer=request.auth,
+        partner_id=uuid.UUID(payload.partner_id),
+        activity_type=payload.activity_type,
+        hours=payload.hours,
+        order=order,
+        comment=payload.comment,
+    )
+    return _serialize_cra(cra)
+
+
+@router.post("/purchase/cra/{cra_id}/submit")
+@require_permission("purchase.change_purcra")
+def submit_cra_endpoint(request, cra_id: str):
+    cra = get_object_or_404(PurCra, id=cra_id)
+    try:
+        submit_cra(cra)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_cra(cra)
+
+
+@router.post("/purchase/cra/{cra_id}/validate")
+@require_permission("purchase.change_purcra")
+def validate_cra_endpoint(request, cra_id: str):
+    cra = get_object_or_404(PurCra, id=cra_id)
+    try:
+        validate_cra(cra, validated_by=request.auth)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_cra(cra)
+
+
+@router.post("/purchase/cra/{cra_id}/reject")
+@require_permission("purchase.change_purcra")
+def reject_cra_endpoint(request, cra_id: str, payload: CraRejectIn):
+    cra = get_object_or_404(PurCra, id=cra_id)
+    try:
+        reject_cra(cra, reason=payload.reason)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_cra(cra)
+
+
+# ---------------------------------------------------------------------------
+# PurCri — compte rendu d'incident achats (§5.6.2, PU7, cf. plan)
+# ---------------------------------------------------------------------------
+
+
+class CriIn(Schema):
+    date: dt.date
+    type: str
+    partner_id: str
+    description: str
+    order_id: str | None = None
+    impact: str = ""
+    action_taken: str = ""
+    cost_mga: Decimal = Decimal(0)
+    attachment_document_ids: list[str] = []
+
+
+class CriCloseIn(Schema):
+    action_taken: str = ""
+
+
+def _serialize_cri(cri: PurCri) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(cri.id),
+        "reference": cri.reference,
+        "date": cri.date,
+        "type": cri.type,
+        "partner_id": str(cri.partner_id),
+        "order_id": str(cri.order_id) if cri.order_id else None,
+        "description": cri.description,
+        "impact": cri.impact,
+        "action_taken": cri.action_taken,
+        "cost_mga": cri.cost_mga,
+        "state": cri.state,
+        "attachment_document_ids": [str(doc_id) for doc_id in cri.attachment_document_ids],
+    }
+
+
+@router.get("/purchase/cri")
+@require_permission("purchase.view_purcri")
+def list_cri_endpoint(request):
+    entries = PurCri.objects.all().order_by("-created_at")
+    return {"results": [_serialize_cri(entry) for entry in entries]}
+
+
+@router.post("/purchase/cri")
+@require_permission("purchase.add_purcri")
+def create_cri_endpoint(request, payload: CriIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    order = get_object_or_404(PurOrder, id=payload.order_id) if payload.order_id else None
+    cri = create_cri(
+        tenant=tenant,
+        date=payload.date,
+        type=payload.type,
+        partner_id=uuid.UUID(payload.partner_id),
+        description=payload.description,
+        order=order,
+        impact=payload.impact,
+        action_taken=payload.action_taken,
+        cost_mga=payload.cost_mga,
+        attachment_document_ids=[uuid.UUID(doc_id) for doc_id in payload.attachment_document_ids],
+    )
+    return _serialize_cri(cri)
+
+
+@router.post("/purchase/cri/{cri_id}/close")
+@require_permission("purchase.change_purcri")
+def close_cri_endpoint(request, cri_id: str, payload: CriCloseIn):
+    cri = get_object_or_404(PurCri, id=cri_id)
+    try:
+        close_cri(cri, action_taken=payload.action_taken)
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_cri(cri)
+
+
+# ---------------------------------------------------------------------------
+# RG-PUR-8 — Evaluation fournisseur (mutualisee MRP-QQCD1, PU7, cf. plan)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/purchase/supplier-evaluations")
+@require_permission("purchase.view_purcra")
+def list_supplier_evaluations_endpoint(request, partner_id: str):
+    """Lecture pure cote `purchase` d'evaluations dont le stockage reel
+    appartient a `mrp` (RG-PUR-8, mutualisation MRP-QQCD1) — d'ou la
+    permission empruntee `purchase.view_purcra` (pas de modele
+    `PurSupplierEvaluation` dans ce module dont deriver un
+    `view_pursupplierevaluation` natif)."""
+    results = list_supplier_evaluations(uuid.UUID(partner_id))
+    return {
+        "results": [
+            {
+                "id": str(row["id"]),
+                "partner_id": str(row["partner_id"]),
+                "component_template_id": str(row["component_template_id"])
+                if row["component_template_id"]
+                else None,
+                "date": row["date"],
+                "score_quantity": row["score_quantity"],
+                "score_quality": row["score_quality"],
+                "score_cost": row["score_cost"],
+                "score_delay": row["score_delay"],
+                "score_conformity": row["score_conformity"],
+                "conformity_blocking": row["conformity_blocking"],
+                "weighted_score": row["weighted_score"],
+                "notes": row["notes"],
+            }
+            for row in results
+        ]
+    }

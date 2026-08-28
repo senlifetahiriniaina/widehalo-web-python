@@ -1,11 +1,15 @@
 """Tests du contrat public de `mrp` (`apps/mrp/services/public.py`) —
-seule surface que `sales` (et les autres apps metier) ont le droit
-d'importer. Couvre ici le gap ajoute pour RG-SAL-3 (S3 du
-sous-sequencement `sales`, cf. plan) : `create_manufacturing_order`, et le
-gap ajoute pour SAL-AVCT1 (S4) : `get_order_produced_qty`."""
+seule surface que `sales`/`purchase` (et les autres apps metier) ont le
+droit d'importer. Couvre ici le gap ajoute pour RG-SAL-3 (S3 du
+sous-sequencement `sales`, cf. plan) : `create_manufacturing_order`, le
+gap ajoute pour SAL-AVCT1 (S4) : `get_order_produced_qty`, et les gaps
+ajoutes pour RG-PUR-8 (PU7 du sous-sequencement `purchase`, mutualisation
+MRP-QQCD1) : `record_supplier_evaluation`/`get_supplier_score`/
+`list_supplier_evaluations`."""
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from decimal import Decimal
 
@@ -13,12 +17,15 @@ import pytest
 
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
-from apps.mrp.models import MrpOrder
+from apps.mrp.models import MrpOrder, MrpSupplierEvaluation
 from apps.mrp.services.bom import activate_bom, create_bom
 from apps.mrp.services.public import (
     create_manufacturing_order,
     get_order_produced_qty,
+    get_supplier_score,
     get_total_workshop_capacity,
+    list_supplier_evaluations,
+    record_supplier_evaluation,
 )
 from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
 
@@ -120,3 +127,118 @@ def test_get_total_workshop_capacity_returns_zero_without_workshop(public_setup)
     tenant = public_setup
     with use_tenant(tenant.id):
         assert get_total_workshop_capacity(tenant) == Decimal(0)
+
+
+def test_record_supplier_evaluation_delegates_to_evaluate_supplier(public_setup) -> None:
+    """RG-PUR-8 : `component_template_id` reste `None` (evaluation d'un
+    fournisseur dans son ensemble, pas d'un composant precis) et le calcul
+    de `weighted_score` est bien celui de `evaluate_supplier` (deja
+    verifie par ses propres tests) — hand-check : notes toutes a 3/5,
+    poids par defaut (18+30+27+13+12=100) => weighted = (3*100)/5 = 60.00."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        partner_id = uuid.uuid4()
+        evaluation_id = record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 3, 31),
+            score_quantity=Decimal("3"),
+            score_quality=Decimal("3"),
+            score_cost=Decimal("3"),
+            score_delay=Decimal("3"),
+            score_conformity=Decimal("3"),
+        )
+        evaluation = MrpSupplierEvaluation.objects.get(id=evaluation_id)
+        assert evaluation.partner_id == partner_id
+        assert evaluation.component_template_id is None
+        assert evaluation.weighted_score == Decimal("60.00")
+
+
+def test_get_supplier_score_returns_most_recent_weighted_score(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        partner_id = uuid.uuid4()
+        record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 1, 15),
+            score_quantity=Decimal("2"),
+            score_quality=Decimal("2"),
+            score_cost=Decimal("2"),
+            score_delay=Decimal("2"),
+            score_conformity=Decimal("2"),
+        )
+        record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 4, 15),
+            score_quantity=Decimal("5"),
+            score_quality=Decimal("5"),
+            score_cost=Decimal("5"),
+            score_delay=Decimal("5"),
+            score_conformity=Decimal("5"),
+        )
+
+        assert get_supplier_score(partner_id) == Decimal("100.00")
+
+
+def test_get_supplier_score_respects_since_window(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        partner_id = uuid.uuid4()
+        record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 1, 15),
+            score_quantity=Decimal("2"),
+            score_quality=Decimal("2"),
+            score_cost=Decimal("2"),
+            score_delay=Decimal("2"),
+            score_conformity=Decimal("2"),
+        )
+
+        assert get_supplier_score(partner_id, since=dt.date(2026, 2, 1)) is None
+
+
+def test_get_supplier_score_returns_none_without_evaluation(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert get_supplier_score(uuid.uuid4()) is None
+
+
+def test_list_supplier_evaluations_returns_primitives_most_recent_first(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        partner_id = uuid.uuid4()
+        record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 1, 15),
+            score_quantity=Decimal("1"),
+            score_quality=Decimal("1"),
+            score_cost=Decimal("1"),
+            score_delay=Decimal("1"),
+            score_conformity=Decimal("1"),
+        )
+        record_supplier_evaluation(
+            tenant=tenant,
+            partner_id=partner_id,
+            date=dt.date(2026, 4, 15),
+            score_quantity=Decimal("4"),
+            score_quality=Decimal("4"),
+            score_cost=Decimal("4"),
+            score_delay=Decimal("4"),
+            score_conformity=Decimal("4"),
+        )
+
+        results = list_supplier_evaluations(partner_id)
+        assert len(results) == 2
+        assert results[0]["date"] == dt.date(2026, 4, 15)
+        assert results[1]["date"] == dt.date(2026, 1, 15)
+        assert isinstance(results[0]["weighted_score"], Decimal)
+
+
+def test_list_supplier_evaluations_returns_empty_list_without_evaluation(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert list_supplier_evaluations(uuid.uuid4()) == []

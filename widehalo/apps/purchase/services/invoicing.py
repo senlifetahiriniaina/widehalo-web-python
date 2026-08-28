@@ -25,7 +25,8 @@ from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import create_supplier_invoice_from_source
 from apps.core.models.user import User
-from apps.purchase.models import PurOrder, PurOrderLine
+from apps.purchase.models import PurCri, PurOrder, PurOrderLine
+from apps.purchase.services.cri import create_cri
 from apps.purchase.services.orders import mark_order_invoiced, open_order_dispute
 
 # RG-PUR-6 : "seuil parametrable, defaut 2%" (§5.6.6 du CDC) — modifiable
@@ -137,8 +138,14 @@ def record_supplier_invoice(
     de 5% au bon de commande bloque la validation et ouvre un litige") :
     AUCUNE `AccMove` n'est creee — `open_order_dispute` (PU4, deja
     conforme `attempt_transition`) est appele avec un motif recapitulant
-    les lignes en ecart. Retourne `{"invoice_id": None, "match": ...,
-    "dispute_opened": True}`.
+    les lignes en ecart. **PU7 (RG-PUR-8, cf. plan)** : un `PurCri` de type
+    `litige` est desormais AUSSI cree en plus (effet de bord minimal et
+    documente, ne change rien au contrat de retour existant ci-dessous —
+    tous les tests PU6 restent inchanges) : `open_order_dispute` ne fait
+    qu'ouvrir un ETAT sur la commande (un seul champ texte), `PurCri` est
+    l'entite riche demandee par le CDC pour le suivi d'incident (cout/
+    impact/action corrective), cf. docstring `models.py::PurCri`. Retourne
+    `{"invoice_id": None, "match": ..., "dispute_opened": True}`.
 
     **Chemin conforme** : `accounting.services.public.
     create_supplier_invoice_from_source` est appele (primitives uniquement
@@ -155,7 +162,22 @@ def record_supplier_invoice(
     match = three_way_match(order, invoice_lines=invoice_lines, threshold_pct=threshold_pct)
 
     if match["blocked"]:
-        open_order_dispute(order, user, reason=_dispute_reason(match, threshold_pct=threshold_pct))
+        dispute_reason = _dispute_reason(match, threshold_pct=threshold_pct)
+        open_order_dispute(order, user, reason=dispute_reason)
+        # `cost_mga` reste a 0 (defaut) : l'ecart mesure est un POURCENTAGE
+        # (`max_variance_pct`), jamais un montant MGA directement
+        # utilisable comme cout d'incident sans fabriquer une precision que
+        # les donnees ne supportent pas (meme discipline "jamais de faux
+        # chiffre" que le reste de ce sous-sequencement) — a chiffrer
+        # manuellement par l'evaluateur via `close_cri` le cas echeant.
+        create_cri(
+            tenant=order.tenant,
+            date=date,
+            type=PurCri.TYPE_LITIGE,
+            partner_id=order.partner_id,
+            order=order,
+            description=dispute_reason,
+        )
         return {"invoice_id": None, "match": match, "dispute_opened": True}
 
     expense_lines = [
