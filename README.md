@@ -31,6 +31,11 @@ make typecheck    # mypy --strict sur services/ et schemas.py
 make test         # pytest (couverture)
 ```
 
+## Déploiement
+
+Pour déployer sur un VM Hetzner (sous-domaine + certificat SSL automatique
+via Caddy/Let's Encrypt), voir [`docs/DEPLOYMENT_HETZNER.md`](docs/DEPLOYMENT_HETZNER.md).
+
 ## Architecture
 
 Monolithe modulaire Django (« modulith ») : voir `widehalo/apps/core/module.py`

@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-widehalo}
+      POSTGRES_USER: ${POSTGRES_USER:-widehalo_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-widehalo_app}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d:ro
+    # Pas de port publie sur l'hote : seuls web/worker (memes reseau Docker
+    # interne) accedent a Postgres, jamais l'exterieur du VM.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-widehalo_app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    # daphne (ASGI), pas gunicorn (WSGI) : le socle expose deja une messagerie
+    # temps reel WebSocket (apps/chat, cf. config/asgi.py) qui a besoin d'un
+    # serveur ASGI pour fonctionner en production, pas seulement en dev
+    # (runserver). collectstatic avant de servir : Caddy sert /static/ et
+    # /media/ directement depuis les volumes partages ci-dessous (pas de
+    # dependance whitenoise, aucune n'est en place dans ce socle).
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/widehalo/data/media
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python manage.py qcluster
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WIDEHALO_DOMAIN: ${WIDEHALO_DOMAIN:?WIDEHALO_DOMAIN doit etre defini dans .env, ex. app.widehalo.cloud}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL doit etre defini dans .env, requis par Let's Encrypt}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  db_data:
+  static_data:
+  media_data:
+  caddy_data:
+  caddy_config:

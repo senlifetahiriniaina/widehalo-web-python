@@ -1,0 +1,27 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$WIDEHALO_DOMAIN} {
+	# Certificat Let's Encrypt demande/renouvele automatiquement pour ce nom
+	# de sous-domaine (jamais pour l'IP nue du VM — Let's Encrypt ne signe
+	# pas de certificat pour une adresse IP). DNS: enregistrement A du
+	# sous-domaine -> IP publique du VM Hetzner, cf. docs/DEPLOYMENT_HETZNER.md.
+
+	encode gzip
+
+	handle_path /static/* {
+		root * /srv/static
+		file_server
+	}
+
+	handle_path /media/* {
+		root * /srv/media
+		file_server
+	}
+
+	# WebSocket (apps/chat) et HTTP classique passent tous deux par ce meme
+	# reverse_proxy — Caddy detecte l'upgrade de connexion automatiquement,
+	# aucune configuration separee necessaire pour le canal temps reel.
+	reverse_proxy web:8000
+}
