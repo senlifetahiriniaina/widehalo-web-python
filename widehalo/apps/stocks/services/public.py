@@ -25,6 +25,7 @@ from uuid import UUID
 from django.db import models
 from django.db.models import F
 
+from apps.core.models.user import User
 from apps.stocks.models import StkLocation, StkQuant, StkValuationLayer
 from apps.stocks.services.quants import available_qty
 from apps.stocks.services.reservations import reserve_stock
@@ -124,3 +125,19 @@ def get_available_stock_qty(variant_id: Any) -> Decimal:
     les emplacements INTERNES uniquement — aucun recalcul duplique ici),
     meme patron que `services.reservations.available_to_sell`."""
     return available_qty(variant_id)
+
+
+def decide_stock_import_qualification(
+    approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
+) -> None:
+    """Enveloppe publique de `apps.stocks.services.stock_import.
+    decide_qualification` — seule surface autorisee pour l'ecran generique
+    "Mes validations en attente" (`apps.core.api_workflow.decide_approval`,
+    chantier RG-QUALIF) qui doit repercuter la decision sur le statut du
+    `StkImportRow`, en plus de la decision `ApprovalRequest` elle-meme
+    (deja geree generiquement par `apps.core.services.approvals.decide`)."""
+    from apps.core.models.workflow import ApprovalRequest as _ApprovalRequest
+    from apps.stocks.services.stock_import import decide_qualification
+
+    approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
+    decide_qualification(approval_request, decided_by, approved=approved, comment=comment)

@@ -59,6 +59,9 @@ from apps.stocks.services.stock_import import (
     import_stock_quantities_xlsx,
 )
 from apps.stocks.services.stock_import import (
+    qualify_import_row as qualify_stock_import_row,
+)
+from apps.stocks.services.stock_import import (
     resolve_import_row as resolve_stock_import_row,
 )
 from apps.stocks.services.traceability import lot_traceability
@@ -660,6 +663,11 @@ class StockImportRowResolveIn(Schema):
     discard: bool = False
 
 
+class StockImportRowQualifyIn(Schema):
+    variant_id: str | None = None
+    location_id: str | None = None
+
+
 def _serialize_stock_import_row(row: StkImportRow) -> dict:
     return {
         "id": str(row.id),
@@ -728,3 +736,25 @@ def resolve_stock_import_row_endpoint(request, row_id: str, payload: StockImport
         discard=payload.discard,
     )
     return _serialize_stock_import_row(resolved)
+
+
+@router.post("/stocks/imports/initial-quantities/rows/{row_id}/qualify")
+@require_permission("stocks.qualify_stkimportrow")
+def qualify_stock_import_row_endpoint(request, row_id: str, payload: StockImportRowQualifyIn):
+    """Applique `qualify_import_row` (chantier RG-QUALIF) — extourne le
+    mouvement placeholder deja valide et en recree/valide un nouveau
+    correctement attribue (cf. docstring de `services/stock_import.py`).
+    L'ACTE D'APPROUVER une qualification en attente passe par l'endpoint
+    generique deja existant `POST /api/v1/approvals/{id}/decide`."""
+    row = get_object_or_404(StkImportRow, id=row_id)
+    location = (
+        get_object_or_404(StkLocation, id=payload.location_id) if payload.location_id else None
+    )
+    variant_id = uuid.UUID(payload.variant_id) if payload.variant_id else None
+    try:
+        qualified = qualify_stock_import_row(
+            row, variant_id=variant_id, location=location, qualified_by=request.auth
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_stock_import_row(qualified)

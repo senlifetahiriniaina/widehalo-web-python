@@ -39,6 +39,25 @@
                 <button type="submit">{% trans "Corriger" %}</button>
                 <button type="submit" name="discard" value="1">{% trans "Écarter" %}</button>
               </form>
+            {% elif row.status == "needs_qualification" %}
+              <form method="post" action="{% url 'accounting:imports_cash_journal_row_qualify' row.id %}">
+                {% csrf_token %}
+                {% if row.uses_placeholder_account %}
+                  <select name="account_id">
+                    <option value="">{% trans "Compte réel" %}</option>
+                    {% for account in accounts %}
+                      <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+                {% if row.uses_placeholder_partner %}
+                  <input type="text" name="partner_id" placeholder="{% trans 'UUID du partenaire réel' %}">
+                {% endif %}
+                <button type="submit">{% trans "Qualifier" %}</button>
+              </form>
+              {% if row.move %}
+                <a href="{% url 'accounting:detail' row.move.id %}">{% trans "Voir l'écriture" %}</a>
+              {% endif %}
             {% elif row.move %}
               <a href="{% url 'accounting:detail' row.move.id %}">{% trans "Voir l'écriture" %}</a>
             {% endif %}

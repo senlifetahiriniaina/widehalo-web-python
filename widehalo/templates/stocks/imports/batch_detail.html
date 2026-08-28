@@ -46,6 +46,20 @@
                 <button type="submit">{% trans "Corriger" %}</button>
                 <button type="submit" name="discard" value="1">{% trans "Écarter" %}</button>
               </form>
+            {% elif row.status == "needs_qualification" %}
+              <form method="post" action="{% url 'stocks:imports_row_qualify' row.id %}">
+                {% csrf_token %}
+                {% if row.uses_placeholder_variant %}
+                  <input type="text" name="variant_id" placeholder="{% trans 'UUID de la variante réelle' %}">
+                {% endif %}
+                {% if row.uses_placeholder_location %}
+                  <input type="text" name="location_id" placeholder="{% trans 'UUID de l’emplacement réel' %}">
+                {% endif %}
+                <button type="submit">{% trans "Qualifier" %}</button>
+              </form>
+              {% if row.move %}
+                <a href="{% url 'stocks:move_detail' row.move.id %}">{% trans "Voir le mouvement" %}</a>
+              {% endif %}
             {% elif row.move %}
               <a href="{% url 'stocks:move_detail' row.move.id %}">{% trans "Voir le mouvement" %}</a>
             {% endif %}

@@ -17,6 +17,11 @@ urlpatterns = [
         views_imports.imports_row_resolve,
         name="imports_row_resolve",
     ),
+    path(
+        "imports/rows/<uuid:row_id>/qualify/",
+        views_imports.imports_row_qualify,
+        name="imports_row_qualify",
+    ),
     path("stock-view/", views.stock_view, name="stock_view"),
     path("moves/", views.move_list, name="move_list"),
     path("moves/<uuid:move_id>/", views.move_detail, name="move_detail"),

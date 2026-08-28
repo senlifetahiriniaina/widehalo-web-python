@@ -17,4 +17,11 @@ class ModuleSpec:
     verbose_name: str = ""
 
 
-MODULE = ModuleSpec(name="core", dependencies=(), verbose_name="Socle")
+# "accounting"/"stocks" ajoutes par le chantier RG-QUALIF :
+# `apps.core.api_workflow` (endpoint generique de decision d'approbation)
+# consomme `apps.accounting.services.public.decide_cash_journal_
+# qualification`/`decide_invoice_import_qualification` et `apps.stocks.
+# services.public.decide_stock_import_qualification` pour repercuter la
+# decision generique sur le statut de la ligne d'import metier concernee
+# — jamais un import de modele, uniquement leurs services.public.
+MODULE = ModuleSpec(name="core", dependencies=("accounting", "stocks"), verbose_name="Socle")

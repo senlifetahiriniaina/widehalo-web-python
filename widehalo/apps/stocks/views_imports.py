@@ -8,6 +8,7 @@ caisse de `accounting`, qui est lui aussi hors du hub config)."""
 
 from __future__ import annotations
 
+import uuid
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
@@ -17,7 +18,11 @@ from django.utils.translation import gettext as _
 
 from apps.core.views.tenant_web import resolve_tenant
 from apps.stocks.models import StkImportBatch, StkImportRow, StkLocation, StkWarehouse
-from apps.stocks.services.stock_import import import_stock_quantities_xlsx, resolve_import_row
+from apps.stocks.services.stock_import import (
+    import_stock_quantities_xlsx,
+    qualify_import_row,
+    resolve_import_row,
+)
 
 
 @login_required
@@ -93,5 +98,27 @@ def imports_row_resolve(request: HttpRequest, row_id: str) -> HttpResponse:
                 location=location,
                 qty=qty,
             )
+
+    return redirect("stocks:imports_batch_detail", batch_id=row.batch_id)
+
+
+@login_required
+def imports_row_qualify(request: HttpRequest, row_id: str) -> HttpResponse:
+    """Ecran "à qualifier" (chantier RG-QUALIF) — extourne le mouvement
+    placeholder deja valide et en recree/valide un nouveau correctement
+    attribue (cf. docstring de `services/stock_import.py`)."""
+    tenant = resolve_tenant(request)
+    row = get_object_or_404(StkImportRow, tenant=tenant, id=row_id)
+
+    if request.method == "POST":
+        variant_id_raw = request.POST.get("variant_id") or None
+        variant_id = uuid.UUID(variant_id_raw) if variant_id_raw else None
+        location_id = request.POST.get("location_id") or None
+        location = (
+            StkLocation.objects.filter(tenant=tenant, id=location_id).first()
+            if location_id
+            else None
+        )
+        qualify_import_row(row, variant_id=variant_id, location=location, qualified_by=request.user)
 
     return redirect("stocks:imports_batch_detail", batch_id=row.batch_id)

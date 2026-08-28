@@ -1400,6 +1400,9 @@ class AccImportRow(BaseModel):
     class Meta:
         db_table = "acc_import_row"
         indexes = [models.Index(fields=["batch", "status"])]
+        permissions = [
+            ("qualify_accimportrow", "Peut qualifier une ligne d'import journal de caisse")
+        ]
 
     def __str__(self) -> str:
         return f"Ligne {self.row_number} du lot {self.batch_id}"
@@ -1494,6 +1497,9 @@ class AccInvoiceImportRow(BaseModel):
     class Meta:
         db_table = "acc_invoice_import_row"
         indexes = [models.Index(fields=["batch", "status"])]
+        permissions = [
+            ("qualify_accinvoiceimportrow", "Peut qualifier une ligne d'import de facture")
+        ]
 
     def __str__(self) -> str:
         return f"Ligne {self.row_number} du lot {self.batch_id}"

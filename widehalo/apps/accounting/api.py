@@ -23,6 +23,7 @@ from apps.accounting.models import (
     AccDunningLevel,
     AccFiscalYear,
     AccImportRow,
+    AccInvoiceImportRow,
     AccIrcmDeclaration,
     AccJournal,
     AccLandedCostBatch,
@@ -59,6 +60,7 @@ from apps.accounting.services.budgets import (
 )
 from apps.accounting.services.cash_journal_import import (
     import_cash_journal_xlsx,
+    qualify_import_row,
     resolve_import_row,
 )
 from apps.accounting.services.chart_of_accounts_import import import_chart_of_accounts_xlsx
@@ -69,6 +71,12 @@ from apps.accounting.services.dunning import (
     seed_default_dunning_levels,
 )
 from apps.accounting.services.fiscal_export import export_canevas_notes
+from apps.accounting.services.invoice_import import (
+    import_invoices_xlsx,
+)
+from apps.accounting.services.invoice_import import (
+    qualify_import_row as qualify_invoice_import_row,
+)
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     create_invoice,
@@ -226,6 +234,11 @@ class ImportRowResolveIn(Schema):
     account_id: str | None = None
     date: dt.date | None = None
     discard: bool = False
+
+
+class ImportRowQualifyIn(Schema):
+    account_id: str | None = None
+    partner_id: str | None = None
 
 
 class ReconcileRuleIn(Schema):
@@ -1717,3 +1730,119 @@ def resolve_cash_journal_import_row_endpoint(request, row_id: str, payload: Impo
     account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
     resolved = resolve_import_row(row, account=account, date=payload.date, discard=payload.discard)
     return _serialize_import_row(resolved)
+
+
+@router.post("/accounting/imports/cash-journal/rows/{row_id}/qualify")
+@require_permission("accounting.qualify_accimportrow")
+def qualify_cash_journal_import_row_endpoint(request, row_id: str, payload: ImportRowQualifyIn):
+    """Applique `qualify_import_row` (chantier RG-QUALIF) — remplace le(s)
+    placeholder(s) d'une ligne `needs_qualification` par l'entite reelle
+    fournie explicitement, potentiellement gate par la nouvelle
+    `ApprovalRule` de qualification (`ensure_qualification_approval_rule`).
+    L'ACTE D'APPROUVER une qualification en attente passe par l'endpoint
+    generique deja existant `POST /api/v1/approvals/{id}/decide` — jamais
+    un nouvel endpoint de decision ici."""
+    row = get_object_or_404(AccImportRow, id=row_id)
+    account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
+    partner_id = uuid.UUID(payload.partner_id) if payload.partner_id else None
+    try:
+        qualified = qualify_import_row(
+            row, account=account, partner_id=partner_id, qualified_by=request.auth
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_import_row(qualified)
+
+
+# ---------------------------------------------------------------------------
+# Import de factures client/fournisseur (chantier RG-QUALIF, cf.
+# services/invoice_import.py, docs/IMPORT_FORMATS.md §6)
+# ---------------------------------------------------------------------------
+
+
+class InvoiceImportRowQualifyIn(Schema):
+    variant_id: str | None = None
+    account_id: str | None = None
+    tax_account_id: str | None = None
+    partner_id: str | None = None
+
+
+def _serialize_invoice_import_row(row: AccInvoiceImportRow) -> dict:
+    return {
+        "id": str(row.id),
+        "row_number": row.row_number,
+        "invoice_reference": row.invoice_reference,
+        "sens": row.sens,
+        "status": row.status,
+        "anomaly_codes": row.anomaly_codes,
+        "move_id": str(row.move_id) if row.move_id else None,
+        "partner_id": str(row.partner_id) if row.partner_id else None,
+        "resolved_variant_id": str(row.resolved_variant_id) if row.resolved_variant_id else None,
+        "resolved_account_id": str(row.resolved_account_id) if row.resolved_account_id else None,
+        "resolved_tax_account_id": str(row.resolved_tax_account_id)
+        if row.resolved_tax_account_id
+        else None,
+        "uses_placeholder_partner": row.uses_placeholder_partner,
+        "uses_placeholder_variant": row.uses_placeholder_variant,
+        "uses_placeholder_account": row.uses_placeholder_account,
+        "uses_placeholder_tax": row.uses_placeholder_tax,
+    }
+
+
+@router.post("/accounting/imports/invoices")
+@require_permission("accounting.add_accimportbatch")
+def import_invoices_endpoint(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import xlsx de factures client/fournisseur — cf. docstring de
+    `services/invoice_import.py`/`docs/IMPORT_FORMATS.md` §6."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        summary = import_invoices_xlsx(tenant, file.read(), filename=file.name)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    unresolvable_rows = summary.batch.rows.filter(status=AccInvoiceImportRow.STATUS_UNRESOLVABLE)
+    needs_qualification_rows = summary.batch.rows.filter(
+        status=AccInvoiceImportRow.STATUS_NEEDS_QUALIFICATION
+    )
+    return {
+        "batch_id": str(summary.batch.id),
+        "total_rows": summary.total_rows,
+        "ok_count": summary.ok_count,
+        "needs_qualification_count": summary.needs_qualification_count,
+        "anomaly_count": summary.unresolvable_count,
+        "invoices_created_count": summary.invoices_created_count,
+        "anomaly_rows": [_serialize_invoice_import_row(row) for row in unresolvable_rows],
+        "needs_qualification_rows": [
+            _serialize_invoice_import_row(row) for row in needs_qualification_rows
+        ],
+    }
+
+
+@router.post("/accounting/imports/invoices/rows/{row_id}/qualify")
+@require_permission("accounting.qualify_accinvoiceimportrow")
+def qualify_invoice_import_row_endpoint(request, row_id: str, payload: InvoiceImportRowQualifyIn):
+    """Applique `invoice_import.qualify_import_row` (chantier RG-QUALIF) —
+    meme discipline que `qualify_cash_journal_import_row_endpoint` :
+    l'ACTE D'APPROUVER passe par l'endpoint generique existant `POST
+    /api/v1/approvals/{id}/decide`."""
+    row = get_object_or_404(AccInvoiceImportRow, id=row_id)
+    account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
+    tax_account = (
+        get_object_or_404(AccAccount, id=payload.tax_account_id) if payload.tax_account_id else None
+    )
+    variant_id = uuid.UUID(payload.variant_id) if payload.variant_id else None
+    partner_id = uuid.UUID(payload.partner_id) if payload.partner_id else None
+    try:
+        qualified = qualify_invoice_import_row(
+            row,
+            variant_id=variant_id,
+            account=account,
+            tax_account=tax_account,
+            partner_id=partner_id,
+            qualified_by=request.auth,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_invoice_import_row(qualified)

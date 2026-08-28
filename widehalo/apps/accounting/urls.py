@@ -52,4 +52,9 @@ urlpatterns = [
         views_imports.imports_cash_journal_row_resolve,
         name="imports_cash_journal_row_resolve",
     ),
+    path(
+        "config/imports/cash-journal/rows/<uuid:row_id>/qualify/",
+        views_imports.imports_cash_journal_row_qualify,
+        name="imports_cash_journal_row_qualify",
+    ),
 ]

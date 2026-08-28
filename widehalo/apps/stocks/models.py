@@ -1305,6 +1305,7 @@ class StkImportRow(BaseModel):
     class Meta:
         db_table = "stk_import_row"
         indexes = [models.Index(fields=["batch", "status"])]
+        permissions = [("qualify_stkimportrow", "Peut qualifier une ligne d'import de stock")]
 
     def __str__(self) -> str:
         return f"Ligne {self.row_number} du lot {self.batch_id}"

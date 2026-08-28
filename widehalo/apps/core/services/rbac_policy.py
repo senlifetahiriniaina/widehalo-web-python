@@ -143,19 +143,42 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 # run` — admin/direction (pilotage transverse) et acheteur (domaine cible
 # de `purchase`, cf. `ROLE_APP_PERMISSIONS["acheteur"]`) la recoivent.
 # {role_code: {"app_label.codename", ...}}
+#
+# Chantier RG-QUALIF : `qualify_accimportrow`/`qualify_accinvoiceimportrow`/
+# `qualify_stkimportrow` (declares en `Meta.permissions` des modeles de
+# ligne d'import concernes) gardent le nouvel endpoint `POST .../rows/
+# {id}/qualify` — accordes aux roles "domaine cible" de chaque module
+# (comptable pour accounting, magasinier pour stocks, cf.
+# `ROLE_APP_PERMISSIONS`) ainsi qu'a admin/direction (pilotage transverse,
+# meme discipline que le reste de ce registre). L'ACTE D'APPROUVER, lui,
+# passe par l'endpoint generique deja existant `POST /approvals/{id}/
+# decide` (gate par role via `ApprovalRule.approver_role`, jamais un
+# nouveau codename ici).
 CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     "admin": {
         "accounting.validate_accmove",
         "accounting.cancel_accmove",
         "purchase.run_reordering",
+        "accounting.qualify_accimportrow",
+        "accounting.qualify_accinvoiceimportrow",
+        "stocks.qualify_stkimportrow",
     },
     "direction": {
         "accounting.validate_accmove",
         "accounting.cancel_accmove",
         "purchase.run_reordering",
+        "accounting.qualify_accimportrow",
+        "accounting.qualify_accinvoiceimportrow",
+        "stocks.qualify_stkimportrow",
     },
-    "comptable": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+    "comptable": {
+        "accounting.validate_accmove",
+        "accounting.cancel_accmove",
+        "accounting.qualify_accimportrow",
+        "accounting.qualify_accinvoiceimportrow",
+    },
     "acheteur": {"purchase.run_reordering"},
+    "magasinier": {"stocks.qualify_stkimportrow"},
 }
 
 _DJANGO_ACTIONS = ("view", "add", "change")

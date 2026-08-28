@@ -50,6 +50,7 @@ from apps.accounting.services.landed_costs import (
 )
 from apps.accounting.services.moves import add_line, create_draft_move, post_move
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 
 
 def create_customer_invoice_from_source(
@@ -489,3 +490,32 @@ def create_stock_adjustment_entry_from_source(
     post_move(move)
     move_id: UUID = move.id
     return move_id
+
+
+def decide_cash_journal_qualification(
+    approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
+) -> None:
+    """Enveloppe publique de `apps.accounting.services.cash_journal_import.
+    decide_qualification` — seule surface autorisee pour l'ecran generique
+    "Mes validations en attente" (`apps.core.api_workflow.decide_approval`,
+    chantier RG-QUALIF) qui doit repercuter la decision sur le statut de
+    l'`AccImportRow`, en plus de la decision `ApprovalRequest` elle-meme
+    (deja geree generiquement par `apps.core.services.approvals.decide`)."""
+    from apps.accounting.services.cash_journal_import import decide_qualification
+    from apps.core.models.workflow import ApprovalRequest as _ApprovalRequest
+
+    approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
+    decide_qualification(approval_request, decided_by, approved=approved, comment=comment)
+
+
+def decide_invoice_import_qualification(
+    approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
+) -> None:
+    """Pendant de `decide_cash_journal_qualification` pour l'import de
+    factures (`apps.accounting.services.invoice_import.
+    decide_qualification`)."""
+    from apps.accounting.services.invoice_import import decide_qualification
+    from apps.core.models.workflow import ApprovalRequest as _ApprovalRequest
+
+    approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
+    decide_qualification(approval_request, decided_by, approved=approved, comment=comment)
