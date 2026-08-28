@@ -5,13 +5,17 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from decimal import Decimal
 
 import factory
 from django.contrib.contenttypes.models import ContentType
 
 from apps.logistics.models import (
+    LogCustomsFile,
+    LogCustomsLine,
     LogDriver,
     LogFreightTariff,
+    LogHsCode,
     LogPackagingPlan,
     LogPackagingPlanLine,
     LogPackagingType,
@@ -180,3 +184,41 @@ class LogShipmentLegFactory(factory.django.DjangoModelFactory):
     sequence = factory.Sequence(lambda n: n + 1)
     origin = "Guangzhou"
     destination = "Toamasina"
+
+
+class LogHsCodeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogHsCode
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"6109.{n:04d}")
+    description = "T-shirts en coton"
+    duty_rate_pct = Decimal("20")
+
+
+class LogCustomsFileFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogCustomsFile
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"DOU-{n}")
+    shipment = factory.SubFactory(LogShipmentFactory, tenant=factory.SelfAttribute("..tenant"))
+    opened_at = factory.LazyFunction(dt.date.today)
+
+
+class LogCustomsLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogCustomsLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    customs_file = factory.SubFactory(
+        LogCustomsFileFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    hs_code = factory.SubFactory(LogHsCodeFactory, tenant=factory.SelfAttribute("..tenant"))
+    description = "Ligne de dedouanement"
+    fob_value_mga = Decimal("1000000")
+    caf_value_mga = Decimal("1000000")
+    duty_mga = Decimal("200000")
+    vat_base_mga = Decimal("1200000")
+    vat_mga = Decimal("240000")
+    landed_cost_mga = Decimal("1200000")

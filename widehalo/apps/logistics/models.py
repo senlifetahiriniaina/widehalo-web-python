@@ -551,3 +551,97 @@ class LogShipmentLeg(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.shipment} — etape {self.sequence}"
+
+
+class LogHsCode(BaseModel):
+    """LOG5 : code du systeme harmonise (SH), versionne par date d'effet —
+    meme patron que `AccTax`/`AccExchangeRate` (`valid_from`/`valid_to`,
+    aucune contrainte d'exclusion Postgres a ce stade, coherence laissee a
+    la saisie comme pour ces deux modeles)."""
+
+    code = models.CharField(max_length=16)
+    description = models.CharField(max_length=255)
+    duty_rate_pct = models.DecimalField(max_digits=6, decimal_places=3)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "log_hs_code"
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.description}"
+
+
+class LogCustomsFile(BaseModel, ReferenceMixin):
+    """LOG5 : dossier douanier d'un dossier d'importation. Workflow simple
+    (2 transitions triviales, jamais une FSM complete) — meme discipline
+    que `PurRequisition`/`AccBudget` : pas de machine a etats pour un cycle
+    aussi court."""
+
+    STATE_OPEN = "open"
+    STATE_CLEARED = "cleared"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [
+        (STATE_OPEN, "Ouvert"),
+        (STATE_CLEARED, "Dedouane"),
+        (STATE_CLOSED, "Cloture"),
+    ]
+
+    shipment = models.ForeignKey(
+        LogShipment, on_delete=models.PROTECT, related_name="customs_files"
+    )
+    broker = models.ForeignKey(
+        LogServiceProvider, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_OPEN)
+    opened_at = models.DateField()
+    cleared_at = models.DateField(null=True, blank=True)
+    closed_at = models.DateField(null=True, blank=True)
+    # Renseigne a la cloture (RG-LOG-7) — id de l'AccLandedCostBatch cree
+    # par `accounting.services.public.create_landed_cost_batch_from_source`.
+    # UUID nu, jamais de FK Django (regle de couplage n°1).
+    landed_cost_batch_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "log_customs_file"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+
+class LogCustomsLine(BaseModel):
+    """RG-LOG-6 : une ligne = un article dedouane, avec le calcul complet
+    conserve pour tracabilite (pas seulement le resultat final) — chaque
+    montant intermediaire (CAF, droits, base TVA, TVA, cout de revient) est
+    stocke tel que calcule par `services/customs.py::simulate_customs_duties`
+    au moment de l'ajout de la ligne, jamais recalcule silencieusement
+    ensuite si le taux du `LogHsCode` change plus tard."""
+
+    customs_file = models.ForeignKey(LogCustomsFile, on_delete=models.CASCADE, related_name="lines")
+    hs_code = models.ForeignKey(LogHsCode, on_delete=models.PROTECT, related_name="+")
+    description = models.CharField(max_length=255)
+    # Jamais de FK Django vers `apps.catalog.models.ProductVariant` — regle
+    # de couplage n°1, UUID optionnel (une ligne douaniere n'est pas
+    # toujours reliee a un article du catalogue).
+    variant_id = models.UUIDField(null=True, blank=True)
+    qty = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    weight_kg = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    fob_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    freight_value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    insurance_value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    other_non_recoverable_taxes_mga = models.DecimalField(
+        max_digits=18, decimal_places=4, default=0
+    )
+    transit_cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # Resultats du calcul RG-LOG-6, conserves (cf. docstring de classe).
+    caf_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    duty_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    vat_base_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    vat_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    landed_cost_mga = models.DecimalField(max_digits=18, decimal_places=4)
+
+    class Meta:
+        db_table = "log_customs_line"
+
+    def __str__(self) -> str:
+        return f"{self.customs_file} — {self.description}"
