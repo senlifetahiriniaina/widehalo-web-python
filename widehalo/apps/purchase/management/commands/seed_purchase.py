@@ -16,9 +16,19 @@ utilisateur demo muni du role `acheteur` — le domaine cible naturel de
 pour la campagne de contrat (cf. `tests/contract/test_openapi_schemathesis.
 py`).
 
-**Idempotence** : entites de referentiel (variante catalogue) et le
-document requisition/commande recuperes par cle naturelle
-(`get_or_create`/filtre existant) — un second passage est un no-op."""
+**Idempotence** : le document requisition/commande recupere par cle
+naturelle (`get_or_create`/filtre existant) — un second passage est un
+no-op.
+
+**Regle de couplage n1** : `purchase` n'a pas de FK Django vers
+`apps.catalog` — `add_requisition_line` exige neanmoins un `variant_id`
+REELLEMENT existant (`get_variant_price` leve `DoesNotExist` sinon).
+Resolu ici via `apps.catalog.services.public.ensure_default_variant` (deja
+la surface prevue pour ce besoin exact — RG-QUALIF, cf. sa docstring :
+"seule surface autorisee pour un autre module metier qui a besoin de
+rattacher [une reference] a une variante placeholder"), jamais un import
+direct de `apps.catalog.models` (interdit, `tests/architecture/
+test_module_boundaries.py`)."""
 
 from __future__ import annotations
 
@@ -29,7 +39,7 @@ from decimal import Decimal
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandParser
 
-from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+from apps.catalog.services.public import ensure_default_variant
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.rbac_policy import sync_group_permissions
@@ -83,23 +93,7 @@ class Command(BaseCommand):
         sync_group_permissions(group, "acheteur")
         user.groups.add(group)
 
-        uom, _ = UnitOfMeasure.objects.get_or_create(
-            tenant=tenant,
-            code="M-PUR-DEMO",
-            defaults={"name": "Metre (demo achat)", "category": UnitOfMeasure.CATEGORY_LENGTH},
-        )
-        template, _ = ProductTemplate.objects.get_or_create(
-            tenant=tenant,
-            reference="TPL-PUR-DEMO-0001",
-            defaults={
-                "name": "Fil polyester (demo achat)",
-                "base_uom": uom,
-                "base_price_mga": Decimal(2000),
-            },
-        )
-        variant, _ = ProductVariant.objects.get_or_create(
-            tenant=tenant, template=template, reference="VAR-PUR-DEMO-0001"
-        )
+        variant_id = ensure_default_variant(tenant)
 
         requisition = PurRequisition.objects.filter(
             tenant=tenant, requester=user, department="Production"
@@ -114,7 +108,7 @@ class Command(BaseCommand):
             )
             add_requisition_line(
                 requisition,
-                variant_id=variant.id,
+                variant_id=variant_id,
                 description="Fil polyester",
                 qty=Decimal(200),
                 uom="m",
