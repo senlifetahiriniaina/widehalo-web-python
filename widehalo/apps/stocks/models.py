@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from apps.core.models.base import BaseModel
+from apps.core.models.base import BaseModel, ReferenceMixin
 
 # `ReferenceMixin` n'est PAS utilise en ST1 : aucun des trois modeles
 # ci-dessous n'est un document sequence (`StkWarehouse`/`StkLocation`/
@@ -206,3 +206,287 @@ class StkDefectType(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+
+# ST2 (cf. plan, §5.8) : le coeur du module — `StkLot`, `StkQuant`,
+# `StkMove` (RG-STK-1, double entree) et `StkValuationLayer` (RG-STK-2,
+# valorisation). `variant_id` reste un UUID nu partout (regle de couplage
+# n1, cf. docstring de module ci-dessus) : `stocks` ne fait jamais de FK
+# vers `apps.catalog`.
+
+
+class StkLot(BaseModel):
+    """Lot/numero de serie de tracabilite (RG-STK-3, §5.8). Pas de
+    `ReferenceMixin` : le CDC ne liste pas de champ "reference" sequence
+    pour cette entite dans son tableau §5.8 (contrairement a `StkMove`
+    ci-dessous) — `name` EST l'identifiant metier du lot (le numero de lot
+    lui-meme, souvent impose par le fournisseur/la production, jamais
+    genere par une sequence interne comme le serait un numero de document).
+    Categorie proche d'une reference/master-data plutot que d'un document
+    sequence, meme raisonnement que `StkWarehouse`/`StkLocation`/
+    `StkDefectType` en ST1.
+
+    `UniqueConstraint(tenant, variant_id, name)` : un couple (produit, nom
+    de lot) est unique PAR TENANT — deux lots differents du meme produit
+    ne peuvent pas partager le meme identifiant au sein d'un meme tenant.
+    Contrainte assumee, non explicitement formulee par le CDC mais
+    necessaire pour que `StkQuant`/`StkMove` puissent referencer un lot
+    sans ambiguite. `tenant` est explicitement inclus (a la difference
+    d'un premier jet sans tenant, corrige) : sans lui, un aller-retour
+    export/import (`apps.core.services.tenant_export`, T3) entre deux
+    tenants qui coexistent en base collisionnerait sur ce couple —
+    exactement le piege deja documente pour
+    `core.SavedTableView.Meta.constraints` (`uniq_saved_view`), evite ici
+    des la conception plutot que laisse comme limitation connue.
+
+    `certificate` : reference a un document attache, meme convention que
+    `apps.purchase.models.PurCri.attachment_document_ids` (JSONField de
+    UUID, jamais de FK Django vers `core.Document`) — ici un champ
+    singulier plutot qu'une liste (un lot n'a normalement qu'un seul
+    certificat de conformite/analyse), mais meme type de champ (UUID nu,
+    nullable) pour rester coherent avec ce precedent."""
+
+    variant_id = models.UUIDField()
+    name = models.CharField(max_length=64)
+    date_production = models.DateField(null=True, blank=True)
+    # Alimente STK-FEFO1 (ST6, premier perime premier sorti) — simple champ
+    # de donnee ici, aucune logique FEFO construite en ST2.
+    date_expiry = models.DateField(null=True, blank=True)
+    supplier_lot = models.CharField(max_length=64, blank=True)
+    origin = models.CharField(max_length=255, blank=True)
+    certificate_document_id = models.UUIDField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "stk_lot"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "variant_id", "name"], name="uniq_stk_lot_variant_name"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.variant_id})"
+
+
+class StkQuant(BaseModel):
+    """Photo instantanee de la quantite/valeur disponible pour un couple
+    (produit, emplacement, lot) — **vue materialisee derivee de l'historique
+    `StkMove`, jamais une source de verite independante**. Aucune API/ecran
+    ne cree ou modifie un `StkQuant` directement : seul
+    `services.moves.validate_move` le fait, en repercutant chaque mouvement
+    valide sur les deux quants concernes (origine et destination). Pas de
+    `ReferenceMixin` : ce n'est pas un document que l'utilisateur cree, au
+    meme titre qu'une ligne d'ecriture derivee.
+
+    **Emplacements virtuels** (cf. docstring de module ci-dessus, RG-STK-1) :
+    un `StkQuant` est materialise pour TOUTE combinaison (variant,
+    emplacement, lot) touchee par un mouvement valide, y compris quand
+    l'emplacement est virtuel (`fournisseur`/`client`/etc.) — patron
+    double-entree façon Odoo. Un emplacement `fournisseur` accumule donc une
+    quantite negative au fil des receptions (le stock reel augmente pendant
+    que le "stock" du fournisseur virtuel diminue symetriquement), et un
+    emplacement `client` accumule une quantite positive au fil des
+    livraisons. C'est le choix qui rend l'invariant RG-STK-1 ("aucune
+    quantite n'apparait ni ne disparait sans contrepartie") trivialement
+    verifiable par sommation sur TOUS les emplacements — c'est exactement
+    ce que verifie le test de propriete Hypothesis de ce lot
+    (`test_hypothesis_properties.py`). Une quantite negative sur un
+    emplacement virtuel n'est donc jamais une anomalie, contrairement a une
+    quantite negative sur un emplacement interne (RG-STK-10, stock negatif
+    interdit par defaut, ST7).
+
+    `UniqueConstraint(variant_id, location, lot)` avec `nulls_distinct=False`
+    (Django 5.0+) : un quant est LA combinaison unique produit x
+    emplacement x lot — deux lignes ne peuvent jamais coexister pour la
+    meme combinaison, y compris quand `lot` est NULL (produit non trace par
+    lot). Sans `nulls_distinct=False`, PostgreSQL traiterait chaque NULL
+    comme distinct des autres et autoriserait plusieurs quants "sans lot"
+    pour le meme (variant, emplacement) — brisant l'invariant meme de cette
+    entite."""
+
+    variant_id = models.UUIDField()
+    location = models.ForeignKey(StkLocation, on_delete=models.PROTECT, related_name="quants")
+    lot = models.ForeignKey(
+        StkLot, null=True, blank=True, on_delete=models.SET_NULL, related_name="quants"
+    )
+    qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    qty_reserved = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # Pas de FK `catalog.UnitOfMeasure` (regle de couplage n1) : texte libre
+    # tel quel, meme discipline que `StkMove.uom` ci-dessous.
+    uom = models.CharField(max_length=16, blank=True)
+    unit_cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # `qty * unit_cost_mga`, synchronise par `services.moves`/`services.quants`
+    # — jamais recalcule dans un `save()` de modele (discipline etablie de
+    # cette session : les totaux calcules vivent dans la couche service).
+    value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    last_count_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "stk_quant"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["variant_id", "location", "lot"],
+                name="uniq_stk_quant_variant_location_lot",
+                nulls_distinct=False,
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} @ {self.location_id} = {self.qty}"
+
+
+class StkMove(BaseModel, ReferenceMixin):
+    """Mouvement de stock — coeur de RG-STK-1 (double entree stricte, §5.8).
+    `ReferenceMixin` : c'est un document sequence (le CDC liste un champ
+    "reference" pour cette entite), contrairement a `StkLot`/`StkQuant`
+    ci-dessus.
+
+    **Discipline RG-STK-1** : `qty` est TOUJOURS strictement positive — la
+    direction du mouvement s'exprime exclusivement par `location_from`/
+    `location_to`, jamais par un signe sur la quantite (contrairement, par
+    exemple, a un solde comptable qui peut etre negatif). Un `StkMove` a
+    TOUJOURS les deux emplacements renseignes, y compris quand l'un des
+    deux est virtuel — jamais de mouvement "sans origine" ou "sans
+    destination". C'est cette structure meme (une seule ligne, toujours un
+    from ET un to) qui EST la double entree ici, a la difference de
+    `AccMove`/`AccMoveLine` en `accounting` ou la partie double se
+    materialise par plusieurs LIGNES debit/credit distinctes au sein d'une
+    meme ecriture.
+
+    **Choix delibere : pas de contrainte DB CHECK pour la somme algebrique
+    nulle par produit.** Contrairement a RG-ACC-1 (`accounting`, migration
+    0003) qui pose un CHECK `total_debit = total_credit` PARCE QUE cette
+    egalite est une propriete emergente calculee sur plusieurs lignes (donc
+    verifiable/cassable independamment de chaque ligne), l'invariant
+    RG-STK-1 est ici vrai PAR CONSTRUCTION du modele : chaque ligne
+    `StkMove` porte deja exactement un from et un to, donc la somme
+    algebrique globale (increment au to, decrement au from, pour chaque
+    mouvement) est nulle par construction, quelle que soit la donnee — il
+    n'existe aucun etat de la table `stk_move` qui violerait cet invariant,
+    donc aucun CHECK ne serait jamais utile a poser dessus. Seul le test de
+    propriete Hypothesis (`test_hypothesis_properties.py`) sert de garde
+    de non-regression sur la LOGIQUE DE SERVICE qui traduit les mouvements
+    en quants (`services.moves.validate_move`), pas sur la forme de la
+    table elle-meme.
+
+    **La seule contrainte DB qui a un sens ici** (migration `RunSQL`, meme
+    patron RG-ACC-1) : `CHECK (location_from_id <> location_to_id)` — un
+    mouvement vers/depuis le MEME emplacement n'est jamais valide (aucune
+    circonstance metier ne le justifie), garde en base en plus de la garde
+    de service `create_move` (meme discipline "ceinture et bretelles" que
+    RG-ACC-1)."""
+
+    STATE_DRAFT = "draft"
+    STATE_DONE = "done"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_DONE, "Valide"),
+        (STATE_CANCELLED, "Annule"),
+    ]
+
+    TYPE_RECEPTION = "reception"
+    TYPE_LIVRAISON = "livraison"
+    TYPE_TRANSFERT_INTERNE = "transfert_interne"
+    TYPE_PRODUCTION_IN = "production_in"
+    TYPE_PRODUCTION_OUT = "production_out"
+    TYPE_RETOUR = "retour"
+    TYPE_REBUT = "rebut"
+    TYPE_AJUSTEMENT = "ajustement"
+    TYPE_SOUS_TRAITANCE = "sous_traitance"
+    MOVE_TYPE_CHOICES = [
+        (TYPE_RECEPTION, "Reception"),
+        (TYPE_LIVRAISON, "Livraison"),
+        (TYPE_TRANSFERT_INTERNE, "Transfert interne"),
+        (TYPE_PRODUCTION_IN, "Entree production"),
+        (TYPE_PRODUCTION_OUT, "Sortie production"),
+        (TYPE_RETOUR, "Retour"),
+        (TYPE_REBUT, "Rebut"),
+        (TYPE_AJUSTEMENT, "Ajustement"),
+        (TYPE_SOUS_TRAITANCE, "Sous-traitance"),
+    ]
+
+    variant_id = models.UUIDField()
+    lot = models.ForeignKey(
+        StkLot, null=True, blank=True, on_delete=models.SET_NULL, related_name="moves"
+    )
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    uom = models.CharField(max_length=16, blank=True)
+    location_from = models.ForeignKey(
+        StkLocation, on_delete=models.PROTECT, related_name="moves_out"
+    )
+    location_to = models.ForeignKey(StkLocation, on_delete=models.PROTECT, related_name="moves_in")
+    date = models.DateField()
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    move_type = models.CharField(max_length=32, choices=MOVE_TYPE_CHOICES)
+    # Reference libre vers le document d'origine (commande d'achat/de vente,
+    # ordre de fabrication...), resolue par l'APPELANT via son propre
+    # `services.public` avant d'etre transmise ici — `stocks` ne va jamais
+    # chercher lui-meme ce qui a genere le mouvement (regle de couplage n1).
+    source_document = models.CharField(max_length=255, blank=True)
+    unit_cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # `qty * unit_cost_mga`, synchronise par `services.moves` (meme
+    # discipline que `StkQuant.value_mga` ci-dessus).
+    value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    operator = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Rempli par `services.moves.reverse_move` sur la nouvelle ecriture
+    # inverse, meme patron que `AccMove.reverses` — `move` original n'est
+    # jamais modifie.
+    reverses = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="reversed_by"
+    )
+    # Motif obligatoire d'annulation — meme convention que
+    # `PurOrder.cancel_reason`/`SalesOrder` (motif obligatoire, cf.
+    # `services.moves.cancel_move`).
+    cancel_reason = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        db_table = "stk_move"
+
+    def __str__(self) -> str:
+        return f"{self.reference or self.id} [{self.move_type}]"
+
+
+class StkValuationLayer(BaseModel):
+    """Couche de valorisation FIFO/CMP (RG-STK-2, §5.8) — une ligne par
+    mouvement qui fait reellement entrer de la valeur en stock (reception,
+    entree production...), decrementee au fil des sorties qui consomment
+    cette couche (`remaining_qty`/`remaining_value_mga`). Pas de
+    `ReferenceMixin` : entite derivee d'un `StkMove`, pas un document que
+    l'utilisateur cree directement (meme categorie que `StkQuant`).
+
+    `move` (`on_delete=PROTECT`) : une couche de valorisation ne doit
+    jamais survivre a la suppression physique de son mouvement d'origine
+    sans que cette suppression soit explicitement bloquee — meme discipline
+    que `StkMove.location_from`/`location_to` (`PROTECT`), l'historique de
+    valorisation ne doit jamais se retrouver orpheline silencieusement.
+
+    Note de perimetre (ST2) : la methode de valorisation (`fifo`/`cmp`/
+    `standard`) n'est PAS encore un parametre persistant par produit — le
+    CDC ne prevoit aucune entite de configuration pour cela dans le
+    perimetre ST2, et `apps.catalog.models.ProductVariant`/`TextileSpec`
+    (Lot 1) n'expose aucun champ de methode de cout. `services.moves`
+    accepte donc un parametre `valuation_method` (defaut `"fifo"`, seule
+    methode reellement implementee en ST2) plutot que d'inventer ici un
+    nouveau modele de configuration sans commanditaire clair dans le
+    perimetre de ce lot — une vraie configuration par produit est un
+    enrichissement naturel d'un ST ulterieur, pas fabrique ici sans
+    fondement CDC."""
+
+    move = models.ForeignKey(StkMove, on_delete=models.PROTECT, related_name="valuation_layers")
+    variant_id = models.UUIDField()
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    unit_cost_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    remaining_qty = models.DecimalField(max_digits=18, decimal_places=4)
+    remaining_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    date = models.DateField()
+
+    class Meta:
+        db_table = "stk_valuation_layer"
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} +{self.qty}@{self.unit_cost_mga} (reste {self.remaining_qty})"
