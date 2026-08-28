@@ -1,11 +1,18 @@
 """RG-PUR-3 (§5.6.2, PU5 du sous-sequencement `purchase` — cf. plan) :
-reapprovisionnement automatique. Stub honnete documente (`stocks`
-n'existe pas encore) : le stock disponible est TOUJOURS considere a zero
-par `run_reordering` — cf. `apps.purchase.services.reordering` pour la
-justification complete. Consequence testee ici : une regle avec
-`min_qty > 0` se declenche TOUJOURS (jamais un faux negatif qui ferait
-perdre un vrai besoin), une regle avec `min_qty <= 0` ne se declenche
-JAMAIS (regle effectivement desactivee, cas valide)."""
+reapprovisionnement automatique. Depuis le chantier de durcissement
+retroactif (`apps.stocks` existe desormais), `run_reordering` lit le VRAI
+stock disponible (`stocks.services.public.get_available_stock_qty`) — cf.
+`apps.purchase.services.reordering` pour le detail. Les tests ci-dessous
+n'ensemencent PAS de stock reel sauf mention explicite : aucun
+`StkQuant`/`StkWarehouse` cree pour une variante donnee => sa
+disponibilite reelle est `Decimal(0)` (agregat vide), ce qui reproduit
+exactement le comportement precedemment stube pour ces cas — une regle
+avec `min_qty > 0` continue donc de se declencher en l'absence de tout
+stock connu (jamais un faux negatif), une regle avec `min_qty <= 0` ne se
+declenche JAMAIS (regle effectivement desactivee, cas valide). Les
+nouveaux tests `test_rule_skips_when_stock_is_sufficient`/
+`test_rule_triggers_when_stock_is_below_min_qty` verifient en plus le cas
+REEL (stock effectivement seme via `apps.stocks.tests.factories`)."""
 
 from __future__ import annotations
 
@@ -25,6 +32,7 @@ from apps.purchase.services.reordering import (
     create_reordering_rule,
     run_reordering,
 )
+from apps.stocks.tests.factories import StkQuantFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -60,7 +68,8 @@ def _make_variant(tenant, *, suffix="0001"):
 
 
 def test_rule_below_threshold_triggers_a_draft_requisition(reordering_setup) -> None:
-    """Stock stube a zero (< min_qty=10) : la regle se declenche toujours."""
+    """Aucun stock seme (disponibilite reelle nulle < min_qty=10) : la
+    regle se declenche."""
     tenant, _admin = reordering_setup
     with use_tenant(tenant.id):
         variant = _make_variant(tenant, suffix="TRIG")
@@ -90,12 +99,11 @@ def test_rule_with_min_qty_zero_or_negative_never_triggers(reordering_setup) -> 
         assert run_reordering(tenant) == []
 
 
-def test_rule_at_and_above_threshold_stub_semantics(reordering_setup) -> None:
-    """Le stock stube est toujours 0 : `0 < min_qty` est vrai des que
-    `min_qty` est strictement positif — meme un `min_qty` tres eleve
-    ("stock tres au-dessus du seuil" dans un monde reel) se declenche ici,
-    c'est la deviation stub assumee et documentee (jamais un oubli, au pire
-    une demande superflue)."""
+def test_rule_at_and_above_threshold_without_known_stock(reordering_setup) -> None:
+    """Sans aucun stock connu pour la variante, la disponibilite reelle
+    est nulle : `0 < min_qty` est vrai des que `min_qty` est strictement
+    positif — meme un `min_qty` tres bas se declenche toujours quand aucun
+    `StkQuant` n'existe (jamais un oubli, au pire une demande superflue)."""
     tenant, _admin = reordering_setup
     with use_tenant(tenant.id):
         variant = _make_variant(tenant, suffix="THR")
@@ -104,6 +112,54 @@ def test_rule_at_and_above_threshold_stub_semantics(reordering_setup) -> None:
         )
         requisitions = run_reordering(tenant)
         assert len(requisitions) == 1
+
+
+def test_rule_skips_when_stock_is_sufficient(reordering_setup) -> None:
+    """Stock reel seme au-dessus de `min_qty` : la regle ne se declenche
+    plus — le coeur du chantier de durcissement retroactif (avant, le
+    stock stube a zero declenchait TOUJOURS une regle a `min_qty > 0`)."""
+    tenant, _admin = reordering_setup
+    with use_tenant(tenant.id):
+        variant = _make_variant(tenant, suffix="SUFF")
+        StkQuantFactory(tenant=tenant, variant_id=variant.id, qty=Decimal(80))
+        create_reordering_rule(
+            tenant=tenant, variant_id=variant.id, min_qty=Decimal(10), max_qty=Decimal(50)
+        )
+        assert run_reordering(tenant) == []
+
+
+def test_rule_triggers_when_stock_is_below_min_qty(reordering_setup) -> None:
+    """Stock reel seme mais sous `min_qty` : la regle se declenche, et la
+    quantite demandee est `max_qty - stock_disponible` (arrondie au
+    multiple), pas `max_qty` a lui seul."""
+    tenant, _admin = reordering_setup
+    with use_tenant(tenant.id):
+        variant = _make_variant(tenant, suffix="BELOW")
+        StkQuantFactory(tenant=tenant, variant_id=variant.id, qty=Decimal(6))
+        create_reordering_rule(
+            tenant=tenant, variant_id=variant.id, min_qty=Decimal(10), max_qty=Decimal(50)
+        )
+        requisitions = run_reordering(tenant)
+
+        assert len(requisitions) == 1
+        line = requisitions[0].lines.first()
+        assert line.qty == Decimal(44)  # 50 - 6, multiple_qty=1 par defaut
+
+
+def test_rule_accounts_for_reserved_qty_not_just_on_hand(reordering_setup) -> None:
+    """`get_available_stock_qty` est `qty - qty_reserved`, pas seulement
+    `qty` — un stock physiquement present mais deja entierement reserve ne
+    doit pas empecher le declenchement de la regle."""
+    tenant, _admin = reordering_setup
+    with use_tenant(tenant.id):
+        variant = _make_variant(tenant, suffix="RSVD")
+        StkQuantFactory(
+            tenant=tenant, variant_id=variant.id, qty=Decimal(80), qty_reserved=Decimal(80)
+        )
+        create_reordering_rule(
+            tenant=tenant, variant_id=variant.id, min_qty=Decimal(10), max_qty=Decimal(50)
+        )
+        assert len(run_reordering(tenant)) == 1
 
 
 def test_quantity_rounds_up_to_multiple_qty(reordering_setup) -> None:
@@ -172,10 +228,11 @@ def test_run_reordering_returns_empty_list_without_superuser() -> None:
 def test_run_purchase_reordering_command_runs_across_two_tenants_without_cross_tenant_leakage() -> (
     None
 ):
-    """Acceptance §5.6.7 n°3 (deviation stub documentee : stock stube a
-    zero, cf. `apps.purchase.services.reordering` module docstring — jamais
-    un faux positif/negatif, seulement une demande de plus par regle
-    active). Verifie que la commande de management traite CHAQUE tenant
+    """Acceptance §5.6.7 n°3 : aucun stock reel seme ici pour ces variantes
+    (disponibilite reelle nulle, cf. `apps.purchase.services.reordering`
+    module docstring — jamais un faux positif/negatif, seulement une
+    demande de plus par regle active dans ce cas). Verifie que la commande
+    de management traite CHAQUE tenant
     independamment : les demandes generees pour le tenant A ne fuient
     jamais vers le tenant B, meme quand les deux sont traites dans la meme
     invocation de la commande."""
