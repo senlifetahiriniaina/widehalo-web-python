@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Types d'emballage" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Types d'emballage (RG-LOG-5)" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Poids a vide (kg)" %}</th>
+        <th>{% trans "Poids max (kg)" %}</th>
+        <th>{% trans "Volume (m3)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for packaging_type in packaging_types %}
+        <tr>
+          <td>{{ packaging_type.code }}</td>
+          <td>{{ packaging_type.name }}</td>
+          <td>{{ packaging_type.tare_weight_kg }}</td>
+          <td>{{ packaging_type.max_weight_kg|default:"-" }}</td>
+          <td>{{ packaging_type.volume_m3|default:"-" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun type d'emballage." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau type d'emballage" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <input type="number" name="tare_weight_kg" step="0.001" placeholder="{% trans 'Poids a vide (kg)' %}">
+    <input type="number" name="max_weight_kg" step="0.001" placeholder="{% trans 'Poids max (kg)' %}">
+    <input type="number" name="volume_m3" step="0.0001" placeholder="{% trans 'Volume (m3)' %}">
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

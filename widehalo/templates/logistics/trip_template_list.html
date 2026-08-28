@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Gabarits de tournee" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gabarits de tournee (LOG-REC1)" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Vehicule" %}</th>
+        <th>{% trans "Chauffeur" %}</th>
+        <th>{% trans "Frequence" %}</th>
+        <th>{% trans "Prochaine occurrence" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for template in templates %}
+        <tr>
+          <td>{{ template.name }}</td>
+          <td>{{ template.vehicle.plate_number }}</td>
+          <td>{{ template.driver.name }}</td>
+          <td>{{ template.get_interval_display }}</td>
+          <td>{{ template.next_run }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun gabarit." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau gabarit" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <select name="vehicle_id" required>
+      {% for vehicle in vehicles %}<option value="{{ vehicle.id }}">{{ vehicle.plate_number }}</option>{% endfor %}
+    </select>
+    <select name="driver_id" required>
+      {% for driver in drivers %}<option value="{{ driver.id }}">{{ driver.name }}</option>{% endfor %}
+    </select>
+    <select name="interval">
+      {% for value, label in interval_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="date" name="start_date" required>
+    <input type="date" name="end_date">
+    <textarea name="stop_addresses" rows="3" placeholder="{% trans 'Arrets (une adresse par ligne)' %}" required></textarea>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

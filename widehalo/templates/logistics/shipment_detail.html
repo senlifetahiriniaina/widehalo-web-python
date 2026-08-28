@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ shipment.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ shipment.get_state_display }}
+    {% if shipment.block_reason %}<p>{% trans "Motif de blocage" %}: {{ shipment.block_reason }}</p>{% endif %}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="{% trans 'Motif (blocage)' %}">
+      {% if shipment.state == "planned" %}<button type="submit" name="action" value="book">{% trans "Reserver" %}</button>{% endif %}
+      {% if shipment.state == "booked" %}<button type="submit" name="action" value="pick_up">{% trans "Enlever" %}</button>{% endif %}
+      {% if shipment.state == "picked_up" %}<button type="submit" name="action" value="mark_in_transit">{% trans "Marquer en transit" %}</button>{% endif %}
+      {% if shipment.state == "in_transit" %}<button type="submit" name="action" value="mark_arrived_at_port">{% trans "Marquer arrivee au port" %}</button>{% endif %}
+      {% if shipment.state == "arrived_at_port" %}<button type="submit" name="action" value="start_customs_clearance">{% trans "Mettre en dedouanement" %}</button>{% endif %}
+      {% if shipment.state == "customs_clearance" %}<button type="submit" name="action" value="mark_customs_cleared">{% trans "Marquer dedouanee" %}</button>{% endif %}
+      {% if shipment.state == "customs_cleared" %}<button type="submit" name="action" value="deliver">{% trans "Marquer livree" %}</button>{% endif %}
+      {% if shipment.state == "delivered" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if shipment.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Debloquer" %}</button>{% endif %}
+      {% if shipment.state == "booked" or shipment.state == "picked_up" or shipment.state == "in_transit" or shipment.state == "arrived_at_port" or shipment.state == "customs_clearance" %}<button type="submit" name="action" value="block">{% trans "Bloquer" %}</button>{% endif %}
+    </form>
+  </div>
+
+  <h1>{{ shipment.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Origine" %}: {{ shipment.origin }} — {% trans "Destination" %}: {{ shipment.destination }}</p>
+  <p>{% trans "Incoterm" %}: {{ shipment.incoterm|default:"-" }}</p>
+  <p>{% trans "Cout de fret" %}: {{ shipment.freight_cost_mga }} MGA</p>
+  {% if shipment.freight_billed_to_customer_mga %}<p>{% trans "Refacture au client" %}: {{ shipment.freight_billed_to_customer_mga }} MGA</p>{% endif %}
+
+  <h3>{% trans "Refacturer le fret au client (LOG-REFACT1)" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="refactor_freight">
+    <input type="text" name="partner_id" placeholder="{% trans 'Client (UUID)' %}" required>
+    <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant (par defaut : cout reel)' %}">
+    <button type="submit">{% trans "Refacturer" %}</button>
+  </form>
+
+  <h2>{% trans "Etapes de transport (legs)" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% trans "Mode" %}</th>
+        <th>{% trans "Origine" %}</th>
+        <th>{% trans "Destination" %}</th>
+        <th>{% trans "Depart" %}</th>
+        <th>{% trans "Arrivee" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for leg in legs %}
+        <tr>
+          <td>{{ leg.sequence }}</td>
+          <td>{{ leg.get_mode_display }}</td>
+          <td>{{ leg.origin }}</td>
+          <td>{{ leg.destination }}</td>
+          <td>{{ leg.departure_date|default:"-" }}</td>
+          <td>{{ leg.arrival_date|default:"-" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune etape." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_leg">
+    <select name="mode">
+      <option value="road">{% trans "Route" %}</option>
+      <option value="sea">{% trans "Mer" %}</option>
+      <option value="air">{% trans "Air" %}</option>
+      <option value="rail">{% trans "Rail" %}</option>
+    </select>
+    <input type="text" name="leg_origin" placeholder="{% trans 'Origine' %}" required>
+    <input type="text" name="leg_destination" placeholder="{% trans 'Destination' %}" required>
+    <select name="carrier_id">
+      <option value="">-</option>
+      {% for carrier in carriers %}<option value="{{ carrier.id }}">{{ carrier.name }}</option>{% endfor %}
+    </select>
+    <input type="date" name="departure_date">
+    <input type="date" name="arrival_date">
+    <button type="submit">{% trans "Ajouter une etape" %}</button>
+  </form>
+
+  <h2>{% trans "Dossiers douaniers (RG-LOG-6)" %}</h2>
+  <ul>
+    {% for customs_file in customs_files %}
+      <li><a href="{% url 'logistics:customs_file_detail' customs_file_id=customs_file.id %}">{{ customs_file.reference|default:customs_file.id }} — {{ customs_file.get_state_display }}</a></li>
+    {% empty %}
+      <li>{% trans "Aucun dossier douanier." %}</li>
+    {% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="open_customs_file">
+    <select name="broker_id">
+      <option value="">-</option>
+      {% for carrier in carriers %}<option value="{{ carrier.id }}">{{ carrier.name }}</option>{% endfor %}
+    </select>
+    <button type="submit">{% trans "Ouvrir un dossier douanier" %}</button>
+  </form>
+{% endblock %}

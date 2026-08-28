@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Configuration Logistique" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Configuration Logistique" %}</h1>
+  <ul>
+    <li><a href="{% url 'logistics:config_packaging_types' %}">{% trans "Types d'emballage (RG-LOG-5)" %}</a></li>
+    <li><a href="{% url 'logistics:config_service_providers' %}">{% trans "Prestataires et tarifs de fret (LOG3)" %}</a></li>
+    <li><a href="{% url 'logistics:config_hs_codes' %}">{% trans "Codes du systeme harmonise (RG-LOG-6)" %}</a></li>
+  </ul>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Expeditions" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Expeditions" %}</h1>
+  <p>
+    <a href="{% url 'logistics:shipment_create' %}">{% trans "Nouvelle expedition" %}</a>
+    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Vehicules" %}</a>
+    | <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
+    | <a href="{% url 'logistics:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
+  <form method="get" style="margin-bottom:1em;">
+    <label for="state">{% trans "Filtrer par statut" %}</label>
+    <select id="state" name="state" onchange="this.form.submit()">
+      <option value="">{% trans "Tous" %}</option>
+      {% for value, label in state_choices %}
+        <option value="{{ value }}" {% if value == selected_state %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

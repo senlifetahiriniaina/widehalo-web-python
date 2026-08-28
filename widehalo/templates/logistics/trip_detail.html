@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ trip.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ trip.get_status_display }}
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    {% if trip.status == "planned" %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="start">
+        <input type="number" name="start_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de depart' %}" required>
+        <button type="submit">{% trans "Demarrer" %}</button>
+      </form>
+    {% endif %}
+    {% if trip.status == "in_progress" %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="close">
+        <input type="number" name="end_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de fin' %}" required>
+        <button type="submit">{% trans "Cloturer" %}</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <h1>{{ trip.reference|default:"(brouillon)" }}</h1>
+  <p>{% trans "Vehicule" %}: {{ trip.vehicle.plate_number }} — {% trans "Chauffeur" %}: {{ trip.driver.name }}</p>
+  <p>{% trans "Date" %}: {{ trip.date }}</p>
+
+  <h2>{% trans "Arrets" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% trans "Adresse" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Signe par" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for stop in stops %}
+        <tr>
+          <td>{{ stop.sequence }}</td>
+          <td>{{ stop.address }}</td>
+          <td>{{ stop.get_type_display }}</td>
+          <td>{{ stop.get_status_display }}</td>
+          <td>{{ stop.signed_by|default:"-" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Enregistrer une preuve de livraison (RG-LOG-3)" %}</h3>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="complete_stop">
+    <select name="stop_id" required>
+      {% for stop in stops %}<option value="{{ stop.id }}">{{ stop.sequence }} — {{ stop.address }}</option>{% endfor %}
+    </select>
+    <input type="datetime-local" name="actual_time" required>
+    <input type="text" name="signed_by" placeholder="{% trans 'Signe par' %}">
+    <input type="file" name="proof_file">
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Vehicules" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Vehicules" %}</h1>
+  <p>
+    <a href="{% url 'logistics:vehicle_create' %}">{% trans "Nouveau vehicule" %}</a>
+    | <a href="{% url 'logistics:driver_list' %}">{% trans "Chauffeurs" %}</a>
+    | <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
+    | <a href="{% url 'logistics:shipment_list' %}">{% trans "Expeditions" %}</a>
+    | <a href="{% url 'logistics:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

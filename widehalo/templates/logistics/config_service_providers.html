@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Prestataires et tarifs de fret" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Prestataires et tarifs de fret (LOG3)" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Prestataires" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Contact" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for provider in providers %}
+        <tr>
+          <td>{{ provider.code }}</td>
+          <td>{{ provider.name }}</td>
+          <td>{{ provider.get_type_display }}</td>
+          <td>{{ provider.contact_phone|default:"-" }} {{ provider.contact_email|default:"" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun prestataire." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_provider">
+    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <select name="type">
+      {% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="contact_phone" placeholder="{% trans 'Telephone' %}">
+    <input type="email" name="contact_email" placeholder="{% trans 'Email' %}">
+    <button type="submit">{% trans "Creer le prestataire" %}</button>
+  </form>
+
+  <h2>{% trans "Tarifs de fret" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Prestataire" %}</th>
+        <th>{% trans "Origine" %}</th>
+        <th>{% trans "Destination" %}</th>
+        <th>{% trans "Prix (MGA)" %}</th>
+        <th>{% trans "Delai (jours)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tariff in tariffs %}
+        <tr>
+          <td>{{ tariff.provider.name }}</td>
+          <td>{{ tariff.origin }}</td>
+          <td>{{ tariff.destination }}</td>
+          <td>{{ tariff.price_mga }}</td>
+          <td>{{ tariff.transit_days }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun tarif." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_tariff">
+    <select name="provider_id" required>
+      {% for provider in providers %}<option value="{{ provider.id }}">{{ provider.name }}</option>{% endfor %}
+    </select>
+    <input type="text" name="origin" placeholder="{% trans 'Origine' %}" required>
+    <input type="text" name="destination" placeholder="{% trans 'Destination' %}" required>
+    <input type="number" name="price_mga" step="0.0001" placeholder="{% trans 'Prix (MGA)' %}" required>
+    <input type="number" name="price_per_kg_mga" step="0.0001" placeholder="{% trans 'Prix/kg (MGA, optionnel)' %}">
+    <input type="number" name="transit_days" placeholder="{% trans 'Delai (jours)' %}" required>
+    <input type="date" name="valid_from">
+    <input type="date" name="valid_to">
+    <button type="submit">{% trans "Creer le tarif" %}</button>
+  </form>
+{% endblock %}

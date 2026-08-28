@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Chauffeurs" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Chauffeurs" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Telephone" %}</th>
+        <th>{% trans "Permis" %}</th>
+        <th>{% trans "Consentement geolocalisation" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for driver in drivers %}
+        <tr>
+          <td>{{ driver.name }}</td>
+          <td>{{ driver.phone|default:"-" }}</td>
+          <td>{{ driver.license_number|default:"-" }}</td>
+          <td>{% if driver.consent_geolocation %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun chauffeur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau chauffeur" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <input type="text" name="phone" placeholder="{% trans 'Telephone' %}">
+    <input type="text" name="license_number" placeholder="{% trans 'Numero de permis' %}">
+    <input type="date" name="license_expiry">
+    <label>
+      <input type="checkbox" name="consent_geolocation" value="1">
+      {% trans "Consentement explicite a la geolocalisation (RG-LOG-GEO1)" %}
+    </label>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

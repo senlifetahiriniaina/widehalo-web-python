@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports Logistique" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports Logistique (§5.7)" %}</h1>
+
+  <h2>{% trans "Synthese des couts vehicule" %}</h2>
+  <form method="get" action="{% url 'logistics:report_vehicle_costs' %}">
+    <div class="form-field">
+      <label for="veh_format">{% trans "Format" %}</label>
+      <select id="veh_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Statut des expeditions" %}</h2>
+  <form method="get" action="{% url 'logistics:report_shipments' %}">
+    <div class="form-field">
+      <label for="shp_format">{% trans "Format" %}</label>
+      <select id="shp_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+
+  <h2>{% trans "Synthese des droits de douane" %}</h2>
+  <form method="get" action="{% url 'logistics:report_customs' %}">
+    <div class="form-field">
+      <label for="cus_format">{% trans "Format" %}</label>
+      <select id="cus_format" name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </div>
+    <button type="submit">{% trans "Telecharger" %}</button>
+  </form>
+{% endblock %}

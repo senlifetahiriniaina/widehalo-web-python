@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ vehicle.plate_number }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ vehicle.plate_number }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Type" %}: {{ vehicle.get_type_display }} — {% trans "Statut" %}: {{ vehicle.get_status_display }}</p>
+  <p>{% trans "Kilometrage" %}: {{ vehicle.odometer_km }} km</p>
+
+  <h2>{% trans "Documents" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Echeance" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for document in documents %}
+        <tr>
+          <td>{{ document.get_doc_type_display }}</td>
+          <td>{{ document.reference|default:"-" }}</td>
+          <td>{{ document.expiry_date|default:"-" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun document." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_document">
+    <select name="doc_type" required>
+      {% for value, label in doc_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="reference" placeholder="{% trans 'Reference' %}">
+    <input type="date" name="issue_date" placeholder="{% trans 'Date d emission' %}">
+    <input type="date" name="expiry_date" placeholder="{% trans 'Date d echeance' %}">
+    <input type="number" name="alert_days_before" value="30">
+    <button type="submit">{% trans "Ajouter un document" %}</button>
+  </form>
+
+  <h2>{% trans "Couts" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Montant (MGA)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cost in costs %}
+        <tr>
+          <td>{{ cost.date }}</td>
+          <td>{{ cost.get_cost_type_display }}</td>
+          <td>{{ cost.amount_mga }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun cout enregistre." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_cost">
+    <input type="date" name="date" required>
+    <select name="cost_type" required>
+      {% for value, label in cost_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant' %}" required>
+    <input type="number" name="odometer_km" step="0.01" placeholder="{% trans 'Kilometrage' %}">
+    <input type="text" name="note" placeholder="{% trans 'Note' %}">
+    <button type="submit">{% trans "Ajouter un cout" %}</button>
+  </form>
+{% endblock %}

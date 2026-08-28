@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau vehicule" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau vehicule" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="plate_number">{% trans "Immatriculation" %}</label>
+      <input id="plate_number" type="text" name="plate_number" required>
+    </div>
+    <div class="form-field">
+      <label for="type">{% trans "Type" %}</label>
+      <select id="type" name="type">
+        {% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="capacity_kg">{% trans "Capacite (kg)" %}</label>
+      <input id="capacity_kg" type="number" name="capacity_kg" step="0.01">
+    </div>
+    <div class="form-field">
+      <label for="capacity_m3">{% trans "Capacite (m3)" %}</label>
+      <input id="capacity_m3" type="number" name="capacity_m3" step="0.0001">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

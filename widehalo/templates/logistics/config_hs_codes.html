@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Codes du systeme harmonise" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Codes du systeme harmonise (RG-LOG-6)" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Taux de droits (%)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for hs_code in hs_codes %}
+        <tr>
+          <td>{{ hs_code.code }}</td>
+          <td>{{ hs_code.description }}</td>
+          <td>{{ hs_code.duty_rate_pct }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun code SH." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau code SH" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+    <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
+    <input type="number" name="duty_rate_pct" step="0.001" placeholder="{% trans 'Taux de droits (%)' %}" required>
+    <input type="date" name="valid_from">
+    <input type="date" name="valid_to">
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
