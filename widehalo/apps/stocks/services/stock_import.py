@@ -4,8 +4,8 @@ idiome que `apps.accounting.services.cash_journal_import` : chaque ligne
 source produit soit un VRAI `StkMove` de type `TYPE_AJUSTEMENT` deja
 VALIDE (`services.moves.create_move` + `validate_move`, jamais
 reimplemente ici), soit une anomalie mise en attente de resolution
-humaine explicite (`StkImportRow.status=anomaly`) — jamais de resolution
-devinee, meme patron que l'import du journal de caisse.
+humaine explicite (`StkImportRow.status=unresolvable`), meme patron que
+l'import du journal de caisse.
 
 **Pourquoi une file d'anomalies (contrairement a `partners`/`catalog`,
 tout-ou-rien)** : une ligne d'ouverture de stock reference TROIS entites
@@ -28,7 +28,32 @@ mouvements.
 **Resolution de la variante (regle de couplage n°1)** : jamais d'import
 direct de `apps.catalog.models` — `variant_code` est resolu via
 `apps.catalog.services.public.get_variant_id_by_reference`, seule surface
-autorisee."""
+autorisee.
+
+**Chantier RG-QUALIF (qualification et identification universelle des
+donnees importees)** — retrofit de ce module, registre defaultable/
+non-defaultable complet dans `docs/IMPORT_FORMATS.md` §6 :
+
+- `VARIANTE_INCONNUE` : DEfaultable — repli sur la variante placeholder
+  (`catalog.services.public.ensure_default_variant`), `uses_placeholder_
+  variant=True`.
+- `EMPLACEMENT_INCONNU` : DEfaultable — repli sur l'emplacement virtuel
+  "Zone à qualifier" de l'entrepot (`services.defaults.
+  ensure_unqualified_location`), `uses_placeholder_location=True`.
+- `ENTREPOT_INCONNU` : non-defaultable — aucun entrepot par defaut sûr
+  (un `StkMove` a TOUJOURS besoin d'un entrepot reel pour ses deux
+  emplacements, RG-STK-1).
+- `QUANTITE_INVALIDE` : non-defaultable — inventer une quantite
+  fabriquerait un fait de stock.
+
+**Qualification apres coup (`qualify_import_row`)** : contrairement au
+journal de caisse (ecriture toujours `draft`, editable), un `StkMove`
+d'ouverture est VALIDE immediatement (quants deja mis a jour) — remplacer
+un placeholder ne peut donc jamais se faire par simple edition du
+mouvement existant (corromprait les quants deja poses). `qualify_import_
+row` EXTOURNE le mouvement placeholder (`services.moves.reverse_move`,
+meme patron que toute correction post-validation de ce module) puis cree
+et valide un nouveau `StkMove` avec la variante/l'emplacement reels."""
 
 from __future__ import annotations
 
@@ -36,9 +61,17 @@ import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from uuid import UUID
 
-from apps.catalog.services.public import get_variant_id_by_reference
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext as _
+
+from apps.catalog.services.public import ensure_default_variant, get_variant_id_by_reference
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
+from apps.core.models.workflow import ApprovalRequest, ApprovalRule
+from apps.core.services import approvals
 from apps.core.services.import_xlsx import fold_header, read_xlsx_rows
 from apps.stocks.models import (
     StkImportBatch,
@@ -48,10 +81,13 @@ from apps.stocks.models import (
     StkMove,
     StkWarehouse,
 )
-from apps.stocks.services.moves import create_move, validate_move
+from apps.stocks.services.defaults import ensure_unqualified_location
+from apps.stocks.services.moves import create_move, reverse_move, validate_move
 from apps.stocks.services.warehouses import create_location
 
 STOCK_IMPORT_FORMAT_VERSION = 1
+
+QUALIFICATION_RULE_NAME = "stocks.stkimportrow.qualification"
 
 STOCK_IMPORT_HEADER_ALIASES: dict[str, set[str]] = {
     "variant_code": {"VARIANT_CODE", "CODE VARIANTE", "REFERENCE VARIANTE"},
@@ -63,11 +99,16 @@ STOCK_IMPORT_HEADER_ALIASES: dict[str, set[str]] = {
 }
 
 # Anomalies de ligne — memes principes que `cash_journal_import` : chaque
-# code doit rester explicite et actionnable par l'utilisateur.
+# code doit rester explicite et actionnable par l'utilisateur, cf.
+# docs/IMPORT_FORMATS.md §6 pour le registre defaultable/non-defaultable.
 ANOMALY_VARIANTE_INCONNUE = "VARIANTE_INCONNUE"
 ANOMALY_ENTREPOT_INCONNU = "ENTREPOT_INCONNU"
 ANOMALY_EMPLACEMENT_INCONNU = "EMPLACEMENT_INCONNU"
 ANOMALY_QUANTITE_INVALIDE = "QUANTITE_INVALIDE"
+
+# Codes non-defaultables (cf. docstring de module) : une ligne qui en porte
+# un ne produit JAMAIS de `StkMove`, reste `STATUS_UNRESOLVABLE`.
+_BLOCKING_ANOMALY_CODES = {ANOMALY_ENTREPOT_INCONNU, ANOMALY_QUANTITE_INVALIDE}
 
 _VARIANCE_LOCATION_CODE = "STOCK-INITIAL"
 
@@ -77,7 +118,8 @@ class StockImportSummary:
     batch: StkImportBatch
     total_rows: int
     ok_count: int = 0
-    anomaly_count: int = 0
+    needs_qualification_count: int = 0
+    unresolvable_count: int = 0
 
 
 def _resolve_variance_location(warehouse: StkWarehouse) -> StkLocation:
@@ -90,13 +132,12 @@ def _resolve_variance_location(warehouse: StkWarehouse) -> StkLocation:
     ).first()
     if location is not None:
         return location
-    from django.utils.translation import gettext as _
 
     return create_location(
         tenant=warehouse.tenant,
         warehouse=warehouse,
         code=_VARIANCE_LOCATION_CODE,
-        name=_("Stock initial (import)"),
+        name=str(_("Stock initial (import)")),
         type=StkLocation.TYPE_INVENTAIRE,
     )
 
@@ -139,6 +180,31 @@ def _normalize_row(row: list[Any], index_by_field: dict[str, int]) -> dict[str, 
     }
 
 
+def _resolve_variant(tenant: Tenant, variant_code: str) -> tuple[UUID, bool, list[str]]:
+    """Retourne `(variant_id, uses_placeholder, codes_anomalie)` — jamais
+    bloquant depuis RG-QUALIF : un code non reconnu (ou absent) retombe
+    sur la variante placeholder du tenant."""
+    variant_id = get_variant_id_by_reference(variant_code) if variant_code else None
+    if variant_id is not None:
+        return variant_id, False, []
+    return ensure_default_variant(tenant), True, [ANOMALY_VARIANTE_INCONNUE]
+
+
+def _resolve_location(
+    tenant: Tenant, warehouse: StkWarehouse, location_code: str
+) -> tuple[StkLocation, bool, list[str]]:
+    """Retourne `(location, uses_placeholder, codes_anomalie)` — jamais
+    bloquant depuis RG-QUALIF tant qu'un entrepot est identifie : un code
+    d'emplacement non reconnu retombe sur la "Zone à qualifier" de cet
+    entrepot."""
+    location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, code__iexact=location_code
+    ).first()
+    if location is not None:
+        return location, False, []
+    return ensure_unqualified_location(warehouse), True, [ANOMALY_EMPLACEMENT_INCONNU]
+
+
 def import_stock_quantities_xlsx(
     tenant: Tenant, file_bytes: bytes, *, filename: str = "", format_version: int | None = None
 ) -> StockImportSummary:
@@ -173,12 +239,6 @@ def import_stock_quantities_xlsx(
 
         anomaly_codes: list[str] = []
 
-        variant_id = (
-            get_variant_id_by_reference(entry["variant_code"]) if entry["variant_code"] else None
-        )
-        if variant_id is None:
-            anomaly_codes.append(ANOMALY_VARIANTE_INCONNUE)
-
         warehouse_code = entry["warehouse_code"]
         if warehouse_code not in warehouse_cache:
             warehouse_cache[warehouse_code] = StkWarehouse.objects.filter(
@@ -188,26 +248,26 @@ def import_stock_quantities_xlsx(
         if warehouse is None:
             anomaly_codes.append(ANOMALY_ENTREPOT_INCONNU)
 
-        location = None
-        if warehouse is not None:
-            location = StkLocation.objects.filter(
-                tenant=tenant, warehouse=warehouse, code__iexact=entry["location_code"]
-            ).first()
-            if location is None:
-                anomaly_codes.append(ANOMALY_EMPLACEMENT_INCONNU)
-
         if entry["qty"] is None or entry["qty"] <= 0:
             anomaly_codes.append(ANOMALY_QUANTITE_INVALIDE)
 
-        if anomaly_codes:
-            import_row.status = StkImportRow.STATUS_ANOMALY
+        if any(code in _BLOCKING_ANOMALY_CODES for code in anomaly_codes):
+            import_row.status = StkImportRow.STATUS_UNRESOLVABLE
             import_row.anomaly_codes = anomaly_codes
             import_row.save(update_fields=["status", "anomaly_codes"])
-            summary.anomaly_count += 1
+            summary.unresolvable_count += 1
             continue
 
-        assert warehouse is not None and location is not None and variant_id is not None
-        assert entry["qty"] is not None
+        assert warehouse is not None and entry["qty"] is not None
+
+        variant_id, uses_placeholder_variant, variant_codes = _resolve_variant(
+            tenant, entry["variant_code"]
+        )
+        anomaly_codes.extend(variant_codes)
+        location, uses_placeholder_location, location_codes = _resolve_location(
+            tenant, warehouse, entry["location_code"]
+        )
+        anomaly_codes.extend(location_codes)
 
         lot = None
         if entry["lot_reference"]:
@@ -234,13 +294,36 @@ def import_stock_quantities_xlsx(
         )
         move = validate_move(move)
 
-        import_row.status = StkImportRow.STATUS_OK
+        needs_qualification = uses_placeholder_variant or uses_placeholder_location
+        import_row.status = (
+            StkImportRow.STATUS_NEEDS_QUALIFICATION
+            if needs_qualification
+            else StkImportRow.STATUS_OK
+        )
         import_row.move = move
-        import_row.save(update_fields=["status", "move"])
-        summary.ok_count += 1
+        import_row.resolved_variant_id = variant_id
+        import_row.resolved_location = location
+        import_row.uses_placeholder_variant = uses_placeholder_variant
+        import_row.uses_placeholder_location = uses_placeholder_location
+        import_row.anomaly_codes = anomaly_codes
+        import_row.save(
+            update_fields=[
+                "status",
+                "move",
+                "resolved_variant_id",
+                "resolved_location",
+                "uses_placeholder_variant",
+                "uses_placeholder_location",
+                "anomaly_codes",
+            ]
+        )
+        if needs_qualification:
+            summary.needs_qualification_count += 1
+        else:
+            summary.ok_count += 1
 
-    batch.anomaly_rows_count = summary.anomaly_count
-    batch.applied_rows_count = summary.ok_count
+    batch.anomaly_rows_count = summary.unresolvable_count
+    batch.applied_rows_count = summary.ok_count + summary.needs_qualification_count
     batch.save(update_fields=["anomaly_rows_count", "applied_rows_count"])
 
     return summary
@@ -255,11 +338,11 @@ def resolve_import_row(
     qty: Decimal | None = None,
     discard: bool = False,
 ) -> StkImportRow:
-    """Corrige manuellement une ligne en anomalie puis retente sa
-    materialisation — jamais de resolution automatique/devinee : c'est
-    toujours un humain qui fournit la variante/l'entrepot/l'emplacement/la
-    quantite corriges ici (meme discipline exacte que
-    `cash_journal_import.resolve_import_row`)."""
+    """Corrige manuellement une ligne `unresolvable` (entrepot/quantite
+    invalides — les seuls cas restant bloquants depuis RG-QUALIF, cf.
+    docstring de module) puis retente sa materialisation — jamais de
+    resolution devinee : c'est toujours un humain qui fournit
+    l'entrepot/l'emplacement/la quantite corriges ici."""
     if discard:
         row.status = StkImportRow.STATUS_DISCARDED
         row.save(update_fields=["status"])
@@ -273,11 +356,12 @@ def resolve_import_row(
         if variant_code
         else get_variant_id_by_reference(raw.get("variant_code") or "")
     )
-    resolved_location = location
-    if resolved_location is None and warehouse is not None:
-        resolved_location = StkLocation.objects.filter(
-            tenant=tenant, warehouse=warehouse, code__iexact=raw.get("location_code") or ""
-        ).first()
+    if resolved_variant_id is None:
+        resolved_variant_id = ensure_default_variant(tenant)
+        uses_placeholder_variant = True
+    else:
+        uses_placeholder_variant = False
+
     resolved_qty = qty
     if resolved_qty is None:
         try:
@@ -290,23 +374,25 @@ def resolve_import_row(
         unit_cost_mga = Decimal(0)
 
     anomaly_codes: list[str] = []
-    if resolved_variant_id is None:
-        anomaly_codes.append(ANOMALY_VARIANTE_INCONNUE)
     if warehouse is None:
         anomaly_codes.append(ANOMALY_ENTREPOT_INCONNU)
-    if resolved_location is None:
-        anomaly_codes.append(ANOMALY_EMPLACEMENT_INCONNU)
     if resolved_qty is None or resolved_qty <= 0:
         anomaly_codes.append(ANOMALY_QUANTITE_INVALIDE)
 
     if anomaly_codes:
-        row.status = StkImportRow.STATUS_ANOMALY
+        row.status = StkImportRow.STATUS_UNRESOLVABLE
         row.anomaly_codes = anomaly_codes
         row.save(update_fields=["status", "anomaly_codes"])
         return row
 
-    assert warehouse is not None and resolved_location is not None
-    assert resolved_variant_id is not None and resolved_qty is not None
+    assert warehouse is not None and resolved_qty is not None
+
+    resolved_location = location
+    uses_placeholder_location = False
+    if resolved_location is None:
+        resolved_location, uses_placeholder_location, _codes = _resolve_location(
+            tenant, warehouse, raw.get("location_code") or ""
+        )
 
     lot = None
     lot_reference = raw.get("lot_reference") or ""
@@ -333,6 +419,134 @@ def resolve_import_row(
 
     row.status = StkImportRow.STATUS_RESOLVED
     row.move = move
+    row.resolved_variant_id = resolved_variant_id
+    row.resolved_location = resolved_location
+    row.uses_placeholder_variant = uses_placeholder_variant
+    row.uses_placeholder_location = uses_placeholder_location
     row.anomaly_codes = []
-    row.save(update_fields=["status", "move", "anomaly_codes"])
+    row.save(
+        update_fields=[
+            "status",
+            "move",
+            "resolved_variant_id",
+            "resolved_location",
+            "uses_placeholder_variant",
+            "uses_placeholder_location",
+            "anomaly_codes",
+        ]
+    )
+    return row
+
+
+def ensure_qualification_approval_rule(tenant: Tenant) -> ApprovalRule:
+    """Cree, si elle n'existe pas encore, LA regle d'approbation de
+    qualification des lignes d'import de stock pour ce tenant —
+    idempotente, scopee au content-type `StkImportRow`, condition
+    `requires_placeholder` (meme patron que `accounting.services.
+    cash_journal_import.ensure_qualification_approval_rule`). Approbateur
+    par defaut : `direction`, qualifiable par `magasinier` (domaine cible
+    du module, cf. `rbac_policy.ROLE_APP_PERMISSIONS`)."""
+    content_type = ContentType.objects.get_for_model(StkImportRow)
+    rule, _created = ApprovalRule.objects.get_or_create(
+        tenant=tenant,
+        content_type=content_type,
+        name=QUALIFICATION_RULE_NAME,
+        defaults={"approver_role": "direction", "condition": {"requires_placeholder": True}},
+    )
+    return rule
+
+
+def qualify_import_row(
+    row: StkImportRow,
+    *,
+    variant_id: UUID | None = None,
+    location: StkLocation | None = None,
+    qualified_by: User,
+) -> StkImportRow:
+    """Remplace le(s) placeholder(s) d'une ligne `needs_qualification` par
+    l'entite reelle fournie par l'utilisateur. Contrairement au journal de
+    caisse (`AccMove` toujours `draft`), le `StkMove` d'ouverture est deja
+    VALIDE (quants poses) — remplacer un placeholder EXTOURNE donc le
+    mouvement placeholder (`services.moves.reverse_move`) puis cree et
+    valide un nouveau `StkMove` correctement attribue, plutot que
+    d'editer le mouvement existant (corromprait les quants deja poses).
+
+    **Simplification v1 assumee** : toute dimension encore placeholder de
+    la ligne doit etre fournie EN UNE SEULE fois (le mouvement est
+    extourne/recree globalement, pas dimension par dimension) — sinon
+    `ValidationError`."""
+    if row.status != StkImportRow.STATUS_NEEDS_QUALIFICATION:
+        raise ValidationError(_("Seule une ligne « à qualifier » peut être qualifiée."))
+    move = row.move
+    if move is None:
+        raise ValidationError(_("Cette ligne n'a pas de mouvement associé à qualifier."))
+    if row.uses_placeholder_variant and variant_id is None:
+        raise ValidationError(_("La variante réelle doit être fournie pour qualifier cette ligne."))
+    if row.uses_placeholder_location and location is None:
+        raise ValidationError(_("L'emplacement réel doit être fourni pour qualifier cette ligne."))
+
+    requires_approval = row.uses_placeholder_variant or row.uses_placeholder_location
+
+    reverse_move(move)
+    new_variant_id = variant_id if row.uses_placeholder_variant else move.variant_id
+    new_location = location if row.uses_placeholder_location else move.location_to
+    assert new_variant_id is not None and new_location is not None
+
+    new_move = create_move(
+        tenant=row.tenant,
+        variant_id=new_variant_id,
+        qty=move.qty,
+        uom=move.uom,
+        location_from=move.location_from,
+        location_to=new_location,
+        date=move.date,
+        move_type=StkMove.TYPE_AJUSTEMENT,
+        source_document=f"Qualification — {row.batch_id}",
+        unit_cost_mga=move.unit_cost_mga,
+        lot=move.lot,
+    )
+    new_move = validate_move(new_move)
+
+    row.move = new_move
+    row.resolved_variant_id = new_variant_id
+    row.resolved_location = new_location
+    row.uses_placeholder_variant = False
+    row.uses_placeholder_location = False
+
+    update_fields = [
+        "move",
+        "resolved_variant_id",
+        "resolved_location",
+        "uses_placeholder_variant",
+        "uses_placeholder_location",
+        "status",
+    ]
+
+    if requires_approval:
+        rule = ensure_qualification_approval_rule(row.tenant)
+        if rule.is_active:
+            approval_request = approvals.request_approval(row, rule, qualified_by)
+            row.status = StkImportRow.STATUS_PENDING_APPROVAL
+            row.qualification_approval_request = approval_request
+            update_fields.append("qualification_approval_request")
+            row.save(update_fields=update_fields)
+            return row
+
+    row.status = StkImportRow.STATUS_QUALIFIED
+    row.save(update_fields=update_fields)
+    return row
+
+
+def decide_qualification(
+    approval_request: ApprovalRequest, decided_by: User, *, approved: bool, comment: str = ""
+) -> StkImportRow:
+    """Enveloppe fine de `apps.core.services.approvals.decide` qui met
+    aussi a jour le statut de la ligne d'import qualifiee — meme patron
+    que `accounting.services.cash_journal_import.decide_qualification`."""
+    approvals.decide(approval_request, decided_by, approved=approved, comment=comment)
+    row = StkImportRow.objects.get(qualification_approval_request=approval_request)
+    row.status = (
+        StkImportRow.STATUS_QUALIFIED if approved else StkImportRow.STATUS_NEEDS_QUALIFICATION
+    )
+    row.save(update_fields=["status"])
     return row

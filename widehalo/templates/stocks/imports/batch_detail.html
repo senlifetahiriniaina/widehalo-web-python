@@ -31,7 +31,7 @@
           <td>{{ row.raw_data.qty }}</td>
           <td>{{ row.anomaly_codes|join:", " }}</td>
           <td>
-            {% if row.status == "anomaly" %}
+            {% if row.status == "unresolvable" %}
               <form method="post" action="{% url 'stocks:imports_row_resolve' row.id %}">
                 {% csrf_token %}
                 <input type="text" name="variant_code" placeholder="{% trans 'Code variante' %}" value="{{ row.raw_data.variant_code }}">

@@ -1265,12 +1265,18 @@ class StkImportRow(BaseModel):
     valide immediatement les mouvements d'ecart qu'il genere."""
 
     STATUS_OK = "ok"
-    STATUS_ANOMALY = "anomaly"
+    STATUS_NEEDS_QUALIFICATION = "needs_qualification"
+    STATUS_PENDING_APPROVAL = "pending_approval"
+    STATUS_QUALIFIED = "qualified"
+    STATUS_UNRESOLVABLE = "unresolvable"
     STATUS_RESOLVED = "resolved"
     STATUS_DISCARDED = "discarded"
     STATUS_CHOICES = [
         (STATUS_OK, "Importée"),
-        (STATUS_ANOMALY, "Anomalie — à corriger"),
+        (STATUS_NEEDS_QUALIFICATION, "À qualifier"),
+        (STATUS_PENDING_APPROVAL, "Qualification en attente d'approbation"),
+        (STATUS_QUALIFIED, "Qualifiée"),
+        (STATUS_UNRESOLVABLE, "Non résoluble — à corriger"),
         (STATUS_RESOLVED, "Anomalie corrigée"),
         (STATUS_DISCARDED, "Écartée"),
     ]
@@ -1278,10 +1284,22 @@ class StkImportRow(BaseModel):
     batch = models.ForeignKey(StkImportBatch, on_delete=models.CASCADE, related_name="rows")
     row_number = models.PositiveIntegerField()
     raw_data = models.JSONField(default=dict)
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ANOMALY)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_UNRESOLVABLE)
     anomaly_codes = models.JSONField(default=list, blank=True)
     move = models.ForeignKey(
         StkMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Chantier RG-QUALIF — jamais de FK Django vers `apps.catalog.models.
+    # ProductVariant` (regle de couplage n°1) : variante resolue (reelle ou
+    # placeholder), UUID opaque.
+    resolved_variant_id = models.UUIDField(null=True, blank=True)
+    resolved_location = models.ForeignKey(
+        StkLocation, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    uses_placeholder_variant = models.BooleanField(default=False)
+    uses_placeholder_location = models.BooleanField(default=False)
+    qualification_approval_request = models.ForeignKey(
+        "core.ApprovalRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
 
     class Meta:

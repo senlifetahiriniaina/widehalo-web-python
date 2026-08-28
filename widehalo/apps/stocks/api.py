@@ -667,6 +667,10 @@ def _serialize_stock_import_row(row: StkImportRow) -> dict:
         "status": row.status,
         "anomaly_codes": row.anomaly_codes,
         "move_id": str(row.move_id) if row.move_id else None,
+        "resolved_variant_id": str(row.resolved_variant_id) if row.resolved_variant_id else None,
+        "resolved_location_id": str(row.resolved_location_id) if row.resolved_location_id else None,
+        "uses_placeholder_variant": row.uses_placeholder_variant,
+        "uses_placeholder_location": row.uses_placeholder_location,
     }
 
 
@@ -684,23 +688,30 @@ def import_stock_quantities_endpoint(
         summary = import_stock_quantities_xlsx(tenant, file.read(), filename=file.name)
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
-    anomaly_rows = summary.batch.rows.filter(status=StkImportRow.STATUS_ANOMALY)
+    unresolvable_rows = summary.batch.rows.filter(status=StkImportRow.STATUS_UNRESOLVABLE)
+    needs_qualification_rows = summary.batch.rows.filter(
+        status=StkImportRow.STATUS_NEEDS_QUALIFICATION
+    )
     return {
         "batch_id": str(summary.batch.id),
         "total_rows": summary.total_rows,
         "ok_count": summary.ok_count,
-        "anomaly_count": summary.anomaly_count,
-        "anomaly_rows": [_serialize_stock_import_row(row) for row in anomaly_rows],
+        "needs_qualification_count": summary.needs_qualification_count,
+        "anomaly_count": summary.unresolvable_count,
+        "anomaly_rows": [_serialize_stock_import_row(row) for row in unresolvable_rows],
+        "needs_qualification_rows": [
+            _serialize_stock_import_row(row) for row in needs_qualification_rows
+        ],
     }
 
 
 @router.post("/stocks/imports/initial-quantities/rows/{row_id}/resolve")
 @require_permission("stocks.change_stkimportrow")
 def resolve_stock_import_row_endpoint(request, row_id: str, payload: StockImportRowResolveIn):
-    """Applique `resolve_import_row` — corrige (variante/entrepot/
-    emplacement/quantite) ou ecarte volontairement une ligne en anomalie.
-    Jamais de resolution devinee : les valeurs corrigees viennent toujours
-    d'une action humaine explicite."""
+    """Applique `resolve_import_row` — corrige (entrepot/quantite) ou
+    ecarte volontairement une ligne `unresolvable`. Jamais de resolution
+    devinee : les valeurs corrigees viennent toujours d'une action
+    humaine explicite."""
     row = get_object_or_404(StkImportRow, id=row_id)
     warehouse = (
         get_object_or_404(StkWarehouse, id=payload.warehouse_id) if payload.warehouse_id else None
