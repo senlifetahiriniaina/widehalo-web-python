@@ -261,7 +261,17 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # mono-page de `stocks` par necessite budgetaire — celle-ci reste un cas
 # particulier documente dans `apps/stocks/views.py`, pas le nouveau
 # standard du depot.
-BUDGET_MAX_MODELS = 180
+# MODELES : le plafond de 180 a ete atteint EXACTEMENT (180/180, zero marge)
+# a la cloture de `presence`, deja signale a ce moment comme bloquant pour
+# tout chantier suivant sans augmentation explicite. Le module `payroll`
+# (5.10 CDC) porte 11 entites nommement listees par le CDC, dont la fusion
+# artificielle degraderait l'auditabilite d'un domaine deja tres reglemente
+# (IRSA/CNaPS/OSTIE) — **Decision explicite actee avec l'utilisateur** (meme
+# precedent que le relevement de BUDGET_MAX_SCREENS 90->200 a l'etape ST8 de
+# `stocks`, cf. paragraphe ci-dessus) : relever BUDGET_MAX_MODELS a 220,
+# marge proportionnee pour `payroll` et les chantiers restants (reporting,
+# strategy, financing, extension sectorielle, pays #2).
+BUDGET_MAX_MODELS = 220
 BUDGET_MAX_ENDPOINTS = 600
 BUDGET_MAX_SCREENS = 200
 
