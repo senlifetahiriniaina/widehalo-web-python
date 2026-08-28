@@ -49,6 +49,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "sales": {"view", "add", "change"},
         "purchase": {"view", "add", "change"},
         "stocks": {"view", "add", "change"},
+        "logistics": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -64,6 +65,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "sales": {"view", "change"},
         "purchase": {"view", "change"},
         "stocks": {"view", "change"},
+        "logistics": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -111,6 +113,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "add", "change"},
         "mrp": {"view", "change"},
         "catalog": {"view"},
+        # Livraisons/expeditions physiques (vehicules, trajets,
+        # expeditions) relevent naturellement du meme role, faute d'un
+        # role dedie "logisticien" dans les 11 roles acquis du CDC.
+        "logistics": {"view", "add", "change"},
     },
     "rh": {
         # Domaines cibles = futurs modules `presence`/`paie`, pas encore
