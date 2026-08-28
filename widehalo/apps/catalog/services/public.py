@@ -19,8 +19,10 @@ from apps.catalog.models import (
     ProductVariant,
     TextileSpec,
 )
+from apps.catalog.services import defaults as _defaults
 from apps.catalog.services.pricing import get_price
 from apps.catalog.services.textile import length_from_weight_kg, weight_kg_from_length
+from apps.core.models.tenant import Tenant
 
 
 def get_variant_price(variant_id: Any, *, partner_id: Any = None) -> Decimal:
@@ -45,6 +47,16 @@ def get_variant_id_by_reference(reference: str) -> UUID | None:
     if variant is None:
         return None
     variant_id: UUID = variant.id
+    return variant_id
+
+
+def ensure_default_variant(tenant: Tenant) -> UUID:
+    """Enveloppe publique de `apps.catalog.services.defaults.
+    ensure_default_variant` — seule surface autorisee pour un autre module
+    metier (`stocks`, `accounting`...) qui a besoin de rattacher une ligne
+    d'import a une variante placeholder (chantier RG-QUALIF). Retourne
+    l'UUID, jamais l'objet `ProductVariant` (regle de couplage n°1)."""
+    variant_id: UUID = _defaults.ensure_default_variant(tenant).id
     return variant_id
 
 

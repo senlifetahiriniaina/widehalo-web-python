@@ -27,7 +27,7 @@
           <td>{{ row.raw_data.libelle }}</td>
           <td>{{ row.anomaly_codes|join:", " }}</td>
           <td>
-            {% if row.status == "anomaly" %}
+            {% if row.status == "unresolvable" %}
               <form method="post" action="{% url 'accounting:imports_cash_journal_row_resolve' row.id %}">
                 {% csrf_token %}
                 <select name="account_id">

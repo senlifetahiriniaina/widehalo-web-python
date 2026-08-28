@@ -131,7 +131,15 @@ def test_import_cash_journal_endpoint_and_resolve(tenant, import_user) -> None:
 
     xlsx_bytes = _xlsx_bytes(
         ["DATE", "CAISSE", "CATEGORIE", "LIBELLE", "ENTREE", "SORTIE"],
-        [[dt.date(2026, 1, 5), "CAISSE", "Non mappee", "Depense diverse", None, 1000]],
+        [
+            # Categorie non mappee : DEfaultable depuis RG-QUALIF (compte
+            # d'attente), une ecriture est materialisee immediatement.
+            [dt.date(2026, 1, 5), "CAISSE", "Non mappee", "Depense diverse", None, 1000],
+            # Date hors de toute periode ouverte (aucune periode couvrant
+            # 2027 n'existe) : reste `unresolvable`, non-defaultable
+            # (inventer une periode n'a pas de repli sûr).
+            [dt.date(2027, 6, 15), "CAISSE", "Non mappee", "Hors periode", None, 500],
+        ],
     )
     upload = io.BytesIO(xlsx_bytes)
     upload.name = "journal.xlsx"
@@ -142,11 +150,16 @@ def test_import_cash_journal_endpoint_and_resolve(tenant, import_user) -> None:
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["total_rows"] == 1
+    assert data["total_rows"] == 2
+    assert data["needs_qualification_count"] == 1
     assert data["anomaly_count"] == 1
-    row = data["anomaly_rows"][0]
-    assert row["status"] == "anomaly"
-    assert "CATEGORIE_NON_MAPPEE" in row["anomaly_codes"]
+    needs_qualification_row = data["needs_qualification_rows"][0]
+    assert needs_qualification_row["status"] == "needs_qualification"
+    assert "CATEGORIE_NON_MAPPEE" in needs_qualification_row["anomaly_codes"]
+    assert needs_qualification_row["uses_placeholder_account"] is True
+    unresolvable_row = data["anomaly_rows"][0]
+    assert unresolvable_row["status"] == "unresolvable"
+    assert "PERIODE_FERMEE_OU_INEXISTANTE" in unresolvable_row["anomaly_codes"]
 
     with use_tenant(tenant.id):
         account = AccAccount.objects.create(
@@ -158,8 +171,8 @@ def test_import_cash_journal_endpoint_and_resolve(tenant, import_user) -> None:
         )
 
     resolve_response = client.post(
-        f"/api/v1/accounting/imports/cash-journal/rows/{row['id']}/resolve",
-        {"account_id": str(account.id)},
+        f"/api/v1/accounting/imports/cash-journal/rows/{unresolvable_row['id']}/resolve",
+        {"account_id": str(account.id), "date": "2026-01-05"},
         content_type="application/json",
         **headers,
     )

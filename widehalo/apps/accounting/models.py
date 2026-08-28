@@ -1341,32 +1341,60 @@ class AccImportRow(BaseModel):
 
     Une ligne SANS anomalie produit immediatement une vraie `AccMove` en
     brouillon (jamais postee automatiquement, coherent avec tout le reste
-    du module) ; une ligne EN anomalie n'en produit aucune tant qu'elle
-    n'a pas ete corrigee manuellement (`resolve_import_row`) — jamais de
-    resolution devinee automatiquement, meme patron que le rapprochement
-    bancaire assiste (A16, `AccBankStatementLine`)."""
+    du module) ; une ligne dont l'anomalie n'est PAS defaultable
+    (`STATUS_UNRESOLVABLE`) n'en produit aucune tant qu'elle n'a pas ete
+    corrigee manuellement (`resolve_import_row`) — jamais de resolution
+    devinee automatiquement, meme patron que le rapprochement bancaire
+    assiste (A16, `AccBankStatementLine`).
+
+    **Chantier RG-QUALIF** : une anomalie DEfaultable (compte/partenaire
+    non identifie, date manquante) ne bloque plus la ligne — un `AccMove`
+    brouillon est materialise immediatement sur une entite placeholder
+    (`uses_placeholder_account`/`uses_placeholder_partner`), et la ligne
+    passe `STATUS_NEEDS_QUALIFICATION` plutot que `STATUS_ANOMALY` :
+    `qualify_import_row` remplace ensuite le placeholder par l'entite
+    reelle, potentiellement gate par une `ApprovalRule` de qualification
+    (`qualification_approval_request`, `STATUS_PENDING_APPROVAL` en
+    attendant la decision de `decide_qualification`)."""
 
     STATUS_OK = "ok"
-    STATUS_ANOMALY = "anomaly"
+    STATUS_NEEDS_QUALIFICATION = "needs_qualification"
+    STATUS_PENDING_APPROVAL = "pending_approval"
+    STATUS_QUALIFIED = "qualified"
+    STATUS_UNRESOLVABLE = "unresolvable"
     STATUS_RESOLVED = "resolved"
     STATUS_DISCARDED = "discarded"
     STATUS_CHOICES = [
         (STATUS_OK, "Importee"),
-        (STATUS_ANOMALY, "Anomalie — a corriger"),
-        (STATUS_RESOLVED, "Anomalie corrigee"),
-        (STATUS_DISCARDED, "Ecartee"),
+        (STATUS_NEEDS_QUALIFICATION, "À qualifier"),
+        (STATUS_PENDING_APPROVAL, "Qualification en attente d'approbation"),
+        (STATUS_QUALIFIED, "Qualifiée"),
+        (STATUS_UNRESOLVABLE, "Non résoluble — à corriger"),
+        (STATUS_RESOLVED, "Anomalie corrigée"),
+        (STATUS_DISCARDED, "Écartée"),
     ]
 
     batch = models.ForeignKey(AccImportBatch, on_delete=models.CASCADE, related_name="rows")
     row_number = models.PositiveIntegerField()
     raw_data = models.JSONField(default=dict)
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ANOMALY)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_UNRESOLVABLE)
     anomaly_codes = models.JSONField(default=list, blank=True)
     resolved_account = models.ForeignKey(
         AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     move = models.ForeignKey(
         AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Chantier RG-QUALIF — jamais de FK Django vers `apps.partners.models.
+    # Partner` (regle de couplage n°1) : partenaire resolu (reel ou
+    # placeholder) rattache a cette ligne, UUID opaque comme
+    # `AccMove.partner_id`.
+    partner_id = models.UUIDField(null=True, blank=True)
+    uses_placeholder_account = models.BooleanField(default=False)
+    uses_placeholder_partner = models.BooleanField(default=False)
+    uses_default_date = models.BooleanField(default=False)
+    qualification_approval_request = models.ForeignKey(
+        "core.ApprovalRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
 
     class Meta:

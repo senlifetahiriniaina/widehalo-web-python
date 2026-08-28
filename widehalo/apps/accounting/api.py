@@ -1637,6 +1637,10 @@ def _serialize_import_row(row: AccImportRow) -> dict:
         "anomaly_codes": row.anomaly_codes,
         "resolved_account_id": str(row.resolved_account_id) if row.resolved_account_id else None,
         "move_id": str(row.move_id) if row.move_id else None,
+        "partner_id": str(row.partner_id) if row.partner_id else None,
+        "uses_placeholder_account": row.uses_placeholder_account,
+        "uses_placeholder_partner": row.uses_placeholder_partner,
+        "uses_default_date": row.uses_default_date,
     }
 
 
@@ -1684,14 +1688,21 @@ def import_cash_journal_endpoint(
         summary = import_cash_journal_xlsx(tenant, file.read(), filename=file.name)
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
-    anomaly_rows = summary.batch.rows.filter(status=AccImportRow.STATUS_ANOMALY)
+    unresolvable_rows = summary.batch.rows.filter(status=AccImportRow.STATUS_UNRESOLVABLE)
+    needs_qualification_rows = summary.batch.rows.filter(
+        status=AccImportRow.STATUS_NEEDS_QUALIFICATION
+    )
     return {
         "batch_id": str(summary.batch.id),
         "total_rows": summary.total_rows,
         "ok_count": summary.ok_count,
-        "anomaly_count": summary.anomaly_count,
+        "needs_qualification_count": summary.needs_qualification_count,
+        "anomaly_count": summary.unresolvable_count,
         "batch_warnings": summary.batch_warnings,
-        "anomaly_rows": [_serialize_import_row(row) for row in anomaly_rows],
+        "anomaly_rows": [_serialize_import_row(row) for row in unresolvable_rows],
+        "needs_qualification_rows": [
+            _serialize_import_row(row) for row in needs_qualification_rows
+        ],
     }
 
 
@@ -1699,9 +1710,9 @@ def import_cash_journal_endpoint(
 @require_permission("accounting.change_accimportrow")
 def resolve_cash_journal_import_row_endpoint(request, row_id: str, payload: ImportRowResolveIn):
     """Applique `resolve_import_row` — corrige (compte/date) ou ecarte
-    volontairement une ligne en anomalie (cf. `AccImportRow.STATUS_ANOMALY`).
-    Jamais de resolution devinee : le compte/la date viennent toujours d'une
-    action humaine explicite."""
+    volontairement une ligne `unresolvable` (cf.
+    `AccImportRow.STATUS_UNRESOLVABLE`). Jamais de resolution devinee : le
+    compte/la date viennent toujours d'une action humaine explicite."""
     row = get_object_or_404(AccImportRow, id=row_id)
     account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
     resolved = resolve_import_row(row, account=account, date=payload.date, discard=payload.discard)

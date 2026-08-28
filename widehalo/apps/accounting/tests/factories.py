@@ -471,5 +471,5 @@ class AccImportRowFactory(factory.django.DjangoModelFactory):
     batch = factory.SubFactory(AccImportBatchFactory, tenant=factory.SelfAttribute("..tenant"))
     row_number = factory.Sequence(lambda n: n + 1)
     raw_data = factory.LazyFunction(dict)
-    status = AccImportRow.STATUS_ANOMALY
+    status = AccImportRow.STATUS_UNRESOLVABLE
     anomaly_codes = factory.LazyFunction(list)
