@@ -345,6 +345,14 @@ class LogServiceProvider(BaseModel):
     type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_CARRIER)
     contact_phone = models.CharField(max_length=32, blank=True)
     contact_email = models.EmailField(blank=True)
+    # LOG6/API-6 : secret partage pour verifier la signature HMAC des
+    # webhooks entrants de ce transporteur (`services/webhooks.py`) —
+    # aucun mecanisme de signature HMAC generalise n'existait ailleurs
+    # dans ce depot avant ce lot (le webhook WhatsApp du Lot 1 utilise le
+    # mecanisme propre a l'API Meta Cloud, pas un HMAC generique). Vide
+    # par defaut : un transporteur sans webhook configure n'en a pas
+    # besoin.
+    webhook_secret = models.CharField(max_length=128, blank=True)
 
     class Meta:
         db_table = "log_service_provider"
