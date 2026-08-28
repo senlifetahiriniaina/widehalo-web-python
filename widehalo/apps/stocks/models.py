@@ -1027,3 +1027,113 @@ class StkAbcClassification(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} : {self.abc_class.upper()} ({self.consumption_value_mga})"
+
+
+# ST6 (cf. plan, §5.8) : RG-STK-6 (cohérence production/stock, backend seul
+# — pas de nouvelle entite, cf. `services/consistency.py`), STK-OBS1
+# (obsolescence, pas de nouvelle entite non plus, cf.
+# `services/obsolescence.py`), STK-FEFO1 (FEFO, pas de nouvelle entite, cf.
+# `services/quants.select_lot_fefo`), STK-RMA1 (`StkReturn` ci-dessous,
+# SEULE nouvelle entite de ce ST), STK-REDIS1 (redistribution
+# inter-sites, pas de nouvelle entite, cf. `services/redistribution.py`).
+
+
+class StkReturn(BaseModel, ReferenceMixin):
+    """Retour client (STK-RMA1, §5.8, ST6) — le CDC qualifie explicitement
+    cette entite d'"absente de la V1 initiale, lacune" et lui donne sa
+    propre entite `stk_return` (pas un simple `StkMove` de type `retour`
+    sans document porteur) : `ReferenceMixin`, meme categorie document
+    sequence que `StkMove`/`StkPicking`/`StkInventory` — un retour client
+    est un vrai document que l'on numerote et suit, pas un enregistrement
+    derive comme `StkQuant`/`StkQualityState`.
+
+    `partner_id` (UUID nu, jamais FK) : le client a l'origine du retour —
+    meme regle de couplage n°1 que partout ailleurs dans `stocks` (jamais
+    de FK Django vers `apps.partners`).
+
+    `source_document` (CharField libre, blank) : reference de la vente
+    d'origine — meme convention EXACTE que `StkMove.source_document`/
+    `StkPicking.source_document` (texte libre resolu par l'appelant,
+    jamais une FK ni une resolution automatique par `stocks` lui-meme).
+
+    `quality_state` : vocabulaire DISTINCT de `StkQualityState.STATE_CHOICES`
+    (ST3), pas une reutilisation directe — plus restreint
+    (`conforme`/`defaut_mineur`/`defaut_majeur`/`rebut`) : `StkQualityState`
+    couvre aussi `en_quarantaine`/`declasse`, deux etats qui n'ont aucun
+    sens comme evaluation INITIALE d'un article retourne (une quarantaine
+    est une etape d'attente ulterieure, pas une classification immediate ;
+    "declasse" est une decision de valorisation qui suppose deja un
+    passage par une classification plus simple en amont). Un champ
+    `CharField` propre a cette entite, plutot qu'une FK/reutilisation d'un
+    modele congu pour un besoin different, garde chaque vocabulaire aligne
+    sur son propre cas d'usage.
+
+    `decision` : vocabulaire litteral du CDC (STK-RMA1) —
+    avoir/remplacement/reparation/refus.
+
+    `move` (FK nullable, `on_delete=SET_NULL`) : le `StkMove` reel genere
+    par `services.returns.process_return`, `None` tant que le retour reste
+    `draft`. `SET_NULL` (pas `PROTECT`) : meme discipline que
+    `StkMove.picking` ci-dessus — un retour deja `processed` doit survivre
+    a la suppression eventuelle de son mouvement (rarissime, soft-delete
+    normalement), l'historique du retour ne doit jamais dependre de la
+    persistance physique du mouvement associe.
+
+    `state` : `CharField` simple + gardes de service, PAS de FSM — cycle de
+    vie LINEAIRE `draft -> processed`, avec `cancelled` atteignable
+    seulement depuis `draft` (un retour `processed` a un effet de stock
+    REEL et immuable, meme discipline "correction par mouvement inverse,
+    jamais de retour arriere" que `StkMove`/`StkPicking`/`StkInventory`).
+    Meme raisonnement exact que `StkPicking.state`/`StkInventory.state` :
+    une FSM n'apporte de valeur que pour un branchement metier reel a
+    proteger, pas pour une simple sequence lineaire."""
+
+    QUALITY_CONFORME = "conforme"
+    QUALITY_DEFAUT_MINEUR = "defaut_mineur"
+    QUALITY_DEFAUT_MAJEUR = "defaut_majeur"
+    QUALITY_REBUT = "rebut"
+    QUALITY_CHOICES = [
+        (QUALITY_CONFORME, "Conforme"),
+        (QUALITY_DEFAUT_MINEUR, "Defaut mineur"),
+        (QUALITY_DEFAUT_MAJEUR, "Defaut majeur"),
+        (QUALITY_REBUT, "Rebut"),
+    ]
+
+    DECISION_AVOIR = "avoir"
+    DECISION_REMPLACEMENT = "remplacement"
+    DECISION_REPARATION = "reparation"
+    DECISION_REFUS = "refus"
+    DECISION_CHOICES = [
+        (DECISION_AVOIR, "Avoir"),
+        (DECISION_REMPLACEMENT, "Remplacement"),
+        (DECISION_REPARATION, "Reparation"),
+        (DECISION_REFUS, "Refus"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_PROCESSED = "processed"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_PROCESSED, "Traite"),
+        (STATE_CANCELLED, "Annule"),
+    ]
+
+    partner_id = models.UUIDField()
+    source_document = models.CharField(max_length=255, blank=True)
+    date = models.DateField()
+    reason = models.TextField(blank=True)
+    quality_state = models.CharField(max_length=16, choices=QUALITY_CHOICES, blank=True)
+    decision = models.CharField(max_length=16, choices=DECISION_CHOICES, blank=True)
+    variant_id = models.UUIDField()
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    move = models.ForeignKey(
+        StkMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="returns"
+    )
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "stk_return"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)

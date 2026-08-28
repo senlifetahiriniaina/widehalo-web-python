@@ -24,6 +24,7 @@ from apps.mrp.services.public import (
     get_order_produced_qty,
     get_supplier_score,
     get_total_workshop_capacity,
+    list_closed_orders,
     list_supplier_evaluations,
     record_supplier_evaluation,
 )
@@ -106,6 +107,48 @@ def test_get_order_produced_qty_returns_none_for_unknown_order(public_setup) -> 
     tenant = public_setup
     with use_tenant(tenant.id):
         assert get_order_produced_qty(uuid.uuid4()) is None
+
+
+def test_list_closed_orders_returns_only_closed_orders_of_tenant(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        closed = MrpOrderFactory(
+            tenant=tenant, state=MrpOrder.STATE_CLOSED, qty_produced=Decimal("7")
+        )
+        MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_DRAFT)
+
+        results = list_closed_orders(tenant)
+
+        assert len(results) == 1
+        row = results[0]
+        assert row["id"] == closed.id
+        assert row["reference"] == closed.reference
+        assert row["workshop_id"] == closed.workshop_id
+        assert row["qty_produced"] == Decimal("7")
+        assert row["closed_at"] == closed.updated_at.date()
+
+
+def test_list_closed_orders_respects_since_window(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        old_order = MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_CLOSED)
+        MrpOrder.objects.filter(id=old_order.id).update(
+            updated_at=dt.datetime(2020, 1, 1, tzinfo=dt.UTC)
+        )
+        recent_order = MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_CLOSED)
+
+        results = list_closed_orders(tenant, since=dt.date(2026, 1, 1))
+
+        result_ids = {row["id"] for row in results}
+        assert recent_order.id in result_ids
+        assert old_order.id not in result_ids
+
+
+def test_list_closed_orders_returns_empty_list_without_closed_orders(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_DRAFT)
+        assert list_closed_orders(tenant) == []
 
 
 def test_get_total_workshop_capacity_sums_non_subcontractor_workshops(public_setup) -> None:

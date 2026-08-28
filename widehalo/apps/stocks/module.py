@@ -15,6 +15,13 @@ MODULE = ModuleSpec(
     # create_stock_adjustment_entry_from_source` (`services/inventory.py`,
     # ecriture comptable de regularisation automatique a la validation
     # d'un inventaire) — jamais `apps.accounting.models`.
-    dependencies=("core", "catalog", "purchase", "accounting"),
+    # "mrp" ajoute par ST6 (RG-STK-6, cf. plan) : premiere fois que
+    # `stocks` consomme `mrp.services.public.list_closed_orders`/
+    # `get_order_produced_qty` (`services/consistency.py`, cohérence
+    # production/stock) — jamais `apps.mrp.models`.
+    # "sales" ajoute par ST6 (RG-STK-6, cf. plan) : premiere fois que
+    # `stocks` consomme `sales.services.public.get_delivered_qty_for_order`
+    # (`services/consistency.py`) — jamais `apps.sales.models`.
+    dependencies=("core", "catalog", "purchase", "accounting", "mrp", "sales"),
     verbose_name="Stocks",
 )

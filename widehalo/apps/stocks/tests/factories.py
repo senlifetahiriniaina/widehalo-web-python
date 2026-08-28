@@ -23,6 +23,7 @@ from apps.stocks.models import (
     StkQualityState,
     StkQuant,
     StkReservation,
+    StkReturn,
     StkValuationLayer,
     StkWarehouse,
 )
@@ -180,6 +181,19 @@ class StkInventoryLineFactory(factory.django.DjangoModelFactory):
     variant_id = factory.LazyFunction(uuid.uuid4)
     location = factory.SubFactory(StkLocationFactory, tenant=factory.SelfAttribute("..tenant"))
     qty_theoretical = Decimal("0")
+
+
+class StkReturnFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkReturn
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"STKRET-{n}")
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    qty = Decimal("1")
+    date = factory.LazyFunction(dt.date.today)
+    state = StkReturn.STATE_DRAFT
 
 
 class StkAbcClassificationFactory(factory.django.DjangoModelFactory):

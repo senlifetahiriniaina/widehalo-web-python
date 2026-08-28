@@ -179,6 +179,47 @@ def get_order_produced_qty(mrp_order_id: Any) -> Decimal | None:
     return qty_produced
 
 
+def list_closed_orders(tenant: Tenant, *, since: dt.date | None = None) -> list[dict[str, Any]]:
+    """Gap identifie par le sous-sequencement ST6 de `stocks` (RG-STK-6,
+    cohérence production/stock) : liste des `MrpOrder` `closed` du tenant,
+    pour que `stocks` puisse iterer "quels ordres ont ete clotures
+    recemment" sans jamais importer `apps.mrp.models` (regle de couplage
+    n°1).
+
+    **Fenetre temporelle** : `MrpOrder` ne porte aucun champ
+    `closed_at`/`date_closed` dedie (cf. `apps.mrp.models.MrpOrder` — seuls
+    `date_start`/`date_end` existent, remplis a la production, pas a la
+    cloture) — `updated_at` (`BaseModel`, `auto_now=True`) est donc utilise
+    comme proxy de la date de cloture : pour un ordre dont le dernier champ
+    modifie est bien la transition `close()` (`STATE_DONE -> STATE_CLOSED`),
+    c'est la meilleure approximation disponible sans ajouter un champ dedie
+    hors perimetre de ce lot. `since` filtre donc sur `updated_at__date >=
+    since` quand fourni, sinon aucune restriction (l'appelant applique sa
+    propre fenetre par defaut — cf. `stocks.services.consistency`, qui
+    documente son defaut de 30 jours de son cote).
+
+    Primitives uniquement (dicts), jamais un objet `MrpOrder` — meme
+    discipline que `list_supplier_evaluations`. `closed_at` du dict expose
+    `updated_at.date()` sous ce nom explicite plutot que de reexposer
+    `updated_at` tel quel, pour ne pas laisser croire a l'appelant qu'il
+    s'agit d'un champ modele reellement nomme ainsi cote `mrp`."""
+    orders = MrpOrder.objects.filter(tenant=tenant, state=MrpOrder.STATE_CLOSED)
+    if since is not None:
+        orders = orders.filter(updated_at__date__gte=since)
+    return [
+        {
+            "id": order.id,
+            "reference": order.reference,
+            "workshop_id": order.workshop_id,
+            "product_template_id": order.bom.product_template_id,
+            "variant_id": order.variant_id,
+            "qty_produced": order.qty_produced,
+            "closed_at": order.updated_at.date(),
+        }
+        for order in orders.select_related("bom").order_by("updated_at")
+    ]
+
+
 def record_supplier_evaluation(
     *,
     tenant: Tenant,
