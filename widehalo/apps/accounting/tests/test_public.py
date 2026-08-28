@@ -5,7 +5,9 @@ facturation reelle depuis `sales.services.invoicing` :
 `create_customer_invoice_from_source`, ainsi que les 3 gaps ajoutes par
 PU6 de `purchase` : `create_supplier_invoice_from_source` (RG-PUR-6),
 `create_landed_cost_batch_from_source` (RG-PUR-7),
-`get_budget_variance_for_analytic_account` (PUR-BUD1)."""
+`get_budget_variance_for_analytic_account` (PUR-BUD1), et le gap ajoute
+par ST5 de `stocks` : `create_stock_adjustment_entry_from_source`
+(RG-STK-9)."""
 
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 
 from apps.accounting.models import (
     AccAccount,
@@ -26,6 +29,7 @@ from apps.accounting.models import (
 from apps.accounting.services.public import (
     create_customer_invoice_from_source,
     create_landed_cost_batch_from_source,
+    create_stock_adjustment_entry_from_source,
     create_supplier_invoice_from_source,
     get_budget_variance_for_analytic_account,
 )
@@ -421,6 +425,161 @@ def test_get_budget_variance_for_analytic_account_returns_none_without_match(
     with use_tenant(tenant.id):
         result = get_budget_variance_for_analytic_account(
             tenant=tenant, analytic_account_id=uuid.uuid4()
+        )
+
+        assert result is None
+
+
+def test_create_stock_adjustment_entry_from_source_success_path(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        move_id = create_stock_adjustment_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            lines=[
+                {"account_id": None, "amount": Decimal("10000"), "label": "Entree ajustement"},
+                {"account_id": None, "amount": Decimal("-10000"), "label": "Ecart d'inventaire"},
+            ],
+            label="STKINV-2026-0001",
+        )
+
+        assert move_id is not None
+        move = AccMove.objects.get(id=move_id)
+        assert move.move_type == AccMove.TYPE_ENTRY
+        assert move.state == AccMove.STATE_POSTED
+        assert move.total_debit == Decimal("10000.0000")
+        assert move.total_credit == Decimal("10000.0000")
+        debit_line = move.lines.get(debit__gt=0)
+        credit_line = move.lines.get(credit__gt=0)
+        assert debit_line.account.type == AccAccount.TYPE_STOCK
+        assert credit_line.account.type == AccAccount.TYPE_EXPENSE
+
+
+def test_create_stock_adjustment_entry_from_source_negative_amount_credits(public_setup) -> None:
+    """Ecart negatif (sortie) : la resolution du compte par defaut se fait
+    par SIGNE de la ligne, jamais par position dans la liste — la ligne
+    positive (debit) retombe toujours sur le compte de stock, la ligne
+    negative (credit) toujours sur le compte de charge, quel que soit
+    l'ordre passe par l'appelant (ici l'inverse de l'entree : la ligne
+    negative est fournie EN PREMIER)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        move_id = create_stock_adjustment_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            lines=[
+                {"account_id": None, "amount": Decimal("-5000"), "label": "Sortie ajustement"},
+                {"account_id": None, "amount": Decimal("5000"), "label": "Ecart d'inventaire"},
+            ],
+        )
+
+        assert move_id is not None
+        move = AccMove.objects.get(id=move_id)
+        credit_line = move.lines.get(credit__gt=0)
+        debit_line = move.lines.get(debit__gt=0)
+        # Positif=debit -> compte stock ; negatif=credit -> compte charge,
+        # independamment de l'ordre des lignes en entree.
+        assert debit_line.account.type == AccAccount.TYPE_STOCK
+        assert credit_line.account.type == AccAccount.TYPE_EXPENSE
+
+
+def test_create_stock_adjustment_entry_from_source_refuses_unbalanced_lines(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        with pytest.raises(ValidationError):
+            create_stock_adjustment_entry_from_source(
+                tenant=tenant,
+                date=dt.date(2026, 1, 15),
+                lines=[
+                    {"account_id": None, "amount": Decimal("10000"), "label": "Entree"},
+                    {"account_id": None, "amount": Decimal("-9000"), "label": "Ecart"},
+                ],
+            )
+
+
+def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_journal(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        result = create_stock_adjustment_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            lines=[
+                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
+                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+            ],
+        )
+
+        assert result is None
+
+
+def test_create_stock_adjustment_entry_from_source_returns_none_without_open_period(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        result = create_stock_adjustment_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            lines=[
+                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
+                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+            ],
+        )
+
+        assert result is None
+
+
+def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_account(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        result = create_stock_adjustment_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            lines=[
+                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
+                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+            ],
         )
 
         assert result is None

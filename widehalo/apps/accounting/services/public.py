@@ -17,7 +17,13 @@ manquante, retourner `None`" que `create_customer_invoice_from_source` :
   3 voies) ;
 - `create_landed_cost_batch_from_source` (RG-PUR-7, couts d'importation) ;
 - `get_budget_variance_for_analytic_account` (PUR-BUD1, routage
-  d'approbation budgetaire)."""
+  d'approbation budgetaire).
+
+1 gap supplementaire ajoute par ST5 de `stocks` (§5.8, cf. plan) :
+
+- `create_stock_adjustment_entry_from_source` (RG-STK-9, "l'ecriture
+  comptable de regularisation est generee automatiquement" a la
+  validation d'un inventaire physique)."""
 
 from __future__ import annotations
 
@@ -32,6 +38,7 @@ from apps.accounting.models import (
     AccBudgetLine,
     AccFiscalYear,
     AccJournal,
+    AccMove,
     AccPeriod,
 )
 from apps.accounting.services.budgets import _actual_amount
@@ -41,6 +48,7 @@ from apps.accounting.services.landed_costs import (
     add_landed_cost_line,
     create_landed_cost_batch,
 )
+from apps.accounting.services.moves import add_line, create_draft_move, post_move
 from apps.core.models.tenant import Tenant
 
 
@@ -353,3 +361,131 @@ def get_budget_variance_for_analytic_account(
         "variance_mga": variance,
         "variance_pct": (variance / budgeted_total) if budgeted_total != 0 else None,
     }
+
+
+def create_stock_adjustment_entry_from_source(
+    *,
+    tenant: Tenant,
+    date: dt.date,
+    lines: list[dict[str, Any]],
+    label: str = "",
+) -> UUID | None:
+    """Point d'integration appele par
+    `stocks.services.inventory.validate_inventory` (RG-STK-9, §5.8, ST5)
+    pour materialiser l'ecriture de regularisation d'un ajustement de
+    stock (comptage cyclique/inventaire) sous forme d'`AccMove`
+    (`move_type=entry`, `AccMove.TYPE_ENTRY`) — a la difference des 2 gaps
+    facture (client/fournisseur) ci-dessus, ce n'est PAS une facture mais
+    une ecriture diverse (double entree comptable classique, pas
+    "commande -> facture").
+
+    `lines` : `[{"account_id": UUID | None, "amount": Decimal, "label":
+    str}, ...]` — `stocks` ne peut jamais passer un objet `AccAccount`
+    (couplage n°1), memes primitives que `income_lines`/`expense_lines`
+    des 2 autres gaps. **Convention de signe assumee (documentee ici, le
+    CDC ne la precise pas)** : `amount` POSITIF = ligne au DEBIT,
+    NEGATIF = ligne au CREDIT — a la difference d'une `AccMoveLine` reelle
+    qui porte `debit`/`credit` comme 2 champs distincts toujours positifs,
+    un seul montant signe est plus simple a construire cote appelant
+    (`stocks`, qui raisonne en delta de valeur signe : + une entree de
+    stock, - une sortie) ; la conversion vers `debit`/`credit` a lieu
+    ICI, jamais cote appelant.
+
+    **Resolution du compte par defaut (`account_id is None`)** : le CDC ne
+    definit aucun type de compte "ecart d'inventaire" dedie parmi
+    `AccAccount.TYPE_CHOICES` — convention assumee ici, par SIGNE de la
+    ligne plutot que par un type unique comme les 2 autres gaps (qui n'ont
+    besoin que d'un seul type de compte par defaut, cote produit/charge
+    UNIQUEMENT) : une ligne positive (debit) sans compte explicite retombe
+    sur le premier compte de type `AccAccount.TYPE_STOCK` du tenant (la
+    valorisation de stock elle-meme) ; une ligne negative (credit) sans
+    compte explicite retombe sur le premier compte de type
+    `AccAccount.TYPE_EXPENSE` (le compte de charge le plus proche
+    disponible pour la contrepartie d'ecart, faute d'un type "ecart
+    d'inventaire" dedie — meme perte de precision assumee qu'une perte
+    d'inventaire imputee en charge, gain compris, simplification
+    documentee plutot qu'un nouveau `AccAccount.TYPE_CHOICES` invente sans
+    fondement CDC explicite).
+
+    Journal : premier `AccJournal.TYPE_STOCK` du tenant (type dedie deja
+    present dans `AccJournal.TYPE_CHOICES`). Periode : premiere periode
+    OUVERTE couvrant `date`, meme resolution exacte que les 2 autres gaps.
+    Retourne `None` (jamais d'exception) si le journal, la periode, ou un
+    compte a defaut sont introuvables — meme discipline "gap de
+    configuration a la charge de l'administrateur du tenant" que le reste
+    de ce module.
+
+    **Equilibre debit/credit** : PAS revalide ici — `post_move` (moteur
+    A4 reutilise, `services/moves.py`) leve deja `ValidationError` si le
+    total debit != le total credit (RG-ACC-1), jamais duplique dans ce
+    gap. Un appelant qui fournit des `lines` desequilibrees se voit donc
+    refuser la publication via cette meme exception, propagee telle
+    quelle (pas de `try/except` de protection : une ecriture desequilibree
+    est une erreur d'appel de `stocks`, pas un gap de configuration a
+    avaler silencieusement)."""
+    journal = AccJournal.objects.filter(tenant=tenant, type=AccJournal.TYPE_STOCK).first()
+    if journal is None:
+        return None
+
+    period = (
+        AccPeriod.objects.filter(
+            tenant=tenant,
+            state=AccPeriod.STATE_OPEN,
+            date_start__lte=date,
+            date_end__gte=date,
+        )
+        .order_by("date_start")
+        .first()
+    )
+    if period is None:
+        return None
+
+    default_stock_account: AccAccount | None = None
+    default_variance_account: AccAccount | None = None
+    resolved_lines: list[dict[str, Any]] = []
+    for line in lines:
+        amount: Decimal = line["amount"]
+        account: AccAccount | None = None
+        account_id = line.get("account_id")
+        if account_id is not None:
+            account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
+        if account is None:
+            if amount >= 0:
+                if default_stock_account is None:
+                    default_stock_account = AccAccount.objects.filter(
+                        tenant=tenant, type=AccAccount.TYPE_STOCK
+                    ).first()
+                account = default_stock_account
+            else:
+                if default_variance_account is None:
+                    default_variance_account = AccAccount.objects.filter(
+                        tenant=tenant, type=AccAccount.TYPE_EXPENSE
+                    ).first()
+                account = default_variance_account
+        if account is None:
+            return None
+        resolved_lines.append(
+            {"account": account, "amount": amount, "label": line.get("label", "")}
+        )
+
+    move = create_draft_move(
+        tenant=tenant,
+        journal=journal,
+        period=period,
+        date=date,
+        move_type=AccMove.TYPE_ENTRY,
+        narration=label,
+    )
+    for line in resolved_lines:
+        amount = line["amount"]
+        add_line(
+            move,
+            account=line["account"],
+            label=line["label"],
+            debit=amount if amount > 0 else Decimal(0),
+            credit=-amount if amount < 0 else Decimal(0),
+        )
+
+    post_move(move)
+    move_id: UUID = move.id
+    return move_id

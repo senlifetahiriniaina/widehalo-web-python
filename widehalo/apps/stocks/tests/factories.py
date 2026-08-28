@@ -11,7 +11,10 @@ import factory
 from django.utils import timezone
 
 from apps.stocks.models import (
+    StkAbcClassification,
     StkDefectType,
+    StkInventory,
+    StkInventoryLine,
     StkLocation,
     StkLot,
     StkMeasurement,
@@ -19,6 +22,7 @@ from apps.stocks.models import (
     StkPicking,
     StkQualityState,
     StkQuant,
+    StkReservation,
     StkValuationLayer,
     StkWarehouse,
 )
@@ -142,3 +146,48 @@ class StkQualityStateFactory(factory.django.DjangoModelFactory):
     quant = factory.SubFactory(StkQuantFactory, tenant=factory.SelfAttribute("..tenant"))
     state = StkQualityState.STATE_CONFORME
     defect_qty = Decimal("0")
+
+
+class StkReservationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkReservation
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    quant = factory.SubFactory(StkQuantFactory, tenant=factory.SelfAttribute("..tenant"))
+    qty = Decimal("1")
+    date = factory.LazyFunction(dt.date.today)
+    state = StkReservation.STATE_ACTIVE
+
+
+class StkInventoryFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkInventory
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"STKINV-{n}")
+    warehouse = factory.SubFactory(StkWarehouseFactory, tenant=factory.SelfAttribute("..tenant"))
+    date = factory.LazyFunction(dt.date.today)
+    type = StkInventory.TYPE_PONCTUEL
+    state = StkInventory.STATE_DRAFT
+
+
+class StkInventoryLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkInventoryLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    inventory = factory.SubFactory(StkInventoryFactory, tenant=factory.SelfAttribute("..tenant"))
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    location = factory.SubFactory(StkLocationFactory, tenant=factory.SelfAttribute("..tenant"))
+    qty_theoretical = Decimal("0")
+
+
+class StkAbcClassificationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkAbcClassification
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    abc_class = StkAbcClassification.CLASS_A
+    consumption_value_mga = Decimal("0")
+    computed_at = factory.LazyFunction(timezone.now)

@@ -10,6 +10,11 @@ MODULE = ModuleSpec(
     # (`services/measurements.py`, ouverture automatique d'un litige
     # fournisseur au-dela du seuil d'ecart de mesure) — jamais
     # `apps.purchase.models`.
-    dependencies=("core", "catalog", "purchase"),
+    # "accounting" ajoute par ST5 (RG-STK-9, cf. plan) : premiere fois que
+    # `stocks` consomme `accounting.services.public.
+    # create_stock_adjustment_entry_from_source` (`services/inventory.py`,
+    # ecriture comptable de regularisation automatique a la validation
+    # d'un inventaire) — jamais `apps.accounting.models`.
+    dependencies=("core", "catalog", "purchase", "accounting"),
     verbose_name="Stocks",
 )

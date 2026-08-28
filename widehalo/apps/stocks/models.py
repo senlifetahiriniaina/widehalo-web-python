@@ -38,6 +38,8 @@ d'entrepot), qui appartient au socle et n'est pas une autre app metier."""
 
 from __future__ import annotations
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.models.base import BaseModel, ReferenceMixin
@@ -789,3 +791,239 @@ class StkPicking(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or str(self.id)
+
+
+# ST5 (cf. plan, §5.8) : RG-STK-8 (reservation), RG-STK-9 (inventaire +
+# ecriture comptable auto), STK-CYCLE1/STK-ABC1 (classification ABC et
+# comptage cyclique).
+
+
+class StkReservation(BaseModel):
+    """Reservation de stock (RG-STK-8, §5.8, ST5) sur un `StkQuant` precis
+    — "la quantite disponible a la vente est `qty - qty_reserved`" (CDC),
+    jamais de sur-reservation (garde `services.reservations.reserve_stock`).
+    Pas de `ReferenceMixin` : le CDC ne liste pas de champ "reference"
+    sequence pour cette entite (§5.8) — un enregistrement operationnel lie
+    a un quant, pas un document que l'utilisateur numerote, meme categorie
+    que `StkQualityState`/`StkMeasurement` en ST3.
+
+    **Origine generique (`content_type`/`object_id`/`content_object`)** :
+    une reservation nait d'une `sales_order_line` OU d'un
+    `mrp_order_component` (RG-STK-8) — `stocks` ne peut jamais faire de FK
+    Django directe vers `apps.sales.models.SalesOrderLine`/
+    `apps.mrp.models.MrpOrderComponent` (regle de couplage n°1). Meme
+    patron EXACT que `apps.core.models.document.Document.content_type`/
+    `object_id`/`content_object` (`ContentType`, `on_delete=SET_NULL`,
+    `CharField(max_length=64)` pour `object_id` plutot qu'un
+    `UUIDField` — coherent avec le fait qu'un `pk` de modele Django n'est
+    pas garanti etre un UUID en toute generalite, meme si c'est le cas
+    partout dans ce depot) et deja repris par
+    `apps.purchase.services.substitution._ensure_rule`/
+    `request_substitute_approval` (`ContentType.objects.get_for_model(...)`,
+    `object_id=str(instance.pk)`) pour un besoin similaire de reference
+    generique inter-app. Nullable : une reservation manuelle (sans origine
+    tracee, ex. saisie directe par un magasinier) laisse les deux champs
+    vides — `stocks` ne construit ni ne resout jamais lui-meme cette
+    generic FK au-dela de son stockage, cf. `services.reservations`.
+
+    `quant` (`on_delete=CASCADE`) : contrairement a `StkMeasurement.quant`/
+    `StkQualityState.quant` (`SET_NULL`, un enregistrement d'evenement/de
+    decision qui doit survivre a la suppression de son quant), une
+    reservation N'A AUCUN SENS sans le quant qu'elle bloque — la
+    suppression (rarissime, soft-delete normalement) du quant doit
+    entrainer celle de ses reservations, pas les laisser orphelines avec
+    un `qty_reserved` qui ne correspondrait plus a rien."""
+
+    STATE_ACTIVE = "active"
+    STATE_RELEASED = "released"
+    STATE_EXPIRED = "expired"
+    STATE_CHOICES = [
+        (STATE_ACTIVE, "Active"),
+        (STATE_RELEASED, "Liberee"),
+        (STATE_EXPIRED, "Expiree"),
+    ]
+
+    content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL)
+    object_id = models.CharField(max_length=64, blank=True)
+    content_object = GenericForeignKey("content_type", "object_id")
+
+    quant = models.ForeignKey(StkQuant, on_delete=models.CASCADE, related_name="reservations")
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    date = models.DateField()
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_ACTIVE)
+
+    class Meta:
+        db_table = "stk_reservation"
+
+    def __str__(self) -> str:
+        return f"{self.quant_id} x{self.qty} [{self.state}]"
+
+
+class StkInventory(BaseModel, ReferenceMixin):
+    """Inventaire physique (RG-STK-9, §5.8, ST5) — document sequence
+    (`ReferenceMixin`, le CDC liste un champ "reference" pour cette
+    entite), regroupant des `StkInventoryLine` de comptage.
+
+    `warehouse` (`on_delete=PROTECT`) : meme discipline que
+    `StkPicking.location_from`/`location_to` — un document deja cree ne
+    doit jamais se retrouver silencieusement orpheline de son entrepot.
+
+    **`state` : CharField simple + gardes de service, PAS de FSM** — cycle
+    de vie LINEAIRE `draft -> in_progress -> validated`, avec `cancelled`
+    atteignable depuis `draft`/`in_progress` uniquement (immuable une fois
+    `validated`, meme discipline "correction par document/mouvement
+    inverse, jamais de retour arriere" que `StkMove`/`StkPicking`). Meme
+    raisonnement exact que `StkPicking.state` (cf. sa docstring) : une FSM
+    n'apporte de valeur que pour un branchement metier reel a proteger, pas
+    pour une simple sequence lineaire.
+
+    Pas de champ `cancel_reason` persiste : meme precedent que
+    `StkPicking` (qui n'en a pas non plus) — le motif obligatoire
+    d'annulation est une garde de `services.inventory.cancel_inventory`,
+    jamais stockee sur le document lui-meme (le CDC §5.8 ne liste pas ce
+    champ pour `stk_inventory`)."""
+
+    TYPE_COMPLET = "complet"
+    TYPE_TOURNANT = "tournant"
+    TYPE_PONCTUEL = "ponctuel"
+    TYPE_CHOICES = [
+        (TYPE_COMPLET, "Complet"),
+        (TYPE_TOURNANT, "Tournant"),
+        (TYPE_PONCTUEL, "Ponctuel"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_IN_PROGRESS = "in_progress"
+    STATE_VALIDATED = "validated"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_IN_PROGRESS, "En cours"),
+        (STATE_VALIDATED, "Valide"),
+        (STATE_CANCELLED, "Annule"),
+    ]
+
+    warehouse = models.ForeignKey(
+        StkWarehouse, on_delete=models.PROTECT, related_name="inventories"
+    )
+    date = models.DateField()
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_PONCTUEL)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    validated_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "stk_inventory"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+
+class StkInventoryLine(BaseModel):
+    """Ligne de comptage d'un `StkInventory` (§5.8, ST5) — un couple
+    (produit, emplacement, lot) precis. Pas de `ReferenceMixin` : ligne
+    d'un document, pas un document elle-meme, meme categorie que
+    `StkMove` n'ayant PAS de ligne dediee pour `StkPicking` — sauf qu'ici,
+    a la difference du patron "picking groupe directement des `StkMove`"
+    (cf. docstring `StkPicking`), une ligne d'inventaire n'EST PAS un
+    `StkMove` : elle precede et peut ne jamais en generer un (comptage
+    conforme, `difference == 0`) — d'ou une entite `StkInventoryLine`
+    dediee, distincte du moteur ST2.
+
+    `qty_theoretical` : photo instantanee de `StkQuant.qty` au moment ou
+    la ligne est AJOUTEE (`services.inventory.add_inventory_line`), jamais
+    recalculee dynamiquement par la suite — un inventaire porte sur l'ecart
+    constate a un instant T, pas sur un ecart glissant qui bougerait sous
+    les pieds du compteur si d'autres mouvements de stock surviennent
+    pendant la periode de comptage.
+
+    `qty_counted` (nullable) : `None` tant que le comptage physique n'a pas
+    ete saisi (`services.inventory.record_count`) — `validate_inventory`
+    refuse tant qu'une ligne du document reste a `None`.
+
+    `difference` : `qty_counted - qty_theoretical`, calculee et persistee
+    par `record_count` (jamais dans un `save()` de modele, discipline
+    etablie de cette session — cf. `StkQuant.value_mga`) ; reste `0` tant
+    que `qty_counted` est `None` (valeur par defaut du champ, sans
+    signification avant comptage)."""
+
+    inventory = models.ForeignKey(StkInventory, on_delete=models.CASCADE, related_name="lines")
+    variant_id = models.UUIDField()
+    lot = models.ForeignKey(
+        StkLot, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    location = models.ForeignKey(StkLocation, on_delete=models.PROTECT, related_name="+")
+    qty_theoretical = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    qty_counted = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    difference = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    reason = models.CharField(max_length=255, blank=True)
+    counted_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "stk_inventory_line"
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} @ {self.location_id} : theo={self.qty_theoretical}"
+
+
+class StkAbcClassification(BaseModel):
+    """Classification ABC par valeur de consommation (STK-ABC1, §5.8, ST5)
+    — une ligne PAR (tenant, produit), recalculee periodiquement par
+    `services.abc_classification.compute_abc_classification`
+    (`update_or_create`). Pas de `ReferenceMixin` : classification derivee,
+    pas un document sequence, meme categorie que `StkQuant`/
+    `StkValuationLayer`.
+
+    **Pourquoi une nouvelle entite plutot qu'un champ sur une entite
+    `catalog` existante** : le CDC (§5.8) ne liste aucune entite dediee
+    pour cette classification, et `stocks` ne peut de toute facon jamais
+    ajouter de champ a `apps.catalog.models.ProductVariant` (app distincte,
+    hors de son perimetre de migration) ni y faire de FK Django (regle de
+    couplage n°1) — la seule option coherente avec ce couplage est donc une
+    table cote `stocks`, keyee sur `variant_id` (UUID nu), au meme titre
+    que `StkLot.variant_id`/`StkQuant.variant_id`/`StkMove.variant_id`.
+
+    `UniqueConstraint(tenant, variant_id)` : au plus une classification
+    active par produit et par tenant — `compute_abc_classification` la
+    RECALCULE en place (`update_or_create`) a chaque execution plutot que
+    d'accumuler un historique, meme raisonnement que `StkQuant` (photo
+    instantanee, pas un historique de valeurs successives).
+
+    `next_count_due` : echeance du prochain comptage cyclique (STK-CYCLE1),
+    calculee par `compute_abc_classification` a partir de `computed_at` +
+    un decalage fixe selon `abc_class` (A mensuel/+30j, B trimestriel/+90j,
+    C annuel/+365j — cf. docstring de `services/abc_classification.py` pour
+    la justification complete de ce cadencement). `due_cyclic_counts` du
+    meme service lit ce champ pour surfacer les comptages a effectuer,
+    sans jamais creer lui-meme de `StkInventory` (decision humaine/ops,
+    meme discipline "pas d'enregistrement cron automatique" que
+    `run_purchase_reordering`/`run_sales_recurrences`)."""
+
+    CLASS_A = "a"
+    CLASS_B = "b"
+    CLASS_C = "c"
+    CLASS_CHOICES = [
+        (CLASS_A, "A"),
+        (CLASS_B, "B"),
+        (CLASS_C, "C"),
+    ]
+
+    variant_id = models.UUIDField()
+    abc_class = models.CharField(max_length=1, choices=CLASS_CHOICES)
+    consumption_value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    computed_at = models.DateTimeField()
+    next_count_due = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "stk_abc_classification"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "variant_id"], name="uniq_stk_abc_classification_variant"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} : {self.abc_class.upper()} ({self.consumption_value_mga})"
