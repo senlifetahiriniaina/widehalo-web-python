@@ -17,7 +17,14 @@ from ninja import Router, Schema
 
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.purchase.models import PurOrder, PurRequisition, PurRfq, PurRfqResponse
+from apps.purchase.models import (
+    PurOrder,
+    PurOrderLine,
+    PurReorderingRule,
+    PurRequisition,
+    PurRfq,
+    PurRfqResponse,
+)
 from apps.purchase.services.orders import (
     PurchaseApprovalRequiredError,
     add_order_line,
@@ -37,6 +44,8 @@ from apps.purchase.services.orders import (
     submit_order_for_validation,
     validate_order,
 )
+from apps.purchase.services.receiving import order_reception_variance, receive_order_line
+from apps.purchase.services.reordering import create_reordering_rule, run_reordering
 from apps.purchase.services.requisitions import (
     add_requisition_line,
     approve_requisition,
@@ -735,3 +744,117 @@ def resolve_order_dispute_endpoint(request, order_id: str):
     if error is not None:
         return error
     return _serialize_order(result)
+
+
+# ---------------------------------------------------------------------------
+# RG-PUR-5 — Reception (PU5, cf. plan)
+# ---------------------------------------------------------------------------
+
+
+class ReceiveLineIn(Schema):
+    qty_received_now: Decimal
+    quality_status: str
+    notes: str = ""
+    photo_document_ids: list[str] = []
+
+
+@router.post("/purchase/orders/{order_id}/lines/{line_id}/receive")
+@require_permission("purchase.change_purorder")
+def receive_order_line_endpoint(request, order_id: str, line_id: str, payload: ReceiveLineIn):
+    line = get_object_or_404(PurOrderLine, id=line_id, order_id=order_id)
+    try:
+        receive_order_line(
+            line,
+            qty_received_now=payload.qty_received_now,
+            quality_status=payload.quality_status,
+            user=request.auth,
+            notes=payload.notes,
+            photo_document_ids=[uuid.UUID(doc_id) for doc_id in payload.photo_document_ids],
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    order = get_object_or_404(PurOrder, id=order_id)
+    return _serialize_order(order)
+
+
+@router.get("/purchase/orders/{order_id}/reception-variance")
+@require_permission("purchase.view_purorder")
+def order_reception_variance_endpoint(request, order_id: str):
+    order = get_object_or_404(PurOrder, id=order_id)
+    rows = order_reception_variance(order)
+    return {
+        "results": [
+            {
+                "line_id": str(row["line_id"]),
+                "variant_id": str(row["variant_id"]),
+                "description": row["description"],
+                "qty_ordered": row["qty_ordered"],
+                "qty_received": row["qty_received"],
+                "variance": row["variance"],
+                "variance_pct": row["variance_pct"],
+            }
+            for row in rows
+        ]
+    }
+
+
+# ---------------------------------------------------------------------------
+# RG-PUR-3 — Reapprovisionnement automatique (PU5, cf. plan)
+# ---------------------------------------------------------------------------
+
+
+class ReorderingRuleIn(Schema):
+    variant_id: str
+    min_qty: Decimal
+    max_qty: Decimal
+    multiple_qty: Decimal = Decimal(1)
+    lead_time_days: int = 0
+    warehouse_id: str | None = None
+
+
+def _serialize_reordering_rule(rule: PurReorderingRule) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(rule.id),
+        "variant_id": str(rule.variant_id),
+        "warehouse_id": str(rule.warehouse_id) if rule.warehouse_id else None,
+        "min_qty": rule.min_qty,
+        "max_qty": rule.max_qty,
+        "multiple_qty": rule.multiple_qty,
+        "lead_time_days": rule.lead_time_days,
+        "is_active": rule.is_active,
+    }
+
+
+@router.get("/purchase/reordering-rules")
+@require_permission("purchase.view_purreorderingrule")
+def list_reordering_rules(request):
+    rules = PurReorderingRule.objects.all().order_by("-created_at")
+    return {"results": [_serialize_reordering_rule(rule) for rule in rules]}
+
+
+@router.post("/purchase/reordering-rules")
+@require_permission("purchase.add_purreorderingrule")
+def create_reordering_rule_endpoint(request, payload: ReorderingRuleIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    rule = create_reordering_rule(
+        tenant=tenant,
+        variant_id=uuid.UUID(payload.variant_id),
+        min_qty=payload.min_qty,
+        max_qty=payload.max_qty,
+        multiple_qty=payload.multiple_qty,
+        lead_time_days=payload.lead_time_days,
+        warehouse_id=uuid.UUID(payload.warehouse_id) if payload.warehouse_id else None,
+    )
+    return _serialize_reordering_rule(rule)
+
+
+@router.post("/purchase/reordering/run")
+@require_permission("purchase.run_reordering")
+def run_reordering_endpoint(request):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    requisitions = run_reordering(tenant)
+    return {"results": [_serialize_requisition(requisition) for requisition in requisitions]}

@@ -17,6 +17,8 @@ import factory
 from apps.purchase.models import (
     PurOrder,
     PurOrderLine,
+    PurReceiptLine,
+    PurReorderingRule,
     PurRequisition,
     PurRequisitionLine,
     PurRfq,
@@ -128,3 +130,23 @@ class PurOrderLineFactory(factory.django.DjangoModelFactory):
     description = factory.Sequence(lambda n: f"Ligne commande {n}")
     qty = 1
     unit_price_mga = 1000
+
+
+class PurReceiptLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurReceiptLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    order_line = factory.SubFactory(PurOrderLineFactory, tenant=factory.SelfAttribute("..tenant"))
+    qty_received = 1
+    quality_status = PurReceiptLine.QUALITY_CONFORME
+
+
+class PurReorderingRuleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurReorderingRule
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    min_qty = 10
+    max_qty = 50

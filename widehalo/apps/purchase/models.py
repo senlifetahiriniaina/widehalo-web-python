@@ -460,6 +460,108 @@ class PurOrder(BaseModel, ReferenceMixin):
         pass
 
 
+class PurReceiptLine(BaseModel):
+    """Evenement de reception (RG-PUR-5, §5.6.5, PU5 du sous-sequencement
+    `purchase` — cf. plan) : une ligne de commande (`PurOrderLine`) peut
+    etre recue en PLUSIEURS livraisons partielles, chacune avec son propre
+    controle qualite — un `PurReceiptLine` par reception, jamais un champ
+    `quality_status` unique sur `PurOrderLine` qui perdrait l'historique
+    (l'ecart RG-PUR-5 doit rester tracable reception par reception, pas
+    seulement au global). `BaseModel` sans `ReferenceMixin` : c'est un
+    evenement rattache a une commande deja sequencee (`PurOrder.reference`),
+    pas lui-meme un document a numeroter — meme discipline que les autres
+    lignes de ce module (`PurOrderLine`, `PurRfqResponseLine`...).
+
+    Decision PU5 documentee (cf. plan) : PAS de modele `PurReceipt`
+    (en-tete) separe a ce stade — le seul point d'entree de reception
+    demande par le CDC/l'API (`POST /orders/{id}/lines/{line_id}/receive`,
+    §5.6.6) est PAR LIGNE, jamais un flux "recevoir plusieurs lignes en un
+    seul bon" ; le CDC ne fournit non plus aucun numero de bon de livraison
+    fournisseur a porter sur un en-tete. Un `PurReceipt` regrouperait donc
+    des `PurReceiptLine` crees par des appels SEPARES a `receive_order_line`
+    sans qu'aucune information supplementaire ne soit disponible pour le
+    construire utilement des maintenant. Le futur rapport PDF bilingue "bon
+    de reception" (PUR-REC, PU8) pourra grouper les `PurReceiptLine` par
+    `order_line__order` et par date sans en-tete persistant ; si un besoin
+    reel d'en-tete apparait alors (ex. reference imprimee), il pourra etre
+    ajoute sans casser ce modele (simple FK optionnelle supplementaire).
+
+    `photo_document_ids` : liste JSON d'UUID `core.Document`, JAMAIS une FK
+    Django/M2M (regle de couplage n°1 — meme si `core.Document` appartient
+    au socle, pas a une autre app "metier", le patron d'attachement deja
+    etabli dans ce depot, `core.services.documents.store_document`, est
+    invoque exclusivement depuis la couche vues avec un `content_object`
+    GenericForeignKey resolu au moment de l'upload HTTP ; ce service n'a
+    pas acces a une requete HTTP, seulement a des UUID de documents DEJA
+    stockes ailleurs — meme discipline que `variant_id`/
+    `preferred_supplier_id` : un simple UUID opaque, jamais une FK)."""
+
+    QUALITY_CONFORME = "conforme"
+    QUALITY_NON_CONFORME = "non_conforme"
+    QUALITY_SOUS_RESERVE = "sous_reserve"
+    QUALITY_CHOICES = [
+        (QUALITY_CONFORME, "Conforme"),
+        (QUALITY_NON_CONFORME, "Non conforme"),
+        (QUALITY_SOUS_RESERVE, "Sous reserve"),
+    ]
+
+    order_line = models.ForeignKey(
+        "PurOrderLine", on_delete=models.CASCADE, related_name="receipt_lines"
+    )
+    qty_received = models.DecimalField(max_digits=18, decimal_places=4)
+    quality_status = models.CharField(max_length=16, choices=QUALITY_CHOICES)
+    notes = models.TextField(blank=True)
+    photo_document_ids = models.JSONField(default=list, blank=True)
+    received_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "pur_receipt_line"
+
+    def __str__(self) -> str:
+        return f"{self.order_line_id} - {self.qty_received} ({self.quality_status})"
+
+
+class PurReorderingRule(BaseModel):
+    """RG-PUR-3 (reapprovisionnement automatique, §5.6.2, PU5 du
+    sous-sequencement `purchase` — cf. plan) : seuils min/max/multiple par
+    variante (et entrepot optionnel). Memes conventions que `PurSubstitute`
+    (cf. sa docstring) : donnee de reference/parametrage, `BaseModel` sans
+    `ReferenceMixin`, `is_active` du socle porte a la fois le soft-delete
+    standard et le sens metier "regle actuellement active" — pas de second
+    champ dedie.
+
+    `variant_id`/`warehouse_id` sont de simples UUID opaques (regle de
+    couplage n°1 — jamais de FK Django vers `apps.catalog`) ; `warehouse_id`
+    reste nullable et opaque des maintenant car `stocks`/`logistics`
+    n'existent pas encore (meme discipline que `PurOrder.warehouse_id`,
+    PU3+PU4). La comparaison "stock disponible" reellement exigee par le
+    CDC n'est PAS calculee ici (`stocks` n'existe pas) — cf. `services/
+    reordering.py::run_reordering` pour le stub documente (stock toujours
+    considere a zero, jamais un faux negatif qui ferait perdre un vrai
+    besoin)."""
+
+    variant_id = models.UUIDField()
+    warehouse_id = models.UUIDField(null=True, blank=True)
+    min_qty = models.DecimalField(max_digits=18, decimal_places=4)
+    max_qty = models.DecimalField(max_digits=18, decimal_places=4)
+    # Les quantites de reapprovisionnement generees doivent arrondir au
+    # multiple superieur de cette valeur (ex. conditionnement par carton de
+    # 12) — cf. `services/reordering.py::_round_up_to_multiple`.
+    multiple_qty = models.DecimalField(max_digits=18, decimal_places=4, default=1)
+    lead_time_days = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "pur_reordering_rule"
+        permissions = [
+            ("run_reordering", "Peut declencher le reapprovisionnement automatique (RG-PUR-3)"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} (min={self.min_qty}, max={self.max_qty})"
+
+
 class PurOrderLine(BaseModel):
     order = models.ForeignKey(PurOrder, on_delete=models.CASCADE, related_name="lines")
     sequence = models.PositiveIntegerField(default=0)

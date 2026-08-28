@@ -127,11 +127,24 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 # (`accounting.validate_accmove`, `accounting.cancel_accmove`) — la
 # premiere est desormais utilisee par `apps.accounting.api.validate_invoice_
 # endpoint`, la seconde par l'ecran HTMX `apps.accounting.views.invoice_
-# detail` (action "cancel"). {role_code: {"app_label.codename", ...}}
+# detail` (action "cancel"). PU5 (RG-PUR-3) ajoute `purchase.run_reordering`
+# (`PurReorderingRule.Meta.permissions`) pour `POST /purchase/reordering/
+# run` — admin/direction (pilotage transverse) et acheteur (domaine cible
+# de `purchase`, cf. `ROLE_APP_PERMISSIONS["acheteur"]`) la recoivent.
+# {role_code: {"app_label.codename", ...}}
 CUSTOM_PERMISSIONS: dict[str, set[str]] = {
-    "admin": {"accounting.validate_accmove", "accounting.cancel_accmove"},
-    "direction": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+    "admin": {
+        "accounting.validate_accmove",
+        "accounting.cancel_accmove",
+        "purchase.run_reordering",
+    },
+    "direction": {
+        "accounting.validate_accmove",
+        "accounting.cancel_accmove",
+        "purchase.run_reordering",
+    },
     "comptable": {"accounting.validate_accmove", "accounting.cancel_accmove"},
+    "acheteur": {"purchase.run_reordering"},
 }
 
 _DJANGO_ACTIONS = ("view", "add", "change")
