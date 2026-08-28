@@ -355,11 +355,24 @@ class SalesOrderLine(BaseModel):
     # lot). Reste nul si aucune nomenclature/atelier actif n'est
     # disponible, ou si la ligne n'est pas qualifiee "a produire".
     mrp_order_id = models.UUIDField(null=True, blank=True)
-    # Reference par UUID nu vers une future ligne de commande d'achat
-    # (`apps.purchase`, module pas encore construit) — champ declare des
-    # maintenant conformement au schema du CDC, reste nul indefiniment
-    # tant que `purchase` n'existe pas.
+    # Reference par UUID nu vers une `PurRequisitionLine` (`apps.purchase`,
+    # PAS une `PurOrderLine` — le cycle demande -> RFQ -> commande reste une
+    # decision humaine/metier, hors perimetre de la qualification
+    # automatique RG-SAL-3). Renseigne depuis le chantier de durcissement
+    # retroactif qui leve ce stub (cf. `services.procurement.
+    # _qualify_purchase_line`) quand `purchase.services.public.
+    # create_requisition_line_from_source` cree reellement une demande
+    # d'achat. Reste nul si la ligne n'est pas qualifiee "a acheter", ou si
+    # aucun `requester_user_id` valide n'a pu etre resolu.
     purchase_order_line_id = models.UUIDField(null=True, blank=True)
+    # Reference par UUID nu vers une `StkReservation` (`apps.stocks`).
+    # Renseigne depuis le chantier de durcissement retroactif qui leve le
+    # stub RG-SAL-3 "sur stock" (cf. `services.procurement.
+    # _qualify_stock_line`) quand `stocks.services.public.
+    # check_and_reserve_stock` reussit a reserver un quant unique couvrant
+    # `qty`. Reste nul si la ligne n'est pas qualifiee "sur stock", ou si
+    # le stock disponible est insuffisant (cas normal, pas une erreur).
+    stock_reservation_id = models.UUIDField(null=True, blank=True)
     billing_policy = models.CharField(
         max_length=24, choices=BILLING_POLICY_CHOICES, default=BILLING_ON_ORDERED_QTY
     )

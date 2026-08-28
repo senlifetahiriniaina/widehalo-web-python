@@ -10,6 +10,11 @@ MODULE = ModuleSpec(
     # l'evaluation fournisseur (MRP-QQCD1) via `mrp.services.public.
     # record_supplier_evaluation`/`get_supplier_score`/
     # `list_supplier_evaluations` — jamais `apps.mrp.models`.
-    dependencies=("core", "partners", "catalog", "accounting", "mrp"),
+    # "stocks" ajoute par le chantier de durcissement retroactif qui leve
+    # le stub RG-PUR-3 (`stocks` n'existait pas encore quand `purchase` a
+    # ete construit, cf. plan) : `services.reordering.run_reordering`
+    # consomme desormais `apps.stocks.services.public.get_available_stock_qty`
+    # — jamais `apps.stocks.models`.
+    dependencies=("core", "partners", "catalog", "accounting", "mrp", "stocks"),
     verbose_name="Achats",
 )
