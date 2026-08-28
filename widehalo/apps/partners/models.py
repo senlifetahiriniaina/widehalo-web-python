@@ -29,6 +29,13 @@ class Partner(BaseModel, ReferenceMixin):
 
     credit_limit_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
 
+    # Partenaire generique cree par
+    # `apps.partners.services.defaults.ensure_default_partner` quand un
+    # import n'a pas identifie avec certitude le partenaire reel (chantier
+    # RG-QUALIF) — une ligne qui l'utilise reste `needs_qualification`
+    # jusqu'a remplacement par le vrai partenaire.
+    is_placeholder = models.BooleanField(default=False)
+
     # Fusion de doublons : conserve une trace du partenaire absorbe (soft-delete
     # applique dessus) plutot que de le supprimer physiquement — l'audit du
     # rattachement des FK reste dans core_audit_log via les save() individuels.
