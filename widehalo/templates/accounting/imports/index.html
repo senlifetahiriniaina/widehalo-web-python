@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Imports comptables" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Imports comptables" %}</h1>
+  <ul>
+    <li><a href="{% url 'accounting:imports_chart_of_accounts' %}">{% trans "Importer un plan comptable" %}</a></li>
+    <li><a href="{% url 'accounting:imports_cash_journal' %}">{% trans "Importer un journal de caisse" %}</a></li>
+  </ul>
+
+  <h2>{% trans "Lots d'import récents" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Fichier" %}</th>
+        <th>{% trans "Lignes" %}</th>
+        <th>{% trans "Anomalies" %}</th>
+        <th>{% trans "Appliquées" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for batch in batches %}
+        <tr>
+          <td>{{ batch.created_at }}</td>
+          <td>{{ batch.get_kind_display }}</td>
+          <td>{{ batch.source_filename|default:"—" }}</td>
+          <td>{{ batch.total_rows }}</td>
+          <td>{{ batch.anomaly_rows_count }}</td>
+          <td>{{ batch.applied_rows_count }}</td>
+          <td>
+            {% if batch.kind == "cash_journal" %}
+              <a href="{% url 'accounting:imports_cash_journal_batch_detail' batch.id %}">{% trans "Détail" %}</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucun import." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

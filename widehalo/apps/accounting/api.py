@@ -22,6 +22,7 @@ from apps.accounting.models import (
     AccDunningAction,
     AccDunningLevel,
     AccFiscalYear,
+    AccImportRow,
     AccIrcmDeclaration,
     AccJournal,
     AccLandedCostBatch,
@@ -56,6 +57,11 @@ from apps.accounting.services.budgets import (
     budget_variance_report,
     create_budget,
 )
+from apps.accounting.services.cash_journal_import import (
+    import_cash_journal_xlsx,
+    resolve_import_row,
+)
+from apps.accounting.services.chart_of_accounts_import import import_chart_of_accounts_xlsx
 from apps.accounting.services.dcom import generate_dcom_declaration
 from apps.accounting.services.dunning import (
     overdue_receivables,
@@ -214,6 +220,12 @@ class DunningActionIn(Schema):
 
 class MobileMoneyReconcileIn(Schema):
     payment_id: str
+
+
+class ImportRowResolveIn(Schema):
+    account_id: str | None = None
+    date: dt.date | None = None
+    discard: bool = False
 
 
 class ReconcileRuleIn(Schema):
@@ -1610,3 +1622,87 @@ def landed_cost_report_endpoint(request, batch_id: str, format: str = "json"):
         format=format,
     )
     return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+
+
+# ---------------------------------------------------------------------------
+# Import comptable/caisse depuis Excel (cf. docs/IMPORT_FORMATS.md)
+# ---------------------------------------------------------------------------
+
+
+def _serialize_import_row(row: AccImportRow) -> dict:
+    return {
+        "id": str(row.id),
+        "row_number": row.row_number,
+        "status": row.status,
+        "anomaly_codes": row.anomaly_codes,
+        "resolved_account_id": str(row.resolved_account_id) if row.resolved_account_id else None,
+        "move_id": str(row.move_id) if row.move_id else None,
+    }
+
+
+@router.post("/accounting/imports/chart-of-accounts")
+@require_permission("accounting.add_accaccount")
+def import_chart_of_accounts_endpoint(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import xlsx du plan comptable — cf. docstring de
+    `services/chart_of_accounts_import.py`/`docs/IMPORT_FORMATS.md`. Meme
+    idiome multipart que `import_mobile_money_endpoint`/
+    `import_bank_statement_endpoint`."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        summary = import_chart_of_accounts_xlsx(tenant, file.read(), filename=file.name)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return {
+        "is_valid": summary.is_valid,
+        "total_rows": summary.total_rows,
+        "created_count": summary.created_count,
+        "skipped_existing_count": summary.skipped_existing_count,
+        "category_mappings_count": summary.category_mappings_count,
+        "row_errors": [
+            {"row_index": row_error.row_index, "errors": row_error.errors}
+            for row_error in summary.row_errors
+        ],
+    }
+
+
+@router.post("/accounting/imports/cash-journal")
+@require_permission("accounting.add_accimportbatch")
+def import_cash_journal_endpoint(
+    request,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+):
+    """Import xlsx du journal de caisse — cf. docstring de
+    `services/cash_journal_import.py`/`docs/IMPORT_FORMATS.md`. La caisse
+    cible est resolue PAR LIGNE depuis la colonne CAISSE du fichier (pas un
+    parametre unique de lot — les donnees reelles observees melangent
+    plusieurs caisses physiques dans un meme classeur)."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        summary = import_cash_journal_xlsx(tenant, file.read(), filename=file.name)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    anomaly_rows = summary.batch.rows.filter(status=AccImportRow.STATUS_ANOMALY)
+    return {
+        "batch_id": str(summary.batch.id),
+        "total_rows": summary.total_rows,
+        "ok_count": summary.ok_count,
+        "anomaly_count": summary.anomaly_count,
+        "batch_warnings": summary.batch_warnings,
+        "anomaly_rows": [_serialize_import_row(row) for row in anomaly_rows],
+    }
+
+
+@router.post("/accounting/imports/cash-journal/rows/{row_id}/resolve")
+@require_permission("accounting.change_accimportrow")
+def resolve_cash_journal_import_row_endpoint(request, row_id: str, payload: ImportRowResolveIn):
+    """Applique `resolve_import_row` — corrige (compte/date) ou ecarte
+    volontairement une ligne en anomalie (cf. `AccImportRow.STATUS_ANOMALY`).
+    Jamais de resolution devinee : le compte/la date viennent toujours d'une
+    action humaine explicite."""
+    row = get_object_or_404(AccImportRow, id=row_id)
+    account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
+    resolved = resolve_import_row(row, account=account, date=payload.date, discard=payload.discard)
+    return _serialize_import_row(resolved)

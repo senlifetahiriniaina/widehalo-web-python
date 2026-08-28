@@ -1269,3 +1269,103 @@ class AccLandedCostComponent(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.label} ({self.amount_mga})"
+
+
+class AccCashCategoryMapping(BaseModel):
+    """Correspondance categorie de caisse (texte libre propre a
+    l'entreprise, ex. "Vente au comptant / boutique") -> compte PCG,
+    utilisee par l'import du journal de caisse pour resoudre le compte
+    d'une operation qui ne porte pas elle-meme un code PCG explicite.
+    Alimentee soit manuellement, soit automatiquement par l'import du plan
+    comptable quand celui-ci fournit une colonne "categorie de caisse"
+    (cf. `services/chart_of_accounts_import.py`)."""
+
+    category_label = models.CharField(max_length=200)
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "acc_cash_category_mapping"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "category_label"], name="uniq_cash_category_mapping"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.category_label} -> {self.account.code}"
+
+
+class AccImportBatch(BaseModel):
+    """Un lot d'import xlsx (plan comptable ou journal de caisse) — trace
+    l'origine du fichier et sert de conteneur aux lignes en cas de journal
+    de caisse (`AccImportRow`, une ligne par operation source)."""
+
+    KIND_CASH_JOURNAL = "cash_journal"
+    KIND_CHART_OF_ACCOUNTS = "chart_of_accounts"
+    KIND_CHOICES = [
+        (KIND_CASH_JOURNAL, "Journal de caisse"),
+        (KIND_CHART_OF_ACCOUNTS, "Plan comptable"),
+    ]
+
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES)
+    source_filename = models.CharField(max_length=255, blank=True)
+    format_version = models.PositiveSmallIntegerField()
+    journal = models.ForeignKey(
+        AccJournal, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Utilisateur importateur : deja porte par `BaseModel.created_by`, pas
+    # de champ dedie.
+    total_rows = models.PositiveIntegerField(default=0)
+    anomaly_rows_count = models.PositiveIntegerField(default=0)
+    applied_rows_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "acc_import_batch"
+        indexes = [models.Index(fields=["tenant", "kind"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} — {self.source_filename or self.id}"
+
+
+class AccImportRow(BaseModel):
+    """Une ligne d'un import de journal de caisse (`AccImportBatch.kind
+    = cash_journal` uniquement — l'import de plan comptable n'utilise pas
+    ce modele, cf. `services/chart_of_accounts_import.py`, il passe par le
+    mecanisme mapping/dry-run/commit generique de `core.import_wizard`).
+
+    Une ligne SANS anomalie produit immediatement une vraie `AccMove` en
+    brouillon (jamais postee automatiquement, coherent avec tout le reste
+    du module) ; une ligne EN anomalie n'en produit aucune tant qu'elle
+    n'a pas ete corrigee manuellement (`resolve_import_row`) — jamais de
+    resolution devinee automatiquement, meme patron que le rapprochement
+    bancaire assiste (A16, `AccBankStatementLine`)."""
+
+    STATUS_OK = "ok"
+    STATUS_ANOMALY = "anomaly"
+    STATUS_RESOLVED = "resolved"
+    STATUS_DISCARDED = "discarded"
+    STATUS_CHOICES = [
+        (STATUS_OK, "Importee"),
+        (STATUS_ANOMALY, "Anomalie — a corriger"),
+        (STATUS_RESOLVED, "Anomalie corrigee"),
+        (STATUS_DISCARDED, "Ecartee"),
+    ]
+
+    batch = models.ForeignKey(AccImportBatch, on_delete=models.CASCADE, related_name="rows")
+    row_number = models.PositiveIntegerField()
+    raw_data = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ANOMALY)
+    anomaly_codes = models.JSONField(default=list, blank=True)
+    resolved_account = models.ForeignKey(
+        AccAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    move = models.ForeignKey(
+        AccMove, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "acc_import_row"
+        indexes = [models.Index(fields=["batch", "status"])]
+
+    def __str__(self) -> str:
+        return f"Ligne {self.row_number} du lot {self.batch_id}"

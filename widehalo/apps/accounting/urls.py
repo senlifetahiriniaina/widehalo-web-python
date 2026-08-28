@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.accounting import views, views_config, views_reports
+from apps.accounting import views, views_config, views_imports, views_reports
 
 app_name = "accounting"
 
@@ -30,5 +30,26 @@ urlpatterns = [
         "config/payment-terms/",
         views_config.config_payment_terms,
         name="config_payment_terms",
+    ),
+    path("config/imports/", views_imports.imports_index, name="imports_index"),
+    path(
+        "config/imports/chart-of-accounts/",
+        views_imports.imports_chart_of_accounts,
+        name="imports_chart_of_accounts",
+    ),
+    path(
+        "config/imports/cash-journal/",
+        views_imports.imports_cash_journal,
+        name="imports_cash_journal",
+    ),
+    path(
+        "config/imports/cash-journal/<uuid:batch_id>/",
+        views_imports.imports_cash_journal_batch_detail,
+        name="imports_cash_journal_batch_detail",
+    ),
+    path(
+        "config/imports/cash-journal/rows/<uuid:row_id>/resolve/",
+        views_imports.imports_cash_journal_row_resolve,
+        name="imports_cash_journal_row_resolve",
     ),
 ]

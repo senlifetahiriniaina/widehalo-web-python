@@ -32,12 +32,15 @@ from apps.accounting.models import (
     AccBankStatementLine,
     AccBudget,
     AccBudgetLine,
+    AccCashCategoryMapping,
     AccDcomDeclaration,
     AccDcomLine,
     AccDunningAction,
     AccDunningLevel,
     AccExchangeRate,
     AccFiscalYear,
+    AccImportBatch,
+    AccImportRow,
     AccIrcmDeclaration,
     AccJournal,
     AccLandedCostBatch,
@@ -436,3 +439,37 @@ class AccLandedCostComponentFactory(factory.django.DjangoModelFactory):
     batch = factory.SubFactory(AccLandedCostBatchFactory, tenant=factory.SelfAttribute("..tenant"))
     label = factory.Sequence(lambda n: f"Frais {n}")
     amount_mga = Decimal("10000.0000")
+
+
+class AccCashCategoryMappingFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccCashCategoryMapping
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    category_label = factory.Sequence(lambda n: f"Categorie {n}")
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+
+
+class AccImportBatchFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccImportBatch
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    kind = AccImportBatch.KIND_CASH_JOURNAL
+    source_filename = factory.Sequence(lambda n: f"import-{n}.xlsx")
+    format_version = 1
+    journal = factory.SubFactory(
+        AccJournalFactory, tenant=factory.SelfAttribute("..tenant"), type=AccJournal.TYPE_CASH
+    )
+
+
+class AccImportRowFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccImportRow
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    batch = factory.SubFactory(AccImportBatchFactory, tenant=factory.SelfAttribute("..tenant"))
+    row_number = factory.Sequence(lambda n: n + 1)
+    raw_data = factory.LazyFunction(dict)
+    status = AccImportRow.STATUS_ANOMALY
+    anomaly_codes = factory.LazyFunction(list)

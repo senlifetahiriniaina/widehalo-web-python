@@ -157,3 +157,18 @@ def test_invoice_payment_registration_shows_allocation(accounting_screens_setup)
     assert detail.status_code == 200
     assert b"virement" in detail.content.lower() or b"Virement" in detail.content
     assert b"1000" in detail.content
+
+
+def test_imports_screens_render(accounting_screens_setup) -> None:
+    """Chantier import comptable/caisse — les 4 ecrans HTMX sont
+    atteignables en session (jamais l'API JWT en interne)."""
+    client, _tenant, _journal, _receivable, _income = accounting_screens_setup
+
+    index = client.get("/accounting/config/imports/")
+    assert index.status_code == 200
+
+    chart = client.get("/accounting/config/imports/chart-of-accounts/")
+    assert chart.status_code == 200
+
+    cash_journal = client.get("/accounting/config/imports/cash-journal/")
+    assert cash_journal.status_code == 200
