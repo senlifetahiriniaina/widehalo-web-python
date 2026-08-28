@@ -21,9 +21,11 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from apps.core.models.tenant import Tenant
+from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkLocation, StkMove, StkQuant, StkValuationLayer
 from apps.stocks.services.moves import create_move, validate_move
+from apps.stocks.services.negative_stock import grant_negative_stock_exception
 from apps.stocks.services.quants import get_quant
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
@@ -126,9 +128,40 @@ def test_rg_stk_1_algebraic_sum_is_always_zero_per_variant(
     sur TOUS les emplacements (internes ET virtuels) doit toujours etre
     exactement nulle, pour chaque variant — "aucune quantite n'apparait ni
     ne disparait sans contrepartie" (CDC §5.8), verifie ici independamment
-    de la logique de valorisation (RG-STK-2, teste separement ci-dessous)."""
+    de la logique de valorisation (RG-STK-2, teste separement ci-dessous).
+
+    **Resolution de la tension RG-STK-10 (ST7) vs ce test (ST2)** : ce
+    test genere des mouvements aleatoires SANS jamais tenir compte de la
+    quantite reellement disponible a la source (a la difference du test
+    RG-STK-2 ci-dessous, qui plafonne deliberement ses consommations a
+    `available`) — c'est le point meme de ce test : verifier l'invariant
+    de somme algebrique nulle QUELLE QUE SOIT la sequence de mouvements,
+    y compris des sequences qui epuiseraient un emplacement interne.
+    Depuis l'ajout de la garde RG-STK-10 dans `validate_move` (ST7,
+    interdiction du stock negatif par defaut cote emplacement interne),
+    une partie de ces mouvements aleatoires leverait desormais
+    `ValidationError` sans une exception active. Plutot que de restreindre
+    le generateur Hypothesis (ce qui reduirait la couverture reelle de ce
+    test de propriete — RG-STK-1 porte sur TOUS les emplacements, internes
+    ET virtuels, la negativite d'un emplacement interne n'est pas hors de
+    son perimetre de verification), une exception RG-STK-10 est accordee
+    en amont pour chacun des 3 variants de l'exemple courant — RG-STK-1
+    (double entree) et RG-STK-10 (stock negatif) sont deux regles
+    INDEPENDANTES : la premiere porte sur la coherence algebrique de
+    TOUTE sequence de mouvements valides, la seconde sur la LICEITE d'un
+    mouvement donne avant qu'il ne soit valide — accorder l'exception ne
+    change rien a ce que ce test verifie reellement (la somme algebrique),
+    seulement a ce qui est AUTORISE a s'executer en amont."""
     tenant, locations, variant_ids = _stock_setup()
     with use_tenant(tenant.id):
+        authorizer = UserFactory()
+        for variant_id in variant_ids:
+            grant_negative_stock_exception(
+                tenant=tenant,
+                variant_id=variant_id,
+                authorized_by=authorizer,
+                reason="Exception de test — proprietes RG-STK-1 (Hypothesis)",
+            )
         move_date = dt.date(2026, 1, 1)
         for variant_idx, qty, (from_idx, to_idx) in move_specs:
             move = create_move(

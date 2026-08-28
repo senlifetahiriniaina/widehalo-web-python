@@ -19,6 +19,7 @@ from apps.stocks.models import (
     StkLot,
     StkMeasurement,
     StkMove,
+    StkNegativeStockException,
     StkPicking,
     StkQualityState,
     StkQuant,
@@ -194,6 +195,16 @@ class StkReturnFactory(factory.django.DjangoModelFactory):
     qty = Decimal("1")
     date = factory.LazyFunction(dt.date.today)
     state = StkReturn.STATE_DRAFT
+
+
+class StkNegativeStockExceptionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkNegativeStockException
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    authorized_by = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    reason = "Rupture temporaire acceptee"
 
 
 class StkAbcClassificationFactory(factory.django.DjangoModelFactory):

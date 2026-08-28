@@ -258,6 +258,17 @@ class StkLot(BaseModel):
     origin = models.CharField(max_length=255, blank=True)
     certificate_document_id = models.UUIDField(null=True, blank=True)
     notes = models.TextField(blank=True)
+    # STK-BC1 (§5.8, ST7) : code-barres/QR du lot — meme champ que
+    # `StkLocation.barcode` (ST1), ajoute ici en ST7 plutot qu'en ST1 car le
+    # CDC ne mentionne le code-barres AU NIVEAU LOT nulle part dans le
+    # tableau d'entites §5.8 initial (contrairement a `stk_location`, qui le
+    # liste des le depart) — c'est l'enrichissement STK-BC1 ("emplacements,
+    # lots et produits") qui l'introduit pour cette entite. `stocks` est le
+    # proprietaire de `StkLot` (regle de couplage n°1) : ajouter ce champ
+    # ici est dans le perimetre normal de ce module, a la difference d'un
+    # eventuel champ equivalent sur `apps.catalog.ProductVariant` (hors
+    # perimetre de CE module, cf. `services/barcodes.py`).
+    barcode = models.CharField(max_length=64, blank=True)
 
     class Meta:
         db_table = "stk_lot"
@@ -1137,3 +1148,72 @@ class StkReturn(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or str(self.id)
+
+
+# ST7 (cf. plan, §5.8) : RG-STK-10 (stock negatif interdit par defaut,
+# autorisable par exception par produit) — SEULE nouvelle entite de ce ST
+# (STK-BC1, codes-barres/QR, ne cree aucune entite : `StkLocation.barcode`
+# existe deja depuis ST1, `StkLot.barcode` est ajoute plus haut dans ce
+# meme fichier, cf. `services/barcodes.py`).
+
+
+class StkNegativeStockException(BaseModel):
+    """Exception au stock negatif (RG-STK-10, §5.8, ST7) — "Interdit par
+    defaut. Autorisable par exception, par produit, avec journalisation et
+    alerte." (CDC). Pas de `ReferenceMixin` : une configuration/exception
+    par produit, pas un document sequence — meme categorie master-data que
+    `PurSubstitute` (cf. `apps.purchase.models.PurSubstitute`, verifie
+    explicitement comme precedent le plus proche : donnee de parametrage
+    par produit, `BaseModel` sans `ReferenceMixin`, `is_active` porte le
+    double sens standard/metier).
+
+    `variant_id` (UUID nu, jamais FK vers `apps.catalog` — regle de
+    couplage n°1, identique a `StkLot.variant_id`/`StkMove.variant_id`).
+
+    `UniqueConstraint(tenant, variant_id)` : au plus UNE exception par
+    produit et par tenant, meme discipline exacte que
+    `StkAbcClassification` (ci-dessus, ST5) — pas de contrainte partielle
+    `condition=models.Q(is_active=True)` (aucun precedent d'index partiel
+    dans ce depot a ce jour) : `services.negative_stock.
+    grant_negative_stock_exception` REACTIVE la ligne existante
+    (potentiellement soft-supprimee) plutot que d'en creer une seconde, ce
+    qui rend une contrainte simple suffisante — cf. docstring de ce
+    service pour le detail exact de cette reactivation.
+
+    `authorized_by` (`on_delete=PROTECT`, jamais `SET_NULL`) : QUI a
+    accorde l'exception doit rester tracable en permanence (l'exception
+    elle-meme sert de piece de journalisation RG-STK-10 — "avec
+    journalisation" — donc son auteur ne peut jamais disparaitre
+    silencieusement). Meme discipline que `PurSubstitute.approved_by`
+    (`PROTECT` egalement, verifie explicitement comme precedent) plutot
+    que `SET_NULL` (utilise, par contraste, pour les FK "informatives"
+    comme `StkMove.operator`).
+
+    `authorized_at` (`auto_now_add=True`) : horodatage de l'octroi, jamais
+    modifie par la suite — meme convention que `BaseModel.created_at`.
+    Champ metier explicite conserve sous ce nom (vocabulaire RG-STK-10)
+    plutot que de faire porter ce sens au `created_at` generique/technique
+    du socle, meme si les deux dates coincident en pratique a la creation
+    (mais PAS a une reactivation ulterieure — cf. service — ou
+    `authorized_at` est reecrit alors que `created_at` reste celui de la
+    toute premiere creation, difference qui justifie ce champ distinct).
+
+    Le toggle marche/arret est `BaseModel.is_active` (`soft_delete()`) —
+    pas de champ `revoked`/`revoked_at` distinct, meme convention que
+    `PurSubstitute` (cf. sa docstring)."""
+
+    variant_id = models.UUIDField()
+    authorized_by = models.ForeignKey("core.User", on_delete=models.PROTECT, related_name="+")
+    reason = models.TextField()
+    authorized_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "stk_negative_stock_exception"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "variant_id"], name="uniq_stk_negative_stock_exception_variant"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} [{'active' if self.is_active else 'revoked'}]"

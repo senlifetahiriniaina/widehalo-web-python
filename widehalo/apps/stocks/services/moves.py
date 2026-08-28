@@ -40,7 +40,19 @@ en ST3 comme emplacement de quarantaine faute de type dedie, cf.
 (`en_quarantaine`) ne declenche aucun `StkMove` dans le perimetre ST3 (cf.
 `apply_quality_decision`), donc aucun cas reel n'exercerait cette branche
 pour `TYPE_INVENTAIRE` — extension non faite faute de besoin demontre,
-plutot qu'ajoutee par precaution."""
+plutot qu'ajoutee par precaution.
+
+**Ajout ST7 (RG-STK-10, stock negatif)** : `validate_move` refuse
+desormais (`ValidationError`) tout mouvement dont la source est un
+emplacement "interne au sens valorisation" (`_is_valuation_internal` —
+donc jamais un emplacement virtuel, qui va legitimement negatif par
+construction, cf. docstring `StkQuant`) et qui ferait passer le quant
+source sous zero, SAUF exception active pour ce produit
+(`services.negative_stock.has_negative_stock_exception`) — auquel cas le
+mouvement est autorise mais journalise et une alerte est emise (cf.
+`services/negative_stock.py`). Cette garde s'execute AVANT toute
+consommation de couche FIFO (`_consume_fifo_layers` ci-dessous), qui reste
+donc un pur moteur de consommation, indifferent a RG-STK-10."""
 
 from __future__ import annotations
 
@@ -56,6 +68,10 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
 from apps.stocks.models import StkLocation, StkLot, StkMove, StkQuant, StkValuationLayer
+from apps.stocks.services.negative_stock import (
+    _journalize_and_alert,
+    has_negative_stock_exception,
+)
 from apps.stocks.services.quants import get_quant
 
 VALUATION_METHOD_FIFO = "fifo"
@@ -198,10 +214,15 @@ def _consume_fifo_layers(
     Si les couches disponibles ne couvrent pas `qty_to_consume` (stock
     insuffisant), le reliquat non couvert est valorise au cout unitaire
     fourni par l'appelant (`fallback_unit_cost_mga`, celui du mouvement
-    sortant) plutot que de lever une erreur — RG-STK-10 (interdiction du
-    stock negatif par defaut, exception autorisable par produit) est hors
-    perimetre ST2 (ST7 du sous-sequencement) : ce comportement est un
-    filet provisoire documente ici, pas une regle metier definitive."""
+    sortant) plutot que de lever une erreur — cette fonction elle-meme
+    reste un pur moteur de consommation FIFO, indifferent au signe du
+    resultat. RG-STK-10 (interdiction du stock negatif par defaut,
+    exception autorisable par produit, ST7) est appliquee EN AMONT de cet
+    appel, dans `validate_move` (garde explicite avant tout effet de
+    bord) — cette fonction n'est donc atteinte, pour un cas qui
+    consommerait plus que le stock reellement disponible, que lorsque
+    `validate_move` a deja verifie qu'une exception active couvre ce
+    produit."""
     layers = list(
         StkValuationLayer.objects.select_for_update()
         .filter(tenant=tenant, variant_id=variant_id, remaining_qty__gt=0)
@@ -241,6 +262,33 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIF
 
     to_internal = _is_valuation_internal(move.location_to)
     from_internal = _is_valuation_internal(move.location_from)
+
+    # RG-STK-10 (§5.8, ST7) : "Interdit par defaut. Autorisable par
+    # exception, par produit, avec journalisation et alerte." — verifie
+    # UNIQUEMENT quand la source est un emplacement reellement possede
+    # (`_is_valuation_internal` : `TYPE_INTERNE`/`TYPE_REBUT`, cf. docstring
+    # de module ci-dessus), JAMAIS pour un emplacement virtuel
+    # (`fournisseur`/`client`/`production`/etc.) — ceux-la vont
+    # LEGITIMEMENT negatif par construction du patron double-entree
+    # (cf. docstring `StkQuant`, ST2), ce n'est pas une anomalie a bloquer.
+    # Le quant source AVANT decrement fait foi (lu ici, avant tout appel a
+    # `_consume_fifo_layers`/`_apply_quant_delta` qui muterait deja l'etat —
+    # la garde doit s'executer avant tout effet de bord, meme si l'ensemble
+    # tourne deja dans la transaction atomique de cette fonction).
+    if from_internal:
+        source_quant = get_quant(move.variant_id, move.location_from, move.lot)
+        current_qty = source_quant.qty if source_quant is not None else Decimal(0)
+        if current_qty - move.qty < 0:
+            if not has_negative_stock_exception(move.variant_id):
+                raise ValidationError(
+                    _(
+                        "Ce mouvement ferait passer le stock de ce produit en negatif a "
+                        "l'emplacement %(location)s — interdit par defaut (RG-STK-10). "
+                        "Une exception par produit peut etre accordee pour l'autoriser."
+                    )
+                    % {"location": move.location_from}
+                )
+            _journalize_and_alert(move)
 
     # RG-STK-2 : la couche/valeur consommee ou creee determine le
     # `value_delta` EXACT applique symetriquement aux deux quants (RG-STK-1)

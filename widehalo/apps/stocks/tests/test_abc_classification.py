@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 
 from apps.core.models.tenant import Tenant
+from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkAbcClassification, StkLocation, StkMove
 from apps.stocks.services.abc_classification import (
@@ -19,6 +20,7 @@ from apps.stocks.services.abc_classification import (
     due_cyclic_counts,
 )
 from apps.stocks.services.moves import create_move, validate_move
+from apps.stocks.services.negative_stock import grant_negative_stock_exception
 from apps.stocks.services.warehouses import create_location, create_warehouse
 from apps.stocks.tests.factories import StkAbcClassificationFactory
 
@@ -48,6 +50,22 @@ def abc_setup():
 
 
 def _consume(tenant, internal, client, variant_id, qty, unit_cost, date):
+    # RG-STK-10 (ST7) : ces tests ne receptionnent volontairement aucun
+    # stock avant de consommer (seule la trace `StkMove` compte pour le
+    # calcul ABC, la disponibilite reelle du quant est hors de son
+    # perimetre) — une exception est donc accordee pour chaque variant
+    # avant sa premiere consommation, meme raisonnement/discipline que la
+    # resolution appliquee a `test_hypothesis_properties.py` (cf. sa
+    # docstring `test_rg_stk_1_...`) : cette regle n'a rien a voir avec ce
+    # que ce test verifie (les cutoffs Pareto), seulement avec ce qui est
+    # AUTORISE a s'executer en amont.
+    authorizer = UserFactory()
+    grant_negative_stock_exception(
+        tenant=tenant,
+        variant_id=variant_id,
+        authorized_by=authorizer,
+        reason="Exception de test — ABC classification (pas de reception prealable)",
+    )
     move = create_move(
         tenant=tenant,
         variant_id=variant_id,
@@ -133,6 +151,15 @@ def test_compute_abc_classification_excludes_non_consumption_move_types(abc_setu
             code="A2",
             name="Rayon A2",
             type=StkLocation.TYPE_INTERNE,
+        )
+        # RG-STK-10 (ST7) : ce transfert interne->interne part lui aussi
+        # d'un emplacement sans stock reel, meme raisonnement/exception que
+        # `_consume` ci-dessus.
+        grant_negative_stock_exception(
+            tenant=tenant,
+            variant_id=variant_id,
+            authorized_by=UserFactory(),
+            reason="Exception de test — ABC classification (transfert sans reception prealable)",
         )
         move = create_move(
             tenant=tenant,
