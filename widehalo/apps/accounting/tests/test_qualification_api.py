@@ -88,7 +88,10 @@ def test_qualify_cash_journal_import_row_endpoint(tenant, qualifier_user) -> Non
             default_account=cash_account,
         )
         fiscal_year = AccFiscalYear.objects.create(
-            tenant=tenant, code="FY2026", date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 12, 31)
+            tenant=tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
         )
         AccPeriod.objects.create(
             tenant=tenant,
@@ -152,7 +155,10 @@ def test_qualify_invoice_import_row_endpoint(tenant, qualifier_user) -> None:
             tenant=tenant, type=AccJournal.TYPE_SALE, code="VTE", name="Ventes", sequence_prefix="V"
         )
         fiscal_year = AccFiscalYear.objects.create(
-            tenant=tenant, code="FY2026", date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 12, 31)
+            tenant=tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
         )
         AccPeriod.objects.create(
             tenant=tenant,
@@ -181,13 +187,17 @@ def test_qualify_invoice_import_row_endpoint(tenant, qualifier_user) -> None:
             "COMPTE",
         ]
     )
-    sheet.append(["FAC-API-1", dt.date(2026, 1, 5), "client", "Client X", "REF", "Vente", 1, 100, None, ""])
+    sheet.append(
+        ["FAC-API-1", dt.date(2026, 1, 5), "client", "Client X", "REF", "Vente", 1, 100, None, ""]
+    )
     buffer = io.BytesIO()
     workbook.save(buffer)
     upload = io.BytesIO(buffer.getvalue())
     upload.name = "factures.xlsx"
 
-    import_response = client.post("/api/v1/accounting/imports/invoices", {"file": upload}, **headers)
+    import_response = client.post(
+        "/api/v1/accounting/imports/invoices", {"file": upload}, **headers
+    )
     row = import_response.json()["needs_qualification_rows"][0]
     assert row["uses_placeholder_tax"] is True
 
@@ -207,7 +217,7 @@ def test_qualify_invoice_import_row_endpoint(tenant, qualifier_user) -> None:
     )
 
 
-def test_qualify_endpoint_forbidden_without_permission(tenant) -> None:
+def test_qualify_cash_journal_endpoint_forbidden_without_permission(tenant) -> None:
     unauthorized_user = User.objects.create_user(
         email="no-perm@example.com", password="Str0ngPassw0rd!23"
     )
@@ -217,6 +227,24 @@ def test_qualify_endpoint_forbidden_without_permission(tenant) -> None:
 
     response = client.post(
         "/api/v1/accounting/imports/cash-journal/rows/00000000-0000-7000-8000-000000000000/qualify",
+        {},
+        content_type="application/json",
+        **headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_qualify_invoice_endpoint_forbidden_without_permission(tenant) -> None:
+    unauthorized_user = User.objects.create_user(
+        email="invoice-no-perm@example.com", password="Str0ngPassw0rd!23"
+    )
+    client = Client()
+    token = _access_token(client, unauthorized_user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/accounting/imports/invoices/rows/00000000-0000-7000-8000-000000000000/qualify",
         {},
         content_type="application/json",
         **headers,

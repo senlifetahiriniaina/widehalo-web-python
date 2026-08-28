@@ -17,7 +17,10 @@ from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
 from apps.accounting.models import AccAccount, AccFiscalYear, AccImportRow, AccJournal
-from apps.accounting.services.cash_journal_import import import_cash_journal_xlsx, qualify_import_row
+from apps.accounting.services.cash_journal_import import (
+    import_cash_journal_xlsx,
+    qualify_import_row,
+)
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.auth import issue_tokens
@@ -49,7 +52,7 @@ def qualification_setup():
         cash_account = AccAccount.objects.create(
             tenant=tenant, code="571", name="Caisse", account_class=5, type=AccAccount.TYPE_CASH
         )
-        journal = AccJournal.objects.create(
+        AccJournal.objects.create(
             tenant=tenant,
             code="CAISSE",
             name="Caisse",
@@ -58,7 +61,10 @@ def qualification_setup():
             default_account=cash_account,
         )
         fiscal_year = AccFiscalYear.objects.create(
-            tenant=tenant, code="FY2026", date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 12, 31)
+            tenant=tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
         )
         from apps.accounting.models import AccPeriod
 
@@ -98,7 +104,9 @@ def qualification_setup():
     approver = User.objects.create_user(email="approver@example.com", password="Str0ngPassw0rd!23")
     group, _ = Group.objects.get_or_create(name="direction")
     group.permissions.add(
-        *Permission.objects.filter(content_type__app_label="accounting", codename="view_accimportrow")
+        *Permission.objects.filter(
+            content_type__app_label="accounting", codename="view_accimportrow"
+        )
     )
     approver.groups.add(group)
 

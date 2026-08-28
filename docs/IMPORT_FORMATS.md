@@ -304,9 +304,155 @@ explicitement la version `2`.
 
 ## 6. Qualification et identification universelle des données importées (RG-QUALIF)
 
-> Squelette (étape Q1 du chantier RG-QUALIF) — complété au fil des étapes
-> Q2 à Q8 : registre défaultable/non-défaultable par code d'anomalie,
-> principe de double couche d'approbation, et le nouvel import de
-> factures client/fournisseur qui démontre le socle de bout en bout.
-> **À compléter intégralement en Q8** — cette section reste provisoire
-> tant que ce commentaire est présent.
+### 6.1 Principe
+
+Avant ce chantier, deux imports (journal de caisse, stock) bloquaient déjà
+une ligne dont une référence externe ne pouvait pas être résolue avec
+certitude (`status=anomaly`, aucun document créé) — mais **aucun
+importeur ne tentait jamais d'identifier un partenaire**, et une
+référence non reconnue bloquait systématiquement la ligne même quand une
+valeur par défaut sûre existait (compte d'attente, emplacement virtuel).
+
+Ce chantier généralise un principe simple, appliqué à chaque type de
+référence externe d'une ligne importée : **s'il existe une valeur par
+défaut sûre, l'utiliser immédiatement et matérialiser le document
+provisoire ; sinon, ne jamais matérialiser de document, mais ne jamais
+non plus bloquer le reste du lot.** Chaque code d'anomalie est donc classé
+une fois pour toutes dans un registre **défaultable / non-défaultable**
+(§6.2), remplaçant l'ancienne distinction "anomalie référentielle
+souple" / "anomalie structurelle bloquante".
+
+Vocabulaire de statut unifié, partagé par `AccImportRow` (journal de
+caisse), `StkImportRow` (stock) et le nouveau `AccInvoiceImportRow`
+(factures) :
+
+| Statut | Signification |
+|---|---|
+| `ok` | Ligne parfaitement identifiée, aucun placeholder utilisé. |
+| `needs_qualification` | Document provisoire matérialisé sur au moins un placeholder — en attente qu'un humain fournisse l'entité réelle (`qualify_import_row`). |
+| `pending_approval` | Qualification soumise, en attente d'une décision d'approbation (`ApprovalRequest` créée par `qualify_import_row`). |
+| `qualified` | Qualification approuvée (ou aucune approbation requise) — la ligne ne référence plus aucun placeholder. |
+| `unresolvable` | Anomalie non-défaultable — aucun document créé, ligne reste visible dans la même file, ne bloque jamais le reste du lot. |
+| `resolved` | Anomalie `unresolvable` corrigée manuellement (`resolve_import_row`, mécanisme antérieur à RG-QUALIF, conservé pour les codes qui restent bloquants). |
+| `discarded` | Ligne écartée volontairement par un humain. |
+
+### 6.2 Registre défaultable / non-défaultable par code d'anomalie
+
+**Journal de caisse** (`apps.accounting.services.cash_journal_import`) :
+
+| Code | Défaultable ? | Valeur par défaut | Champ trace |
+|---|---|---|---|
+| `COMPTE_INCONNU` | Oui | Compte d'attente (`chart_of_accounts.ensure_suspense_account`, code `471`) | `uses_placeholder_account` |
+| `CATEGORIE_NON_MAPPEE` | Oui | Compte d'attente (idem) | `uses_placeholder_account` |
+| `PARTENAIRE_NON_IDENTIFIE` | Oui | Partenaire placeholder du rôle concerné (`partners.services.public.ensure_default_partner`) | `uses_placeholder_partner` |
+| `DATE_MANQUANTE` / `DATE_INVALIDE` | Oui | Date du jour si une période ouverte la couvre, sinon date de début de la période ouverte la plus récente | `uses_default_date` |
+| `MONTANT_NUL` | **Non** | — fabriquer un montant serait fabriquer un fait financier | — |
+| `MONTANT_ENTREE_ET_SORTIE` | **Non** | — direction du mouvement ambiguë | — |
+| `CAISSE_INCONNUE` | **Non, par exception délibérée** | — une caisse générique fausserait la position de trésorerie par caisse, même prudence qu'un montant ambigu | — |
+| `PERIODE_FERMEE_OU_INEXISTANTE` (date explicite valide mais hors de toute période ouverte) | **Non** | — inventer une période comptable n'a pas de repli sûr | — |
+
+**Import de stock** (`apps.stocks.services.stock_import`) :
+
+| Code | Défaultable ? | Valeur par défaut | Champ trace |
+|---|---|---|---|
+| `VARIANTE_INCONNUE` | Oui | Variante placeholder (`catalog.services.public.ensure_default_variant`) | `uses_placeholder_variant` |
+| `EMPLACEMENT_INCONNU` | Oui | Emplacement virtuel "Zone à qualifier" de l'entrepot (`services.defaults.ensure_unqualified_location`) | `uses_placeholder_location` |
+| `ENTREPOT_INCONNU` | **Non** | — aucun entrepôt par défaut sûr, un `StkMove` a toujours besoin d'un entrepôt réel | — |
+| `QUANTITE_INVALIDE` | **Non** | — inventer une quantité fabriquerait un fait de stock | — |
+
+**Import de factures** (`apps.accounting.services.invoice_import`, nouveau) :
+
+| Code | Défaultable ? | Valeur par défaut | Champ trace |
+|---|---|---|---|
+| `PARTENAIRE_NON_IDENTIFIE` | Oui | Partenaire placeholder (rôle fournisseur si `SENS=fournisseur`, client sinon) | `uses_placeholder_partner` |
+| `PRODUIT_INCONNU` | Oui | Variante placeholder — donnée d'identification pure, jamais matérialisée sur `AccMoveLine` | `uses_placeholder_variant` |
+| `COMPTE_INCONNU` (colonne `COMPTE` optionnelle fournie mais non reconnue) | Oui | Compte d'attente | `uses_placeholder_account` |
+| `TVA_NON_DETERMINEE` | Oui, **mais toujours `needs_qualification`** | Compte d'attente pour la ligne de TVA — sujet réglementaire sensible (déclaration TVA, ACC-CAL1/DCOM) | `uses_placeholder_tax` |
+| `DATE_MANQUANTE` / `DATE_INVALIDE` | Oui | Même repli que le journal de caisse | `uses_default_date` |
+| `REFERENCE_MANQUANTE` | **Non** | — impossible de regrouper les lignes d'une même facture | — |
+| `SENS_INVALIDE` (ni "client" ni "fournisseur") | **Non** | — la polarité comptable ne peut pas être devinée | — |
+| `QUANTITE_INVALIDE` / `PRIX_INVALIDE` | **Non** | — fabriquerait un fait financier | — |
+| `CONFIGURATION_COMPTABLE_MANQUANTE` (aucun journal vente/achat, aucune période ouverte, aucun compte client/fournisseur) | **Non** | — gap de configuration à la charge de l'administrateur du tenant | — |
+
+`TVA_NON_DETERMINEE` est le seul code de ce registre qui déclenche
+`needs_qualification` **même si aucune autre dimension de la ligne
+n'utilise de placeholder** — une facture dont la TVA n'est pas identifiée
+avec certitude reste sujette à revue, quelle que soit la qualité du
+reste de la ligne.
+
+### 6.3 Double couche d'approbation
+
+L'acte de **qualifier** une ligne (remplacer un placeholder par l'entité
+réelle) est lui-même soumis à une `ApprovalRule` dédiée par module
+(`ensure_qualification_approval_rule` dans chaque service d'import),
+scopée au content-type de la ligne d'import et à la condition
+`requires_placeholder` — **indépendante** des seuils de validation déjà
+existants sur le document final (ex. seuils de validation facture, cf.
+`accounting.services.invoices.ensure_default_approval_thresholds`).
+Concrètement :
+
+1. `qualify_import_row(row, ..., qualified_by=...)` remplace le
+   placeholder par l'entité réelle sur le document déjà matérialisé
+   (édition directe pour le journal de caisse/factures, dont l'`AccMove`
+   reste `draft` ; **extourne puis recrée** le mouvement pour le stock,
+   dont le `StkMove` est déjà validé — cf. docstring de
+   `stock_import.qualify_import_row`).
+2. Si la règle de qualification est active, une `ApprovalRequest` est
+   créée (`status=pending_approval`) ; sinon la ligne passe directement
+   `qualified`.
+3. La décision passe par l'endpoint **générique déjà existant**
+   `POST /api/v1/approvals/{id}/decide` (`apps.core.api_workflow`,
+   Lot 1 étape 8) — aucun nouvel endpoint de décision n'a été créé.
+   Un registre de hooks post-décision (`_qualification_decision_hooks`,
+   résolu via `services.public` de chaque app) répercute la décision sur
+   le statut de la ligne d'import concernée, en plus de la décision
+   `ApprovalRequest` elle-même.
+4. L'écran générique "Mes validations en attente" (`GET
+   /api/v1/approvals/pending`) surface les nouvelles demandes de
+   qualification **sans aucune modification** — il est déjà générique
+   par content-type (vérifié par test,
+   `apps.core.tests.test_qualification_generic_approval_screen`).
+
+RBAC : `qualify_accimportrow` / `qualify_accinvoiceimportrow` /
+`qualify_stkimportrow` (codenames déclarés en `Meta.permissions` des
+modèles de ligne d'import) gardent `POST .../rows/{id}/qualify` —
+accordés aux rôles "domaine cible" de chaque module (`comptable` pour
+`accounting`, `magasinier` pour `stocks`) ainsi qu'à `admin`/`direction`
+(pilotage transverse), cf. `apps.core.services.rbac_policy.
+CUSTOM_PERMISSIONS`.
+
+### 6.4 Résolution de partenaire par nom libre — simplification v1 assumée
+
+`apps.partners.services.public.find_partner_by_name(tenant, name)` (et
+son pendant `apps.core.services.entity_resolution` pour le vocabulaire
+partagé `ResolutionConfidence`/`ResolutionResult`) implémente
+**uniquement la correspondance EXACTE normalisée** (accents/casse/espaces
+ignorés) : `ResolutionConfidence.FUZZY` n'est jamais retourné en v1,
+même sur un nom presque identique. Une correspondance approximative
+(similarité, phonétique) est une amélioration future possible sans
+changer ce contrat. Zéro ou plusieurs partenaires correspondant au nom
+normalisé donnent toujours `UNRESOLVED` — jamais de devinette sur
+ambiguïté, même discipline que `apps.accounting.services.
+bank_reconciliation.suggest_matches` (0 ou 2+ candidats → aucune décision
+automatique).
+
+### 6.5 Entités placeholder
+
+Une par module, jamais un modèle centralisé dans `core` (respect strict
+de la règle de couplage n°1) :
+
+| Module | Champ | Fonction de création (idempotente) |
+|---|---|---|
+| `partners` | `Partner.is_placeholder` | `services.defaults.ensure_default_partner(tenant, role)` — un placeholder par rôle |
+| `catalog` | `ProductVariant.is_placeholder` | `services.defaults.ensure_default_variant(tenant)` — un seul placeholder par tenant, sous une catégorie "Non classé" |
+| `accounting` | `AccAccount.is_placeholder` | `services.chart_of_accounts.ensure_suspense_account(tenant)` — compte d'attente, code `471`, classe 47x |
+| `stocks` | (emplacement virtuel, pas de champ dédié) | `services.defaults.ensure_unqualified_location(warehouse)` — un par entrepôt, code `ZONE-A-QUALIFIER` |
+
+### 6.6 Aucune donnée réelle comme fixture
+
+Comme pour tous les imports décrits dans ce document, les jeux de
+données utilisés pour valider la qualification en test sont
+**synthétiques** (fabriqués inline avec `openpyxl.Workbook()`, cf.
+`apps/accounting/tests/test_cash_journal_import.py`,
+`test_invoice_import.py`, `apps/stocks/tests/test_stock_import.py`) —
+jamais les données financières réelles d'une entreprise.
