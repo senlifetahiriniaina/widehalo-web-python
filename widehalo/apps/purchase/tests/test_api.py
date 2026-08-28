@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -184,6 +185,68 @@ def test_reject_requisition_via_api_requires_reason(api_purchase) -> None:
 
     get_response = client.get(f"/api/v1/purchase/requisitions/{requisition_id}", **headers)
     assert get_response.json()["state"] == "rejected"
+
+
+def test_purchase_order_fsm_state_persists_across_separate_api_calls(api_purchase) -> None:
+    """Discipline T7 (garde-fou architecture `attempt_transition`+`.save()`)
+    : chaque transition est verifiee via un rechargement HTTP separe, pas
+    en reutilisant le meme objet Python en memoire — c'est exactement ce
+    type de test qui avait detecte la regression reelle dans `mrp`."""
+    tenant, user, variant = api_purchase
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/purchase/orders",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "lines": [
+                {
+                    "variant_id": str(variant.id),
+                    "description": "Fil polyester",
+                    "qty": "10",
+                    "unit_price_mga": "1000",
+                }
+            ],
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    body = create_response.json()
+    order_id = body["id"]
+    assert body["reference"].startswith("PCMD-")
+    assert body["state"] == "draft"
+
+    submit_response = client.post(f"/api/v1/purchase/orders/{order_id}/submit", **headers)
+    assert submit_response.status_code == 200
+    assert submit_response.json()["state"] == "to_validate"
+
+    get_response = client.get(f"/api/v1/purchase/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "to_validate"
+
+    validate_response = client.post(f"/api/v1/purchase/orders/{order_id}/validate", **headers)
+    assert validate_response.status_code == 200
+    assert validate_response.json()["state"] == "validated"
+
+    get_response = client.get(f"/api/v1/purchase/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "validated"
+
+    send_response = client.post(f"/api/v1/purchase/orders/{order_id}/send", **headers)
+    assert send_response.status_code == 200
+    assert send_response.json()["state"] == "sent"
+
+    get_response = client.get(f"/api/v1/purchase/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "sent"
+
+    confirm_response = client.post(f"/api/v1/purchase/orders/{order_id}/confirm", **headers)
+    assert confirm_response.status_code == 200
+    assert confirm_response.json()["state"] == "confirmed"
+
+    get_response = client.get(f"/api/v1/purchase/orders/{order_id}", **headers)
+    assert get_response.json()["state"] == "confirmed"
 
 
 def test_create_requisition_via_api_refuses_role_without_purchase_access(api_purchase) -> None:

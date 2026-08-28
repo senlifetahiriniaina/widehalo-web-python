@@ -14,7 +14,18 @@ import uuid
 
 import factory
 
-from apps.purchase.models import PurRequisition, PurRequisitionLine, PurSubstitute
+from apps.purchase.models import (
+    PurOrder,
+    PurOrderLine,
+    PurRequisition,
+    PurRequisitionLine,
+    PurRfq,
+    PurRfqLine,
+    PurRfqResponse,
+    PurRfqResponseLine,
+    PurRfqSupplier,
+    PurSubstitute,
+)
 
 
 class PurRequisitionFactory(factory.django.DjangoModelFactory):
@@ -47,3 +58,73 @@ class PurSubstituteFactory(factory.django.DjangoModelFactory):
     variant_id = factory.LazyFunction(uuid.uuid4)
     substitute_variant_id = factory.LazyFunction(uuid.uuid4)
     compatibility = PurSubstitute.COMPATIBILITY_EQUIVALENT
+
+
+class PurRfqFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurRfq
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    date = factory.LazyFunction(dt.date.today)
+
+
+class PurRfqLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurRfqLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    rfq = factory.SubFactory(PurRfqFactory, tenant=factory.SelfAttribute("..tenant"))
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    description = factory.Sequence(lambda n: f"Ligne RFQ {n}")
+    qty = 1
+
+
+class PurRfqSupplierFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurRfqSupplier
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    rfq = factory.SubFactory(PurRfqFactory, tenant=factory.SelfAttribute("..tenant"))
+    partner_id = factory.LazyFunction(uuid.uuid4)
+
+
+class PurRfqResponseFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurRfqResponse
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    rfq = factory.SubFactory(PurRfqFactory, tenant=factory.SelfAttribute("..tenant"))
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    date_received = factory.LazyFunction(dt.date.today)
+
+
+class PurRfqResponseLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurRfqResponseLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    response = factory.SubFactory(PurRfqResponseFactory, tenant=factory.SelfAttribute("..tenant"))
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    qty = 1
+    unit_price_mga = 1000
+
+
+class PurOrderFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurOrder
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    date = factory.LazyFunction(dt.date.today)
+
+
+class PurOrderLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurOrderLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    order = factory.SubFactory(PurOrderFactory, tenant=factory.SelfAttribute("..tenant"))
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    description = factory.Sequence(lambda n: f"Ligne commande {n}")
+    qty = 1
+    unit_price_mga = 1000
