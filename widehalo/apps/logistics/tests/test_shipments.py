@@ -11,6 +11,7 @@ from apps.accounting.models import AccAccount, AccJournal, AccMove
 from apps.accounting.tests.factories import AccAccountFactory, AccJournalFactory, AccPeriodFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.workflow import TransitionPermissionError
 from apps.core.tests.utils import use_tenant
 from apps.logistics.services.freight import create_service_provider
 from apps.logistics.services.shipments import (
@@ -94,6 +95,28 @@ def test_block_shipment_requires_reason(shipment_setup) -> None:
         book_shipment(shipment, user)
         with pytest.raises(ValidationError):
             block_shipment(shipment, user, reason="")
+
+
+def test_cannot_skip_states(shipment_setup) -> None:
+    """Couche 11 (§8 CDC) : au moins une transition interdite representative
+    sur `LogShipment.state`, meme discipline que T7 pour les autres FSM du
+    projet — un envoi tout juste `planned` ne peut pas sauter directement a
+    `delivered` sans passer par les etapes intermediaires."""
+    tenant, user, shipment = shipment_setup
+    with use_tenant(tenant.id):
+        with pytest.raises(TransitionPermissionError):
+            deliver_shipment(shipment, user)
+
+        shipment.refresh_from_db()
+        assert shipment.state == "planned"
+
+
+def test_cannot_block_a_planned_shipment(shipment_setup) -> None:
+    """`block` n'a pas `planned` dans ses sources autorisees (un envoi pas
+    encore reserve n'a rien a bloquer)."""
+    tenant, user, shipment = shipment_setup
+    with use_tenant(tenant.id), pytest.raises(TransitionPermissionError):
+        block_shipment(shipment, user, reason="Motif quelconque")
 
 
 def test_refactor_freight_to_customer_creates_draft_invoice(shipment_setup) -> None:
