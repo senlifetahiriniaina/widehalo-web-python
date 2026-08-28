@@ -7,7 +7,15 @@ import datetime as dt
 
 import factory
 
-from apps.logistics.models import LogDriver, LogVehicle, LogVehicleCost, LogVehicleDocument
+from apps.logistics.models import (
+    LogDriver,
+    LogTrip,
+    LogTripStop,
+    LogTripTemplate,
+    LogVehicle,
+    LogVehicleCost,
+    LogVehicleDocument,
+)
 
 
 class LogVehicleFactory(factory.django.DjangoModelFactory):
@@ -45,3 +53,37 @@ class LogDriverFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     name = factory.Sequence(lambda n: f"Chauffeur {n}")
+
+
+class LogTripFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogTrip
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    vehicle = factory.SubFactory(LogVehicleFactory, tenant=factory.SelfAttribute("..tenant"))
+    driver = factory.SubFactory(LogDriverFactory, tenant=factory.SelfAttribute("..tenant"))
+    date = factory.LazyFunction(dt.date.today)
+    reference = factory.Sequence(lambda n: f"TRJ-{n}")
+
+
+class LogTripStopFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogTripStop
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    trip = factory.SubFactory(LogTripFactory, tenant=factory.SelfAttribute("..tenant"))
+    sequence = factory.Sequence(lambda n: n + 1)
+    address = factory.Sequence(lambda n: f"Adresse {n}")
+
+
+class LogTripTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogTripTemplate
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Gabarit {n}")
+    vehicle = factory.SubFactory(LogVehicleFactory, tenant=factory.SelfAttribute("..tenant"))
+    driver = factory.SubFactory(LogDriverFactory, tenant=factory.SelfAttribute("..tenant"))
+    interval = LogTripTemplate.INTERVAL_WEEKLY
+    stops_data = factory.LazyFunction(lambda: [{"address": "Depot"}])
+    next_run = factory.LazyFunction(dt.date.today)
