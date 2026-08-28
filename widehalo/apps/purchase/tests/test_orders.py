@@ -7,6 +7,12 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
+from apps.accounting.models import AccBudget
+from apps.accounting.tests.factories import (
+    AccAnalyticAccountFactory,
+    AccBudgetFactory,
+    AccBudgetLineFactory,
+)
 from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
@@ -392,6 +398,89 @@ def test_pur_rout1_blocks_validate_for_import_origin_regardless_of_amount(orders
         assert pending.rule.approver_role == "direction"
         decide(pending, user, approved=True)
 
+        validate_order(order, user)
+        order.refresh_from_db()
+        assert order.state == PurOrder.STATE_VALIDATED
+
+
+def test_pur_bud1_blocks_validate_when_analytic_account_over_budget(orders_setup) -> None:
+    """PUR-BUD1 (PU6, cf. plan) : une commande rattachee a un axe
+    analytique dont le budget approuve serait depasse exige une
+    approbation supplementaire (role "direction", 4e palier RG-PUR-ROUT1)
+    — meme sous le seuil montant du premier palier."""
+    tenant, user = orders_setup
+    with use_tenant(tenant.id):
+        ensure_default_purchase_approval_rules(tenant)
+        analytic_account = AccAnalyticAccountFactory(tenant=tenant)
+        budget = AccBudgetFactory(tenant=tenant, state=AccBudget.STATE_APPROVED)
+        AccBudgetLineFactory(
+            tenant=tenant,
+            budget=budget,
+            analytic_account=analytic_account,
+            budgeted_amount_mga=Decimal("100000"),
+        )
+
+        order = create_order(
+            tenant=tenant,
+            partner_id=uuid.uuid4(),
+            date=dt.date.today(),
+            analytic_account_id=analytic_account.id,
+        )
+        add_order_line(
+            order,
+            variant_id=uuid.uuid4(),
+            description="Petit article",
+            qty=Decimal(1),
+            # Reste sous LEVEL1_THRESHOLD_MGA (2 000 000) : seul le
+            # palier budgetaire doit se declencher, jamais le palier
+            # montant.
+            unit_price_mga=Decimal("500000"),
+        )
+        submit_order_for_validation(order, user)
+
+        with pytest.raises(PurchaseApprovalRequiredError):
+            validate_order(order, user)
+        order.refresh_from_db()
+        assert order.state == PurOrder.STATE_TO_VALIDATE
+
+        from apps.core.models.workflow import ApprovalRequest
+        from apps.core.services.approvals import decide
+
+        pending = ApprovalRequest.objects.get(object_id=str(order.id))
+        assert pending.rule.approver_role == "direction"
+        assert pending.rule.condition.get("budget_check") == "true"
+        decide(pending, user, approved=True)
+
+        validate_order(order, user)
+        order.refresh_from_db()
+        assert order.state == PurOrder.STATE_VALIDATED
+
+
+def test_pur_bud1_no_analytic_account_is_unaffected(orders_setup) -> None:
+    """PUR-BUD1 : une commande SANS `analytic_account_id` n'est jamais
+    concernee par le palier budgetaire, meme si un budget existe par
+    ailleurs pour un autre axe (retro-compatibilite PU3/PU4)."""
+    tenant, user = orders_setup
+    with use_tenant(tenant.id):
+        ensure_default_purchase_approval_rules(tenant)
+        analytic_account = AccAnalyticAccountFactory(tenant=tenant)
+        budget = AccBudgetFactory(tenant=tenant, state=AccBudget.STATE_APPROVED)
+        AccBudgetLineFactory(
+            tenant=tenant,
+            budget=budget,
+            analytic_account=analytic_account,
+            budgeted_amount_mga=Decimal("1"),
+        )
+
+        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        add_order_line(
+            order,
+            variant_id=uuid.uuid4(),
+            description="Petit article",
+            qty=Decimal(1),
+            unit_price_mga=Decimal("500000"),
+        )
+        submit_order_for_validation(order, user)
         validate_order(order, user)
         order.refresh_from_db()
         assert order.state == PurOrder.STATE_VALIDATED

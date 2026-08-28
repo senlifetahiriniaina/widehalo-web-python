@@ -135,6 +135,79 @@ def create_invoice(
     return move
 
 
+def create_supplier_invoice(
+    *,
+    tenant: Tenant,
+    journal: AccJournal,
+    period: AccPeriod,
+    date: dt.date,
+    partner_id: UUID | None,
+    payable_account: AccAccount,
+    expense_lines: list[dict[str, Any]],
+    currency: str = "MGA",
+) -> AccMove:
+    """Facture fournisseur (RG-PUR-6, PU6 de `purchase`, cf. plan) : pendant
+    de `create_invoice` ci-dessus mais avec la polarite debit/credit
+    INVERSEE — le compte fournisseur (`payable_account`) est CREDITE (une
+    dette), chaque `expense_lines` est DEBITEE (une charge), alors que
+    `create_invoice` credite les produits et debite le compte client.
+
+    Fonction PARALLELE plutot qu'un parametre `move_type` ajoute a
+    `create_invoice` (deviation documentee, cf. `apps.purchase.services.
+    invoicing`/rapport de tache PU6) : une facture fournisseur n'est pas
+    qu'un `move_type` different appliqué a la même charpente
+    debit/credit — la charpente elle-meme s'inverse (client debiteur/
+    produit crediteur -> fournisseur crediteur/charge debitrice). Un
+    parametre `move_type` sur `create_invoice` aurait exige une branche
+    conditionnelle interne qui inverse `debit`/`credit` partout, rendant
+    la fonction existante plus difficile a lire pour son cas d'usage
+    actuel (facture client, seul appelant existant : `sales`/`accounting`
+    lui-meme, cf. `services/public.py::create_customer_invoice_from_
+    source`) sans aucun gain de duplication reelle (les deux fonctions ne
+    partagent que la resolution de taux de change/`_mga`, dupliquee ici a
+    l'identique).
+
+    `expense_lines` : liste de {"account": AccAccount, "amount": Decimal,
+    "label": str}, memes conventions que `income_lines` de `create_invoice`."""
+    total = sum((line["amount"] for line in expense_lines), Decimal(0))
+    is_foreign = currency != tenant.base_currency
+    rate = get_rate(tenant, currency, date) if is_foreign else Decimal(1)
+
+    def _mga(amount: Decimal) -> Decimal:
+        return (amount * rate).quantize(Decimal("0.0001")) if is_foreign else amount
+
+    move = create_draft_move(
+        tenant=tenant,
+        journal=journal,
+        period=period,
+        date=date,
+        move_type=AccMove.TYPE_SUPPLIER_INVOICE,
+        partner_id=partner_id,
+        currency=currency,
+        exchange_rate=rate,
+    )
+    add_line(
+        move,
+        account=payable_account,
+        label=_("Fournisseur"),
+        credit=_mga(total),
+        partner_id=partner_id,
+        amount_currency=total if is_foreign else None,
+        currency=currency,
+    )
+    for line in expense_lines:
+        add_line(
+            move,
+            account=line["account"],
+            label=line.get("label", ""),
+            debit=_mga(line["amount"]),
+            amount_currency=line["amount"] if is_foreign else None,
+            currency=currency,
+        )
+
+    return move
+
+
 def validate_invoice(move: AccMove, user: User, *, comment: str = "") -> AccMove:
     """Verifie la chaine d'approbation requise par le montant de la
     facture ; si toutes les decisions necessaires sont approuvees (ou

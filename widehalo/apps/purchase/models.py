@@ -352,9 +352,20 @@ class PurOrder(BaseModel, ReferenceMixin):
     rfq = models.ForeignKey(
         PurRfq, null=True, blank=True, on_delete=models.SET_NULL, related_name="orders"
     )
-    # Champ prepare pour le futur gap budgetaire PUR-BUD1 (PU6, cf. plan) —
-    # aucune logique cablee ici.
+    # PUR-BUD1 (PU6, cf. plan) : quand renseigne, `services/orders.py::
+    # ensure_purchase_approval` compare le cumul reel + cette commande au
+    # budget approuve de cet axe analytique (`accounting.services.public.
+    # get_budget_variance_for_analytic_account`) et exige une approbation
+    # supplementaire en cas de depassement.
     analytic_account_id = models.UUIDField(null=True, blank=True)
+    # RG-PUR-7 (importation, PU6, cf. plan) : **stub honnete documente**.
+    # Positionne automatiquement a `True` par `services/orders.py::
+    # create_order` quand `origin != ORIGIN_LOCAL` — signale qu'un dossier
+    # d'importation (transitaire, douane, documents d'expedition) reste a
+    # ouvrir. La creation reelle de ce dossier appartient au futur module
+    # `logistics` (§5.7.5), pas encore construit dans ce depot : ce champ
+    # n'est qu'un drapeau visible, jamais une vraie gestion de dossier.
+    import_dossier_pending = models.BooleanField(default=False)
     cancel_reason = models.TextField(blank=True)
     dispute_reason = models.TextField(blank=True)
 

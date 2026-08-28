@@ -26,6 +26,7 @@ from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.accounting.services.public import get_budget_variance_for_analytic_account
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest, ApprovalRule
@@ -40,6 +41,9 @@ LEVEL2_THRESHOLD_MGA = Decimal("10000000")
 RULE_NAME_LEVEL1 = "purchase.order.approval.level1"
 RULE_NAME_LEVEL2 = "purchase.order.approval.level2"
 RULE_NAME_IMPORT = "purchase.order.approval.import"
+# PUR-BUD1 (PU6, cf. plan) : 4e palier de routage RG-PUR-ROUT1, dimension
+# budgetaire — cf. `_order_exceeds_budget`/`_rule_matches` plus bas.
+RULE_NAME_BUDGET = "purchase.order.approval.budget"
 
 
 class PurchaseApprovalRequiredError(Exception):
@@ -59,6 +63,12 @@ def create_order(
     **optional_fields: Any,
 ) -> PurOrder:
     reference = next_reference(tenant, "PCMD", timezone.now().year)
+    # RG-PUR-7 (importation, PU6, cf. plan) : **stub honnete documente** —
+    # signale automatiquement qu'un dossier d'importation reste a ouvrir
+    # des que l'origine n'est pas `local`, jamais pour un achat local. La
+    # creation reelle du dossier appartient au futur module `logistics`
+    # (§5.7.5) — cf. docstring du champ sur `PurOrder`.
+    optional_fields.setdefault("import_dossier_pending", origin != PurOrder.ORIGIN_LOCAL)
     return PurOrder.objects.create(
         tenant=tenant,
         reference=reference,
@@ -225,12 +235,20 @@ def ensure_default_purchase_approval_rules(tenant: Tenant) -> None:
     pour les achats a l'import, une double-validation systematique
     (direction) des que l'origine commence par `"import_"` est retenue par
     defaut, quel que soit le montant — c'est la deviation la plus
-    prudente."""
+    prudente.
+
+    Regle 4 (PUR-BUD1, PU6) : 4e palier, dimension budgetaire — jamais
+    fondee sur `min_amount`/`origin` comme les 3 premieres (condition
+    dediee `{"budget_check": "true"}`, cf. `_rule_matches` qui la
+    reconnait et delegue a `_order_exceeds_budget` au lieu du controle
+    montant/origine generique). Role "direction" assume par coherence avec
+    la regle 3 (meme absence de seuil precise par le CDC pour ce cas)."""
     content_type = ContentType.objects.get_for_model(PurOrder)
     defaults = [
         (RULE_NAME_LEVEL1, "acheteur", 1, {"min_amount": str(LEVEL1_THRESHOLD_MGA)}),
         (RULE_NAME_LEVEL2, "direction", 2, {"min_amount": str(LEVEL2_THRESHOLD_MGA)}),
         (RULE_NAME_IMPORT, "direction", 3, {"min_amount": "0", "origin_prefix": "import_"}),
+        (RULE_NAME_BUDGET, "direction", 4, {"budget_check": "true"}),
     ]
     for name, role, sequence_order, condition in defaults:
         ApprovalRule.objects.get_or_create(
@@ -245,8 +263,40 @@ def ensure_default_purchase_approval_rules(tenant: Tenant) -> None:
         )
 
 
+def _order_exceeds_budget(order: PurOrder) -> bool:
+    """PUR-BUD1 (PU6, cf. plan) : `True` si le cumul reel deja engage sur
+    l'axe analytique de `order` PLUS le montant de CETTE commande
+    depasserait le budget approuve de cet axe. Retourne toujours `False`
+    (jamais d'exception) si `order.analytic_account_id` n'est pas
+    renseigne OU si `accounting.services.public.
+    get_budget_variance_for_analytic_account` ne trouve aucun budget/
+    aucune ligne budgetaire correspondante — un tenant sans budget
+    parametre pour cet axe n'est pas bloque, meme discipline "gap de
+    configuration a la charge de l'administrateur du tenant" que le reste
+    de ce sous-sequencement (cf. `apps.accounting.services.public`)."""
+    if order.analytic_account_id is None:
+        return False
+
+    variance = get_budget_variance_for_analytic_account(
+        tenant=order.tenant, analytic_account_id=order.analytic_account_id
+    )
+    if variance is None:
+        return False
+
+    projected_actual_mga: Decimal = variance["actual_amount_mga"] + order.amount_total_mga
+    budgeted_amount_mga: Decimal = variance["budgeted_amount_mga"]
+    return projected_actual_mga > budgeted_amount_mga
+
+
 def _rule_matches(rule: ApprovalRule, order: PurOrder) -> bool:
     condition = rule.condition or {}
+
+    # PUR-BUD1 (PU6) : la regle budgetaire ne suit jamais le controle
+    # montant/origine generique ci-dessous — condition dediee, cf.
+    # `ensure_default_purchase_approval_rules`.
+    if condition.get("budget_check") == "true":
+        return _order_exceeds_budget(order)
+
     min_amount = Decimal(condition.get("min_amount", "0"))
     if order.amount_total_mga < min_amount:
         return False
