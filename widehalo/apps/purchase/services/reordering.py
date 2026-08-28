@@ -2,18 +2,16 @@
 sous-sequencement `purchase` — cf. plan, section "Decisions de
 sequencement et de perimetre pour ce lot").
 
-**Stub honnete documente** : la comparaison "stock disponible" exigee par
-le CDC n'est pas calculable (`stocks`/`logistics` n'existent pas encore
-dans ce depot). `PurReorderingRule` est construite completement (min/max/
-multiple/lead_time), mais `run_reordering` compare `min_qty` a
-`Decimal(0)` par convention — equivalent a "aucun stock connu, toujours en
-dessous du seuil". Consequence assumee : au pire une demande d'achat en
-brouillon superflue est generee (jamais une commande confirmee, jamais un
-oubli — c'est le sens de "jamais un faux positif/negatif qui ferait perdre
-un vrai besoin" du plan). Deviation temporaire, a corriger des que
-`stocks` expose un service public de stock disponible (remplacer
-`_STUBBED_AVAILABLE_STOCK` par un appel a ce futur `stocks.services.
-public`)."""
+**Stock reellement lu depuis le chantier de durcissement retroactif** :
+`run_reordering` compare desormais `min_qty` a la disponibilite REELLE
+(`stocks.services.public.get_available_stock_qty`, agrege sur les
+emplacements INTERNES uniquement — jamais un stub, jamais un recalcul
+duplique ici) plutot qu'a une constante zero. Le principe "jamais un faux
+positif/negatif qui ferait perdre un vrai besoin" enonce au plan est
+desormais tenu par de vraies donnees, pas seulement par l'hypothese
+conservatrice "stock toujours nul" retenue avant que `stocks` n'existe :
+une regle dont le stock disponible est deja au-dessus de `min_qty` ne
+declenche plus de demande d'achat superflue."""
 
 from __future__ import annotations
 
@@ -27,10 +25,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.purchase.models import PurReorderingRule, PurRequisition
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
-
-# cf. docstring du module : stock disponible toujours considere a zero tant
-# que `stocks` n'existe pas — jamais une lecture de stock inventee.
-_STUBBED_AVAILABLE_STOCK = Decimal(0)
+from apps.stocks.services.public import get_available_stock_qty
 
 
 def create_reordering_rule(
@@ -70,11 +65,12 @@ def _round_up_to_multiple(qty: Decimal, multiple: Decimal) -> Decimal:
 
 def run_reordering(tenant: Tenant) -> list[PurRequisition]:
     """RG-PUR-3 : pour chaque `PurReorderingRule` active du tenant, compare
-    le stock stube (toujours zero, cf. docstring du module) a `min_qty`. Se
-    declenche des que `_STUBBED_AVAILABLE_STOCK < min_qty` — donc TOUJOURS,
-    sauf `min_qty <= 0` (regle effectivement desactivee, cas valide qu'un
-    admin peut choisir : jamais un declenchement force meme dans le cas
-    stube).
+    le stock REELLEMENT disponible (`stocks.services.public.
+    get_available_stock_qty(rule.variant_id)`, cf. docstring du module) a
+    `min_qty`. Se declenche des que la disponibilite reelle est
+    strictement inferieure a `min_qty` — sauf `min_qty <= 0` (regle
+    effectivement desactivee, cas valide qu'un admin peut choisir : jamais
+    un declenchement force).
 
     Chaque regle declenchee genere UNE `PurRequisition` EN BROUILLON
     UNIQUEMENT — jamais soumise/approuvee automatiquement (RG-PUR-3
@@ -92,10 +88,13 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
     via `PurRequisition.source_document`) est immediatement lisible sans
     re-deriver un regroupement arbitraire.
 
-    Quantite commandee : `max_qty` arrondi au multiple superieur de
-    `multiple_qty` (cf. `_round_up_to_multiple`) — puisque le stock est
-    toujours stube a zero, la quantite necessaire pour atteindre `max_qty`
-    est `max_qty - 0 = max_qty`.
+    Quantite commandee : `max_qty - available_qty` arrondi au multiple
+    superieur de `multiple_qty` (cf. `_round_up_to_multiple`) — le vrai
+    besoin pour ramener le stock reel jusqu'a `max_qty`, jamais un montant
+    negatif (garde defensive : une regle ne se declenche que quand
+    `available_qty < min_qty <= max_qty`, donc `max_qty - available_qty`
+    est arithmetiquement toujours strictement positif ici, mais la garde
+    reste explicite plutot qu'implicite).
 
     Demandeur (`PurRequisition.requester`, FK obligatoire) : resolu comme
     le premier superutilisateur du tenant — meme repli que
@@ -106,7 +105,13 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
     ci-dessous journalise ce cas par tenant, meme discipline que
     `run_sales_recurrences`)."""
     rules = PurReorderingRule.objects.filter(tenant=tenant, is_active=True)
-    triggered = [rule for rule in rules if rule.min_qty > _STUBBED_AVAILABLE_STOCK]
+    triggered: list[tuple[PurReorderingRule, Decimal]] = []
+    for rule in rules:
+        if rule.min_qty <= 0:
+            continue
+        available = get_available_stock_qty(rule.variant_id)
+        if available < rule.min_qty:
+            triggered.append((rule, available))
     if not triggered:
         return []
 
@@ -116,16 +121,19 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
 
     today = timezone.now().date()
     created: list[PurRequisition] = []
-    for rule in triggered:
-        qty = _round_up_to_multiple(rule.max_qty - _STUBBED_AVAILABLE_STOCK, rule.multiple_qty)
+    for rule, available in triggered:
+        needed = max(rule.max_qty - available, Decimal(0))
+        qty = _round_up_to_multiple(needed, rule.multiple_qty)
         requisition = create_requisition(
             tenant=tenant,
             requester=fallback_requester,
             date_needed=today,
             justification=_(
                 "Reapprovisionnement automatique (RG-PUR-3) : stock "
-                "disponible (stube, cf. plan) sous le seuil minimum de la regle."
-            ),
+                "disponible (%(available)s) sous le seuil minimum de la regle "
+                "(%(min_qty)s)."
+            )
+            % {"available": available, "min_qty": rule.min_qty},
             source_document=f"pur_reordering_rule:{rule.id}",
         )
         add_requisition_line(

@@ -1,17 +1,19 @@
 """RG-SAL-3 (§5.5.3) : qualification d'origine par ligne, declenchee par
 `confirm_order` depuis S3 (cf. plan, sous-sequencement `sales`).
 `test_acceptance_1_order_confirmation_qualifies_all_three_line_origins`
-exerce nommement le test d'acceptance §5.5.8 n°1 du CDC, avec la
-deviation documentee et actee dans le plan (section "Module `sales`",
-decisions de sequencement RG-SAL-3) : le CDC original envisage un document
-reel pour les trois branches ("un ordre de fabrication pour la ligne a
-produire, une demande d'achat pour la ligne a acheter, et une reservation
-pour la ligne en stock"), mais seul `purchase`/`stocks` livre pourra
-produire les deux derniers documents reels — ces deux modules n'existent
-pas encore dans cet ordre de Lot 2 (SALES est sequence avant eux). Les
-branches "sur stock"/"a acheter" sont donc verifiees ici comme
-correctement qualifiees et marquees en attente du module correspondant,
-pas comme un document reel genere."""
+exerce nommement le test d'acceptance §5.5.8 n°1 du CDC.
+
+Depuis le chantier de durcissement retroactif (`apps.stocks`/
+`apps.purchase` existent desormais), les branches "sur stock"/"a acheter"
+sont REELLES (cf. `apps.sales.services.procurement` module docstring) :
+`test_acceptance_1_...` continue d'utiliser des lignes `is_custom=True`
+sans `variant_id` pour ces deux branches (fidele au CDC original, qui ne
+precise pas de catalogue pour ces lignes), qui retombent donc legitimement
+sur la garde defensive "pas de `variant_id`, pas de document automatique
+possible" — reste `pending_stock`/`pending_purchase`, PAS un stub. Les
+chemins REELLEMENT reserves/achetes (variante catalogue avec stock
+suffisant / requester resolu) sont couverts par les tests dedies
+ci-dessous."""
 
 from __future__ import annotations
 
@@ -28,9 +30,12 @@ from apps.core.tests.utils import use_tenant
 from apps.mrp.services.bom import activate_bom, create_bom
 from apps.mrp.tests.factories import MrpWorkshopFactory
 from apps.partners.tests.factories import PartnerFactory
+from apps.purchase.models import PurRequisitionLine
 from apps.sales.models import SalesOrder, SalesOrderLine
 from apps.sales.services.orders import add_order_line, confirm_order, create_order
 from apps.sales.services.procurement import qualify_and_process_order
+from apps.stocks.models import StkReservation
+from apps.stocks.tests.factories import StkQuantFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -101,14 +106,17 @@ def test_acceptance_1_order_confirmation_qualifies_all_three_line_origins(
         assert production_line.mrp_order_id is not None
         assert production_line.qty_to_produce == Decimal(3)
 
-        # Branches "sur stock"/"a acheter" : STUBEES (deviation assumee,
-        # cf. docstring module) — aucun document reel n'est genere, la
-        # ligne est seulement marquee en attente du module correspondant.
+        # Branches "sur stock"/"a acheter" : lignes hors catalogue
+        # (`is_custom`, sans `variant_id`) — retombent sur la garde
+        # defensive, `pending_stock`/`pending_purchase` (cf. docstring
+        # module, PAS un stub : ces branches sont reelles depuis le
+        # chantier de durcissement retroactif, cf. tests dedies plus bas).
         stock_line.refresh_from_db()
         purchase_line.refresh_from_db()
         assert stock_line.mrp_order_id is None
         assert purchase_line.mrp_order_id is None
         assert purchase_line.purchase_order_line_id is None
+        assert stock_line.stock_reservation_id is None
 
         summary = qualify_and_process_order(order, user)
         assert str(production_line.id) in summary["produced"]
@@ -183,3 +191,100 @@ def test_qualify_and_process_order_is_not_run_on_blocked_order(procurement_setup
 
         line.refresh_from_db()
         assert line.mrp_order_id is None
+
+
+# ---------------------------------------------------------------------------
+# Chantier de durcissement retroactif : branches "sur stock"/"a acheter"
+# REELLES (`apps.stocks`/`apps.purchase` desormais construits).
+# ---------------------------------------------------------------------------
+
+
+def test_stock_line_reserves_real_stock_when_sufficient(procurement_setup) -> None:
+    tenant, user, partner = procurement_setup
+    with use_tenant(tenant.id):
+        variant_id = uuid.uuid4()
+        StkQuantFactory(tenant=tenant, variant_id=variant_id, qty=Decimal(50))
+
+        order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
+        line = add_order_line(
+            order,
+            variant_id=variant_id,
+            description="Article sur stock, disponible",
+            qty=Decimal(10),
+            unit_price=Decimal(1000),
+            source=SalesOrderLine.SOURCE_STOCK,
+        )
+
+        confirm_order(order, user)
+
+        line.refresh_from_db()
+        assert line.stock_reservation_id is not None
+        reservation = StkReservation.objects.get(id=line.stock_reservation_id)
+        assert reservation.qty == Decimal(10)
+        assert reservation.state == StkReservation.STATE_ACTIVE
+
+        summary = qualify_and_process_order(order, user)
+        assert str(line.id) in summary["reserved_from_stock"]
+
+
+def test_stock_line_stays_pending_when_stock_is_insufficient(procurement_setup) -> None:
+    tenant, user, partner = procurement_setup
+    with use_tenant(tenant.id):
+        variant_id = uuid.uuid4()
+        StkQuantFactory(tenant=tenant, variant_id=variant_id, qty=Decimal(3))
+
+        order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
+        line = add_order_line(
+            order,
+            variant_id=variant_id,
+            description="Article sur stock, insuffisant",
+            qty=Decimal(10),
+            unit_price=Decimal(1000),
+            source=SalesOrderLine.SOURCE_STOCK,
+        )
+
+        confirm_order(order, user)
+
+        line.refresh_from_db()
+        assert line.stock_reservation_id is None
+
+        summary = qualify_and_process_order(order, user)
+        assert str(line.id) in summary["pending_stock"]
+
+
+def test_purchase_line_creates_real_requisition_line_when_requester_resolves(
+    procurement_setup,
+) -> None:
+    tenant, user, partner = procurement_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="U-ACH", name="Unite", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Fermeture eclair", base_uom=uom, reference="TPL-SAL-ACH-0001"
+        )
+        variant = ProductVariant.objects.create(
+            tenant=tenant, template=template, reference="VAR-SAL-ACH-0001"
+        )
+
+        order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
+        line = add_order_line(
+            order,
+            variant_id=variant.id,
+            description="Article a acheter, catalogue reel",
+            qty=Decimal(15),
+            unit_price=Decimal(2000),
+            source=SalesOrderLine.SOURCE_ACHAT,
+        )
+
+        confirm_order(order, user)
+
+        line.refresh_from_db()
+        assert line.purchase_order_line_id is not None
+        requisition_line = PurRequisitionLine.objects.get(id=line.purchase_order_line_id)
+        assert requisition_line.variant_id == variant.id
+        assert requisition_line.qty == Decimal(15)
+        assert requisition_line.requisition.requester_id == user.id
+
+        summary = qualify_and_process_order(order, user)
+        assert str(line.id) in summary["reserved_from_purchase"]

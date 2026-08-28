@@ -1,25 +1,36 @@
 """A17 (Phase 2 `accounting`) — **ACC-IMP**, couts d'importation (landed
-costs) : calculateur AUTONOME de repartition de frais additionnels (fret,
-assurance, douane, manutention portuaire...) saisis manuellement sur un lot
-d'achat importe, entre les lignes/articles de ce lot.
+costs) : calculateur de repartition de frais additionnels (fret, assurance,
+douane, manutention portuaire...) saisis manuellement sur un lot d'achat
+importe, entre les lignes/articles de ce lot.
 
-**Ce module ne fait explicitement PAS ceci** (perimetre A17 tel qu'acte au
-plan, "sans integration reelle a une valorisation de stock puisque `stocks`
-n'existe pas encore") :
+**Ce module ne fait explicitement toujours PAS ceci** (perimetre A17 tel
+qu'acte au plan) :
 
-- Aucune `AccMove` n'est postee ici pour materialiser l'allocation. Une
-  vraie implementation debiterait, pour chaque article, son compte de
-  valorisation de stock du montant alloue et crediterait les comptes de
-  charge/fournisseur correspondants — cela suppose un compte de
-  valorisation de stock PAR PRODUIT, qui n'existe que dans le module
-  `stocks`, pas encore construit dans ce depot.
-- Aucune quantite/valeur de stock n'est mise a jour.
+- Aucune `AccMove` n'est postee ici pour materialiser l'allocation en
+  comptabilite generale. Une vraie implementation debiterait, pour chaque
+  article, son compte de valorisation de stock du montant alloue et
+  crediterait les comptes de charge/fournisseur correspondants — hors
+  perimetre A17 (le patron existe deja ailleurs, cf.
+  `logistics.services.customs.close_customs_file`, qui poste une vraie
+  `AccMove` via `accounting.services.public.
+  create_landed_cost_batch_from_source` pour le cas particulier douanier ;
+  A17 reste un calculateur/rapport autonome, jamais une ecriture postee).
 
-C'est donc un outil de calcul/rapport autonome (`landed_cost_report`),
-volontairement stub, **a faire evoluer vers une vraie integration stock
-quand le module `stocks` existera** (cf. plan, etape A17). Aucune reserve
-OECFM/DGI necessaire ici : ce n'est pas une reconstruction de canevas fiscal,
-seulement un calcul de repartition de cout standard."""
+**Ce qui EST reellement fait depuis le chantier de durcissement retroactif**
+(`apps.stocks` existe desormais, cf. plan, §5.8) : `finalize_batch`
+repercute REELLEMENT le cout alloue de chaque `AccLandedCostLine` portant
+un `variant_id` sur la valorisation de stock deja receptionnee, via
+`stocks.services.public.apply_landed_cost_to_valuation` — meme gap deja
+consomme par `logistics.services.customs.close_customs_file` (RG-LOG-7),
+desormais aussi cable depuis le cas general (non douanier) `accounting`.
+Une ligne SANS `variant_id` (ex. un frais general non rattache a un
+article precis) reste, elle, un pur calcul de rapport — rien a revaloriser
+cote stock, ce n'est pas une erreur. `landed_cost_report` reste l'outil de
+calcul/rapport (cle d'allocation, cout debarque unitaire) reutilise tel
+quel pour deriver le montant a repercuter par ligne — aucune formule
+d'allocation reimplementee ici. Aucune reserve OECFM/DGI necessaire ici :
+ce n'est pas une reconstruction de canevas fiscal, seulement un calcul de
+repartition de cout standard."""
 
 from __future__ import annotations
 
@@ -39,6 +50,7 @@ from apps.accounting.models import (
 )
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
+from apps.stocks.services.public import apply_landed_cost_to_valuation
 
 
 def create_landed_cost_batch(
@@ -123,11 +135,29 @@ def finalize_batch(batch: AccLandedCostBatch) -> AccLandedCostBatch:
     """Transition `draft -> finalized`. Refuse une double finalisation.
     Verrouille le lot contre tout ajout ulterieur de ligne/composant (garde
     appliquee dans `add_landed_cost_line`/`add_cost_component` ci-dessus, pas
-    ici) — `landed_cost_report` reste calculable dans les deux etats."""
+    ici) — `landed_cost_report` reste calculable dans les deux etats.
+
+    Depuis le chantier de durcissement retroactif (cf. docstring de
+    module) : repercute REELLEMENT, pour chaque `AccLandedCostLine` portant
+    un `variant_id`, son `allocated_cost_mga` (calcule par
+    `landed_cost_report`, aucune formule d'allocation dupliquee ici) sur la
+    valorisation de stock via `stocks.services.public.
+    apply_landed_cost_to_valuation` — meme garde `if additional_cost > 0`
+    que `logistics.services.customs.close_customs_file`. Une ligne sans
+    `variant_id`, ou dont l'allocation est `None`/nulle (division par zero
+    geree en amont par `landed_cost_report`, cf. sa docstring), n'a
+    simplement rien a revaloriser cote stock — jamais une erreur."""
     if batch.state != AccLandedCostBatch.STATE_DRAFT:
         raise ValidationError(_("Ce lot est deja finalise."))
     batch.state = AccLandedCostBatch.STATE_FINALIZED
     batch.save(update_fields=["state"])
+
+    for row in landed_cost_report(batch):
+        variant_id = row["variant_id"]
+        allocated_cost = row["allocated_cost_mga"]
+        if variant_id is not None and allocated_cost is not None and allocated_cost > 0:
+            apply_landed_cost_to_valuation(variant_id, additional_cost_mga=allocated_cost)
+
     return batch
 
 
