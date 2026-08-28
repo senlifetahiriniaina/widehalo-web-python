@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Mes bulletins de paie" %} — WideHalo{% endblock %}
+{% block content %}
+<h1>{% trans "Mes bulletins de paie" %}</h1>
+<table>
+  <thead>
+    <tr>
+      <th>{% trans "Reference" %}</th>
+      <th>{% trans "Periode" %}</th>
+      <th>{% trans "Etat" %}</th>
+      <th>{% trans "Net a payer" %}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for payslip in payslips %}
+    <tr>
+      <td>{{ payslip.reference }}</td>
+      <td>{{ payslip.date_from }} — {{ payslip.date_to }}</td>
+      <td>{{ payslip.get_state_display }}</td>
+      <td>{{ payslip.net_to_pay }} MGA</td>
+      <td><a href="{% url 'payroll:my_payslips' %}">{% trans "Telecharger PDF" %}</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">{% trans "Aucun bulletin." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

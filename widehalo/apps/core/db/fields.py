@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -72,3 +73,59 @@ class EncryptedCharField(models.CharField):  # type: ignore[type-arg]
         if isinstance(value, str) or value is None:
             return value
         return str(value)
+
+
+class EncryptedDecimalField(models.DecimalField):  # type: ignore[type-arg]
+    """Variante `Decimal` de `EncryptedCharField`, ajoutee pour le chantier
+    `payroll` (RG-PAY-9/enrichissement "Chiffrement AES-256 des donnees
+    salariales") — le champ chiffre stocke la valeur decimale serialisee en
+    chaine (`str(Decimal)`, jamais `float`, coherent avec la convention
+    "argent en Decimal" du depot), au meme format Fernet que
+    `EncryptedCharField`. Utilise par `apps.payroll.models.PayPayslip` pour
+    les montants individuellement consultables hors liste (ex. `net_to_pay`)
+    quand une confidentialite renforcee au niveau colonne SQL est demandee
+    en plus du controle applicatif RG-PAY-9 (defense en profondeur — la
+    encore un compromis assume, cf. docstring `EncryptedCharField` sur
+    l'absence de cle dediee/rotation en V1)."""
+
+    def db_type(self, connection: Any) -> str:  # noqa: ANN401
+        return "text"
+
+    def get_prep_value(self, value: Any) -> Any:  # noqa: ANN401
+        value = super().get_prep_value(value)
+        if value in (None, ""):
+            return value
+        token = _fernet().encrypt(str(value).encode("utf-8"))
+        return token.decode("ascii")
+
+    def get_db_prep_save(self, value: Any, connection: Any) -> Any:  # noqa: ANN401
+        # `DecimalField.get_db_prep_save` (classe parente) contourne
+        # normalement `get_prep_value`/`get_db_prep_value` en appelant
+        # directement `connection.ops.adapt_decimalfield_value` — ce qui
+        # ecrirait la valeur EN CLAIR dans la colonne "text" malgre
+        # `get_prep_value` ci-dessus (jamais invoque dans ce chemin).
+        # Override explicite pour repasser par le chiffrement, seule
+        # difference avec le comportement standard de `DecimalField`.
+        return self.get_prep_value(value)
+
+    def from_db_value(self, value: Any, expression: Any, connection: Any) -> Any:  # noqa: ANN401
+        if value in (None, ""):
+            return value
+        try:
+            decrypted = _fernet().decrypt(value.encode("ascii")).decode("utf-8")
+        except InvalidToken:
+            # Meme discipline degradee que EncryptedCharField : valeur deja
+            # en clair ou cle changee, ne jamais planter tout un queryset.
+            decrypted = value
+        try:
+            return Decimal(decrypted)
+        except InvalidOperation:
+            return None
+
+    def to_python(self, value: Any) -> Any:  # noqa: ANN401
+        if value is None or isinstance(value, Decimal):
+            return value
+        try:
+            return Decimal(str(value))
+        except InvalidOperation:
+            return None

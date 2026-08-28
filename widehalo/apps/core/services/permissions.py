@@ -57,6 +57,34 @@ SENSITIVE_FIELDS["sales.SalesQuotationLine"] = {
     "cost_estimate_mga": set(_MARGIN_VISIBLE_ROLES),
 }
 
+# RG-PAY-9 (§5.10.6, chantier `payroll`, stricte) : "managers ne voient
+# AUCUN montant" — `resp_production`/`chef_atelier`/`resp_commercial`
+# recoivent "view" sur le module `payroll` (cf.
+# `rbac_policy.ROLE_APP_PERMISSIONS`, acces a l'existence/l'etat d'un
+# bulletin) mais AUCUN de ces 3 roles n'apparait dans `_PAYROLL_AMOUNT_
+# VISIBLE_ROLES` ci-dessous : tout champ monetaire de `PayPayslip`/
+# `PayPayslipLine` leur reste masque. `collaborateur` (scope "own", ses
+# propres bulletins uniquement) EST inclus : un employe doit voir SES
+# PROPRES montants, seul le regard d'un manager sur l'equipe est concerne
+# par la restriction du CDC.
+_PAYROLL_AMOUNT_VISIBLE_ROLES = {"rh", "direction", "admin", "collaborateur"}
+_PAYROLL_PAYSLIP_AMOUNT_FIELDS = {
+    "gross",
+    "taxable_base",
+    "irsa",
+    "social_employee",
+    "social_employer",
+    "net_to_pay",
+}
+SENSITIVE_FIELDS["payroll.PayPayslip"] = {
+    field: set(_PAYROLL_AMOUNT_VISIBLE_ROLES) for field in _PAYROLL_PAYSLIP_AMOUNT_FIELDS
+}
+SENSITIVE_FIELDS["payroll.PayPayslipLine"] = {
+    "base": set(_PAYROLL_AMOUNT_VISIBLE_ROLES),
+    "rate": set(_PAYROLL_AMOUNT_VISIBLE_ROLES),
+    "amount": set(_PAYROLL_AMOUNT_VISIBLE_ROLES),
+}
+
 
 class _PermissionGuardedView:
     """Objet appelable (plutot qu'une fermeture `def wrapper(...)`) qui

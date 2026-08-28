@@ -508,6 +508,124 @@ def decide_cash_journal_qualification(
     decide_qualification(approval_request, decided_by, approved=approved, comment=comment)
 
 
+def post_payroll_batch_entry_from_source(
+    *,
+    tenant: Tenant,
+    date: dt.date,
+    lines: list[dict[str, Any]],
+    label: str = "",
+) -> UUID | None:
+    """Gap ajoute par le chantier `payroll` (RG-PAY-8, §5.10.6) —
+    materialise l'ecriture comptable d'un LOT de paie valide, sous forme
+    d'`AccMove` (`move_type=entry`, journal `AccJournal.TYPE_PAYROLL` deja
+    present dans `AccJournal.TYPE_CHOICES` depuis le Lot 2 A1, jamais
+    utilise avant ce chantier).
+
+    `lines` : `[{"account_id": UUID | None, "amount": Decimal, "label":
+    str, "analytic_distribution": dict | None}, ...]` — memes primitives et
+    MEME convention de signe que `create_stock_adjustment_entry_from_source`
+    (positif = DEBIT, negatif = CREDIT) : `payroll` raisonne en montants
+    signes par ligne de regle (charges au debit, cotisations/net a payer/
+    retenues au credit), la conversion vers `debit`/`credit` a lieu ICI.
+    `analytic_distribution` porte la ventilation departement/atelier
+    (RG-PAY-8 : "distribution analytique par departement et atelier") —
+    transmise telle quelle a `add_line`, jamais reconstruite ici.
+
+    **Resolution du compte par defaut (`account_id is None`)** : meme
+    logique par SIGNE que le gap stock — ligne positive (debit, charge de
+    personnel) retombe sur le premier `AccAccount.TYPE_EXPENSE` du tenant,
+    ligne negative (credit, dette envers le personnel/organismes sociaux)
+    retombe sur le premier `AccAccount.TYPE_PAYABLE`. `PaySalaryRule.
+    account_debit_id`/`account_credit_id`, quand renseignes cote appelant,
+    prevalent toujours sur ce defaut (transmis directement dans
+    `account_id`).
+
+    **Ecart assume au patron "toujours draft" des autres gaps de ce
+    fichier** (disclosed, explicitement autorise par le CDC pour ce gap
+    precis) : la paie EST DIFFERENTE de la facture — RG-PAY-8 dit
+    litteralement que "la validation d'un lot de paie DOIT effectivement
+    comptabiliser", pas seulement preparer un brouillon. Ce gap publie donc
+    l'ecriture immediatement (`post_move`), jamais un simple
+    `create_draft_move` laisse en `draft` comme les 3 autres gaps facture/
+    ajustement de stock ci-dessus. Retourne toujours `None` (jamais
+    d'exception) si le journal/la periode/un compte par defaut manquent —
+    meme discipline "gap de configuration a la charge du tenant" que le
+    reste de ce module ; en revanche un desequilibre debit/credit reste
+    propage tel quel par `post_move` (RG-ACC-1), jamais avale."""
+    journal = AccJournal.objects.filter(tenant=tenant, type=AccJournal.TYPE_PAYROLL).first()
+    if journal is None:
+        return None
+
+    period = (
+        AccPeriod.objects.filter(
+            tenant=tenant,
+            state=AccPeriod.STATE_OPEN,
+            date_start__lte=date,
+            date_end__gte=date,
+        )
+        .order_by("date_start")
+        .first()
+    )
+    if period is None:
+        return None
+
+    default_expense_account: AccAccount | None = None
+    default_payable_account: AccAccount | None = None
+    resolved_lines: list[dict[str, Any]] = []
+    for line in lines:
+        amount: Decimal = line["amount"]
+        account: AccAccount | None = None
+        account_id = line.get("account_id")
+        if account_id is not None:
+            account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
+        if account is None:
+            if amount >= 0:
+                if default_expense_account is None:
+                    default_expense_account = AccAccount.objects.filter(
+                        tenant=tenant, type=AccAccount.TYPE_EXPENSE
+                    ).first()
+                account = default_expense_account
+            else:
+                if default_payable_account is None:
+                    default_payable_account = AccAccount.objects.filter(
+                        tenant=tenant, type=AccAccount.TYPE_PAYABLE
+                    ).first()
+                account = default_payable_account
+        if account is None:
+            return None
+        resolved_lines.append(
+            {
+                "account": account,
+                "amount": amount,
+                "label": line.get("label", ""),
+                "analytic_distribution": line.get("analytic_distribution"),
+            }
+        )
+
+    move = create_draft_move(
+        tenant=tenant,
+        journal=journal,
+        period=period,
+        date=date,
+        move_type=AccMove.TYPE_ENTRY,
+        narration=label,
+    )
+    for line in resolved_lines:
+        amount = line["amount"]
+        add_line(
+            move,
+            account=line["account"],
+            label=line["label"],
+            debit=amount if amount > 0 else Decimal(0),
+            credit=-amount if amount < 0 else Decimal(0),
+            analytic_distribution=line["analytic_distribution"],
+        )
+
+    post_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
 def decide_invoice_import_qualification(
     approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
 ) -> None:

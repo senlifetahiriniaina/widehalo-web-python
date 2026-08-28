@@ -86,6 +86,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view", "add", "change"},
         "catalog": {"view"},
         "sales": {"view", "add", "change"},
+        # RG-PAY-9 : "view" seul — `SENSITIVE_FIELDS` masque tous les
+        # montants de `PayPayslip`/`PayPayslipLine` a ce role (cf.
+        # `apps.core.services.permissions`), cf. commentaire sur le role
+        # `rh` plus bas pour la decision de conception complete.
+        "payroll": {"view"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -100,12 +105,16 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "mrp": {"view", "add", "change"},
         "patronage": {"view", "add", "change"},
         "catalog": {"view"},
+        # RG-PAY-9 : idem `resp_commercial` ci-dessus.
+        "payroll": {"view"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
         # pas de donnees de configuration (ateliers, nomenclatures...).
         "mrp": {"view", "change"},
         "catalog": {"view"},
+        # RG-PAY-9 : idem `resp_commercial` ci-dessus.
+        "payroll": {"view"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
@@ -121,22 +130,39 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "logistics": {"view", "add", "change"},
     },
     "rh": {
-        # Domaine cible = `presence` (ce chantier) — acces complet. Le
-        # futur module `paie` viendra s'y ajouter au meme role.
+        # Domaine cible = `presence` + `payroll` (ce chantier, RG-PAY-9)
+        # — acces complet aux 2.
         "presence": {"view", "add", "change"},
+        "payroll": {"view", "add", "change"},
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
-        # uniquement. `presence` : "view" seulement — le scoping N3
-        # "own" (RG-PRS-9, test d'acceptance §5.9.8 n°4) restreint ensuite
-        # cet acces aux SEULES donnees de l'employe lui-meme, applique au
-        # niveau des endpoints `apps.presence.api` (jamais au niveau de
-        # cette matrice N2, qui ne connait pas les enregistrements).
+        # uniquement. `presence`/`payroll` : "view" seulement — le
+        # scoping N3 "own" (RG-PRS-9/RG-PAY-9) restreint ensuite cet acces
+        # aux SEULES donnees de l'employe lui-meme, applique au niveau des
+        # endpoints `apps.presence.api`/`apps.payroll.api` (jamais au
+        # niveau de cette matrice N2, qui ne connait pas les
+        # enregistrements).
         "partners": {"view"},
         "catalog": {"view"},
         "presence": {"view"},
+        "payroll": {"view"},
     },
 }
+
+# RG-PAY-9 (§5.10.6, stricte) : "managers ne voient AUCUN montant" — parmi
+# les 11 roles CDC, aucun n'est nomme "manager" ; `resp_production`/
+# `chef_atelier`/`resp_commercial` sont les 3 roles qui encadrent
+# effectivement une equipe (via `presence.PrsEmployee.manager`). Chacun
+# recoit "view" sur `payroll` ci-dessus (acces a l'EXISTENCE/l'etat d'un
+# bulletin, ex. pour verifier qu'un membre d'equipe est bien paye) — SANS
+# que cela leur donne acces aux MONTANTS : `SENSITIVE_FIELDS` (cf.
+# `apps.core.services.permissions`) masque explicitement tout champ
+# monetaire de `PayPayslip`/`PayPayslipLine` a ces 3 roles (seuls `rh`/
+# `direction`/`admin` les voient) — decision de conception documentee ici
+# plutot qu'un "managers = aucun acces du tout", qui aurait ete un
+# sur-refus non demande par le CDC (celui-ci dit "aucun montant" QUE sur
+# les montants, pas sur l'existence/l'etat du bulletin).
 
 # Permissions personnalisees (non auto-generees, declarees explicitement
 # dans un `Meta.permissions` de modele — ex. `AccMove.Meta.permissions`) a
