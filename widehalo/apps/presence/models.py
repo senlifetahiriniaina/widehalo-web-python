@@ -456,3 +456,81 @@ class PrsOvertime(BaseModel):
     @transition(field=state, source=STATE_DRAFT, target=STATE_VALIDATED)
     def validate(self) -> None:
         pass
+
+
+class PrsEmployeeSkill(BaseModel):
+    """PRS-COMP1 (enrichissement "Adopter") : matrice de competences.
+    `skill_name` est du texte libre (pas de `prs_skill` catalogue separe,
+    cf. docstring de module — economie de modele imposee par le budget)."""
+
+    LEVEL_NOVICE = "novice"
+    LEVEL_INTERMEDIATE = "intermediaire"
+    LEVEL_CONFIRMED = "confirme"
+    LEVEL_EXPERT = "expert"
+    LEVEL_CHOICES = [
+        (LEVEL_NOVICE, _("Novice")),
+        (LEVEL_INTERMEDIATE, _("Intermédiaire")),
+        (LEVEL_CONFIRMED, _("Confirmé")),
+        (LEVEL_EXPERT, _("Expert")),
+    ]
+
+    employee = models.ForeignKey(PrsEmployee, on_delete=models.CASCADE, related_name="skills")
+    skill_name = models.CharField(max_length=150)
+    level = models.CharField(max_length=16, choices=LEVEL_CHOICES, default=LEVEL_NOVICE)
+    evaluated_at = models.DateField(null=True, blank=True)
+    evaluated_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "prs_employee_skill"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employee", "skill_name"], name="uniq_prs_employee_skill_name"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.employee} — {self.skill_name} ({self.level})"
+
+
+class PrsEmployeeTask(BaseModel):
+    """PRS-DOC1 (suivi d'expiration de documents) + PRS-ONB1 (checklist
+    d'onboarding) fusionnes — meme forme structurelle, cf. docstring de
+    module. `kind="document"` : `target_date` porte l'echeance
+    (`expiry_date`), `alert_days_before`/`notified_at` pilotent l'alerte
+    (meme patron que `logistics.LogVehicleDocument`, RG-LOG-1).
+    `kind="onboarding"` : `target_date` porte l'echeance de la tache,
+    `completed_at` marque son execution — `alert_days_before`/
+    `notified_at` restent inutilises (simplification disclosed, pas de
+    reminder d'onboarding en V1)."""
+
+    KIND_DOCUMENT = "document"
+    KIND_ONBOARDING = "onboarding"
+    KIND_CHOICES = [
+        (KIND_DOCUMENT, _("Document")),
+        (KIND_ONBOARDING, _("Intégration")),
+    ]
+
+    employee = models.ForeignKey(PrsEmployee, on_delete=models.CASCADE, related_name="tasks")
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    code = models.CharField(max_length=64, blank=True)
+    label = models.CharField(max_length=255)
+    reference = models.CharField(max_length=100, blank=True)
+    issue_date = models.DateField(null=True, blank=True)
+    target_date = models.DateField(null=True, blank=True)
+    alert_days_before = models.PositiveSmallIntegerField(default=30)
+    notified_at = models.DateTimeField(null=True, blank=True)
+    responsible = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "prs_employee_task"
+
+    def __str__(self) -> str:
+        return f"{self.employee} — {self.label}"

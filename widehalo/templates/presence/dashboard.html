@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Tableau de bord RH" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Tableau de bord RH" %}</h1>
+  <ul>
+    <li>{% trans "Taux de présence (aujourd'hui)" %} : {{ presence_rate }}%</li>
+    <li>{% trans "Taux d'absentéisme (aujourd'hui)" %} : {{ absenteeism_rate }}%</li>
+    <li>{% trans "Heures supplémentaires validées ce mois" %} : {{ total_overtime }}</li>
+  </ul>
+
+  <h2>{% trans "Soldes de congés à risque d'expiration (60 jours)" %}</h2>
+  <table>
+    <thead><tr><th>{% trans "Employé" %}</th><th>{% trans "Type" %}</th><th>{% trans "Solde restant" %}</th><th>{% trans "Expire le" %}</th></tr></thead>
+    <tbody>
+      {% for b in at_risk_balances %}
+        <tr><td>{{ b.employee }}</td><td>{{ b.type.name }}</td><td>{{ b.remaining_days }}</td><td>{{ b.expiry_date }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun solde à risque." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

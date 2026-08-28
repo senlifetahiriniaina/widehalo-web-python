@@ -50,6 +50,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "purchase": {"view", "add", "change"},
         "stocks": {"view", "add", "change"},
         "logistics": {"view", "add", "change"},
+        "presence": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -66,6 +67,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "purchase": {"view", "change"},
         "stocks": {"view", "change"},
         "logistics": {"view", "change"},
+        "presence": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -119,14 +121,20 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "logistics": {"view", "add", "change"},
     },
     "rh": {
-        # Domaines cibles = futurs modules `presence`/`paie`, pas encore
-        # construits — aucune permission metier a accorder pour l'instant.
+        # Domaine cible = `presence` (ce chantier) — acces complet. Le
+        # futur module `paie` viendra s'y ajouter au meme role.
+        "presence": {"view", "add", "change"},
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
-        # uniquement.
+        # uniquement. `presence` : "view" seulement — le scoping N3
+        # "own" (RG-PRS-9, test d'acceptance §5.9.8 n°4) restreint ensuite
+        # cet acces aux SEULES donnees de l'employe lui-meme, applique au
+        # niveau des endpoints `apps.presence.api` (jamais au niveau de
+        # cette matrice N2, qui ne connait pas les enregistrements).
         "partners": {"view"},
         "catalog": {"view"},
+        "presence": {"view"},
     },
 }
 

@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.core.models.workflow import ApprovalRequest, ApprovalRule
-from apps.core.services.approvals import request_approval
+from apps.core.services.approvals import decide, request_approval
 from apps.core.services.documents import store_document
 from apps.core.services.workflow import attempt_transition
 from apps.presence.models import PrsAbsence, PrsAbsenceType, PrsEmployee, PrsLeaveBalance
@@ -200,6 +200,27 @@ def decide_absence(
         return absence
 
     raise ValidationError(_("Aucune decision possible dans l'etat courant de cette absence."))
+
+
+def decide_pending_absence_request(
+    absence: PrsAbsence, user: User, *, approved: bool, comment: str = ""
+) -> PrsAbsence:
+    """Enveloppe API-friendly : retrouve LA `ApprovalRequest` en attente
+    de `absence` (il n'y en a jamais plus d'une active a la fois, le
+    niveau suivant n'etant demande qu'apres decision du precedent),
+    applique `core.services.approvals.decide` puis `decide_absence` —
+    evite a l'appelant (endpoint) de manipuler `ApprovalRequest`
+    directement."""
+    content_type = ContentType.objects.get_for_model(PrsAbsence)
+    pending_request = ApprovalRequest.objects.filter(
+        content_type=content_type,
+        object_id=str(absence.pk),
+        status=ApprovalRequest.STATUS_PENDING,
+    ).first()
+    if pending_request is None:
+        raise ValidationError(_("Aucune demande d'approbation en attente pour cette absence."))
+    decided = decide(pending_request, user, approved=approved, comment=comment)
+    return decide_absence(absence, decided, user, approved=approved, comment=comment)
 
 
 def cancel_absence(absence: PrsAbsence, user: User) -> PrsAbsence:

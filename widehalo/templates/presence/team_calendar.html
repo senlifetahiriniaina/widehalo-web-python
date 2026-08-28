@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Calendrier d'équipe" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Calendrier d'équipe" %} — {{ date }}</h1>
+  <form method="get" action="{% url 'presence:team_calendar' %}">
+    <div class="form-field">
+      <label for="date">{% trans "Date" %}</label>
+      <input type="date" id="date" name="date" value="{{ date|date:'Y-m-d' }}">
+    </div>
+    <button type="submit">{% trans "Afficher" %}</button>
+  </form>
+
+  <h2>{% trans "Présents" %}</h2>
+  <table>
+    <thead><tr><th>{% trans "Employé" %}</th><th>{% trans "Mode" %}</th></tr></thead>
+    <tbody>
+      {% for a in attendances %}
+        <tr><td>{{ a.employee }}</td><td>{{ a.get_mode_display }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2">{% trans "Aucun pointage ce jour." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Absents / en congé" %}</h2>
+  <table>
+    <thead><tr><th>{% trans "Employé" %}</th><th>{% trans "Type" %}</th></tr></thead>
+    <tbody>
+      {% for a in absences %}
+        <tr><td>{{ a.employee }}</td><td>{{ a.type.name }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2">{% trans "Aucune absence ce jour." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

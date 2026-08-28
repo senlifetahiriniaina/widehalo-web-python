@@ -28,6 +28,7 @@ from apps.logistics.api import router as logistics_router  # noqa: E402
 from apps.mrp.api import router as mrp_router  # noqa: E402
 from apps.partners.api import router as partners_router  # noqa: E402
 from apps.patronage.api import router as patronage_router  # noqa: E402
+from apps.presence.api import router as presence_router  # noqa: E402
 from apps.purchase.api import router as purchase_router  # noqa: E402
 from apps.sales.api import router as sales_router  # noqa: E402
 from apps.stocks.api import router as stocks_router  # noqa: E402
@@ -44,6 +45,7 @@ api.add_router("", catalog_router)
 api.add_router("", sales_router)
 api.add_router("", purchase_router)
 api.add_router("", stocks_router)
+api.add_router("", presence_router)
 api.add_router("/health", health_router)
 api.add_router("", meta_router)
 api.add_router("", tenants_router)

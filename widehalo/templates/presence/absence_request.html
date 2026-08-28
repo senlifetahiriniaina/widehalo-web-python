@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Demande d'absence" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Demande d'absence" %}</h1>
+  {% if not employee %}
+    <p role="alert">{% trans "Aucun profil employé associé à ce compte." %}</p>
+  {% else %}
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    <form method="post" action="{% url 'presence:absence_request' %}">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="type_id">{% trans "Type d'absence" %}</label>
+        <select id="type_id" name="type_id" required>
+          {% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="date_from">{% trans "Du" %}</label>
+        <input type="date" id="date_from" name="date_from" required>
+      </div>
+      <div class="form-field">
+        <label for="date_to">{% trans "Au" %}</label>
+        <input type="date" id="date_to" name="date_to" required>
+      </div>
+      <button type="submit">{% trans "Soumettre" %}</button>
+    </form>
+
+    <h2>{% trans "Mes demandes récentes" %}</h2>
+    <table>
+      <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Du" %}</th><th>{% trans "Au" %}</th><th>{% trans "État" %}</th></tr></thead>
+      <tbody>
+        {% for a in my_absences %}
+          <tr><td>{{ a.type.name }}</td><td>{{ a.date_from }}</td><td>{{ a.date_to }}</td><td>{{ a.get_state_display }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4">{% trans "Aucune demande." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

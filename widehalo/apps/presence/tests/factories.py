@@ -12,6 +12,8 @@ from apps.presence.models import (
     PrsAttendance,
     PrsDepartment,
     PrsEmployee,
+    PrsEmployeeSkill,
+    PrsEmployeeTask,
     PrsLeaveBalance,
     PrsOvertime,
     PrsWorkCalendar,
@@ -103,3 +105,23 @@ class PrsOvertimeFactory(factory.django.DjangoModelFactory):
     date = factory.LazyFunction(lambda: dt.date(2026, 1, 6))
     hours = 2
     rate_category = PrsOvertime.RATE_H_SUP_30
+
+
+class PrsEmployeeSkillFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PrsEmployeeSkill
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    employee = factory.SubFactory(PrsEmployeeFactory, tenant=factory.SelfAttribute("..tenant"))
+    skill_name = factory.Sequence(lambda n: f"Competence {n}")
+    level = PrsEmployeeSkill.LEVEL_NOVICE
+
+
+class PrsEmployeeTaskFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PrsEmployeeTask
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    employee = factory.SubFactory(PrsEmployeeFactory, tenant=factory.SelfAttribute("..tenant"))
+    kind = PrsEmployeeTask.KIND_DOCUMENT
+    label = factory.Sequence(lambda n: f"Tâche {n}")
