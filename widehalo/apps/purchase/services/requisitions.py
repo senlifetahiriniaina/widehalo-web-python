@@ -15,11 +15,12 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from apps.catalog.services.public import get_variant_price
+from apps.catalog.services.public import get_variant_price, select_preferred_supplier
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
-from apps.purchase.models import PurRequisition, PurRequisitionLine
+from apps.purchase.models import PurRequisition, PurRequisitionLine, PurSubstitute
+from apps.purchase.services.substitution import ensure_substitute_usable
 
 
 def create_requisition(
@@ -51,11 +52,33 @@ def add_requisition_line(
     qty: Decimal,
     uom: str = "",
     preferred_supplier_id: UUID | None = None,
+    substitute_id: UUID | None = None,
 ) -> PurRequisitionLine:
+    """RG-PUR-1 (PU2, cf. plan) : quand l'appelant ne fournit pas
+    `preferred_supplier_id` explicitement, il est resolu automatiquement
+    via `catalog.services.public.select_preferred_supplier` (ordre
+    priority > prix > delai) — reste `None` si aucune information
+    fournisseur n'est enregistree pour le produit, jamais d'exception.
+
+    RG-PUR-2 (PU2) : `substitute_id` optionnel enregistre le substitut
+    utilise pour cette ligne (typiquement quand aucun fournisseur direct
+    n'est trouve). `ensure_substitute_usable` est verifie avant
+    acceptation — une substitution `degrade` non validee est refusee
+    (acceptance test §5.6.7 n°2)."""
     if requisition.state != PurRequisition.STATE_DRAFT:
         raise ValidationError(
             _("Seule une demande d'achat en brouillon peut recevoir de nouvelles lignes.")
         )
+
+    substitute = None
+    if substitute_id is not None:
+        substitute = PurSubstitute.objects.get(id=substitute_id)
+        ensure_substitute_usable(substitute)
+
+    if preferred_supplier_id is None:
+        supplier_info = select_preferred_supplier(variant_id)
+        if supplier_info is not None:
+            preferred_supplier_id = supplier_info["partner_id"]
 
     estimated_price_mga = get_variant_price(variant_id)
 
@@ -68,6 +91,7 @@ def add_requisition_line(
         uom=uom,
         estimated_price_mga=estimated_price_mga,
         preferred_supplier_id=preferred_supplier_id,
+        substitute=substitute,
     )
 
 

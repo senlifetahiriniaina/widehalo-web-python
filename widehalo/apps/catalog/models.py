@@ -138,7 +138,30 @@ class ProductSupplierInfo(BaseModel):
     """Information fournisseur d'une variante. `partner_id` reste un UUID
     simple, JAMAIS une FK Django vers `apps.partners.models.Partner` — le
     couplage entre `catalog` et `partners` ne doit transiter que par
-    `partners.services.public` (cf. regle de couplage n°1)."""
+    `partners.services.public` (cf. regle de couplage n°1).
+
+    `priority`/`origin`/`min_qty` : gap PU2 du sous-sequencement `purchase`
+    (RG-PUR-1, cf. plan) — le CDC exige que la selection multi-fournisseurs
+    se fasse dans l'ordre priority > prix > delai. Convention retenue pour
+    `priority` : plus la valeur est **basse**, plus la priorite est
+    **haute** (memes semantiques qu'un rang de tri, coherent avec l'ordre
+    de tri croissant applique ensuite sur prix puis delai — les trois
+    criteres se trient tous en ordre croissant, aucune inversion a gerer
+    dans `select_preferred_supplier`). Ces 3 champs sont ajoutes sans
+    migration de donnees : les lignes existantes recoivent les valeurs par
+    defaut (`priority=10`, `origin="local"`, `min_qty=0`), simplification
+    documentee (pas de retro-classement des fournisseurs deja saisis)."""
+
+    ORIGIN_LOCAL = "local"
+    ORIGIN_IMPORT_CHINE = "import_chine"
+    ORIGIN_IMPORT_AUTRE = "import_autre"
+    ORIGIN_EN_LIGNE = "en_ligne"
+    ORIGIN_CHOICES = [
+        (ORIGIN_LOCAL, "Local"),
+        (ORIGIN_IMPORT_CHINE, "Import Chine"),
+        (ORIGIN_IMPORT_AUTRE, "Import autre"),
+        (ORIGIN_EN_LIGNE, "En ligne"),
+    ]
 
     variant = models.ForeignKey(
         ProductVariant, on_delete=models.CASCADE, related_name="supplier_infos"
@@ -147,6 +170,10 @@ class ProductSupplierInfo(BaseModel):
     supplier_reference = models.CharField(max_length=100, blank=True)
     price_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     lead_time_days = models.PositiveIntegerField(default=0)
+    # Plus bas = plus prioritaire (cf. docstring ci-dessus).
+    priority = models.PositiveSmallIntegerField(default=10)
+    origin = models.CharField(max_length=16, choices=ORIGIN_CHOICES, default=ORIGIN_LOCAL)
+    min_qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
 
     class Meta:
         db_table = "catalog_product_supplier_info"

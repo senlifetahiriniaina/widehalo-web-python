@@ -6,11 +6,16 @@ plan) : `get_variant_template_id`."""
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 import pytest
 
 from apps.catalog.models import ProductSupplierInfo, ProductTemplate, ProductVariant, UnitOfMeasure
-from apps.catalog.services.public import get_supplier_lead_time_days, get_variant_template_id
+from apps.catalog.services.public import (
+    get_supplier_lead_time_days,
+    get_variant_template_id,
+    select_preferred_supplier,
+)
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 
@@ -73,3 +78,78 @@ def test_get_supplier_lead_time_days_returns_none_for_unknown_variant(variant_se
     tenant, _template, _variant = variant_setup
     with use_tenant(tenant.id):
         assert get_supplier_lead_time_days(uuid.uuid4()) is None
+
+
+# RG-PUR-1 (gap PU2 du sous-sequencement `purchase`) : priority > prix > delai.
+def test_select_preferred_supplier_orders_by_priority_then_price_then_lead_time(
+    variant_setup,
+) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        # Priorite haute (valeur basse) gagne malgre un prix/delai moins bons.
+        best = ProductSupplierInfo.objects.create(
+            tenant=tenant,
+            variant=variant,
+            partner_id=uuid.uuid4(),
+            price_mga=Decimal("900"),
+            lead_time_days=10,
+            priority=1,
+            origin=ProductSupplierInfo.ORIGIN_IMPORT_CHINE,
+            min_qty=Decimal("5"),
+        )
+        ProductSupplierInfo.objects.create(
+            tenant=tenant,
+            variant=variant,
+            partner_id=uuid.uuid4(),
+            price_mga=Decimal("100"),
+            lead_time_days=1,
+            priority=5,
+        )
+
+        result = select_preferred_supplier(variant.id)
+        assert result == {
+            "partner_id": best.partner_id,
+            "price_mga": Decimal("900.0000"),
+            "lead_time_days": 10,
+            "origin": ProductSupplierInfo.ORIGIN_IMPORT_CHINE,
+            "min_qty": Decimal("5.0000"),
+        }
+
+
+def test_select_preferred_supplier_breaks_priority_tie_by_price_then_lead_time(
+    variant_setup,
+) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        ProductSupplierInfo.objects.create(
+            tenant=tenant,
+            variant=variant,
+            partner_id=uuid.uuid4(),
+            price_mga=Decimal("300"),
+            lead_time_days=1,
+            priority=5,
+        )
+        cheapest = ProductSupplierInfo.objects.create(
+            tenant=tenant,
+            variant=variant,
+            partner_id=uuid.uuid4(),
+            price_mga=Decimal("100"),
+            lead_time_days=9,
+            priority=5,
+        )
+
+        result = select_preferred_supplier(variant.id)
+        assert result is not None
+        assert result["partner_id"] == cheapest.partner_id
+
+
+def test_select_preferred_supplier_returns_none_without_supplier_info(variant_setup) -> None:
+    tenant, _template, variant = variant_setup
+    with use_tenant(tenant.id):
+        assert select_preferred_supplier(variant.id) is None
+
+
+def test_select_preferred_supplier_returns_none_for_unknown_variant(variant_setup) -> None:
+    tenant, _template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        assert select_preferred_supplier(uuid.uuid4()) is None

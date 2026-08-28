@@ -69,6 +69,44 @@ def get_supplier_lead_time_days(variant_id: Any, *, partner_id: Any = None) -> i
     return lead_time
 
 
+def select_preferred_supplier(variant_id: Any) -> dict[str, Any] | None:
+    """RG-PUR-1 (gap PU2 du sous-sequencement `purchase`, cf. plan) :
+    fournisseur retenu pour le produit d'une variante, cherche sur tout le
+    `ProductTemplate` de la variante (meme portee que
+    `get_supplier_lead_time_days` — un fournisseur reference generalement
+    le produit, pas chaque variante taille/couleur individuellement).
+
+    Ordre de selection impose par le CDC : `priority` (croissant, plus bas
+    = plus prioritaire) puis `price_mga` (croissant) puis `lead_time_days`
+    (croissant) — le premier `ProductSupplierInfo` de ce tri est retenu.
+
+    Retourne un dict primitif `{"partner_id", "price_mga", "lead_time_days",
+    "origin", "min_qty"}`, jamais l'objet `ProductSupplierInfo` (contrat
+    public, cf. regle de couplage n°1). Retourne `None`, jamais une
+    exception, si la variante n'existe pas ou qu'aucune information
+    fournisseur n'est enregistree pour son produit (meme discipline que
+    `get_supplier_lead_time_days`)."""
+    variant = ProductVariant.objects.filter(id=variant_id).first()
+    if variant is None:
+        return None
+
+    info = (
+        ProductSupplierInfo.objects.filter(variant__template_id=variant.template_id)
+        .order_by("priority", "price_mga", "lead_time_days")
+        .first()
+    )
+    if info is None:
+        return None
+
+    return {
+        "partner_id": info.partner_id,
+        "price_mga": info.price_mga,
+        "lead_time_days": info.lead_time_days,
+        "origin": info.origin,
+        "min_qty": info.min_qty,
+    }
+
+
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:
     """CAT-NORM1 : codes de normes valides a `on_date` (aujourd'hui par
     defaut) pour une variante — utilise par `mrp` pour le controle de

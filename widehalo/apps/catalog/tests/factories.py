@@ -116,6 +116,10 @@ class ProductSupplierInfoFactory(factory.django.DjangoModelFactory):
     partner_id = factory.LazyFunction(uuid.uuid4)
     supplier_reference = factory.Sequence(lambda n: f"SUPREF{n}")
     price_mga = Decimal("500.0000")
+    lead_time_days = 7
+    priority = 10
+    origin = ProductSupplierInfo.ORIGIN_LOCAL
+    min_qty = Decimal("0.0000")
 
 
 class PriceListFactory(factory.django.DjangoModelFactory):
