@@ -16,6 +16,8 @@ from apps.logistics.models import (
     LogPackagingPlanLine,
     LogPackagingType,
     LogServiceProvider,
+    LogShipment,
+    LogShipmentLeg,
     LogTrip,
     LogTripStop,
     LogTripTemplate,
@@ -157,3 +159,24 @@ class LogFreightTariffFactory(factory.django.DjangoModelFactory):
     destination = "Toamasina"
     price_mga = 50000
     transit_days = 2
+
+
+class LogShipmentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogShipment
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"SHP-{n}")
+    origin = "Guangzhou"
+    destination = "Antananarivo"
+
+
+class LogShipmentLegFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogShipmentLeg
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    shipment = factory.SubFactory(LogShipmentFactory, tenant=factory.SelfAttribute("..tenant"))
+    sequence = factory.Sequence(lambda n: n + 1)
+    origin = "Guangzhou"
+    destination = "Toamasina"

@@ -31,6 +31,7 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
 
@@ -375,3 +376,178 @@ class LogFreightTariff(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.provider.name} — {self.origin} -> {self.destination}"
+
+
+class LogShipment(BaseModel, ReferenceMixin):
+    """LOG4 : expedition — machine a etats complete (`django-fsm-2`,
+    `attempt_transition()` du socle, meme discipline que `PurOrder`/
+    `SalesOrder`). Le diagramme du CDC (§5.7.4) decrit un cycle en une
+    seule chaine (prevue -> reservee -> enlevee -> en transit -> arrivee au
+    port -> en dedouanement -> dedouanee -> livree -> cloturee, branche
+    bloquee) : un seul champ FSM suffit, meme simplification assumee que
+    `PurOrder.state`/`SalesOrder.state` (cf. leurs docstrings).
+
+    `purchase_order_ids`/`sales_order_ids` : listes d'UUID nus (JSONField),
+    jamais de FK Django vers `apps.purchase`/`apps.sales` (regle de
+    couplage n°1) — resolus en reference lisible via
+    `purchase.services.public.get_order_reference`/
+    `sales.services.public.get_order_reference` quand necessaire."""
+
+    STATE_PLANNED = "planned"
+    STATE_BOOKED = "booked"
+    STATE_PICKED_UP = "picked_up"
+    STATE_IN_TRANSIT = "in_transit"
+    STATE_ARRIVED_AT_PORT = "arrived_at_port"
+    STATE_CUSTOMS_CLEARANCE = "customs_clearance"
+    STATE_CUSTOMS_CLEARED = "customs_cleared"
+    STATE_DELIVERED = "delivered"
+    STATE_CLOSED = "closed"
+    STATE_BLOCKED = "blocked"
+    STATE_CHOICES = [
+        (STATE_PLANNED, "Prevue"),
+        (STATE_BOOKED, "Reservee"),
+        (STATE_PICKED_UP, "Enlevee"),
+        (STATE_IN_TRANSIT, "En transit"),
+        (STATE_ARRIVED_AT_PORT, "Arrivee au port"),
+        (STATE_CUSTOMS_CLEARANCE, "En dedouanement"),
+        (STATE_CUSTOMS_CLEARED, "Dedouanee"),
+        (STATE_DELIVERED, "Livree"),
+        (STATE_CLOSED, "Cloturee"),
+        (STATE_BLOCKED, "Bloquee"),
+    ]
+
+    # Memes valeurs que `apps.purchase.models.PurOrder.INCOTERM_CHOICES` —
+    # constante Python distincte plutot qu'un import (regle de couplage
+    # n°1), chaines identiques par convention documentee.
+    INCOTERM_EXW = "EXW"
+    INCOTERM_FOB = "FOB"
+    INCOTERM_CIF = "CIF"
+    INCOTERM_DAP = "DAP"
+    INCOTERM_DDP = "DDP"
+    INCOTERM_CHOICES = [
+        (INCOTERM_EXW, "EXW — A l'usine"),
+        (INCOTERM_FOB, "FOB — Franco a bord"),
+        (INCOTERM_CIF, "CIF — Cout, assurance et fret"),
+        (INCOTERM_DAP, "DAP — Rendu au lieu de destination"),
+        (INCOTERM_DDP, "DDP — Rendu droits acquittes"),
+    ]
+
+    origin = models.CharField(max_length=100)
+    destination = models.CharField(max_length=100)
+    carrier = models.ForeignKey(
+        LogServiceProvider, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    incoterm = models.CharField(max_length=8, choices=INCOTERM_CHOICES, blank=True)
+    purchase_order_ids = models.JSONField(default=list, blank=True)
+    sales_order_ids = models.JSONField(default=list, blank=True)
+    weight_kg = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    volume_m3 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    freight_cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # LOG-REFACT1 : montant refacture au client — distinct de
+    # `freight_cost_mga` (le cout reel paye au transporteur), peut etre
+    # forfaitaire plutot qu'egal au cout reel.
+    freight_billed_to_customer_mga = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True
+    )
+    state = FSMField(default=STATE_PLANNED, choices=STATE_CHOICES)
+    block_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "log_shipment"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+    @transition(field=state, source=STATE_PLANNED, target=STATE_BOOKED)
+    def book(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_BOOKED, target=STATE_PICKED_UP)
+    def pick_up(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_PICKED_UP, target=STATE_IN_TRANSIT)
+    def mark_in_transit(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_IN_TRANSIT, target=STATE_ARRIVED_AT_PORT)
+    def mark_arrived_at_port(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_ARRIVED_AT_PORT, target=STATE_CUSTOMS_CLEARANCE)
+    def start_customs_clearance(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_CUSTOMS_CLEARANCE, target=STATE_CUSTOMS_CLEARED)
+    def mark_customs_cleared(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_CUSTOMS_CLEARED, target=STATE_DELIVERED)
+    def deliver(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_DELIVERED, target=STATE_CLOSED)
+    def close(self) -> None:
+        pass
+
+    @transition(
+        field=state,
+        source=[
+            STATE_BOOKED,
+            STATE_PICKED_UP,
+            STATE_IN_TRANSIT,
+            STATE_ARRIVED_AT_PORT,
+            STATE_CUSTOMS_CLEARANCE,
+        ],
+        target=STATE_BLOCKED,
+    )
+    def block(self) -> None:
+        pass
+
+    # Simplification assumee et documentee, meme patron que
+    # `PurOrder.resolve_dispute` : quel que soit l'etat d'origine du
+    # blocage, le deblocage ramene toujours a `in_transit` — un blocage
+    # (retard transporteur, document manquant, litige douanier informel
+    # avant ouverture du dossier officiel LOG5) se resout en general par
+    # "la marchandise repart", jamais par une reprise fine de l'etape
+    # exacte precedente. Pas de machine a etats "retour a l'etat
+    # precedent" generique dans ce socle.
+    @transition(field=state, source=STATE_BLOCKED, target=STATE_IN_TRANSIT)
+    def unblock(self) -> None:
+        pass
+
+
+class LogShipmentLeg(BaseModel):
+    MODE_ROAD = "road"
+    MODE_SEA = "sea"
+    MODE_AIR = "air"
+    MODE_RAIL = "rail"
+    MODE_CHOICES = [
+        (MODE_ROAD, "Route"),
+        (MODE_SEA, "Mer"),
+        (MODE_AIR, "Air"),
+        (MODE_RAIL, "Rail"),
+    ]
+
+    shipment = models.ForeignKey(LogShipment, on_delete=models.CASCADE, related_name="legs")
+    sequence = models.PositiveIntegerField()
+    mode = models.CharField(max_length=8, choices=MODE_CHOICES, default=MODE_ROAD)
+    origin = models.CharField(max_length=100)
+    destination = models.CharField(max_length=100)
+    carrier = models.ForeignKey(
+        LogServiceProvider, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    departure_date = models.DateField(null=True, blank=True)
+    arrival_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "log_shipment_leg"
+        ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["shipment", "sequence"], name="uniq_log_shipment_leg_sequence"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.shipment} — etape {self.sequence}"

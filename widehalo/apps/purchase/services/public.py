@@ -50,3 +50,16 @@ def open_purchase_incident(
         cost_mga=cost_mga,
     )
     return cri.id
+
+
+def get_order_reference(order_id: Any) -> str:
+    """Gap ajoute pour LOG4 de `logistics` (cf. plan, audit LOG4) :
+    `apps.purchase.services.public` etait vide de toute fonction de
+    LECTURE jusqu'ici (seulement `open_purchase_incident`, une commande) —
+    `logistics` en a besoin pour afficher une reference lisible sur
+    `LogShipment.purchase_orders` (liste d'UUID nus, jamais de FK Django,
+    regle de couplage n°1). Meme discipline que
+    `sales.services.public.get_order_reference` : retourne une chaine vide,
+    jamais une exception, si la commande n'existe pas."""
+    order = PurOrder.objects.filter(id=order_id).first()
+    return order.reference if order is not None else ""
