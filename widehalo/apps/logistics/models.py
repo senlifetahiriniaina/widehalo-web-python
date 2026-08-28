@@ -2,7 +2,8 @@
 vehicule (RG-LOG-1, alerte avant expiration), couts vehicule, chauffeurs —
 puis trajets/arrets (LOG2) : `LogTrip`/`LogTripStop` (RG-LOG-2 kilometrage,
 RG-LOG-3 preuve de livraison, RG-LOG-4/LOG-TOUR1 suggestion d'ordre des
-arrets) et `LogTripTemplate` (LOG-REC1, tournees recurrentes).
+arrets) et `LogTripTemplate` (LOG-REC1, tournees recurrentes) — puis
+emballages/prestataires/tarifs de fret (LOG3, cf. plus bas).
 
 `LogDriver` porte le champ de consentement de geolocalisation
 (`consent_geolocation`, LOG-GEO1) des sa creation plutot qu'ajoute apres
@@ -15,10 +16,20 @@ Regle de couplage n1 (identique a `sales`/`purchase`/`stocks`) : jamais de
 FK Django vers une autre app metier. Les seuls FK "reels" hors `core` sont
 `LogDriver.user` (compte applicatif optionnel du chauffeur) et
 `LogTripStop.proof_document` (vers `core.Document`, RG-LOG-3) — `core` est
-toujours autorise."""
+toujours autorise. `LogPackagingPlan.source` (LOG3) est une reference
+GENERIQUE (`content_type`/`object_id`, memes noms de champ que
+`core.Document`/`core.SearchIndex`/`core.StateTransition` — requis pour
+que `tenant_export.import_tenant_archive()` et le test parametrique
+T3 (`test_tenant_portability_per_entity.py`), qui reconnaissent une paire
+GenericForeignKey a son NOM DE CHAMP litteral, la traitent correctement)
+au document d'origine (un `LogTrip` aujourd'hui, un futur `LogShipment` a
+partir de LOG4) — jamais une FK directe, pour ne pas figer ce plan
+d'emballage a un seul type de document."""
 
 from __future__ import annotations
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.models.base import BaseModel, ReferenceMixin
@@ -262,3 +273,105 @@ class LogTripTemplate(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class LogPackagingType(BaseModel):
+    """LOG3 : contenant physique reutilisable (carton, palette, sac...) —
+    distinct du conditionnement produit (`catalog.Packaging`, combien
+    d'unites tiennent DANS un colis) : ce modele decrit le colis
+    lui-meme (poids/volume a vide, capacite max)."""
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=100)
+    tare_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    max_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    volume_m3 = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+
+    class Meta:
+        db_table = "log_packaging_type"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class LogPackagingPlan(BaseModel, ReferenceMixin):
+    """RG-LOG-5 : plan d'emballage calcule pour un document source
+    quelconque (`source_content_type`/`source_object_id`) — voir docstring
+    de tete de fichier pour le choix d'une reference generique plutot
+    qu'une FK directe."""
+
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.CharField(max_length=64)
+    source = GenericForeignKey("content_type", "object_id")
+    total_weight_kg = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    total_volume_m3 = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+
+    class Meta:
+        db_table = "log_packaging_plan"
+        indexes = [models.Index(fields=["tenant", "content_type", "object_id"])]
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+
+class LogPackagingPlanLine(BaseModel):
+    plan = models.ForeignKey(LogPackagingPlan, on_delete=models.CASCADE, related_name="lines")
+    packaging_type = models.ForeignKey(LogPackagingType, on_delete=models.PROTECT, related_name="+")
+    # Jamais de FK Django vers `apps.catalog.models.ProductVariant` — regle
+    # de couplage n1, resolu via `catalog.services.public` quand necessaire.
+    variant_id = models.UUIDField()
+    qty_units = models.DecimalField(max_digits=12, decimal_places=3)
+    qty_packages = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = "log_packaging_plan_line"
+
+
+class LogServiceProvider(BaseModel):
+    TYPE_CARRIER = "carrier"
+    TYPE_CUSTOMS_BROKER = "customs_broker"
+    TYPE_HANDLING = "handling"
+    TYPE_OTHER = "other"
+    TYPE_CHOICES = [
+        (TYPE_CARRIER, "Transporteur"),
+        (TYPE_CUSTOMS_BROKER, "Transitaire/douane"),
+        (TYPE_HANDLING, "Manutention"),
+        (TYPE_OTHER, "Autre"),
+    ]
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=150)
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_CARRIER)
+    contact_phone = models.CharField(max_length=32, blank=True)
+    contact_email = models.EmailField(blank=True)
+
+    class Meta:
+        db_table = "log_service_provider"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class LogFreightTariff(BaseModel):
+    """LOG3 : grille tarifaire declarative d'un prestataire — jamais
+    d'appel API transporteur reel (adaptation explicite du CDC, cf. plan) ;
+    `services/freight.py::compare_freight_tariffs` classe les tarifs
+    valides pour une paire origine/destination par cout puis delai."""
+
+    provider = models.ForeignKey(
+        LogServiceProvider, on_delete=models.CASCADE, related_name="tariffs"
+    )
+    origin = models.CharField(max_length=100)
+    destination = models.CharField(max_length=100)
+    price_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    price_per_kg_mga = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    transit_days = models.PositiveSmallIntegerField()
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "log_freight_tariff"
+        indexes = [models.Index(fields=["tenant", "origin", "destination"])]
+
+    def __str__(self) -> str:
+        return f"{self.provider.name} — {self.origin} -> {self.destination}"

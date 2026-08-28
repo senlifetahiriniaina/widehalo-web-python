@@ -14,6 +14,7 @@ from django.utils.translation import gettext as _
 
 from apps.catalog.models import (
     CatalogCertification,
+    Packaging,
     ProductSupplierInfo,
     ProductVariant,
     TextileSpec,
@@ -184,6 +185,21 @@ def convert_textile_measurement(
     except ValidationError:
         return None
     return {"length_m": length_m, "weight_kg": weight_kg}
+
+
+def get_variant_packaging(variant_id: Any) -> dict[str, Any] | None:
+    """Gap ajoute pour LOG3 de `logistics` (RG-LOG-5, cf. plan) : conditionnement
+    (`catalog_packaging`) declare pour une variante — combien d'unites tiennent
+    dans un colis (`unit_count`) et dans quelle unite (`uom.code`). Retourne le
+    PREMIER conditionnement connu de la variante (une variante peut en
+    declarer plusieurs — pas de notion de conditionnement "par defaut"
+    explicite aujourd'hui, simplification documentee) ou `None`, jamais une
+    exception, si la variante n'existe pas ou n'a aucun conditionnement
+    declare (meme discipline que `get_supplier_lead_time_days`)."""
+    packaging = Packaging.objects.filter(variant_id=variant_id).select_related("uom").first()
+    if packaging is None:
+        return None
+    return {"unit_count": packaging.unit_count, "uom_code": packaging.uom.code}
 
 
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:

@@ -4,11 +4,18 @@ meme discipline que `apps.purchase.tests.factories`/`apps.stocks.tests.factories
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 import factory
+from django.contrib.contenttypes.models import ContentType
 
 from apps.logistics.models import (
     LogDriver,
+    LogFreightTariff,
+    LogPackagingPlan,
+    LogPackagingPlanLine,
+    LogPackagingType,
+    LogServiceProvider,
     LogTrip,
     LogTripStop,
     LogTripTemplate,
@@ -87,3 +94,66 @@ class LogTripTemplateFactory(factory.django.DjangoModelFactory):
     interval = LogTripTemplate.INTERVAL_WEEKLY
     stops_data = factory.LazyFunction(lambda: [{"address": "Depot"}])
     next_run = factory.LazyFunction(dt.date.today)
+
+
+class LogPackagingTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogPackagingType
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"CTN-{n}")
+    name = factory.Sequence(lambda n: f"Carton {n}")
+    tare_weight_kg = 1
+
+
+class LogPackagingPlanFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogPackagingPlan
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"PLN-{n}")
+
+    # Meme convention que `apps.core.tests.factories` (ex. `ApprovalRequestFactory`) :
+    # une reference generique OPAQUE (UUID pendant, jamais un objet reellement
+    # cree dans le meme tenant) — sinon le round-trip d'export/import (T3)
+    # remappe cette reference vers le nouvel id reimporte, ce qui casserait
+    # l'hypothese par defaut du test parametrique generique.
+    content_type = factory.LazyFunction(lambda: ContentType.objects.get_for_model(LogTrip))
+    object_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
+
+
+class LogPackagingPlanLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogPackagingPlanLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    plan = factory.SubFactory(LogPackagingPlanFactory, tenant=factory.SelfAttribute("..tenant"))
+    packaging_type = factory.SubFactory(
+        LogPackagingTypeFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    variant_id = factory.Faker("uuid4")
+    qty_units = 12
+    qty_packages = 1
+
+
+class LogServiceProviderFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogServiceProvider
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"PRV-{n}")
+    name = factory.Sequence(lambda n: f"Transporteur {n}")
+
+
+class LogFreightTariffFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LogFreightTariff
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    provider = factory.SubFactory(
+        LogServiceProviderFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    origin = "Antananarivo"
+    destination = "Toamasina"
+    price_mga = 50000
+    transit_days = 2
