@@ -58,7 +58,9 @@ def test_clone_tenant_to_sandbox_remaps_generic_fk_references() -> None:
     with use_tenant(source.id):
         target = store_document(
             tenant=source,
-            uploaded_file=SimpleUploadedFile("target.txt", b"target-data", content_type="text/plain"),
+            uploaded_file=SimpleUploadedFile(
+                "target.txt", b"target-data", content_type="text/plain"
+            ),
         )
         referrer = store_document(
             tenant=source,
