@@ -16,6 +16,7 @@ from apps.stocks.models import (
     StkLot,
     StkMeasurement,
     StkMove,
+    StkPicking,
     StkQualityState,
     StkQuant,
     StkValuationLayer,
@@ -119,6 +120,18 @@ class StkMeasurementFactory(factory.django.DjangoModelFactory):
     value = Decimal("1")
     uom = "m"
     measured_at = factory.LazyFunction(timezone.now)
+
+
+class StkPickingFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkPicking
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"STKPCK-{n}")
+    type = StkPicking.TYPE_INTERNE
+    location_from = factory.SubFactory(StkLocationFactory, tenant=factory.SelfAttribute("..tenant"))
+    location_to = factory.SubFactory(StkLocationFactory, tenant=factory.SelfAttribute("..tenant"))
+    state = StkPicking.STATE_DRAFT
 
 
 class StkQualityStateFactory(factory.django.DjangoModelFactory):

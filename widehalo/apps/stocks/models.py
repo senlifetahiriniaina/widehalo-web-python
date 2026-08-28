@@ -442,6 +442,21 @@ class StkMove(BaseModel, ReferenceMixin):
     # `PurOrder.cancel_reason`/`SalesOrder` (motif obligatoire, cf.
     # `services.moves.cancel_move`).
     cancel_reason = models.CharField(max_length=255, blank=True)
+    # ST4 (`StkPicking`, plus bas dans ce fichier) : FK INVERSE nullable
+    # vers l'operation de stock groupee qui a genere ce mouvement, quand il
+    # y en a une — un mouvement cree hors de tout picking (ex. un
+    # ajustement direct via `services.quality`) laisse ce champ `None`.
+    # `on_delete=SET_NULL` (pas `PROTECT`/`CASCADE`) : la suppression d'un
+    # `StkPicking` ne doit jamais entrainer la suppression ni le blocage
+    # d'un `StkMove` deja `done` — l'historique de mouvement doit survivre
+    # independamment de son document groupeur, meme discipline que
+    # `StkMove.lot`/`StkMove.reverses` ci-dessus (deja `SET_NULL`). Cf.
+    # docstring `StkPicking` pour l'explication complete du choix "pas de
+    # `stk_picking_line` dedie, le picking groupe directement des `StkMove`
+    # existants".
+    picking = models.ForeignKey(
+        "StkPicking", null=True, blank=True, on_delete=models.SET_NULL, related_name="moves"
+    )
 
     class Meta:
         db_table = "stk_move"
@@ -649,3 +664,128 @@ class StkQualityState(BaseModel):
     def __str__(self) -> str:
         target = self.quant_id or self.lot_id
         return f"{self.state} @ {target}"
+
+
+# ST4 (cf. plan, §5.8) : `StkPicking` — operation de stock GROUPEE
+# (reception/expedition/transfert interne), regroupant plusieurs `StkMove`
+# individuels sous un meme document. Ecrans (reception/preparation)
+# DIFFERES a ST8 (§5.8, note de replanification de cette session : chaque
+# module de ce depot — `sales`/`purchase`/`mrp`/`patronage` — construit
+# TOUS ses ecrans HTMX ensemble dans son dernier ST, jamais disperses en
+# cours de module) — ST4 est donc backend seul (modele + services).
+
+
+class StkPicking(BaseModel, ReferenceMixin):
+    """Operation de stock groupee (§5.8, entite `stk_picking`) — reception
+    fournisseur, expedition client ou transfert interne, regroupant
+    plusieurs `StkMove` individuels (ci-dessous, champ `StkMove.picking`)
+    sous un meme document sequence. `ReferenceMixin` : le CDC liste un
+    champ "reference" pour cette entite (meme categorie document que
+    `StkMove`), a la difference de `StkLot`/`StkQuant`/`StkMeasurement`/
+    `StkQualityState`.
+
+    **Design "picking groupe de moves" (pas de `stk_picking_line` dedie)**
+    : le CDC (§5.8) ne montre aucune entite `stk_picking_line` distincte —
+    contrairement a `PurOrder`/`PurOrderLine` ou `SalesQuotation`/
+    `SalesQuotationLine`, ou une ligne de document est une entite propre
+    sans effet de stock par elle-meme. Ici, chaque "ligne" d'un picking EST
+    directement un `StkMove` (qui porte deja `variant_id`/`qty`/`uom`/
+    `lot`/`unit_cost_mga` — tout ce qu'une ligne de picking aurait besoin
+    de porter), donc `StkPicking` groupe les `StkMove` existants via une FK
+    INVERSE (`StkMove.picking`, ci-dessous) plutot que d'introduire une
+    nouvelle entite de ligne qui ferait doublon avec `StkMove` et devrait
+    etre synchronisee avec lui. Le patron reste le meme esprit que
+    `PurOrderLine.order` (une ligne associee a son document parent), juste
+    porte par le mouvement lui-meme plutot que par une ligne intermediaire
+    — cf. docstring du champ `StkMove.picking` ci-dessous pour le miroir de
+    cette explication cote `StkMove`.
+
+    **`type`** : `entree` (reception, typiquement depuis un emplacement
+    `fournisseur`)/`sortie` (expedition, typiquement vers un emplacement
+    `client`)/`interne` (transfert entre deux emplacements internes/sites).
+    Determine le mapping par defaut vers `StkMove.move_type` applique par
+    `services.pickings.add_picking_line` quand l'appelant ne precise pas
+    explicitement `move_type` (cf. docstring de ce service pour la table
+    complete) — mais `location_from`/`location_to` restent les champs qui
+    font foi pour le mouvement reel (RG-STK-1), `type` n'etant qu'une
+    classification de haut niveau du document.
+
+    **`partner_id`** (UUID nu, jamais FK) : le fournisseur d'une reception
+    ou le client d'une expedition — meme regle de couplage n1 que partout
+    ailleurs dans `stocks` (jamais de FK Django vers `apps.partners`),
+    nullable car un transfert interne (`type == "interne"`) n'a
+    generalement aucun tiers associe.
+
+    **`state` : CharField simple + gardes de service, PAS de FSM.**
+    Contrairement a `PurOrder` (workflow BRANCHANT avec plusieurs chemins
+    d'approbation, `django-fsm` justifie), le cycle de vie d'un picking est
+    LINEAIRE — `draft -> waiting -> ready -> done`, avec `cancelled`
+    atteignable depuis les trois premiers etats — exactement la meme forme
+    que `PurRequisition` (verifie explicitement : celle-ci utilise aussi un
+    `CharField` + gardes `services.py`, pas de FSM). Meme raisonnement
+    retenu ici : une FSM n'apporte de valeur que pour un branchement
+    metier reel a proteger, pas pour une simple sequence lineaire ou de
+    simples gardes `if state != X: raise ValidationError` suffisent
+    (precedent egalement `StkMove.state` lui-meme, deja un CharField
+    simple pour `draft -> done -> (cancelled)`).
+
+    **`waiting`** : etat intermediaire optionnel entre `draft` et `ready`
+    (ex. "en attente de la marchandise cote transporteur") — le CDC ne le
+    definit pas precisement, ajoute ici par symetrie avec un workflow
+    reception/expedition classique ou "en attente" est un statut naturel
+    distinct du brouillon ; les services traitent `draft` et `waiting` de
+    facon identique partout ou la distinction n'a pas d'effet (ajout de
+    lignes, passage a `ready`) — aucune transition service ne force
+    explicitement `draft -> waiting`, l'appelant peut y placer un picking
+    directement s'il le souhaite (aucune ecriture n'est proposee pour ce
+    faire en ST4, hors perimetre backend-only de ce ST)."""
+
+    TYPE_ENTREE = "entree"
+    TYPE_SORTIE = "sortie"
+    TYPE_INTERNE = "interne"
+    TYPE_CHOICES = [
+        (TYPE_ENTREE, "Entree"),
+        (TYPE_SORTIE, "Sortie"),
+        (TYPE_INTERNE, "Interne"),
+    ]
+
+    STATE_DRAFT = "draft"
+    STATE_WAITING = "waiting"
+    STATE_READY = "ready"
+    STATE_DONE = "done"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_WAITING, "En attente"),
+        (STATE_READY, "Pret"),
+        (STATE_DONE, "Termine"),
+        (STATE_CANCELLED, "Annule"),
+    ]
+
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    # Jamais de FK Django vers `apps.partners` (regle de couplage n1) — le
+    # fournisseur (reception) ou le client (expedition) d'un picking,
+    # nullable pour un transfert interne.
+    partner_id = models.UUIDField(null=True, blank=True)
+    location_from = models.ForeignKey(
+        StkLocation, on_delete=models.PROTECT, related_name="pickings_out"
+    )
+    location_to = models.ForeignKey(
+        StkLocation, on_delete=models.PROTECT, related_name="pickings_in"
+    )
+    date_scheduled = models.DateField(null=True, blank=True)
+    date_done = models.DateField(null=True, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    # Reference libre vers le document d'origine (commande d'achat/de
+    # vente...), resolue par l'APPELANT — meme convention exacte que
+    # `StkMove.source_document` (regle de couplage n1, `stocks` ne va
+    # jamais chercher lui-meme ce qui a genere le picking).
+    source_document = models.CharField(max_length=255, blank=True)
+    carrier = models.CharField(max_length=150, blank=True)
+    tracking = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        db_table = "stk_picking"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
