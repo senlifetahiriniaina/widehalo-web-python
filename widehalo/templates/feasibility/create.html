@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouvelle etude de faisabilite" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouvelle etude de faisabilite" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="sector_code">{% trans "Secteur" %}</label>
+      <select id="sector_code" name="sector_code">
+        <option value="">{% trans "Non specifie" %}</option>
+        {% for value, label in sectors %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

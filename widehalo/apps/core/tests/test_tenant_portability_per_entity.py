@@ -80,6 +80,7 @@ _FACTORY_MODULES = [
     "apps.strategy.tests.factories",
     "apps.financing.tests.factories",
     "apps.automation.tests.factories",
+    "apps.feasibility.tests.factories",
 ]
 
 

@@ -24,6 +24,7 @@ from apps.mrp.models import (
     MrpWorkcenter,
     MrpWorkshop,
 )
+from apps.mrp.services.costing import simulate_bom_cost as _simulate_bom_cost
 from apps.mrp.services.interventions import create_cri
 from apps.mrp.services.orders import create_order
 from apps.mrp.services.suppliers import evaluate_supplier
@@ -331,6 +332,35 @@ def list_supplier_evaluations(partner_id: Any) -> list[dict[str, Any]]:
         }
         for evaluation in evaluations
     ]
+
+
+def simulate_bom_cost(
+    bom_id: Any,
+    qty: Decimal,
+    *,
+    component_unit_costs: dict[UUID, Decimal],
+    overhead_rate_pct: Decimal,
+) -> dict[str, Decimal] | None:
+    """Gap ajoute pour le chantier « etudes de faisabilite » (FEA1-3, cf.
+    plan) : `feasibility.services.simulation` a besoin de chiffrer un
+    produit hypothetique a partir d'une `MrpBom` DEJA saisie, sans jamais
+    creer de `MrpOrder` reel (aucun client/prospect n'existe encore).
+
+    Enveloppe fine de `apps.mrp.services.costing.simulate_bom_cost` (seule
+    l'implementation reelle, jamais dupliquee ici) — resout la BOM par
+    UUID pour que `feasibility` n'importe jamais `apps.mrp.models`
+    (regle de couplage n°1). Retourne `None`, jamais une exception, si
+    `bom_id` ne correspond a aucune nomenclature du tenant courant — meme
+    discipline "jamais de faux positif" que le reste de ce module
+    (`create_manufacturing_order`, `get_order_produced_qty`...) ; a
+    charge de l'appelant de retomber sur un `cost_breakdown` saisi
+    manuellement dans ce cas."""
+    bom = MrpBom.objects.filter(id=bom_id).select_related("routing").first()
+    if bom is None:
+        return None
+    return _simulate_bom_cost(
+        bom, qty, component_unit_costs=component_unit_costs, overhead_rate_pct=overhead_rate_pct
+    )
 
 
 def get_employee_cra_hours(

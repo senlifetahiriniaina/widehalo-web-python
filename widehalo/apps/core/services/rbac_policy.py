@@ -75,6 +75,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # apparait pour d'autres roles. Aucun autre role de la matrice ne
         # recoit `automation`.
         "automation": {"view", "add", "change"},
+        # `feasibility` (FEA1-3, chantier « etudes de faisabilite », cf.
+        # plan) : simuler cout/prix/marge d'un produit hypothetique AVANT
+        # tout client/prospect reel est un outil de DECISION, pas une
+        # operation courante de tous les roles — restreint explicitement a
+        # `admin`/`direction`/`resp_production`/`resp_commercial` (cadrage
+        # du chantier), meme discipline que `financing`/`automation`
+        # ci-dessus. Aucun autre role de la matrice ne recoit `feasibility`.
+        "feasibility": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -99,6 +107,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # creation de dossier de premier niveau par ce role).
         "financing": {"view", "change"},
         "automation": {"view", "add", "change"},
+        # `feasibility` : pilotage/validation transverse — acces complet
+        # (cf. commentaire du role `admin` ci-dessus pour le cadrage
+        # complet du chantier FEA1-3).
+        "feasibility": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -142,6 +154,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # scopes a son propre departement (`apply_scope`/`scope_objectives_
         # for_user`), en plus de ses objectifs individuels.
         "strategy": {"view", "add", "change"},
+        # `feasibility` (FEA1-3) : role "domaine cible" cote commercial
+        # explicitement retenu par le cadrage du chantier — evalue le
+        # potentiel d'une idee de produit avant tout client reel.
+        "feasibility": {"view", "add", "change"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -165,6 +181,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "payroll": {"view"},
         "reporting": {"view", "add"},
         "strategy": {"view", "add", "change"},
+        # `feasibility` (FEA1-3) : role "domaine cible" cote production
+        # (cf. commentaire du role `resp_commercial` ci-dessus pour le
+        # cadrage complet).
+        "feasibility": {"view", "add", "change"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree

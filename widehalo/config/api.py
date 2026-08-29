@@ -27,6 +27,7 @@ from apps.core.api_tenants import router as tenants_router  # noqa: E402
 from apps.core.api_workflow import router as workflow_router  # noqa: E402
 from apps.core.errors import register_exception_handlers  # noqa: E402
 from apps.crm.api import router as crm_router  # noqa: E402
+from apps.feasibility.api import router as feasibility_router  # noqa: E402
 from apps.financing.api import router as financing_router  # noqa: E402
 from apps.logistics.api import router as logistics_router  # noqa: E402
 from apps.mrp.api import router as mrp_router  # noqa: E402
@@ -58,6 +59,7 @@ api.add_router("", reporting_router)
 api.add_router("", strategy_router)
 api.add_router("", financing_router)
 api.add_router("", automation_router)
+api.add_router("", feasibility_router)
 api.add_router("/health", health_router)
 api.add_router("", meta_router)
 api.add_router("", tenants_router)
