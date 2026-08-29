@@ -6,6 +6,7 @@ from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.notification import Notification, WhatsAppMessage
 from apps.core.models.rbac import RoleProfile
 from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParameter
+from apps.core.models.risk import RiskItem
 from apps.core.models.search import SearchDocument
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
@@ -36,6 +37,7 @@ __all__ = [
     "RoleProfile",
     "CountryDefaultsProfile",
     "RegulatoryParameter",
+    "RiskItem",
     "SearchDocument",
     "Sequence",
     "SavedTableView",

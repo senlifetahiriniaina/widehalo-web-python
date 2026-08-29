@@ -20,6 +20,7 @@ from apps.core.api_export_import import router as export_import_router  # noqa: 
 from apps.core.api_health import router as health_router  # noqa: E402
 from apps.core.api_meta import router as meta_router  # noqa: E402
 from apps.core.api_notifications import router as notifications_router  # noqa: E402
+from apps.core.api_risk import router as risk_router  # noqa: E402
 from apps.core.api_search import router as search_router  # noqa: E402
 from apps.core.api_tenants import router as tenants_router  # noqa: E402
 from apps.core.api_workflow import router as workflow_router  # noqa: E402
@@ -61,6 +62,7 @@ api.add_router("", meta_router)
 api.add_router("", tenants_router)
 api.add_router("", search_router)
 api.add_router("", notifications_router)
+api.add_router("", risk_router)
 api.add_router("", export_import_router)
 api.add_router("", workflow_router)
 

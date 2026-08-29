@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ risk_item.get_category_display }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %}:</strong> {{ risk_item.get_status_display }}
+  </div>
+
+  <h1>{{ risk_item.get_category_display }}</h1>
+  <p>{% trans "Probabilite" %}: {{ risk_item.likelihood }}</p>
+  <p>{% trans "Impact" %}: {{ risk_item.impact }}</p>
+  <p>{% trans "Score" %}: {{ risk_item.score }}</p>
+  <p>{% trans "Responsable" %}: {{ risk_item.owner }}</p>
+  <p>{% trans "Date de revue" %}: {{ risk_item.review_date|default:"—" }}</p>
+
+  <h2>{% trans "Plan d'attenuation" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="mitigation_plan">{{ risk_item.mitigation_plan }}</textarea>
+    <button type="submit" name="action" value="update">{% trans "Mettre a jour" %}</button>
+  </form>
+
+  {% if risk_item.status != "closed" %}
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" name="action" value="close">{% trans "Cloturer le risque" %}</button>
+    </form>
+  {% endif %}
+{% endblock %}

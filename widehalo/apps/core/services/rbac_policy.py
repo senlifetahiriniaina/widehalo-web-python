@@ -264,6 +264,32 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 # passe par l'endpoint generique deja existant `POST /approvals/{id}/
 # decide` (gate par role via `ApprovalRule.approver_role`, jamais un
 # nouveau codename ici).
+# RSK1-2 (chantier risques operationnels) : `RiskItem` vit dans `core`
+# (rattachable a n'importe quel module via content_type/object_id, cf.
+# `apps.core.models.risk`) — `core` n'apparait PAS dans
+# `ROLE_APP_PERMISSIONS` ci-dessus (aucun role n'a jamais recu d'acces
+# generique a TOUS les modeles `core`, ex. `Tenant`/`User`/`Document`), donc
+# accorder les permissions par app aurait ouvert bien plus que le seul
+# registre de risques. Choix : codenames auto-generes Django
+# (`core.add_riskitem`/`core.view_riskitem`/`core.change_riskitem`) ajoutes
+# ICI, meme mecanisme que les permissions personnalisees ci-dessus (bien
+# qu'auto-generees, `_custom_permissions_for_role` les resout de la meme
+# facon par `codename`+`app_label`). Simplification assumee (disclosed,
+# demandee explicitement par le cadrage du chantier) : `admin`/`direction`
+# recoivent les 3 actions (voient/gerent TOUS les risques, aucun scoping
+# N3) ; `acheteur`/`resp_production`/`resp_commercial`/`rh` (roles
+# "domaine cible" plausibles pour signaler un risque sur leur perimetre)
+# ne recoivent QUE `add`/`view` — pas `change` — le visionnage de LEURS
+# PROPRES risques est filtre au niveau service (`owner=request.user`, cf.
+# `apps.core.views.risk`/`apps.core.api_risk`), pas un scope N3 complexe
+# par entite rattachee. Consequence assumee : ces 4 roles ne peuvent pas
+# eux-memes cloturer/modifier un risque qu'ils ont signale via l'API
+# generique gate par permission — seuls `admin`/`direction` le peuvent
+# aujourd'hui (a affiner si un besoin reel de "l'auteur peut cloturer son
+# propre signalement" est exprime plus tard).
+_RISK_FULL_ROLES = ("admin", "direction")
+_RISK_ADD_VIEW_ROLES = ("acheteur", "resp_production", "resp_commercial", "rh")
+
 CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     "admin": {
         "accounting.validate_accmove",
@@ -290,6 +316,13 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     "acheteur": {"purchase.run_reordering"},
     "magasinier": {"stocks.qualify_stkimportrow"},
 }
+
+for _role in _RISK_FULL_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
+        {"core.add_riskitem", "core.view_riskitem", "core.change_riskitem"}
+    )
+for _role in _RISK_ADD_VIEW_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).update({"core.add_riskitem", "core.view_riskitem"})
 
 _DJANGO_ACTIONS = ("view", "add", "change")
 

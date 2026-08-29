@@ -25,6 +25,7 @@ from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.notification import Notification, WhatsAppMessage
 from apps.core.models.rbac import RoleProfile
 from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParameter
+from apps.core.models.risk import CATEGORY_OTHER, RiskItem
 from apps.core.models.search import SearchDocument
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
@@ -235,6 +236,18 @@ class ApprovalRequestFactory(factory.django.DjangoModelFactory):
     content_type = factory.LazyFunction(lambda: ContentType.objects.get_for_model(Tenant))
     object_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     requested_by = factory.SubFactory(UserFactory)
+
+
+class RiskItemFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = RiskItem
+
+    tenant = factory.SubFactory(TenantFactory)
+    category = CATEGORY_OTHER
+    likelihood = 2
+    impact = 2
+    score = 4
+    owner = factory.SubFactory(UserFactory)
 
 
 class ApprovalDelegationFactory(factory.django.DjangoModelFactory):

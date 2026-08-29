@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Signaler un risque" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Signaler un risque" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label for="risk-category">{% trans "Categorie" %}</label>
+    <select id="risk-category" name="category" required>
+      {% for value, label in category_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="risk-likelihood">{% trans "Probabilite (1-5)" %}</label>
+    <input id="risk-likelihood" type="number" name="likelihood" min="1" max="5" required>
+
+    <label for="risk-impact">{% trans "Impact (1-5)" %}</label>
+    <input id="risk-impact" type="number" name="impact" min="1" max="5" required>
+
+    <label for="risk-mitigation">{% trans "Plan d'attenuation" %}</label>
+    <textarea id="risk-mitigation" name="mitigation_plan"></textarea>
+
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

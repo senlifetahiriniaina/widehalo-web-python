@@ -51,6 +51,7 @@ PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
         "workflow.transitioned",  # apps/core/workflows.py — toute transition FSM, tous modules
         "notification.created",  # apps/core/services/notifications.py
         "chat.message_created",  # apps/chat/services/messaging.py
+        "risk.flagged",  # apps/core/services/risk.py — RiskItem de score eleve (RSK1-2)
     }
 )
 
