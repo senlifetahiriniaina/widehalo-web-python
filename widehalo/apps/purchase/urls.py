@@ -20,6 +20,12 @@ urlpatterns = [
     path("orders/<uuid:order_id>/", views.order_detail, name="order_detail"),
     path("cra/", views.cra_list, name="cra_list"),
     path("cri/", views.cri_list, name="cri_list"),
+    path("price-watch/", views.price_watch_list, name="price_watch_list"),
+    path(
+        "price-watch/<uuid:target_id>/history/",
+        views.price_watch_history,
+        name="price_watch_history",
+    ),
     path("config/", views_config.config_index, name="config_index"),
     path(
         "config/reordering-rules/",

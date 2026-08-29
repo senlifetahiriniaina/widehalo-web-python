@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Veille prix fournisseurs" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Veille prix fournisseurs Chine/Europe" %}</h1>
+  <p class="form-hint">
+    {% trans "Aucun scraping reel n'est effectue tant qu'un connecteur n'est pas explicitement configure : chaque releve reste un releve stub (sans prix) par defaut." %}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Plateforme" %}</th>
+        <th>{% trans "Recherche / URL" %}</th>
+        <th>{% trans "Devise" %}</th>
+        <th>{% trans "Frequence" %}</th>
+        <th>{% trans "Reference" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for target in targets %}
+        <tr>
+          <td>{{ target.get_platform_code_display }}</td>
+          <td>{{ target.search_query_or_url }}</td>
+          <td>{{ target.currency }}</td>
+          <td>{{ target.get_frequency_display }}</td>
+          <td>
+            {% if target.material_reference_id %}{% trans "Matiere" %} {{ target.material_reference_id }}{% endif %}
+            {% if target.variant_id %}{% trans "Variante" %} {{ target.variant_id }}{% endif %}
+          </td>
+          <td>
+            <a href="{% url 'purchase:price_watch_history' target.id %}">{% trans "Historique" %}</a>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="check">
+              <input type="hidden" name="target_id" value="{{ target.id }}">
+              <button type="submit">{% trans "Verifier maintenant" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune cible de veille." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle cible de veille" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-field">
+      <label>{% trans "Plateforme" %}</label>
+      <select name="platform_code">
+        {% for value, label in platform_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field"><label>{% trans "Requete de recherche ou URL" %}</label><textarea name="search_query_or_url" required></textarea></div>
+    <div class="form-field"><label>{% trans "Devise" %}</label><input type="text" name="currency" value="MGA"></div>
+    <div class="form-field">
+      <label>{% trans "Frequence" %}</label>
+      <select name="frequency">
+        {% for value, label in frequency_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field"><label>{% trans "Reference matiere (UUID, optionnel)" %}</label><input type="text" name="material_reference_id"></div>
+    <div class="form-field"><label>{% trans "Variante produit (UUID, optionnel)" %}</label><input type="text" name="variant_id"></div>
+    <p class="form-hint">{% trans "Renseigner exactement l'un des deux champs ci-dessus (jamais les deux, jamais aucun)." %}</p>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

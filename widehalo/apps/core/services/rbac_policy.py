@@ -330,11 +330,26 @@ _RISK_ADD_VIEW_ROLES = ("acheteur", "resp_production", "resp_commercial", "rh")
 # pour un besoin similaire).
 _QLT_FULL_ROLES = ("admin", "direction", "resp_production", "chef_atelier", "acheteur")
 
+# PRC1-3 (chantier veille prix fournisseurs Chine/Europe) :
+# `PrcPriceWatchTarget`/`PrcPriceSnapshot` vivent dans `purchase` (jamais
+# dans `core` — contrairement a RSK1-2/QLT1-2 ci-dessus, ces entites ne
+# sont pas rattachables a n'importe quel module) : les codenames
+# auto-generes `purchase.view_prcpricewatchtarget`/`add_*`/`change_*` (et
+# idem pour `prcpricesnapshot`) sont donc DEJA couverts par la matrice
+# app-large `ROLE_APP_PERMISSIONS["purchase"] = {"view", "add", "change"}`
+# (admin/direction/acheteur) definie plus haut — aucun ajout necessaire
+# ici pour le CRUD. Seule la permission personnalisee
+# `purchase.run_price_watch_check` (declaree en `Meta.permissions` de
+# `PrcPriceWatchTarget`, meme patron que `purchase.run_reordering` pour
+# RG-PUR-3) est ajoutee ci-dessous pour l'endpoint de declenchement manuel
+# — memes roles que `run_reordering` : admin/direction (pilotage
+# transverse) et acheteur (domaine cible de `purchase`).
 CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     "admin": {
         "accounting.validate_accmove",
         "accounting.cancel_accmove",
         "purchase.run_reordering",
+        "purchase.run_price_watch_check",
         "accounting.qualify_accimportrow",
         "accounting.qualify_accinvoiceimportrow",
         "stocks.qualify_stkimportrow",
@@ -343,6 +358,7 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
         "accounting.validate_accmove",
         "accounting.cancel_accmove",
         "purchase.run_reordering",
+        "purchase.run_price_watch_check",
         "accounting.qualify_accimportrow",
         "accounting.qualify_accinvoiceimportrow",
         "stocks.qualify_stkimportrow",
@@ -353,7 +369,7 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
         "accounting.qualify_accimportrow",
         "accounting.qualify_accinvoiceimportrow",
     },
-    "acheteur": {"purchase.run_reordering"},
+    "acheteur": {"purchase.run_reordering", "purchase.run_price_watch_check"},
     "magasinier": {"stocks.qualify_stkimportrow"},
 }
 

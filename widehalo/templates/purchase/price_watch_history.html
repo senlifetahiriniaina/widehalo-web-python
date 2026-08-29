@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Historique des relevés" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Historique de veille" %} — {{ target.get_platform_code_display }}</h1>
+  <p>{{ target.search_query_or_url }}</p>
+  <p><a href="{% url 'purchase:price_watch_list' %}">{% trans "Retour a la liste des cibles" %}</a></p>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Date du releve" %}</th>
+        <th>{% trans "Prix observe" %}</th>
+        <th>{% trans "Devise" %}</th>
+        <th>{% trans "Stub" %}</th>
+        <th>{% trans "Note" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for snapshot in snapshots %}
+        <tr>
+          <td>{{ snapshot.observed_at }}</td>
+          <td>{{ snapshot.observed_price|default:"—" }}</td>
+          <td>{{ target.currency }}</td>
+          <td>{% if snapshot.is_stub %}{% trans "Oui (aucun appel reseau)" %}{% else %}{% trans "Non" %}{% endif %}</td>
+          <td>{{ snapshot.source_note }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun releve pour cette cible." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

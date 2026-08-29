@@ -216,6 +216,17 @@ WHATSAPP_PHONE_NUMBER_ID = env.str("WHATSAPP_PHONE_NUMBER_ID", default="")
 WHATSAPP_ACCESS_TOKEN = env.str("WHATSAPP_ACCESS_TOKEN", default="")
 WHATSAPP_WEBHOOK_VERIFY_TOKEN = env.str("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default="")
 
+# --- Veille prix fournisseurs Chine/Europe (PRC1-3) ---
+# Dict vide par defaut = TOUTE plateforme utilise `StubPriceSourceProvider`
+# (aucun appel reseau). Cf. `apps.purchase.services.price_watch` (docstring
+# de tete) pour la reserve de securite/legalite complete : un scraping HTTP
+# reel de plateformes commerciales (CGU l'interdisant souvent) n'est jamais
+# active par ce projet — seul un utilisateur remplissant explicitement cette
+# configuration, apres verification des CGU de la plateforme concernee,
+# peut faire basculer une plateforme vers un connecteur reel (forme
+# attendue : {"alibaba": {"base_url": "...", "api_key": "..."}}).
+PRICE_WATCH_PROVIDERS: dict[str, dict[str, str]] = {}
+
 # --- Roles standards (etape 5) ---
 CORE_STANDARD_ROLES = [
     "admin",

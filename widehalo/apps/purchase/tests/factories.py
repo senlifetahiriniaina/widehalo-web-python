@@ -13,8 +13,11 @@ import datetime as dt
 import uuid
 
 import factory
+from django.utils import timezone
 
 from apps.purchase.models import (
+    PrcPriceSnapshot,
+    PrcPriceWatchTarget,
     PurCra,
     PurCri,
     PurOrder,
@@ -175,3 +178,28 @@ class PurCriFactory(factory.django.DjangoModelFactory):
     type = PurCri.TYPE_RETARD
     partner_id = factory.LazyFunction(uuid.uuid4)
     description = factory.Sequence(lambda n: f"Incident {n}")
+
+
+class PrcPriceWatchTargetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PrcPriceWatchTarget
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    platform_code = PrcPriceWatchTarget.PLATFORM_ALIBABA
+    search_query_or_url = factory.Sequence(lambda n: f"tissu coton 200g/m2 #{n}")
+    currency = "MGA"
+    frequency = PrcPriceWatchTarget.FREQUENCY_MONTHLY
+    variant_id = factory.LazyFunction(uuid.uuid4)
+
+
+class PrcPriceSnapshotFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PrcPriceSnapshot
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    target = factory.SubFactory(
+        PrcPriceWatchTargetFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    observed_price = 1000
+    observed_at = factory.LazyFunction(timezone.now)
+    is_stub = True

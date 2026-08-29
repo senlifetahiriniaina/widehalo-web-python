@@ -733,3 +733,105 @@ class PurOrderLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.description} x{self.qty}"
+
+
+class PrcPriceWatchTarget(BaseModel):
+    """Veille prix fournisseurs Chine/Europe (PRC1-3, chantier « etudes de
+    faisabilite, veille prix fournisseurs, capacite 90j, risques
+    operationnels, qualite/certification, refonte UI/UX » — cf. plan,
+    sous-section « 2. Veille prix fournisseurs Chine/Europe »).
+
+    **Reserve de securite/legalite (decision deja actee, non
+    negociable)** : ce modele ne stocke qu'une CIBLE de veille (plateforme
+    + requete/URL de recherche) — AUCUN scraping HTTP reel n'est declenche
+    par sa seule creation. Le mecanisme d'observation reel/interchangeable
+    vit dans `services/price_watch.py` (cf. sa docstring de tete pour le
+    detail complet de cette reserve) : par defaut, `StubPriceSourceProvider`
+    est utilise pour TOUTE plateforme (aucun appel reseau), et
+    `PrcPriceSnapshot.is_stub=True` en decoule systematiquement tant
+    qu'aucun connecteur reel n'est explicitement configure par
+    l'utilisateur via `settings.PRICE_WATCH_PROVIDERS`.
+
+    **Reference produit UUID nue, jamais de FK Django** (regle de couplage
+    n°1, identique a `PurOrderLine.variant_id`/`PurReorderingRule.
+    variant_id` ci-dessus) : `material_reference_id` peut pointer vers
+    `apps.catalog.models.CatalogMaterialReference` (referentiel de
+    matieres, chantier LIFE MDG precedent) et `variant_id` vers
+    `apps.catalog.models.ProductVariant` — `purchase` ne doit JAMAIS
+    importer `apps.catalog.models` pour autant. Exactement UN des deux
+    doit etre renseigne (jamais les deux, jamais aucun) : invariant
+    valide par `services/price_watch.py::create_price_watch_target`,
+    jamais au niveau modele (une contrainte `CheckConstraint` XOR sur deux
+    `UUIDField` nullable serait plus fragile a faire evoluer qu'une
+    validation service explicite, meme discipline que le reste de ce
+    depot pour les invariants multi-champs)."""
+
+    PLATFORM_ALIBABA = "alibaba"
+    PLATFORM_1688 = "1688"
+    PLATFORM_ALIEXPRESS = "aliexpress"
+    PLATFORM_EUROPAGES = "europages"
+    PLATFORM_KOMPASS = "kompass"
+    PLATFORM_AUTRE = "autre"
+    PLATFORM_CHOICES = [
+        (PLATFORM_ALIBABA, "Alibaba"),
+        (PLATFORM_1688, "1688.com"),
+        (PLATFORM_ALIEXPRESS, "AliExpress"),
+        (PLATFORM_EUROPAGES, "Europages"),
+        (PLATFORM_KOMPASS, "Kompass"),
+        (PLATFORM_AUTRE, "Autre"),
+    ]
+
+    FREQUENCY_MONTHLY = "monthly"
+    FREQUENCY_QUARTERLY = "quarterly"
+    FREQUENCY_CHOICES = [
+        (FREQUENCY_MONTHLY, "Mensuelle"),
+        (FREQUENCY_QUARTERLY, "Trimestrielle"),
+    ]
+
+    material_reference_id = models.UUIDField(null=True, blank=True)
+    variant_id = models.UUIDField(null=True, blank=True)
+    platform_code = models.CharField(max_length=16, choices=PLATFORM_CHOICES)
+    search_query_or_url = models.TextField()
+    currency = models.CharField(max_length=8, default="MGA")
+    frequency = models.CharField(
+        max_length=16, choices=FREQUENCY_CHOICES, default=FREQUENCY_MONTHLY
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "prc_price_watch_target"
+        permissions = [
+            (
+                "run_price_watch_check",
+                "Peut declencher manuellement une verification de veille prix (PRC1-3)",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_platform_code_display()} - {self.search_query_or_url[:40]}"
+
+
+class PrcPriceSnapshot(BaseModel):
+    """Releve de prix observe pour une `PrcPriceWatchTarget` donnee
+    (PRC1-3, cf. docstring de `PrcPriceWatchTarget` ci-dessus pour la
+    reserve de securite complete). `is_stub=True` tant que le provider
+    actif pour `target.platform_code` est `StubPriceSourceProvider`
+    (defaut systeme, cf. `services/price_watch.py::get_provider_for_
+    platform`) — un releve `is_stub=False` suppose qu'un connecteur reel
+    a ete explicitement configure par l'utilisateur, jamais un defaut de
+    ce chantier."""
+
+    target = models.ForeignKey(
+        PrcPriceWatchTarget, on_delete=models.CASCADE, related_name="snapshots"
+    )
+    observed_price = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    observed_at = models.DateTimeField()
+    source_note = models.TextField(blank=True)
+    is_stub = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "prc_price_snapshot"
+        ordering = ["-observed_at"]
+
+    def __str__(self) -> str:
+        return f"{self.target_id} - {self.observed_at:%Y-%m-%d}"

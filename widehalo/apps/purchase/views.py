@@ -42,7 +42,15 @@ from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.purchase.models import PurCra, PurCri, PurOrder, PurOrderLine, PurRequisition, PurRfq
+from apps.purchase.models import (
+    PrcPriceWatchTarget,
+    PurCra,
+    PurCri,
+    PurOrder,
+    PurOrderLine,
+    PurRequisition,
+    PurRfq,
+)
 from apps.purchase.services.cra import create_cra, reject_cra, submit_cra, validate_cra
 from apps.purchase.services.cri import close_cri, create_cri
 from apps.purchase.services.invoicing import record_supplier_invoice
@@ -64,6 +72,7 @@ from apps.purchase.services.orders import (
     submit_order_for_validation,
     validate_order,
 )
+from apps.purchase.services.price_watch import check_price_watch_target, create_price_watch_target
 from apps.purchase.services.receiving import order_reception_variance, receive_order_line
 from apps.purchase.services.requisitions import (
     add_requisition_line,
@@ -574,4 +583,70 @@ def cri_list(request: HttpRequest) -> HttpResponse:
         request,
         "purchase/cri_list.html",
         {"entries": entries, "type_choices": PurCri.TYPE_CHOICES, "error": error},
+    )
+
+
+# ---------------------------------------------------------------------------
+# PRC1-3 — Veille prix fournisseurs Chine/Europe (cf. plan). Meme deviation
+# assumee "liste + creation + actions inline" que CRA/CRI ci-dessus (pas de
+# fiche detail dediee par cible) : `PrcPriceWatchTarget` a un cycle de vie
+# trivial (pas de FSM), une ligne de tableau porte deja toute l'information
+# utile ; l'historique des releves d'UNE cible est expose sur une page
+# dediee (`price_watch_history`, un besoin de lecture distinct — pas une
+# action de transition — qui justifie sa propre page).
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def price_watch_list(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        post = request.POST
+        try:
+            if action == "create":
+                material_reference_id = post.get("material_reference_id") or ""
+                variant_id = post.get("variant_id") or ""
+                create_price_watch_target(
+                    tenant=tenant,
+                    platform_code=post.get("platform_code", PrcPriceWatchTarget.PLATFORM_AUTRE),
+                    search_query_or_url=post.get("search_query_or_url", ""),
+                    currency=post.get("currency", "MGA"),
+                    frequency=post.get("frequency", PrcPriceWatchTarget.FREQUENCY_MONTHLY),
+                    material_reference_id=uuid.UUID(material_reference_id)
+                    if material_reference_id
+                    else None,
+                    variant_id=uuid.UUID(variant_id) if variant_id else None,
+                )
+            elif action == "check":
+                target = get_object_or_404(PrcPriceWatchTarget, id=post.get("target_id"))
+                check_price_watch_target(target)
+        except (ValidationError, InvalidOperation, ValueError) as exc:
+            error = _error_message(exc)
+        else:
+            return redirect("purchase:price_watch_list")
+
+    targets = PrcPriceWatchTarget.objects.filter(is_active=True).order_by("-created_at")
+    return render(
+        request,
+        "purchase/price_watch_list.html",
+        {
+            "targets": targets,
+            "platform_choices": PrcPriceWatchTarget.PLATFORM_CHOICES,
+            "frequency_choices": PrcPriceWatchTarget.FREQUENCY_CHOICES,
+            "error": error,
+        },
+    )
+
+
+@login_required
+def price_watch_history(request: HttpRequest, target_id: uuid.UUID) -> HttpResponse:
+    target = get_object_or_404(PrcPriceWatchTarget, id=target_id)
+    snapshots = target.snapshots.order_by("-observed_at")
+    return render(
+        request,
+        "purchase/price_watch_history.html",
+        {"target": target, "snapshots": snapshots},
     )

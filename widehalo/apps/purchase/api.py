@@ -19,6 +19,8 @@ from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
 from apps.mrp.services.public import list_supplier_evaluations
 from apps.purchase.models import (
+    PrcPriceSnapshot,
+    PrcPriceWatchTarget,
     PurCra,
     PurCri,
     PurOrder,
@@ -48,6 +50,10 @@ from apps.purchase.services.orders import (
     send_order,
     submit_order_for_validation,
     validate_order,
+)
+from apps.purchase.services.price_watch import (
+    check_price_watch_target,
+    create_price_watch_target,
 )
 from apps.purchase.services.receiving import order_reception_variance, receive_order_line
 from apps.purchase.services.reordering import create_reordering_rule, run_reordering
@@ -1072,3 +1078,97 @@ def list_supplier_evaluations_endpoint(request, partner_id: str):
             for row in results
         ]
     }
+
+
+# ---------------------------------------------------------------------------
+# PRC1-3 — Veille prix fournisseurs Chine/Europe (cf. plan, sous-section
+# « 2. Veille prix fournisseurs Chine/Europe »). Rappel de la reserve de
+# securite : cf. `apps.purchase.services.price_watch` (docstring de tete)
+# — aucun appel reseau reel tant qu'un connecteur n'est pas explicitement
+# configure via `settings.PRICE_WATCH_PROVIDERS`.
+# ---------------------------------------------------------------------------
+
+
+class PriceWatchTargetIn(Schema):
+    platform_code: str
+    search_query_or_url: str
+    currency: str = "MGA"
+    frequency: str = PrcPriceWatchTarget.FREQUENCY_MONTHLY
+    material_reference_id: str | None = None
+    variant_id: str | None = None
+
+
+def _serialize_price_watch_target(target: PrcPriceWatchTarget) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(target.id),
+        "platform_code": target.platform_code,
+        "search_query_or_url": target.search_query_or_url,
+        "currency": target.currency,
+        "frequency": target.frequency,
+        "material_reference_id": str(target.material_reference_id)
+        if target.material_reference_id
+        else None,
+        "variant_id": str(target.variant_id) if target.variant_id else None,
+        "is_active": target.is_active,
+    }
+
+
+def _serialize_price_snapshot(snapshot: PrcPriceSnapshot) -> dict:  # type: ignore[type-arg]
+    return {
+        "id": str(snapshot.id),
+        "target_id": str(snapshot.target_id),
+        "observed_price": snapshot.observed_price,
+        "observed_at": snapshot.observed_at,
+        "source_note": snapshot.source_note,
+        "is_stub": snapshot.is_stub,
+    }
+
+
+@router.get("/purchase/price-watch/targets")
+@require_permission("purchase.view_prcpricewatchtarget")
+def list_price_watch_targets(request):
+    targets = PrcPriceWatchTarget.objects.filter(is_active=True).order_by("-created_at")
+    return {"results": [_serialize_price_watch_target(target) for target in targets]}
+
+
+@router.post("/purchase/price-watch/targets")
+@require_permission("purchase.add_prcpricewatchtarget")
+def create_price_watch_target_endpoint(request, payload: PriceWatchTargetIn):
+    from apps.core.models.tenant import Tenant
+
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        target = create_price_watch_target(
+            tenant=tenant,
+            platform_code=payload.platform_code,
+            search_query_or_url=payload.search_query_or_url,
+            currency=payload.currency,
+            frequency=payload.frequency,
+            material_reference_id=uuid.UUID(payload.material_reference_id)
+            if payload.material_reference_id
+            else None,
+            variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+        )
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=422)
+    return _serialize_price_watch_target(target)
+
+
+@router.get("/purchase/price-watch/targets/{target_id}/snapshots")
+@require_permission("purchase.view_prcpricesnapshot")
+def list_price_watch_snapshots(request, target_id: uuid.UUID):
+    target = get_object_or_404(PrcPriceWatchTarget, id=target_id)
+    snapshots = target.snapshots.order_by("-observed_at")
+    return {"results": [_serialize_price_snapshot(snapshot) for snapshot in snapshots]}
+
+
+@router.post("/purchase/price-watch/targets/{target_id}/check")
+@require_permission("purchase.run_price_watch_check")
+def run_price_watch_check_endpoint(request, target_id: uuid.UUID):
+    """Declenche une verification manuelle pour UNE cible, hors cadence
+    normale (cf. `run_price_watch_checks` pour la boucle planifiee de la
+    commande de management) — passe toujours par le provider actif (stub
+    par defaut, cf. reserve de securite du service)."""
+    target = get_object_or_404(PrcPriceWatchTarget, id=target_id)
+    snapshot = check_price_watch_target(target)
+    return _serialize_price_snapshot(snapshot)
