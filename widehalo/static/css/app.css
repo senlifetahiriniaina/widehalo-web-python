@@ -5,10 +5,23 @@
 
 :root {
   --color-primary: #0f4c5c;
+  --color-primary-hover: #0c3c48;
   --color-bg: #f7f7f5;
+  --color-surface: #ffffff;
   --color-border: #d8d8d3;
   --color-text: #1b1b18;
+  --color-text-muted: #5a5a54;
+  --color-danger: #a6332e;
+  --color-danger-bg: #fbeceb;
+  --color-danger-border: #e3a29e;
+  --color-focus-ring: #0f4c5c;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
   --spacing: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+  --transition-fast: 120ms ease;
 }
 
 * { box-sizing: border-box; }
@@ -17,11 +30,36 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 16px;
+  line-height: 1.5;
   color: var(--color-text);
   background: var(--color-bg);
 }
 
-a { color: var(--color-primary); }
+/* Hierarchie typographique : rythme vertical coherent sur tout le site,
+   sans introduire de dependance de build (regles ecrites a la main, cf.
+   remarque en tete de fichier). */
+h1, h2, h3 { line-height: 1.25; color: var(--color-text); }
+h1 { font-size: 1.75rem; margin: 0 0 var(--spacing-md); }
+h2 { font-size: 1.3rem; margin: var(--spacing-xl) 0 var(--spacing); }
+h3 { font-size: 1.05rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
+h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+p { margin: 0 0 var(--spacing); }
+
+a {
+  color: var(--color-primary);
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--color-primary-hover); }
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 
 .app-header {
   display: flex;
@@ -76,12 +114,15 @@ a { color: var(--color-primary); }
   margin-left: 0.25rem;
 }
 
-main { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+main { padding: var(--spacing-lg); max-width: 1200px; margin: 0 auto; }
 
 table.smart-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  overflow: hidden;
 }
 
 table.smart-table th,
@@ -91,14 +132,40 @@ table.smart-table td {
   border-bottom: 1px solid var(--color-border);
 }
 
+table.smart-table thead th {
+  background: var(--color-bg);
+  font-weight: 600;
+}
+
+table.smart-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+table.smart-table tbody tr:hover {
+  background: var(--color-bg);
+}
+
+/* Colonnes triables (_smart_table.html) : l'en-tete entier est cliquable,
+   rendu explicite au survol/focus pour affordance. */
+table.smart-table th a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+table.smart-table th a:hover,
+table.smart-table th a:focus-visible {
+  color: var(--color-primary);
+}
+
 .smart-table-toolbar {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing);
   flex-wrap: wrap;
 }
 
-.pagination { display: flex; gap: 0.5rem; margin-top: var(--spacing); }
+.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); }
 
 .form-field { margin-bottom: var(--spacing); display: flex; flex-direction: column; gap: 0.25rem; }
 
@@ -122,9 +189,39 @@ button, .btn {
   padding: 0.5rem 1rem;
   border-radius: 0.25rem;
   cursor: pointer;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-button.btn-danger { background: #a6332e; }
+button:hover, .btn:hover { background: var(--color-primary-hover); }
+
+button.btn-danger, .btn-danger { background: var(--color-danger); }
+button.btn-danger:hover, .btn-danger:hover { background: #8a2924; }
+
+/* Retours de validation de formulaire (bordures/couleurs d'erreur, deja
+   utilise par de nombreux templates via class="form-error" mais jusque-la
+   sans style — corrige ici une fois pour tout le site). */
+input, select, textarea {
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+input:hover, select:hover, textarea:hover { border-color: #b8b8b0; }
+
+input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:placeholder-shown) {
+  border-color: var(--color-danger-border);
+}
+
+.form-error {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  border-radius: 0.25rem;
+  padding: var(--spacing-sm) var(--spacing);
+  margin: var(--spacing-sm) 0;
+}
 
 .sr-only {
   position: absolute;
@@ -136,4 +233,83 @@ button.btn-danger { background: #a6332e; }
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Extension .sr-only : rendu visible au focus clavier (lien d'evitement
+   "Aller au contenu principal" en tete de base.html). */
+.sr-only-focusable:focus {
+  position: fixed;
+  top: var(--spacing-sm);
+  left: var(--spacing-sm);
+  width: auto;
+  height: auto;
+  padding: var(--spacing-sm) var(--spacing);
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  z-index: 100;
+}
+
+/* Modale generique (UI1-3, patron Alpine `whModal()` / store
+   `confirmDialog`) : ouverture/fermeture + overlay, posee une fois dans
+   base.html. */
+.wh-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 27, 24, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  z-index: 200;
+}
+
+.wh-modal {
+  background: var(--color-surface);
+  border-radius: 0.5rem;
+  padding: var(--spacing-lg);
+  max-width: 28rem;
+  width: 100%;
+  box-shadow: 0 0.5rem 1.5rem rgba(27, 27, 24, 0.2);
+}
+
+.wh-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+}
+
+/* Toasts de notification (UI1-3) : empilement en bas a droite, transition
+   d'apparition douce. */
+.wh-toast-container {
+  position: fixed;
+  bottom: var(--spacing-lg);
+  right: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  z-index: 300;
+}
+
+.wh-toast {
+  background: var(--color-text);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.25rem 0.75rem rgba(27, 27, 24, 0.25);
+  animation: wh-toast-in var(--transition-fast);
+}
+
+.wh-toast-success { background: #1f6f4a; }
+.wh-toast-error { background: var(--color-danger); }
+
+@keyframes wh-toast-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -17,12 +17,14 @@
     <thead>
       <tr>
         {% for column in columns %}
-          <th>
+          <th scope="col" {% if sort == column.key %}aria-sort="ascending"{% endif %}>
             <a hx-get="{{ request.path }}?sort={{ column.key }}&q={{ query }}"
                hx-target="#smart-table-{{ table_key }}"
                hx-select="#smart-table-{{ table_key }}"
                hx-swap="outerHTML"
-               hx-push-url="true">{{ column.label }}</a>
+               hx-push-url="true">{{ column.label }}{% if sort == column.key %}
+               <span aria-hidden="true"> &#9650;</span><span class="sr-only">{% trans "(tri actif)" %}</span>
+               {% endif %}</a>
           </th>
         {% endfor %}
       </tr>

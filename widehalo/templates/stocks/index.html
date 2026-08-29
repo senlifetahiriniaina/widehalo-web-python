@@ -172,7 +172,8 @@
       <p>{% trans "Valeur" %}: {{ move.value_mga }} MGA — {% trans "Origine" %}: {{ move.source_document|default:"-" }}</p>
       <form method="post">
         {% csrf_token %}
-        <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
+        <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}"
+               aria-label="{% trans 'Motif (annulation)' %}">
         {% if move.state == "draft" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
         <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
       </form>
@@ -191,15 +192,18 @@
       <h3>{% trans "Nouveau mouvement" %}</h3>
       <form method="post">
         {% csrf_token %}
-        <input type="text" name="variant_id" placeholder="{% trans 'Produit (UUID)' %}" required>
-        <input type="number" name="qty" step="0.0001" value="1">
-        <input type="text" name="uom" placeholder="{% trans 'Unite' %}">
-        <select name="location_from_id" required>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-        <select name="location_to_id" required>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-        <input type="date" name="date">
-        <select name="move_type">{% for value, label in move_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-        <input type="text" name="source_document" placeholder="{% trans 'Document d origine' %}">
-        <input type="number" name="unit_cost_mga" step="0.0001" placeholder="{% trans 'Cout unitaire' %}">
+        <input type="text" name="variant_id" placeholder="{% trans 'Produit (UUID)' %}" required
+               aria-label="{% trans 'Produit (UUID)' %}">
+        <input type="number" name="qty" step="0.0001" value="1" aria-label="{% trans 'Quantite' %}">
+        <input type="text" name="uom" placeholder="{% trans 'Unite' %}" aria-label="{% trans 'Unite' %}">
+        <select name="location_from_id" required aria-label="{% trans 'Emplacement d origine' %}">{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
+        <select name="location_to_id" required aria-label="{% trans 'Emplacement de destination' %}">{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
+        <input type="date" name="date" aria-label="{% trans 'Date' %}">
+        <select name="move_type" aria-label="{% trans 'Type de mouvement' %}">{% for value, label in move_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        <input type="text" name="source_document" placeholder="{% trans 'Document d origine' %}"
+               aria-label="{% trans 'Document d origine' %}">
+        <input type="number" name="unit_cost_mga" step="0.0001" placeholder="{% trans 'Cout unitaire' %}"
+               aria-label="{% trans 'Cout unitaire' %}">
         <button type="submit">{% trans "Creer (brouillon)" %}</button>
       </form>
     {% endif %}

@@ -10,7 +10,8 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation/litige)' %}">
+      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation/litige)' %}"
+             aria-label="{% trans 'Motif (annulation/litige)' %}">
       {% if order.state == "draft" %}<button type="submit" name="action" value="submit">{% trans "Soumettre a validation" %}</button>{% endif %}
       {% if order.state == "to_validate" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
       {% if order.state == "validated" %}<button type="submit" name="action" value="send">{% trans "Envoyer au fournisseur" %}</button>{% endif %}
@@ -70,11 +71,14 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="add_line">
-      <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID)' %}" required>
-      <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
-      <input type="number" name="qty" step="0.0001" value="1">
-      <input type="number" name="unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire' %}">
-      <input type="text" name="uom" placeholder="{% trans 'Unite' %}">
+      <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID)' %}" required
+             aria-label="{% trans 'Article (UUID)' %}">
+      <input type="text" name="description" placeholder="{% trans 'Description' %}" required
+             aria-label="{% trans 'Description' %}">
+      <input type="number" name="qty" step="0.0001" value="1" aria-label="{% trans 'Quantite' %}">
+      <input type="number" name="unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire' %}"
+             aria-label="{% trans 'Prix unitaire' %}">
+      <input type="text" name="uom" placeholder="{% trans 'Unite' %}" aria-label="{% trans 'Unite' %}">
       <button type="submit">{% trans "Ajouter" %}</button>
     </form>
   {% endif %}
@@ -84,16 +88,18 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="receive_line">
-      <select name="line_id" required>
+      <select name="line_id" required aria-label="{% trans 'Ligne a receptionner' %}">
         {% for line in lines %}<option value="{{ line.id }}">{{ line.description }} ({{ line.qty_received }}/{{ line.qty }})</option>{% endfor %}
       </select>
-      <input type="number" name="qty_received_now" step="0.0001" placeholder="{% trans 'Quantite recue' %}" required>
-      <select name="quality_status">
+      <input type="number" name="qty_received_now" step="0.0001" placeholder="{% trans 'Quantite recue' %}" required
+             aria-label="{% trans 'Quantite recue' %}">
+      <select name="quality_status" aria-label="{% trans 'Statut qualite' %}">
         <option value="conforme">{% trans "Conforme" %}</option>
         <option value="non_conforme">{% trans "Non conforme" %}</option>
         <option value="sous_reserve">{% trans "Sous reserve" %}</option>
       </select>
-      <input type="text" name="receive_notes" placeholder="{% trans 'Notes' %}">
+      <input type="text" name="receive_notes" placeholder="{% trans 'Notes' %}"
+             aria-label="{% trans 'Notes' %}">
       <button type="submit">{% trans "Receptionner" %}</button>
     </form>
 
@@ -114,12 +120,14 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="record_invoice">
-      <select name="invoice_line_id" required>
+      <select name="invoice_line_id" required aria-label="{% trans 'Ligne facturee' %}">
         {% for line in lines %}<option value="{{ line.id }}">{{ line.description }} ({{ line.qty }} x {{ line.unit_price_mga }})</option>{% endfor %}
       </select>
-      <input type="number" name="invoice_qty" step="0.0001" placeholder="{% trans 'Quantite facturee' %}" required>
-      <input type="number" name="invoice_unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire facture' %}" required>
-      <input type="date" name="invoice_date">
+      <input type="number" name="invoice_qty" step="0.0001" placeholder="{% trans 'Quantite facturee' %}" required
+             aria-label="{% trans 'Quantite facturee' %}">
+      <input type="number" name="invoice_unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire facture' %}" required
+             aria-label="{% trans 'Prix unitaire facture' %}">
+      <input type="date" name="invoice_date" aria-label="{% trans 'Date de facture' %}">
       <button type="submit">{% trans "Enregistrer la facture" %}</button>
     </form>
   {% endif %}

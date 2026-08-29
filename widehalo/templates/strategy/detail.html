@@ -36,9 +36,11 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_key_result">
-    <input type="text" name="metric_name" placeholder="{% trans 'Indicateur' %}" required>
-    <input type="text" name="target_value" placeholder="{% trans 'Cible' %}" required>
-    <input type="text" name="unit" placeholder="{% trans 'Unite' %}">
+    <input type="text" name="metric_name" placeholder="{% trans 'Indicateur' %}" required
+           aria-label="{% trans 'Indicateur' %}">
+    <input type="text" name="target_value" placeholder="{% trans 'Cible' %}" required
+           aria-label="{% trans 'Cible' %}">
+    <input type="text" name="unit" placeholder="{% trans 'Unite' %}" aria-label="{% trans 'Unite' %}">
     <button type="submit">{% trans "Ajouter" %}</button>
   </form>
 
@@ -46,14 +48,16 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_check_in">
-    <select name="key_result_id">
+    <select name="key_result_id" aria-label="{% trans 'Resultat cle' %}">
       {% for key_result in key_results %}
         <option value="{{ key_result.id }}">{{ key_result.metric_name }}</option>
       {% endfor %}
     </select>
-    <input type="date" name="date" required>
-    <input type="text" name="value" placeholder="{% trans 'Valeur' %}" required>
-    <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}">
+    <input type="date" name="date" required aria-label="{% trans 'Date' %}">
+    <input type="text" name="value" placeholder="{% trans 'Valeur' %}" required
+           aria-label="{% trans 'Valeur' %}">
+    <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}"
+           aria-label="{% trans 'Commentaire' %}">
     <button type="submit">{% trans "Enregistrer" %}</button>
   </form>
 {% endblock %}

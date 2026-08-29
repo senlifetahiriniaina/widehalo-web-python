@@ -8,7 +8,8 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
+      <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}"
+             aria-label="{% trans 'Motif (annulation)' %}">
       {% if order.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
       {% if order.state == "draft" or order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
       {% if order.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Debloquer" %}</button>{% endif %}

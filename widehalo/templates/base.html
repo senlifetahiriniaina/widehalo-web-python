@@ -6,10 +6,12 @@
   <title>{% block title %}WideHalo{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
+  <script src="{% static 'js/ui_patterns.js' %}" defer></script>
   <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
+  <a class="sr-only sr-only-focusable" href="#main-content">{% trans "Aller au contenu principal" %}</a>
   <header class="app-header">
     <a class="app-logo" href="/">WideHalo</a>
     <nav aria-label="{% trans 'Menu principal' %}">
@@ -45,5 +47,38 @@
   <main id="main-content">
     {% block content %}{% endblock %}
   </main>
+
+  {# Confirmation destructrice generalisee (UI1-3) : modale unique, pilotee
+     par le store Alpine `confirmDialog` (cf. static/js/ui_patterns.js),
+     declenchee automatiquement par tout attribut htmx `hx-confirm="..."`
+     present sur n'importe quel ecran, present ou futur, sans modification
+     de ce template. Meme patron de composant que la modale generique
+     `whModal()` (x-data ouverture/fermeture + overlay). #}
+  <div x-data
+       x-show="$store.confirmDialog.open"
+       x-cloak
+       class="wh-modal-overlay"
+       @keydown.escape.window="$store.confirmDialog.cancel()">
+    <div class="wh-modal" role="alertdialog" aria-modal="true" aria-labelledby="wh-confirm-title">
+      <h2 id="wh-confirm-title">{% trans "Confirmation" %}</h2>
+      <p x-text="$store.confirmDialog.message"></p>
+      <div class="wh-modal-actions">
+        <button type="button" class="btn" @click="$store.confirmDialog.cancel()">{% trans "Annuler" %}</button>
+        <button type="button" class="btn btn-danger" @click="$store.confirmDialog.confirm()">{% trans "Confirmer" %}</button>
+      </div>
+    </div>
+  </div>
+
+  {# Toasts de notification (UI1-3) : alimentes par l'evenement DOM
+     `wh-toast` — que htmx declenche automatiquement pour toute cle du
+     meme nom presente dans l'en-tete de reponse `HX-Trigger` d'une action.
+     Aucune vue de ce chantier n'emet encore cet en-tete (cf. commentaire
+     de tete de static/js/ui_patterns.js) : le mecanisme est pret, a
+     brancher au besoin par un futur chantier. #}
+  <div class="wh-toast-container" aria-live="polite" role="status" x-data>
+    <template x-for="item in $store.toast.items" :key="item.id">
+      <div class="wh-toast" :class="'wh-toast-' + item.level" x-text="item.message"></div>
+    </template>
+  </div>
 </body>
 </html>

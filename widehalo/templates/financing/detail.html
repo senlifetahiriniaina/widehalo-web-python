@@ -25,13 +25,14 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_line">
-    <select name="source">
+    <select name="source" aria-label="{% trans 'Source de financement' %}">
       <option value="fonds_propres">{% trans "Fonds propres" %}</option>
       <option value="emprunt_sollicite">{% trans "Emprunt sollicite" %}</option>
       <option value="autre">{% trans "Autre" %}</option>
     </select>
-    <input type="text" name="label" placeholder="{% trans 'Libelle' %}">
-    <input type="number" step="0.01" name="amount_mga" placeholder="{% trans 'Montant' %}">
+    <input type="text" name="label" placeholder="{% trans 'Libelle' %}" aria-label="{% trans 'Libelle' %}">
+    <input type="number" step="0.01" name="amount_mga" placeholder="{% trans 'Montant' %}"
+           aria-label="{% trans 'Montant' %}">
     <button type="submit">{% trans "Ajouter une ligne" %}</button>
   </form>
 
@@ -47,11 +48,12 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="decide">
-      <select name="decision">
+      <select name="decision" aria-label="{% trans 'Decision' %}">
         <option value="accepted">{% trans "Accepte" %}</option>
         <option value="rejected">{% trans "Rejete" %}</option>
       </select>
-      <input type="text" name="rejection_reason" placeholder="{% trans 'Motif de rejet' %}">
+      <input type="text" name="rejection_reason" placeholder="{% trans 'Motif de rejet' %}"
+             aria-label="{% trans 'Motif de rejet' %}">
       <button type="submit">{% trans "Enregistrer la decision" %}</button>
     </form>
   {% endif %}
@@ -80,13 +82,15 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_guarantee">
-    <select name="type">
+    <select name="type" aria-label="{% trans 'Type de surete' %}">
       {% for value, label in guarantee_types %}
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}
     </select>
-    <input type="text" name="asset_description" placeholder="{% trans 'Description du bien' %}">
-    <input type="number" step="0.01" name="estimated_value_mga" placeholder="{% trans 'Valeur estimee' %}">
+    <input type="text" name="asset_description" placeholder="{% trans 'Description du bien' %}"
+           aria-label="{% trans 'Description du bien' %}">
+    <input type="number" step="0.01" name="estimated_value_mga" placeholder="{% trans 'Valeur estimee' %}"
+           aria-label="{% trans 'Valeur estimee' %}">
     <button type="submit">{% trans "Ajouter une surete" %}</button>
   </form>
 {% endblock %}

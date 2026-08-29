@@ -7,8 +7,10 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      <input type="text" name="reason" placeholder="{% trans 'Motif (suspension/annulation)' %}">
-      <input type="number" name="qty_produced" placeholder="{% trans 'Quantite produite' %}" step="0.0001">
+      <input type="text" name="reason" placeholder="{% trans 'Motif (suspension/annulation)' %}"
+             aria-label="{% trans 'Motif (suspension/annulation)' %}">
+      <input type="number" name="qty_produced" placeholder="{% trans 'Quantite produite' %}" step="0.0001"
+             aria-label="{% trans 'Quantite produite' %}">
       {% if order.state == "draft" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
       {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Reserver" %}</button>{% endif %}
       {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Demarrer" %}</button>{% endif %}
@@ -100,8 +102,10 @@
               {% endif %}
               {% if wo.state == "in_progress" %}
                 <button type="submit" name="action" value="pause_work_order">{% trans "Pause" %}</button>
-                <input type="number" name="wo_qty_done" placeholder="{% trans 'Qte faite' %}" step="0.0001" style="width:6em;">
-                <input type="number" name="wo_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;">
+                <input type="number" name="wo_qty_done" placeholder="{% trans 'Qte faite' %}" step="0.0001" style="width:6em;"
+                       aria-label="{% trans 'Qte faite' %}">
+                <input type="number" name="wo_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;"
+                       aria-label="{% trans 'Qte rejetee' %}">
                 <button type="submit" name="action" value="done_work_order">{% trans "Terminer" %}</button>
               {% endif %}
             </form>
@@ -153,8 +157,10 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="subcontract_id" value="{{ sub.id }}">
-              <input type="number" name="sub_qty_received" placeholder="{% trans 'Qte recue' %}" step="0.0001" style="width:6em;">
-              <input type="number" name="sub_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;">
+              <input type="number" name="sub_qty_received" placeholder="{% trans 'Qte recue' %}" step="0.0001" style="width:6em;"
+                     aria-label="{% trans 'Qte recue' %}">
+              <input type="number" name="sub_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;"
+                     aria-label="{% trans 'Qte rejetee' %}">
               <button type="submit" name="action" value="receive_subcontract">{% trans "Receptionner" %}</button>
             </form>
             {% endif %}
