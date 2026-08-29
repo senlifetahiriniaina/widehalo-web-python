@@ -17,6 +17,7 @@ class CoreConfig(AppConfig):
     def ready(self) -> None:
         from apps.core import events  # noqa: F401
         from apps.core.audit_signals import connect_audit_signals
+        from apps.core.services.automation_actions import register_actions
         from apps.core.workflows import connect_workflow_signals
 
         # Pas de filtre `sender` : on veut reappliquer RLS apres la migration
@@ -25,3 +26,7 @@ class CoreConfig(AppConfig):
         post_migrate.connect(_apply_rls)
         connect_workflow_signals()
         connect_audit_signals()
+        # AUTO3 (Studio de workflow visuel) : `core` enregistre sa propre
+        # action (`core.notify_role`) dans le registre partage, meme patron
+        # que chaque module metier avec ses propres rapports/actions.
+        register_actions()

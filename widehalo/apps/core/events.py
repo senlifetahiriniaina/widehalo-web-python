@@ -36,6 +36,24 @@ sleep: Callable[[float], None] = time.sleep
 
 Handler = Callable[[dict[str, Any]], None]
 
+# AUTO3 (chantier Studio de workflow visuel) : catalogue DECLARATIF des
+# `event_type` reellement publies quelque part dans le code (verifie par
+# grep sur les appels `publish_event(...)` au moment de l'ecriture,
+# jamais une deduction dynamique) — sert UNIQUEMENT a valider
+# `AutoFlow.trigger_event_type` a la creation d'un flux (jamais une chaine
+# libre non verifiee, cf. plan) pour eviter qu'un flux reste
+# silencieusement mort (abonne a un `event_type` qui ne sera jamais
+# publie). A COMPLETER manuellement par le developpeur a chaque nouveau
+# site d'appel `publish_event(...)` — ce n'est pas un mecanisme
+# d'enregistrement automatique comme `@subscribe`.
+PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "workflow.transitioned",  # apps/core/workflows.py — toute transition FSM, tous modules
+        "notification.created",  # apps/core/services/notifications.py
+        "chat.message_created",  # apps/chat/services/messaging.py
+    }
+)
+
 _HANDLERS: dict[str, list[Handler]] = defaultdict(list)
 
 # AUTO2 : abonnes "wildcard", recoivent TOUT evenement publie quel que soit

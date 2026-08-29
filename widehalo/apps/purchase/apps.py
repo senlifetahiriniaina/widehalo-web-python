@@ -11,6 +11,12 @@ class PurchaseConfig(AppConfig):
         # §5.11 reporting (REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.
+        from apps.purchase.services.automation_registration import (
+            register_actions as register_automation_actions,
+        )
         from apps.purchase.services.reports_registration import register_reports
 
         register_reports()
+        # AUTO3 (Studio de workflow visuel) : meme patron, registre partage
+        # `core.services.automation_registry`.
+        register_automation_actions()

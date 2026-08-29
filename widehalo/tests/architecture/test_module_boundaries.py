@@ -65,7 +65,19 @@ def test_declared_dependencies_match_module_spec() -> None:
                 if not record.module.startswith("apps."):
                     continue
                 parts = record.module.split(".")
-                if len(parts) >= 4 and parts[2] == "services" and parts[3] == "public":
+                # AUTO3 (chantier Studio de workflow visuel) : un module
+                # important son PROPRE `services.public` (ex. un module qui
+                # reutilise sa propre fonction publique deja existante,
+                # cf. `apps.mrp.services.automation_registration`, plutot
+                # que de la dupliquer) n'est jamais une dependance a
+                # declarer — meme exclusion que `_is_violation` ci-dessus
+                # pour l'autre garde-fou de ce fichier.
+                if (
+                    len(parts) >= 4
+                    and parts[2] == "services"
+                    and parts[3] == "public"
+                    and parts[1] != app
+                ):
                     used.add(parts[1])
 
         undeclared = used - declared - ALWAYS_ALLOWED

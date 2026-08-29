@@ -66,6 +66,15 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # docstring de `services/reports_registration.py`), aucun autre
         # role de la matrice ne recoit `financing` ci-dessous.
         "financing": {"view", "add", "change"},
+        # `automation` (Studio de workflow visuel, cf. plan) : un flux
+        # d'automatisation est un mecanisme puissant (declenche des
+        # notifications/actions metier sans intervention humaine directe),
+        # pas une operation courante — RBAC explicitement restreint a
+        # `admin`/`direction` dans ce premier chantier, disclosed comme
+        # restriction deliberee, extensible plus tard si un besoin reel
+        # apparait pour d'autres roles. Aucun autre role de la matrice ne
+        # recoit `automation`.
+        "automation": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -89,6 +98,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # que le reste de ce role — "view"+"change" (jamais "add", pas de
         # creation de dossier de premier niveau par ce role).
         "financing": {"view", "change"},
+        "automation": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
