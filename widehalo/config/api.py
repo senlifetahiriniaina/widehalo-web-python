@@ -12,6 +12,7 @@ from ninja_jwt.authentication import JWTAuth
 api = NinjaAPI(title="WideHalo API", version="v1", urls_namespace="api-v1", auth=JWTAuth())
 
 from apps.accounting.api import router as accounting_router  # noqa: E402
+from apps.automation.api import router as automation_router  # noqa: E402
 from apps.catalog.api import router as catalog_router  # noqa: E402
 from apps.chat.api import router as chat_router  # noqa: E402
 from apps.core.api_auth import router as auth_router  # noqa: E402
@@ -54,6 +55,7 @@ api.add_router("", payroll_router)
 api.add_router("", reporting_router)
 api.add_router("", strategy_router)
 api.add_router("", financing_router)
+api.add_router("", automation_router)
 api.add_router("/health", health_router)
 api.add_router("", meta_router)
 api.add_router("", tenants_router)
