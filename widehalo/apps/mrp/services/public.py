@@ -363,6 +363,70 @@ def simulate_bom_cost(
     )
 
 
+def list_planned_orders_workload(tenant: Tenant, *, horizon_days: int) -> list[dict[str, Any]]:
+    """Gap ajoute pour le chantier « capacite de charge a 90 jours »
+    (CAP1-2, cf. plan) : `strategy.services.capacity_review` a besoin de
+    savoir quels `MrpOrder` sont PLANIFIES sur un horizon glissant, avec
+    une estimation de charge en heures, sans jamais importer
+    `apps.mrp.models` (regle de couplage n°1).
+
+    **Perimetre "planifie"** : ordres dont `date_planned_start` tombe dans
+    `[aujourd'hui, aujourd'hui + horizon_days]` ET dont l'etat n'est ni
+    `cancelled` (jamais une charge reelle) ni `done`/`closed` (deja
+    produits, ne pesent plus sur la capacite a venir) — tous les etats
+    intermediaires (`draft` a `quality_control`) restent une charge
+    previsionnelle tant qu'ils n'ont pas ete cloture. Un ordre sans
+    `date_planned_start` renseignee est exclu (aucune base pour le situer
+    dans l'horizon) — meme discipline "jamais de faux positif" que le
+    reste de ce module.
+
+    **Estimation de charge en heures** : `qty * somme(MrpRoutingStep.
+    duration_min pour la gamme de l'ordre) / 60`, si l'ordre porte une
+    `routing` (gamme) ; sinon `Decimal(0)` (une charge inconnue vaut
+    mieux qu'une charge inventee) — dette mineure disclosed, un ordre
+    sans gamme assignee (autorise par le modele, `routing` nullable)
+    n'alimente pas la charge horaire totale, seulement le decompte
+    `nb_ordres` du cote appelant.
+
+    Primitives uniquement (dicts), jamais un objet `MrpOrder` — meme
+    discipline que `list_closed_orders`."""
+    today = dt.date.today()
+    horizon_end = today + dt.timedelta(days=horizon_days)
+    orders = (
+        MrpOrder.objects.filter(
+            tenant=tenant,
+            date_planned_start__date__gte=today,
+            date_planned_start__date__lte=horizon_end,
+        )
+        .exclude(state__in=[MrpOrder.STATE_CANCELLED, MrpOrder.STATE_DONE, MrpOrder.STATE_CLOSED])
+        .select_related("routing")
+        .prefetch_related("routing__steps")
+    )
+    results: list[dict[str, Any]] = []
+    for order in orders:
+        estimated_hours = Decimal(0)
+        if order.routing is not None:
+            total_minutes = sum((step.duration_min for step in order.routing.steps.all()), start=0)
+            estimated_hours = order.qty * Decimal(total_minutes) / Decimal(60)
+        # Filtre `date_planned_start__date__...` ci-dessus exclut deja les
+        # ordres sans `date_planned_start` (NULL ne satisfait aucune
+        # comparaison) — non-None garanti ici, mypy --strict ne le sait
+        # pas (champ nullable au niveau modele).
+        assert order.date_planned_start is not None
+        results.append(
+            {
+                "id": order.id,
+                "reference": order.reference,
+                "workshop_id": order.workshop_id,
+                "state": order.state,
+                "qty": order.qty,
+                "date_planned_start": order.date_planned_start.date(),
+                "estimated_hours": estimated_hours,
+            }
+        )
+    return results
+
+
 def get_employee_cra_hours(
     tenant: Tenant, user: User, *, date_from: dt.date, date_to: dt.date
 ) -> Decimal:

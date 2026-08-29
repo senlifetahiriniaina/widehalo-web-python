@@ -135,6 +135,45 @@ def get_department_ids_managed_by(tenant: Tenant, user: User) -> list[UUID]:
     )
 
 
+def get_tenant_absence_days_in_period(
+    tenant: Tenant, *, date_from: dt.date, date_to: dt.date
+) -> Decimal:
+    """Gap ajoute pour le chantier « capacite de charge a 90 jours »
+    (CAP1-2, cf. plan) : `strategy.services.capacity_review` a besoin d'un
+    volume d'absences TENANT-WIDE sur une fenetre (pas par employe comme
+    `get_period_absence_summary`, qui exige un `employee_id` et n'a donc
+    pas vocation a etre appele une fois par employe pour construire un
+    indicateur global) — aucun gap equivalent n'existait avant ce
+    chantier.
+
+    Meme discipline que `get_period_absence_summary` : seules les absences
+    VALIDEES/en cours/terminees comptent (jamais brouillon/soumise), et
+    chaque absence est clippee a l'intersection avec `[date_from,
+    date_to]` (meme simplification assumee — prorata lineaire, pas les
+    demi-journees d'origine). Retourne un total en jours-personne toutes
+    categories confondues (le detail par categorie reste disponible via
+    `get_period_absence_summary` pour un employe donne si necessaire) —
+    `Decimal(0)` si aucune absence, jamais une exception."""
+    absences = PrsAbsence.objects.filter(
+        tenant=tenant,
+        date_from__lte=date_to,
+        date_to__gte=date_from,
+        state__in=[
+            PrsAbsence.STATE_VALIDATED,
+            PrsAbsence.STATE_IN_PROGRESS,
+            PrsAbsence.STATE_DONE,
+        ],
+    )
+    total = Decimal(0)
+    for absence in absences:
+        clipped_from = max(absence.date_from, date_from)
+        clipped_to = min(absence.date_to, date_to)
+        if clipped_to < clipped_from:
+            continue
+        total += Decimal((clipped_to - clipped_from).days + 1)
+    return total
+
+
 def is_employee_absent_on(tenant: Tenant, employee_id: UUID, *, date: dt.date) -> bool:
     """Gap prepare pour le futur module Paie : un employe est considere
     absent ce jour si une `PrsAbsence` validee/en cours/terminee couvre

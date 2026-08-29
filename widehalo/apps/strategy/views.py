@@ -19,6 +19,11 @@ from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.strategy.models import SECTOR_CHOICES, StgKeyResult, StgObjective
 from apps.strategy.services.benchmarks import get_benchmarks_for_sector
+from apps.strategy.services.capacity_review import (
+    DEFAULT_HORIZON_DAYS,
+    DEFAULT_OVERLOAD_THRESHOLD_PCT,
+    build_capacity_outlook,
+)
 from apps.strategy.services.objectives import add_key_result, create_objective, record_check_in
 from apps.strategy.services.scoping import assert_can_manage_level, scope_objectives_for_user
 
@@ -127,4 +132,38 @@ def benchmark_catalog(request: HttpRequest) -> HttpResponse:
         request,
         "strategy/benchmarks.html",
         {"benchmarks": benchmarks, "sectors": SECTOR_CHOICES, "current_sector": sector_code},
+    )
+
+
+@login_required
+def capacity_outlook(request: HttpRequest) -> HttpResponse:
+    """CAP1-2 (cf. plan) : tableau capacite-vs-charge sur 90 jours. C'est
+    le point d'entree "vivant" (consulte par les decideurs) qui declenche
+    la notification `direction`/`resp_production` en cas de surcharge
+    (`notify=True`, le defaut de `build_capacity_outlook`) — a la
+    difference du rapport `CAP-90J` du catalogue `reporting`
+    (`notify=False` la, cf. sa docstring : un export/planification
+    periodique ne doit pas re-notifier a chaque generation). **Limite
+    disclosed** : chaque consultation de cet ecran renvoie donc une
+    notification si le seuil reste depasse (pas de deduplication "deja
+    notifie pour cette semaine cette semaine-ci") — acceptable pour un
+    ecran de pilotage consulte occasionnellement par la direction, a
+    affiner avec une fenetre anti-spam si l'usage reel montre une
+    consultation trop frequente. RBAC deja couverte par la permission
+    d'app `strategy` (view) existante, aucune permission dediee
+    necessaire."""
+    tenant = resolve_tenant(request)
+    try:
+        horizon_days = int(request.GET.get("horizon_days", DEFAULT_HORIZON_DAYS))
+    except ValueError:
+        horizon_days = DEFAULT_HORIZON_DAYS
+    outlook = build_capacity_outlook(tenant, horizon_days=horizon_days)
+    return render(
+        request,
+        "strategy/capacity_outlook.html",
+        {
+            "outlook": outlook,
+            "horizon_days": horizon_days,
+            "overload_threshold_pct": DEFAULT_OVERLOAD_THRESHOLD_PCT,
+        },
     )

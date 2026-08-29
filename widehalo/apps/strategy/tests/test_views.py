@@ -53,3 +53,33 @@ def test_objective_detail_screen_renders(web_strategy) -> None:
     response = client.get(f"/strategy/{objective.id}/", HTTP_X_TENANT_ID=str(tenant.id))
     assert response.status_code == 200
     assert "Objectif ecran" in response.content.decode()
+
+
+def test_capacity_outlook_screen_renders(web_strategy) -> None:
+    """CAP1-2 (cf. plan) : ecran HTMX minimal du tableau capacite-vs-charge."""
+    tenant, user = web_strategy
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/strategy/capacity/", HTTP_X_TENANT_ID=str(tenant.id))
+
+    assert response.status_code == 200
+    assert "Capacite" in response.content.decode()
+
+
+def test_capacity_outlook_screen_accepts_custom_horizon(web_strategy) -> None:
+    tenant, user = web_strategy
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(
+        "/strategy/capacity/", {"horizon_days": "14"}, HTTP_X_TENANT_ID=str(tenant.id)
+    )
+
+    assert response.status_code == 200

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Capacite de charge a 90 jours" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Capacite de charge" %}</h1>
+  <form method="get">
+    <label for="horizon_days">{% trans "Horizon (jours)" %}</label>
+    <input type="number" id="horizon_days" name="horizon_days" value="{{ horizon_days }}" min="7" step="1">
+    <button type="submit">{% trans "Actualiser" %}</button>
+  </form>
+  <p>
+    {% blocktrans %}Seuil de surcharge : au-dela de {{ overload_threshold_pct }}% de la capacite disponible, la direction et le responsable production sont notifies.{% endblocktrans %}
+  </p>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Semaine" %}</th>
+        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Fin" %}</th>
+        <th>{% trans "Capacite (h)" %}</th>
+        <th>{% trans "Charge planifiee (h)" %}</th>
+        <th>{% trans "Taux de charge" %}</th>
+        <th>{% trans "Nb ordres" %}</th>
+        <th>{% trans "Absences (j-pers)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in outlook.weeks %}
+        <tr {% if week.is_overloaded %}style="background:#fdecea;"{% endif %}>
+          <td>{{ week.week_index }}</td>
+          <td>{{ week.week_start }}</td>
+          <td>{{ week.week_end }}</td>
+          <td>{{ week.capacity_hours }}</td>
+          <td>{{ week.planned_workload_hours }}</td>
+          <td>{{ week.workload_pct }}%{% if week.is_overloaded %} ⚠{% endif %}</td>
+          <td>{{ week.orders_count }}</td>
+          <td>{{ week.absence_days }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">{% trans "Aucune donnee sur cet horizon." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Projection de masse salariale" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Mois" %}</th>
+        <th>{% trans "Masse salariale" %}</th>
+        <th>{% trans "Charges patronales" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in outlook.payroll_projection %}
+        <tr>
+          <td>{{ row.month_index }}</td>
+          <td>{{ row.total_wage_base }}</td>
+          <td>{{ row.total_employer_social }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune donnee." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if outlook.overloaded_week_starts %}
+    <p style="color:#a6332e;">
+      {% blocktrans count counter=outlook.overloaded_week_starts|length %}
+        {{ counter }} semaine en surcharge sur cet horizon — direction et responsable production notifies.
+      {% plural %}
+        {{ counter }} semaines en surcharge sur cet horizon — direction et responsable production notifies.
+      {% endblocktrans %}
+    </p>
+  {% endif %}
+{% endblock %}

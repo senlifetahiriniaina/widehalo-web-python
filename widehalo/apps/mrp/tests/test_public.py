@@ -14,6 +14,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
@@ -25,10 +26,16 @@ from apps.mrp.services.public import (
     get_supplier_score,
     get_total_workshop_capacity,
     list_closed_orders,
+    list_planned_orders_workload,
     list_supplier_evaluations,
     record_supplier_evaluation,
 )
-from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
+from apps.mrp.tests.factories import (
+    MrpOrderFactory,
+    MrpRoutingFactory,
+    MrpRoutingStepFactory,
+    MrpWorkshopFactory,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -247,6 +254,81 @@ def test_get_supplier_score_returns_none_without_evaluation(public_setup) -> Non
     tenant = public_setup
     with use_tenant(tenant.id):
         assert get_supplier_score(uuid.uuid4()) is None
+
+
+def _planned_at(days_from_today: int) -> dt.datetime:
+    return timezone.make_aware(
+        dt.datetime.combine(dt.date.today() + dt.timedelta(days=days_from_today), dt.time(8, 0))
+    )
+
+
+class TestListPlannedOrdersWorkload:
+    """Gap ajoute pour CAP1-2 (cf. plan, chantier « capacite de charge a
+    90 jours ») : `strategy.services.capacity_review` consomme cette
+    fonction pour situer les ordres planifies dans l'horizon."""
+
+    def test_includes_order_within_horizon_with_estimated_hours(self, public_setup) -> None:
+        tenant = public_setup
+        with use_tenant(tenant.id):
+            workshop = MrpWorkshopFactory(tenant=tenant)
+            routing = MrpRoutingFactory(tenant=tenant)
+            MrpRoutingStepFactory(tenant=tenant, routing=routing, duration_min=60)
+            MrpRoutingStepFactory(tenant=tenant, routing=routing, duration_min=30)
+            order = MrpOrderFactory(
+                tenant=tenant,
+                workshop=workshop,
+                routing=routing,
+                qty=Decimal("2"),
+                date_planned_start=_planned_at(10),
+            )
+
+            rows = list_planned_orders_workload(tenant, horizon_days=90)
+
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["id"] == order.id
+            assert row["workshop_id"] == workshop.id
+            # 2 * (60 + 30) / 60 = 3.0 heures.
+            assert row["estimated_hours"] == Decimal("3")
+
+    def test_order_without_routing_yields_zero_estimated_hours(self, public_setup) -> None:
+        tenant = public_setup
+        with use_tenant(tenant.id):
+            MrpOrderFactory(
+                tenant=tenant,
+                date_planned_start=_planned_at(5),
+            )
+
+            rows = list_planned_orders_workload(tenant, horizon_days=90)
+
+            assert len(rows) == 1
+            assert rows[0]["estimated_hours"] == Decimal(0)
+
+    def test_excludes_order_outside_horizon(self, public_setup) -> None:
+        tenant = public_setup
+        with use_tenant(tenant.id):
+            MrpOrderFactory(
+                tenant=tenant,
+                date_planned_start=_planned_at(200),
+            )
+
+            assert list_planned_orders_workload(tenant, horizon_days=90) == []
+
+    def test_excludes_order_without_planned_start(self, public_setup) -> None:
+        tenant = public_setup
+        with use_tenant(tenant.id):
+            MrpOrderFactory(tenant=tenant, date_planned_start=None)
+
+            assert list_planned_orders_workload(tenant, horizon_days=90) == []
+
+    def test_excludes_cancelled_done_and_closed_orders(self, public_setup) -> None:
+        tenant = public_setup
+        with use_tenant(tenant.id):
+            planned_start = _planned_at(3)
+            for state in (MrpOrder.STATE_CANCELLED, MrpOrder.STATE_DONE, MrpOrder.STATE_CLOSED):
+                MrpOrderFactory(tenant=tenant, date_planned_start=planned_start, state=state)
+
+            assert list_planned_orders_workload(tenant, horizon_days=90) == []
 
 
 def test_list_supplier_evaluations_returns_primitives_most_recent_first(public_setup) -> None:
