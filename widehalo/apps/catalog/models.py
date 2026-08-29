@@ -1,8 +1,23 @@
 """Référentiel catalogue : unités de mesure et conversions, catégories,
 attributs/valeurs generateurs de variantes, gammes de produits (template ->
-variantes), specs textiles, information fournisseur (couplage generique
-vers `partners` par UUID uniquement, jamais de FK Django), listes de prix en
-cascade, conditionnement."""
+variantes), specs textiles et sectorielles (`CatalogSectorSpec`, cf.
+ci-dessous), information fournisseur (couplage generique vers `partners`
+par UUID uniquement, jamais de FK Django), listes de prix en cascade,
+conditionnement.
+
+SEC3 (extension sectorielle Madagascar, cf. plan) — bilan de l'audit
+prealable, note ici a titre de documentation permanente (pas seulement
+dans le plan) : `mrp.MrpBomLine.qty_by_size` (JSONB clef->quantite),
+`patronage` (grilles de tailles/gradation/`push_to_bom`) et `stocks`
+(`StkLot` avec peremption/FEFO, `StkQualityState`) sont deja generiques
+dans leur mecanique — AUCUN de ces 3 modules n'a ete modifie pour cette
+extension sectorielle, ils sont reutilises tels quels avec des donnees
+cuir/agroalimentaire/artisanat (cf.
+`apps/catalog/tests/test_sector_end_to_end.py`). Seul `TextileSpec`
+ci-dessous etait reellement verrouille sur le textile ; `CatalogSectorSpec`
+est son pendant pour les 3 autres secteurs. `import_export` (negoce
+generaliste) n'a recu aucun code : deja couvert nativement par
+`purchase`/`stocks`/`sales`/`logistics` sans transformation."""
 
 from __future__ import annotations
 
