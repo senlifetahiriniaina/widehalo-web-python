@@ -18,6 +18,7 @@ from django.shortcuts import render
 from apps.core.models.ui import SavedTableView
 from apps.core.models.user import User
 from apps.core.services.export import export_queryset
+from apps.core.services.permissions import user_role_codes
 
 DEFAULT_PAGE_SIZE = 20
 
@@ -27,6 +28,15 @@ class Column:
     key: str
     label: str
     searchable: bool = True
+
+
+def visible_saved_views(user: User, table_key: str) -> QuerySet[SavedTableView]:
+    """RPT-SAVE1 (§5.11) : une vue sauvegardee visible pour `user` est soit
+    personnelle (owner = `user`), soit partagee avec l'un de ses roles
+    (`shared_with_role`) — jamais les deux filtres requis a la fois."""
+    return SavedTableView.objects.filter(table_key=table_key).filter(
+        Q(owner=user) | Q(shared_with_role__in=user_role_codes(user))
+    )
 
 
 def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) -> QuerySet[Any]:
@@ -70,7 +80,7 @@ def smart_table_response(
     # SmartTable est toujours servi derriere `@login_required` dans les vues
     # appelantes ; ce cast satisfait django-stubs (`request.user` est type
     # `User | AnonymousUser` par defaut).
-    saved_views = SavedTableView.objects.filter(table_key=table_key, owner=cast(User, request.user))
+    saved_views = visible_saved_views(cast(User, request.user), table_key)
 
     context = {
         "table_key": table_key,
