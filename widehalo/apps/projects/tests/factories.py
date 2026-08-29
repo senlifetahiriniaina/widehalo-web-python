@@ -1,15 +1,22 @@
-"""Factories factory_boy pour les modeles du module `projects` (PJ1-PJ4) —
+"""Factories factory_boy pour les modeles du module `projects` (PJ1-PJ5) —
 une par modele concret (couche T1 du plan de durcissement, CDC §14
 couches)."""
 
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import factory
 
-from apps.projects.models import PrjBudgetLine, PrjProject, PrjTask, PrjTaskDependency
+from apps.projects.models import (
+    PrjBudgetLine,
+    PrjInvoicingRecord,
+    PrjProject,
+    PrjTask,
+    PrjTaskDependency,
+)
 
 
 class PrjProjectFactory(factory.django.DjangoModelFactory):
@@ -55,3 +62,17 @@ class PrjBudgetLineFactory(factory.django.DjangoModelFactory):
     planned_amount = Decimal("1000.0000")
     actual_amount = Decimal("0")
     period = factory.LazyFunction(lambda: dt.date.today().replace(day=1))
+
+
+class PrjInvoicingRecordFactory(factory.django.DjangoModelFactory):
+    """PJ5 — trace de facturation projet."""
+
+    class Meta:
+        model = PrjInvoicingRecord
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
+    mode = PrjInvoicingRecord.MODE_FIXED
+    amount = Decimal("1000.0000")
+    invoice_id = factory.LazyFunction(uuid.uuid4)
+    billed_date = factory.LazyFunction(lambda: dt.date.today())

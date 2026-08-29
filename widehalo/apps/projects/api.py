@@ -18,7 +18,14 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.projects.models import PrjBudgetLine, PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjTask
+from apps.projects.services.billing import (
+    TimeAndMaterialNotImplementedError,
+    bill_by_milestone,
+    bill_by_percentage,
+    bill_fixed,
+    bill_time_and_material,
+)
 from apps.projects.services.evm import add_budget_line, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
 from apps.projects.services.projects import create_project
@@ -61,6 +68,18 @@ class BudgetLineIn(Schema):
     planned_amount: Decimal
     actual_amount: Decimal = Decimal("0")
     period: str
+
+
+class BillMilestoneIn(Schema):
+    task_id: str
+
+
+class BillFixedIn(Schema):
+    amount: Decimal
+
+
+class BillTimeAndMaterialIn(Schema):
+    hourly_rate: Decimal
 
 
 class TaskIn(Schema):
@@ -298,3 +317,96 @@ def create_budget_line_endpoint(
     except ValidationError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return _serialize_budget_line(line)
+
+
+def _serialize_invoicing_record(record: PrjInvoicingRecord) -> dict[str, Any]:
+    return {
+        "id": str(record.id),
+        "project_id": str(record.project_id),
+        "task_id": str(record.task_id) if record.task_id else None,
+        "mode": record.mode,
+        "amount": str(record.amount),
+        "invoice_id": str(record.invoice_id),
+        "billed_date": record.billed_date.isoformat(),
+    }
+
+
+# NOTE RBAC : `projects.bill_prjproject` (permission PERSONNALISEE, cf.
+# `PrjProject.Meta.permissions`) plutot que le simple `projects.change_
+# prjproject` (deja accorde a resp_commercial/resp_production/admin/
+# direction) — la facturation est une operation plus sensible que le CRUD
+# projet/tache courant (genere une ecriture comptable engageant le tenant
+# vis-a-vis d'un client), meme discipline que `accounting.validate_accmove`
+# (cf. `apps.core.services.rbac_policy.CUSTOM_PERMISSIONS`). Restreinte a
+# admin/direction/resp_commercial (cf. ce meme registre) — PAS
+# resp_production, qui gere la production/les taches mais n'engage pas la
+# facturation client.
+@router.post("/projects/{project_id}/bill/milestone")
+@require_permission("projects.bill_prjproject")
+def bill_milestone_endpoint(
+    request: Any, project_id: str, payload: BillMilestoneIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    task = get_object_or_404(PrjTask, id=payload.task_id, project=project)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        bill_by_milestone(project, task, user)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    record = project.invoicing_records.filter(
+        task=task, mode=PrjInvoicingRecord.MODE_MILESTONE
+    ).latest("created_at")
+    return _serialize_invoicing_record(record)
+
+
+@router.post("/projects/{project_id}/bill/percentage")
+@require_permission("projects.bill_prjproject")
+def bill_percentage_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        bill_by_percentage(project, user)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    record = project.invoicing_records.filter(mode=PrjInvoicingRecord.MODE_PERCENTAGE).latest(
+        "created_at"
+    )
+    return _serialize_invoicing_record(record)
+
+
+@router.post("/projects/{project_id}/bill/fixed")
+@require_permission("projects.bill_prjproject")
+def bill_fixed_endpoint(request: Any, project_id: str, payload: BillFixedIn) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        bill_fixed(project, user, amount=payload.amount)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    record = project.invoicing_records.filter(mode=PrjInvoicingRecord.MODE_FIXED).latest(
+        "created_at"
+    )
+    return _serialize_invoicing_record(record)
+
+
+@router.post("/projects/{project_id}/bill/time-and-material")
+@require_permission("projects.bill_prjproject")
+def bill_time_and_material_endpoint(
+    request: Any, project_id: str, payload: BillTimeAndMaterialIn
+) -> dict[str, Any]:
+    """Cf. `services/billing.py::bill_time_and_material` — STUB HONNETE,
+    renvoie systematiquement 501 (Not Implemented) tant que `PrjTimeEntry`
+    (PJ8) n'existe pas, jamais une fausse facture a 0."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        bill_time_and_material(project, user, hourly_rate=payload.hourly_rate)
+    except TimeAndMaterialNotImplementedError as exc:
+        return JsonResponse({"detail": str(exc)}, status=501)
+    except ValidationError as exc:  # pragma: no cover - defense en profondeur
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return {}  # pragma: no cover - jamais atteint (bill_time_and_material leve toujours)

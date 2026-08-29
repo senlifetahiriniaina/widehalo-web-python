@@ -10,4 +10,5 @@ urlpatterns = [
     path("<uuid:project_id>/", views.project_detail, name="detail"),
     path("<uuid:project_id>/gantt/", views.project_gantt, name="gantt"),
     path("<uuid:project_id>/budget/", views.project_budget, name="budget"),
+    path("<uuid:project_id>/billing/", views.project_billing, name="billing"),
 ]

@@ -9,6 +9,7 @@
   <p>{{ project.description }}</p>
   <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
   <p><a href="{% url 'projects:budget' project.id %}">{% trans "Voir le budget (SPI/CPI/EAC)" %}</a></p>
+  <p><a href="{% url 'projects:billing' project.id %}">{% trans "Facturer ce projet" %}</a></p>
 
   <h2>{% trans "Taches" %}</h2>
   <table>

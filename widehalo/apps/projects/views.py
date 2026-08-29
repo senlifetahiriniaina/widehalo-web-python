@@ -15,12 +15,20 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.safestring import mark_safe
+from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.projects.models import PrjBudgetLine, PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjTask
+from apps.projects.services.billing import (
+    TimeAndMaterialNotImplementedError,
+    bill_by_milestone,
+    bill_by_percentage,
+    bill_fixed,
+    bill_time_and_material,
+)
 from apps.projects.services.evm import add_budget_line, compute_s_curve, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
 from apps.projects.services.projects import create_project
@@ -216,5 +224,65 @@ def project_budget(request: HttpRequest, project_id: str) -> HttpResponse:
             "s_curve": s_curve,
             "categories": PrjBudgetLine.CATEGORY_CHOICES,
             "error": error,
+        },
+    )
+
+
+@login_required
+def project_billing(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran HTMX minimal de facturation multi-modes (PJ5) — cf.
+    `services/billing.py`. **RBAC** : meme discipline que le reste des
+    ecrans HTMX de ce module (`accounting.views`/`purchase.views`, cf.
+    disclosure de ces fichiers) — le controle N2 fin
+    (`projects.bill_prjproject`, restreint a `admin`/`direction`/
+    `resp_commercial`) est applique cote API django-ninja
+    (`apps.projects.api`) ; cet ecran, comme tous les ecrans HTMX de ce
+    depot, ne fait que `@login_required` (le menu/lien n'est de toute facon
+    affiche qu'aux roles concernes dans la pratique reelle du produit, pas
+    encore cable au niveau template a ce stade)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    success = None
+
+    if request.method == "POST":
+        mode = request.POST.get("mode", "")
+        user = cast(User, request.user)
+        try:
+            if mode == PrjInvoicingRecord.MODE_MILESTONE:
+                task_id = request.POST.get("task_id", "")
+                task = get_object_or_404(PrjTask, id=task_id, project=project)
+                invoice_id = bill_by_milestone(project, task, user)
+            elif mode == PrjInvoicingRecord.MODE_PERCENTAGE:
+                invoice_id = bill_by_percentage(project, user)
+            elif mode == PrjInvoicingRecord.MODE_TIME_AND_MATERIAL:
+                hourly_rate = Decimal(request.POST.get("hourly_rate") or "0")
+                invoice_id = bill_time_and_material(project, user, hourly_rate=hourly_rate)
+            elif mode == PrjInvoicingRecord.MODE_FIXED:
+                amount = Decimal(request.POST.get("amount") or "0")
+                invoice_id = bill_fixed(project, user, amount=amount)
+            else:
+                error = str(_("Mode de facturation inconnu."))
+                invoice_id = None
+            if invoice_id is not None:
+                success = _("Facture creee (brouillon, a valider dans le module Comptabilite).")
+        except (ValidationError, InvalidOperation, ValueError) as exc:
+            error = str(exc)
+        except TimeAndMaterialNotImplementedError as exc:
+            error = str(exc)
+
+    records = project.invoicing_records.filter(is_active=True)
+    billable_milestones = project.tasks.filter(
+        task_type=PrjTask.TYPE_MILESTONE, state=PrjTask.STATE_DONE, is_active=True
+    )
+    return render(
+        request,
+        "projects/billing.html",
+        {
+            "project": project,
+            "records": records,
+            "billable_milestones": billable_milestones,
+            "modes": PrjInvoicingRecord.MODE_CHOICES,
+            "error": error,
+            "success": success,
         },
     )

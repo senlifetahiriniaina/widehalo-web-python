@@ -120,6 +120,19 @@ class PrjProject(BaseModel, ReferenceMixin):
     class Meta:
         db_table = "prj_project"
         ordering = ["-created_at"]
+        # PJ5 (facturation multi-modes) : la facturation est une operation
+        # sensible (genere une ecriture comptable engageant le tenant vis a
+        # vis d'un client) — meme discipline que `accounting.validate_
+        # accmove`/`purchase.run_reordering` (permission personnalisee
+        # dediee, PAS le simple `projects.change_prjproject` deja largement
+        # distribue a tous les roles "domaine cible" de la gestion de
+        # projet, cf. `ROLE_APP_PERMISSIONS`/`CUSTOM_PERMISSIONS` dans
+        # `apps.core.services.rbac_policy`). Restreinte a `admin`/
+        # `direction`/`resp_commercial` (cf. cette meme matrice) — pas
+        # `resp_production`/`collaborateur`, qui gerent la production/les
+        # taches mais ne sont pas habilites a engager une facturation
+        # client.
+        permissions = [("bill_prjproject", "Peut declencher la facturation d'un projet")]
 
     def __str__(self) -> str:
         return self.name
@@ -193,6 +206,22 @@ class PrjTask(BaseModel, ReferenceMixin):
     # Pour le futur module agile (PJ6, backlog/velocite) — nullable :
     # seules les taches estimees en points (mode agile) le renseignent.
     story_points = models.PositiveSmallIntegerField(null=True, blank=True)
+    # PJ5 (facturation par jalon, `services/billing.py::bill_by_milestone`) :
+    # montant contractuel associe a un jalon (`task_type=milestone`),
+    # facture en une fois une fois la tache `state=done`. Nullable/nul pour
+    # toutes les taches non-jalon (champ non pertinent pour elles) ET pour
+    # un jalon dont le montant n'a pas encore ete neglocie/saisi — un jalon
+    # avec `budgeted_amount=None` est explicitement refuse a la facturation
+    # (cf. `bill_by_milestone`), jamais un montant invente. **Decision
+    # disclosed** : plutot qu'un nouveau modele dedie ("PrjMilestoneAmount"),
+    # ou plutot que de deriver ce montant d'une `PrjBudgetLine` (qui n'a
+    # aucun lien structurel avec une tache precise dans le modele actuel —
+    # une ligne budgetaire est rattachee au PROJET, jamais a une tache), un
+    # simple champ supplementaire sur `PrjTask` est le choix le plus
+    # econome en modeles (cf. discipline d'economie de ce depot) : c'est la
+    # SEULE donnee manquante pour honorer la facturation par jalon, un
+    # champ scalaire suffit, une table dediee serait disproportionnee.
+    budgeted_amount = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     # Valeurs libres a ce stade (PJ1) — seront validees contre un futur
     # `PrjCustomFieldDefinition` (PJ7), cf. plan.
     custom_fields = models.JSONField(default=dict, blank=True)
@@ -326,3 +355,77 @@ class PrjBudgetLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.label} ({self.get_category_display()}, {self.period})"
+
+
+class PrjInvoicingRecord(BaseModel):
+    """Trace de facturation projet (PJ5, `services/billing.py`) — 225e/250
+    modele de ce depot, budget encore respecte. **Decision de modelisation
+    disclosed** : un nouveau modele dedie a ete prefere a l'alternative
+    "champs additionnels sur `PrjProject`/`PrjTask`" (ex. `invoiced_amount`/
+    `is_invoiced`) parce que les 4 modes de facturation n'ont PAS la meme
+    cardinalite d'evenements a tracer :
+    - jalon : potentiellement PLUSIEURS jalons par projet, chacun facture
+      UNE fois (verification "deja facture" par TACHE, pas par projet) ;
+    - avancement : facturation INCREMENTALE repetee (l'ecart depuis la
+      DERNIERE facturation par avancement, necessite l'HISTORIQUE complet
+      des montants deja factures par ce mode, pas un simple booleen) ;
+    - forfait : une SEULE fois par projet (verification "deja facture" par
+      PROJET) ;
+    - regie (T&M, PJ8) : facturation potentiellement PERIODIQUE (une ligne
+      par periode facturee), meme besoin d'historique que l'avancement.
+    Un champ scalaire unique par entite (ex. `PrjProject.is_invoiced`) ne
+    peut pas representer cette diversite (surtout le cumul incremental de
+    l'avancement, qui a structurellement besoin d'une SOMME sur plusieurs
+    enregistrements passes) sans multiplier les champs ad hoc (un jeu de
+    champs `milestone_invoiced`/`fixed_invoiced`/`percentage_invoiced_total`
+    disperses sur 2 modeles differents) — un seul modele d'audit normalise,
+    interrogeable par `project`/`task`/`mode`, est strictement plus simple
+    et plus econome au global qu'une demi-douzaine de champs eparpilles.
+    Sert egalement de piste d'audit (qui a facture, quand, pour combien) —
+    utile independamment du seul besoin anti-double-facturation.
+
+    `invoice_id` : UUID simple vers l'`AccMove` cree par `accounting.
+    services.public.create_customer_invoice_from_source` — JAMAIS une FK
+    Django cross-app (regle de couplage n°1, meme discipline que
+    `client_partner_id`/`linked_objective_id` de `PrjProject`)."""
+
+    MODE_MILESTONE = "milestone"
+    MODE_PERCENTAGE = "percentage"
+    MODE_TIME_AND_MATERIAL = "time_and_material"
+    MODE_FIXED = "fixed"
+    MODE_CHOICES = [
+        (MODE_MILESTONE, _("Jalon")),
+        (MODE_PERCENTAGE, _("Pourcentage d'avancement")),
+        (MODE_TIME_AND_MATERIAL, _("Regie temps & materiel")),
+        (MODE_FIXED, _("Forfait")),
+    ]
+
+    project = models.ForeignKey(
+        PrjProject, on_delete=models.CASCADE, related_name="invoicing_records"
+    )
+    # Renseigne uniquement pour le mode `milestone` (le jalon facture) —
+    # `null=True` pour les 3 autres modes, qui facturent au niveau du
+    # PROJET, pas d'une tache precise.
+    task = models.ForeignKey(
+        PrjTask,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="invoicing_records",
+    )
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    # UUID simple vers `apps.accounting.models.AccMove` — jamais une FK
+    # cross-app, cf. docstring de classe.
+    invoice_id = models.UUIDField()
+    billed_date = models.DateField()
+    billed_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "prj_invoicing_record"
+        ordering = ["-billed_date", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.project_id} — {self.get_mode_display()} — {self.amount}"

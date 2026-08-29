@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Facturation" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Facturation multi-modes" %} — {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if success %}<p class="form-success">{{ success }}</p>{% endif %}
+
+  {% if not project.client_partner_id %}
+    <p class="hint">
+      {% trans "Ce projet n'a pas de client identifie (client_partner_id) : toute tentative de facturation sera refusee tant qu'un client n'est pas renseigne." %}
+    </p>
+  {% endif %}
+
+  <h2>{% trans "Facturer par jalon" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="mode" value="milestone">
+    <select name="task_id" aria-label="{% trans 'Jalon' %}" required>
+      <option value="">{% trans "Choisir un jalon termine" %}</option>
+      {% for task in billable_milestones %}
+        <option value="{{ task.id }}">{{ task.reference }} — {{ task.budgeted_amount|default_if_none:"—" }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{% trans "Facturer le jalon" %}</button>
+  </form>
+
+  <h2>{% trans "Facturer par avancement" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="mode" value="percentage">
+    <button type="submit">{% trans "Facturer l'ecart d'avancement depuis la derniere facturation" %}</button>
+  </form>
+
+  <h2>{% trans "Facturer en regie temps & materiel" %}</h2>
+  <p class="hint">
+    {% trans "Mode indisponible : le suivi du temps passe (PrjTimeEntry) n'existe pas encore." %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="mode" value="time_and_material">
+    <input type="number" step="0.01" name="hourly_rate" placeholder="{% trans 'Taux horaire' %}">
+    <button type="submit">{% trans "Facturer la regie (T&M)" %}</button>
+  </form>
+
+  <h2>{% trans "Facturer au forfait" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="mode" value="fixed">
+    <input type="number" step="0.01" name="amount" placeholder="{% trans 'Montant forfaitaire' %}" required>
+    <button type="submit">{% trans "Facturer le forfait" %}</button>
+  </form>
+
+  <h2>{% trans "Historique de facturation" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Mode" %}</th>
+        <th>{% trans "Montant" %}</th>
+        <th>{% trans "Facture (accounting)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for record in records %}
+        <tr>
+          <td>{{ record.billed_date }}</td>
+          <td>{{ record.get_mode_display }}</td>
+          <td>{{ record.amount }}</td>
+          <td>{{ record.invoice_id }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune facturation pour ce projet." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

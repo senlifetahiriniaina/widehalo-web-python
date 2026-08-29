@@ -318,6 +318,20 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 # passe par l'endpoint generique deja existant `POST /approvals/{id}/
 # decide` (gate par role via `ApprovalRule.approver_role`, jamais un
 # nouveau codename ici).
+# PJ5 (facturation multi-modes de `projects`) : `projects.bill_prjproject`
+# (declaree en `Meta.permissions` de `PrjProject`) garde les 4 endpoints de
+# declenchement de facturation (`POST /projects/{id}/bill/...`) — une
+# operation plus sensible que le simple CRUD projet/tache deja couvert par
+# `ROLE_APP_PERMISSIONS["projects"]` ci-dessus (genere une ecriture
+# comptable engageant le tenant vis-a-vis d'un client). Restreinte a
+# `admin`/`direction` (pilotage transverse, meme discipline que le reste de
+# ce registre) et `resp_commercial` (co-porteur historique de la gestion de
+# projet, cf. `ROLE_APP_PERMISSIONS["resp_commercial"]["projects"]` —
+# seul des 2 co-porteurs a recevoir ce droit : `resp_production` gere la
+# production/les taches mais n'est pas le role qui negocie/engage la
+# facturation client).
+CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES = ("admin", "direction", "resp_commercial")
+
 # RSK1-2 (chantier risques operationnels) : `RiskItem` vit dans `core`
 # (rattachable a n'importe quel module via content_type/object_id, cf.
 # `apps.core.models.risk`) — `core` n'apparait PAS dans
@@ -413,6 +427,9 @@ for _role in _RISK_FULL_ROLES:
     )
 for _role in _RISK_ADD_VIEW_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update({"core.add_riskitem", "core.view_riskitem"})
+
+for _role in CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.bill_prjproject")
 for _role in _QLT_FULL_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
         {
