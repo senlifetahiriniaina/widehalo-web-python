@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{{ flow.name }} — {% trans "Constructeur" %} — WideHalo{% endblock %}
+{% block extra_head %}
+  {# Bibliotheque de graphe VENDORISEE localement (jamais un CDN, meme #}
+  {# discipline que htmx/Alpine.js depuis le Lot 1) — Drawflow 0.0.59, #}
+  {# licence MIT, zero dependance runtime, fichier JS+CSS unique, aucune #}
+  {# chaine de build. Licence complete : static/vendor/drawflow/LICENSE. #}
+  <link rel="stylesheet" href="{% static 'vendor/drawflow/drawflow.min.css' %}">
+  <script src="{% static 'vendor/drawflow/drawflow.min.js' %}" defer></script>
+  <style>
+    #drawflow-canvas { width: 100%; height: 560px; border: 1px solid #ccc; background: #f7f7f7; }
+    .automation-palette button { margin-right: .5rem; margin-bottom: .5rem; }
+  </style>
+{% endblock %}
+{% block content %}
+  <h1>{{ flow.name }} <small>({{ flow.reference }})</small></h1>
+  <p>
+    {% trans "Declencheur" %} : <code>{{ flow.trigger_event_type }}</code>
+    — {% trans "Statut" %} :
+    {% if flow.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+  </p>
+  <form method="post" style="display:inline">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="toggle_active">
+    <button type="submit">
+      {% if flow.is_active %}{% trans "Desactiver" %}{% else %}{% trans "Activer" %}{% endif %}
+    </button>
+  </form>
+  <a href="{% url 'automation:run_history' flow.id %}">{% trans "Historique d'execution" %}</a>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <div class="automation-palette">
+    <button type="button" onclick="addConditionNode()">{% trans "+ Condition" %}</button>
+    {% for action in actions %}
+      <button type="button" onclick="addActionNode('{{ action.code }}', '{{ action.label|escapejs }}')">
+        {% trans "+ Action" %} : {{ action.label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <div id="drawflow-canvas"></div>
+
+  <form method="post" id="canvas-form">
+    {% csrf_token %}
+    <input type="hidden" name="canvas_json" id="canvas_json">
+    <button type="submit">{% trans "Enregistrer le canevas" %}</button>
+  </form>
+
+  <script>
+    // AUTO5 — squelette JS minimal du constructeur : instancie Drawflow,
+    // permet d'ajouter des noeuds condition/action depuis la palette et de
+    // les relier a la souris (glisser-deposer natif de Drawflow), puis
+    // exporte le graphe au format Drawflow standard (`editor.export()`)
+    // dans le champ cache `canvas_json` avant soumission — compile
+    // cote serveur par `apps.automation.services.compiler` (cf. plan,
+    // point de couture "dessine" -> "execute").
+    //
+    // **Simplification assumee et disclosed (premier chantier)** : editer
+    // le contenu d'un noeud (expression de condition, mapping de
+    // parametres d'une action) passe par une simple boite de dialogue
+    // navigateur (`prompt`), pas un panneau de proprietes riche — suffisant
+    // pour ce premier cut, a enrichir dans un futur chantier si le besoin
+    // se confirme (jamais presente comme une fonctionnalite complete).
+    var editor = new Drawflow(document.getElementById("drawflow-canvas"));
+    editor.reroute = true;
+    editor.start();
+
+    var initialCanvas = {{ flow.canvas_layout|default:"{}"|safe }};
+    if (initialCanvas && initialCanvas.drawflow) {
+      editor.import(initialCanvas);
+    }
+
+    function addConditionNode() {
+      var expression = window.prompt(
+        "{% trans 'Expression de condition (core.services.expr, ex. payload[\'amount\'] > 1000)' %}",
+        ""
+      );
+      if (expression === null) { return; }
+      var html = "<div>{% trans 'Condition' %}<br><small>" + expression + "</small></div>";
+      editor.addNode(
+        "condition", 1, 2, 50, 50, "condition-node",
+        {step_type: "condition", expression: expression}, html
+      );
+    }
+
+    function addActionNode(actionCode, actionLabel) {
+      var paramMappingRaw = window.prompt(
+        "{% trans 'Parametres (JSON, valeurs statiques ou expression prefixee =)' %}",
+        "{}"
+      );
+      if (paramMappingRaw === null) { return; }
+      var paramMapping = {};
+      try { paramMapping = JSON.parse(paramMappingRaw); } catch (e) { paramMapping = {}; }
+      var html = "<div>" + actionLabel + "</div>";
+      editor.addNode(
+        "action", 1, 1, 50, 50, "action-node",
+        {step_type: "action", action_code: actionCode, param_mapping: paramMapping}, html
+      );
+    }
+
+    document.getElementById("canvas-form").addEventListener("submit", function () {
+      document.getElementById("canvas_json").value = JSON.stringify(editor.export());
+    });
+  </script>
+{% endblock %}

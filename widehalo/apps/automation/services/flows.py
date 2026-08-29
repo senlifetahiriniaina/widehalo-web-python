@@ -16,6 +16,7 @@ from django.utils.translation import gettext as _
 from apps.automation.models import STEP_TYPE_ACTION, STEP_TYPE_CONDITION, AutoFlow, AutoStep
 from apps.core.events import PUBLISHED_EVENT_TYPES
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 from apps.core.services.automation_registry import get_registered_action
 from apps.core.services.sequences import next_reference
 
@@ -27,6 +28,7 @@ def create_flow(
     trigger_event_type: str,
     description: str = "",
     trigger_filter: dict[str, Any] | None = None,
+    created_by: User | None = None,
 ) -> AutoFlow:
     """Cree un flux INACTIF (`is_active=False` par defaut, cf. `AutoFlow`)
     — jamais actif des la creation, une activation est une action
@@ -47,6 +49,7 @@ def create_flow(
         description=description,
         trigger_event_type=trigger_event_type,
         trigger_filter=trigger_filter or {},
+        created_by=created_by,
     )
 
 

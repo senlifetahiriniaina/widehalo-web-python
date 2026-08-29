@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau flux" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau flux d'automatisation" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="trigger_event_type">{% trans "Declencheur (evenement)" %}</label>
+      <select id="trigger_event_type" name="trigger_event_type">
+        {% for event_type in event_types %}
+          <option value="{{ event_type }}">{{ event_type }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer et ouvrir le constructeur" %}</button>
+  </form>
+{% endblock %}

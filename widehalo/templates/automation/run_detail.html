@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Execution" %} {{ run.id }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Execution" %} {{ run.id }}</h1>
+  <p>
+    {% trans "Flux" %} : <a href="{% url 'automation:builder' run.flow_id %}">{{ run.flow.name }}</a>
+    — {% trans "Statut" %} : {{ run.get_status_display }}
+    — {% trans "Demarre le" %} : {{ run.started_at }}
+    {% if run.finished_at %}— {% trans "Termine le" %} : {{ run.finished_at }}{% endif %}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Etape" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Resultat" %}</th>
+        <th>{% trans "Erreur" %}</th>
+        <th>{% trans "Tentatives" %}</th>
+        <th>{% trans "Execute le" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for step in steps %}
+        <tr>
+          <td>{{ step.step.step_type|default:"—" }}</td>
+          <td>{{ step.get_status_display }}</td>
+          <td><code>{{ step.result }}</code></td>
+          <td>{{ step.error }}</td>
+          <td>{{ step.retry_count }}</td>
+          <td>{{ step.executed_at }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
