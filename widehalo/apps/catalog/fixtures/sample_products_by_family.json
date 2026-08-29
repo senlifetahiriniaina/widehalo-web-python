@@ -1,0 +1,181 @@
+[
+  {
+    "category": "Composants",
+    "code": "TRIM-ZIP-COIL",
+    "name": "Fermeture eclair YKK Coil (spirale) — exemple",
+    "base_price_mga": "800",
+    "notes": "Trim (composant semi-fini) de demonstration. Dents en spirale polyester, souple, resistante a la corrosion. \"YKK\" est une reference industrielle documentaire (texte libre) — aucune relation commerciale reelle avec YKK n'est impliquee."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-ZIP-METAL",
+    "name": "Fermeture eclair YKK Metal — exemple",
+    "base_price_mga": "1200",
+    "notes": "Trim de demonstration. Dents metalliques, usage denim/vetements robustes. Reference industrielle documentaire, cf. TRIM-ZIP-COIL."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-ZIP-VISLON",
+    "name": "Fermeture eclair YKK Vislon — exemple",
+    "base_price_mga": "1000",
+    "notes": "Trim de demonstration. Dents plastique moulees, usage vetements exterieurs/EPI. Reference industrielle documentaire, cf. TRIM-ZIP-COIL."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-BOUTON",
+    "name": "Bouton 4 trous — exemple",
+    "base_price_mga": "50",
+    "notes": "Trim de demonstration, composant de nomenclature ordinaire (consomme via mrp.MrpBomLine comme n'importe quel composant)."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-PRESSION",
+    "name": "Bouton pression metal — exemple",
+    "base_price_mga": "120",
+    "notes": "Trim de demonstration."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-VELCRO",
+    "name": "Bande auto-agrippante (velcro) — exemple",
+    "base_price_mga": "300",
+    "notes": "Trim de demonstration, vendu au metre en pratique (uom simplifiee en piece ici, demonstration)."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-BANDE-REFLECHISSANTE",
+    "name": "Bande retro-reflechissante — exemple",
+    "base_price_mga": "600",
+    "notes": "Trim de demonstration, composant cle des vetements hi-vis EN ISO 20471 (cf. GARM-VESTE-HIVIS ci-dessous)."
+  },
+  {
+    "category": "Composants",
+    "code": "TRIM-DOUBLURE",
+    "name": "Doublure polyester — exemple",
+    "base_price_mga": "1500",
+    "material_code": "PES",
+    "weight_gsm": "90",
+    "notes": "Trim de demonstration."
+  },
+  {
+    "category": "Haut du corps",
+    "code": "GARM-TSHIRT",
+    "name": "T-shirt coton (exemple)",
+    "base_price_mga": "12000",
+    "material_code": "COTON",
+    "weight_gsm": "180",
+    "standard_codes": [],
+    "notes": "Produit de demonstration/reference (tableau produit x norme x matiere du document source LIFE MDG) — PAS un article reel du catalogue d'un tenant."
+  },
+  {
+    "category": "Haut du corps",
+    "code": "GARM-VESTE-HIVIS",
+    "name": "Veste haute visibilite (exemple)",
+    "base_price_mga": "45000",
+    "material_code": "PES",
+    "weight_gsm": "180",
+    "standard_codes": ["EN-ISO-20471", "EN-343"],
+    "notes": "Produit de demonstration/reference. Combine bandes retro-reflechissantes (cf. TRIM-BANDE-REFLECHISSANTE) et matiere hydrophobe pour la classe hi-vis + impermeabilite indicatives."
+  },
+  {
+    "category": "Haut du corps",
+    "code": "GARM-VESTE-ANTIFEU",
+    "name": "Veste anti-feu (exemple)",
+    "base_price_mga": "85000",
+    "material_code": "NOMEX",
+    "weight_gsm": "220",
+    "standard_codes": ["EN-ISO-11612", "EN-1149-5"],
+    "notes": "Produit de demonstration/reference."
+  },
+  {
+    "category": "Bas du corps",
+    "code": "GARM-PANTALON-TRAVAIL",
+    "name": "Pantalon de travail (exemple)",
+    "base_price_mga": "28000",
+    "material_code": "POLYCOTON",
+    "weight_gsm": "260",
+    "standard_codes": [],
+    "notes": "Produit de demonstration/reference."
+  },
+  {
+    "category": "Une piece",
+    "code": "GARM-COMBINAISON-CHIMIQUE",
+    "name": "Combinaison de protection chimique (exemple)",
+    "base_price_mga": "60000",
+    "material_code": "GORETEX",
+    "weight_gsm": "150",
+    "standard_codes": ["EN-14605", "EN-13034"],
+    "notes": "Produit de demonstration/reference."
+  },
+  {
+    "category": "Couvre-chefs",
+    "code": "GARM-CASQUE-CHANTIER",
+    "name": "Casque de chantier (exemple)",
+    "base_price_mga": "15000",
+    "standard_codes": ["EN-397"],
+    "notes": "Produit de demonstration/reference (plastique, hors referentiel textile CatalogMaterialReference — pas de material_code)."
+  },
+  {
+    "category": "Chaussures",
+    "code": "GARM-CHAUSSURE-SECURITE",
+    "name": "Chaussure de securite (exemple)",
+    "base_price_mga": "55000",
+    "standard_codes": ["EN-ISO-20345"],
+    "notes": "Produit de demonstration/reference (cuir/caoutchouc, hors referentiel textile CatalogMaterialReference — pas de material_code, cf. CatalogSectorSpec pour une fiche cuir detaillee)."
+  },
+  {
+    "category": "Sport",
+    "code": "GARM-MAILLOT-FOOTBALL",
+    "name": "Maillot de football (exemple)",
+    "base_price_mga": "18000",
+    "material_code": "MESH",
+    "weight_gsm": "140",
+    "standard_codes": [],
+    "notes": "Produit de demonstration/reference."
+  },
+  {
+    "category": "Lambas (patrimoine culturel malgache)",
+    "code": "LAMBA-LAMBAMENA",
+    "name": "Lambamena (linceul funeraire, soie)",
+    "base_price_mga": "0",
+    "material_code": "SOIE",
+    "standard_codes": [],
+    "notes": "Contexte culturel malgache : soie blanche traditionnellement utilisee comme linceul funeraire (famadihana). Donnee de demonstration/reference culturelle disclosee comme telle — PAS un article commercial reel, prix indicatif nul."
+  },
+  {
+    "category": "Lambas (patrimoine culturel malgache)",
+    "code": "LAMBA-LAMBAHOANY",
+    "name": "Lambahoany (pagne imprime du quotidien, coton)",
+    "base_price_mga": "8000",
+    "material_code": "COTON",
+    "standard_codes": [],
+    "notes": "Contexte culturel malgache : pagne imprime en coton porte au quotidien, souvent avec un proverbe malgache imprime. Donnee de demonstration/reference culturelle."
+  },
+  {
+    "category": "Lambas (patrimoine culturel malgache)",
+    "code": "LAMBA-AKOTOFAHANA",
+    "name": "Lamba akotofahana (soie, motifs geometriques nobles)",
+    "base_price_mga": "0",
+    "material_code": "SOIE",
+    "standard_codes": [],
+    "notes": "Contexte culturel malgache : lamba de soie noble a motifs geometriques, patrimoine artisanal des Hautes Terres. Donnee de demonstration/reference culturelle, prix indicatif nul (piece d'exception, non standardisee)."
+  },
+  {
+    "category": "Lambas (patrimoine culturel malgache)",
+    "code": "LAMBA-JABOLANDY",
+    "name": "Jabo-Landy (melange soie et coton)",
+    "base_price_mga": "6000",
+    "material_code": "SOIE",
+    "standard_codes": [],
+    "notes": "Contexte culturel malgache : lamba melangeant soie et coton (\"landy\" = soie en malgache). Donnee de demonstration/reference culturelle — le referentiel CatalogMaterialReference ne modelise pas les melanges nommes, code matiere principal (SOIE) retenu par simplification."
+  },
+  {
+    "category": "Lambas (patrimoine culturel malgache)",
+    "code": "LAMBA-SALAKA",
+    "name": "Salaka (pagne traditionnel)",
+    "base_price_mga": "4000",
+    "material_code": "COTON",
+    "standard_codes": [],
+    "notes": "Contexte culturel malgache : pagne traditionnel, souvent porte lors de ceremonies (ex. circoncision). Donnee de demonstration/reference culturelle."
+  }
+]
