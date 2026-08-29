@@ -83,6 +83,9 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # du chantier), meme discipline que `financing`/`automation`
         # ci-dessus. Aucun autre role de la matrice ne recoit `feasibility`.
         "feasibility": {"view", "add", "change"},
+        # `projects` (PJ1-PJ15, cf. plan) : acces complet transverse,
+        # meme discipline que le reste de la matrice pour ce role.
+        "projects": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -111,6 +114,9 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (cf. commentaire du role `admin` ci-dessus pour le cadrage
         # complet du chantier FEA1-3).
         "feasibility": {"view", "add", "change"},
+        # `projects` : pilotage/validation transverse, meme raisonnement
+        # que le reste de ce role — "view"+"change" (jamais "add").
+        "projects": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -158,6 +164,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # explicitement retenu par le cadrage du chantier — evalue le
         # potentiel d'une idee de produit avant tout client reel.
         "feasibility": {"view", "add", "change"},
+        # `projects` (PJ1) : cf. plan, section RBAC — `resp_commercial`
+        # porte la GESTION de projet (creation/edition projets et taches,
+        # budget, sprints) faute de role "chef de projet" litteral parmi
+        # les 11 roles acquis du CDC. Acces N2 complet ici ; le scoping N3
+        # (limiter un `collaborateur` a ses seules taches assignees, cf.
+        # role `collaborateur` ci-dessous) ne s'applique PAS a ce role.
+        "projects": {"view", "add", "change"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -185,6 +198,9 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (cf. commentaire du role `resp_commercial` ci-dessus pour le
         # cadrage complet).
         "feasibility": {"view", "add", "change"},
+        # `projects` (PJ1) : meme raisonnement que `resp_commercial`
+        # ci-dessus (co-porteur de la gestion de projet, cf. plan RBAC).
+        "projects": {"view", "add", "change"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
@@ -243,6 +259,24 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # for_user`) restreint ensuite la LECTURE/MODIFICATION aux seuls
         # objectifs dont il est createur ou owner.
         "strategy": {"view", "add", "change"},
+        # `projects` (PJ1) : cf. plan, section RBAC — un `collaborateur`
+        # gere ses taches assignees et son propre suivi du temps, jamais
+        # les autres taches/projets. **Limitation N3 explicitement NON
+        # cablee a PJ1** (contrairement a "own" `presence`/`payroll`
+        # RG-PRS-9/RG-PAY-9, qui existe deja au niveau des endpoints
+        # `apps.presence.api`/`apps.payroll.api`) : "view"+"change" ici
+        # sont donc, en l'etat, un droit N2 large sur TOUT le module
+        # (comme `strategy` avant application de `scope_objectives_
+        # for_user` ci-dessus) — aucun endpoint/vue de `projects` a PJ1
+        # ne filtre encore par `assignee=request.user`/`owner=request.
+        # user`. Ce scoping "own" (candidat naturel : un filtre
+        # equivalent a `scope_objectives_for_user`, applique dans
+        # `apps.projects.api`/`apps.projects.views`) est explicitement
+        # REPORTE a une etape ulterieure (PJ8, suivi du temps, ou une
+        # etape RBAC dediee) — PAS un pre-requis de ce squelette PJ1.
+        # Pas de "add" : un collaborateur ne cree ni projet ni tache de
+        # premier niveau, seulement les met a jour une fois assignees.
+        "projects": {"view", "change"},
     },
 }
 

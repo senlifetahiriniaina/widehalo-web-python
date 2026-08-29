@@ -38,6 +38,7 @@ urlpatterns = [
     path("financing/", include("apps.financing.urls")),
     path("automation/", include("apps.automation.urls")),
     path("feasibility/", include("apps.feasibility.urls")),
+    path("projects/", include("apps.projects.urls")),
 ]
 
 if settings.DEBUG:

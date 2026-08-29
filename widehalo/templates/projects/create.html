@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau projet" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau projet" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="methodology">{% trans "Methodologie" %}</label>
+      <select id="methodology" name="methodology">
+        {% for value, label in methodologies %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

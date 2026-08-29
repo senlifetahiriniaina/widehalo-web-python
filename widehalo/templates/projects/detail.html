@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Projet" %} {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Methodologie" %} : {{ project.get_methodology_display }}</p>
+  <p>{% trans "Statut" %} : {{ project.get_status_display }}</p>
+  <p>{{ project.description }}</p>
+
+  <h2>{% trans "Taches" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Avancement" %}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.reference }}</td>
+          <td>{{ task.get_task_type_display }}</td>
+          <td>{{ task.get_state_display }}</td>
+          <td>{{ task.percent_complete }}%</td>
+          <td>
+            {% if task.state == "todo" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="start">
+                <button type="submit">{% trans "Demarrer" %}</button>
+              </form>
+            {% elif task.state == "in_progress" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="block">
+                <button type="submit">{% trans "Bloquer" %}</button>
+              </form>
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="finish">
+                <button type="submit">{% trans "Terminer" %}</button>
+              </form>
+            {% elif task.state == "blocked" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="unblock">
+                <button type="submit">{% trans "Debloquer" %}</button>
+              </form>
+            {% endif %}
+            {% if task.state == "todo" or task.state == "in_progress" or task.state == "blocked" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="cancel">
+                <button type="submit">{% trans "Annuler" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune tache." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une tache" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_task">
+    <select name="task_type" aria-label="{% trans 'Type' %}">
+      {% for value, label in task_types %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+{% endblock %}
