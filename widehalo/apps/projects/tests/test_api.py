@@ -289,7 +289,10 @@ def test_bill_fixed_via_api(api_projects) -> None:
     assert response.status_code == 400
 
 
-def test_bill_time_and_material_via_api_returns_501_stub(api_projects) -> None:
+def test_bill_time_and_material_via_api(api_projects) -> None:
+    """PJ8 : le stub honnete de PJ5 est desormais implemente — 200 avec une
+    facture creee des lors que des heures facturables non facturees
+    existent."""
     tenant, user = api_projects
     with use_tenant(tenant.id):
         _setup_accounting(tenant)
@@ -307,12 +310,160 @@ def test_bill_time_and_material_via_api_returns_501_stub(api_projects) -> None:
     project_id = response.json()["id"]
 
     response = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"task_type": "task"},
+        content_type="application/json",
+        **headers,
+    )
+    task_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/tasks/{task_id}/time/manual",
+        {
+            "started_at": "2026-01-01T08:00:00Z",
+            "stopped_at": "2026-01-01T13:00:00Z",
+            "billable": True,
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+
+    response = client.post(
         f"/api/v1/projects/{project_id}/bill/time-and-material",
         {"hourly_rate": "100"},
         content_type="application/json",
         **headers,
     )
-    assert response.status_code == 501
+    assert response.status_code == 200, response.content
+    assert response.json()["amount"] == "500.0000"
+    assert response.json()["mode"] == "time_and_material"
+
+    # Rien de nouveau a facturer : les heures viennent d'etre marquees
+    # `billed=True`.
+    response = client.post(
+        f"/api/v1/projects/{project_id}/bill/time-and-material",
+        {"hourly_rate": "100"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+
+
+# --- PJ8 : suivi du temps -----------------------------------------------------------
+
+
+def test_start_stop_manual_time_entry_and_report_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet chrono API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+    response = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"task_type": "task"},
+        content_type="application/json",
+        **headers,
+    )
+    task_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/tasks/{task_id}/time/start", content_type="application/json", **headers
+    )
+    assert response.status_code == 200, response.content
+    time_entry_id = response.json()["id"]
+    assert response.json()["stopped_at"] is None
+
+    response = client.post(
+        f"/api/v1/projects/time-entries/{time_entry_id}/stop",
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["stopped_at"] is not None
+
+    # Un deuxieme arret du meme chrono est refuse (deja arrete).
+    response = client.post(
+        f"/api/v1/projects/time-entries/{time_entry_id}/stop",
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+
+    response = client.post(
+        f"/api/v1/projects/tasks/{task_id}/time/manual",
+        {"started_at": "2026-01-01T08:00:00Z", "stopped_at": "2026-01-01T09:30:00Z"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["duration_minutes"] == 90
+
+    response = client.get(f"/api/v1/projects/{project_id}/time-report", **headers)
+    assert response.status_code == 200, response.content
+    results = response.json()["results"]
+    assert len(results) == 1
+    # 90 minutes (saisie manuelle) + 1 minute (chrono demarre/arrete quasi
+    # instantanement, `duration_minutes` toujours >= 1, cf. `services/
+    # time_tracking.py::_duration_minutes`).
+    assert results[0]["total_minutes"] == 91
+
+
+def test_collaborateur_can_start_own_timer_but_not_stop_others(api_projects) -> None:
+    """RBAC N3 (PJ8) : un `collaborateur` recoit `projects.
+    track_prjtimeentry` (peut suivre SON PROPRE temps) mais ne peut pas
+    arreter le chrono d'un collegue."""
+    tenant, manager = api_projects
+    collaborateur = User.objects.create_user(
+        email="projects-collab@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(collaborateur, "collaborateur")
+    client_manager = Client()
+    manager_token = _access_token(client_manager, manager.email, "Str0ngPassw0rd!23")
+    manager_headers = _headers(manager_token, str(tenant.id))
+
+    response = client_manager.post(
+        "/api/v1/projects",
+        {"name": "Projet equipe API"},
+        content_type="application/json",
+        **manager_headers,
+    )
+    project_id = response.json()["id"]
+    response = client_manager.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"task_type": "task"},
+        content_type="application/json",
+        **manager_headers,
+    )
+    task_id = response.json()["id"]
+
+    client_collab = Client()
+    collab_token = _access_token(client_collab, collaborateur.email, "Str0ngPassw0rd!23")
+    collab_headers = _headers(collab_token, str(tenant.id))
+
+    # Le collaborateur demarre SON PROPRE chrono sur cette tache.
+    response = client_collab.post(
+        f"/api/v1/projects/tasks/{task_id}/time/start",
+        content_type="application/json",
+        **collab_headers,
+    )
+    assert response.status_code == 200, response.content
+    collab_entry_id = response.json()["id"]
+
+    # Le manager tente d'arreter le chrono du collaborateur : refuse.
+    response = client_manager.post(
+        f"/api/v1/projects/time-entries/{collab_entry_id}/stop",
+        content_type="application/json",
+        **manager_headers,
+    )
+    assert response.status_code == 400
 
 
 def test_bill_fixed_via_api_requires_bill_prjproject_permission() -> None:

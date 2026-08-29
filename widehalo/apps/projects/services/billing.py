@@ -21,14 +21,23 @@ prealable manquante :
    explicitement si l'ecart est nul/negatif (rien de nouveau a facturer —
    ex. l'avancement n'a pas progresse depuis la derniere facturation, ou a
    regresse suite a une correction).
-3. `bill_time_and_material` : **STUB HONNETE, disclosed explicitement**.
-   `PrjTask`/`PrjProject` ne portent AUCUNE donnee de temps passe a ce
-   stade (`PrjTimeEntry` n'existe pas encore, cf. plan PJ8, "Suivi du
-   temps") — verifie explicitement dans `models.py` avant d'ecrire cette
-   fonction, pas suppose. Leve `TimeAndMaterialNotImplementedError` (sous-
-   classe de `NotImplementedError`) plutot que de fabriquer une fausse
-   facture a 0 ou d'inventer un calcul sans donnee source. A completer a
-   PJ8 quand `PrjTimeEntry` existera reellement.
+3. `bill_time_and_material` : **COMPLETE A PJ8** (etait un STUB HONNETE
+   depuis PJ5, `TimeAndMaterialNotImplementedError`, en attendant
+   `PrjTimeEntry`). Facture `services/time_tracking.py::get_unbilled_
+   billable_hours(project) x hourly_rate` — reutilise directement ce
+   service (aucune reimplementation de l'agregation du temps ici). Refuse
+   explicitement (`ValidationError`) si le nombre d'heures facturables non
+   facturees est nul (rien de nouveau a facturer). Marque les
+   `PrjTimeEntry` facturables non facturees de ce projet `billed=True`
+   **APRES** le succes confirme de la creation de facture (jamais avant,
+   meme discipline que `PrjInvoicingRecord` cf. discipline commune
+   ci-dessous) — si la facture n'est pas creee (config comptable
+   incomplete), AUCUNE entree n'est marquee `billed=True`. L'ancienne
+   `TimeAndMaterialNotImplementedError` (stub PJ5) est retiree de ce
+   fichier — plus aucun appelant (`api.py`/`views.py`/tests) n'en depend,
+   verifie explicitement avant suppression (l'endpoint `POST .../bill/
+   time-and-material` renvoie desormais 200 en cas de succes, comme les 3
+   autres modes, jamais plus 501).
 4. `bill_fixed` : un montant fixe SAISI MANUELLEMENT, une seule fois par
    projet (verifie par `PrjInvoicingRecord.objects.filter(project=project,
    mode=MODE_FIXED)`).
@@ -68,16 +77,11 @@ from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import create_customer_invoice_from_source
 from apps.core.models.user import User
-from apps.projects.models import PrjInvoicingRecord, PrjProject, PrjTask
+from apps.projects.models import PrjInvoicingRecord, PrjProject, PrjTask, PrjTimeEntry
 from apps.projects.services.evm import compute_evm_snapshot
+from apps.projects.services.time_tracking import get_unbilled_billable_hours
 
 _MONEY_QUANT = Decimal("0.0001")
-
-
-class TimeAndMaterialNotImplementedError(NotImplementedError):
-    """Leve par `bill_time_and_material` — cf. docstring de module, point
-    3 : `PrjTimeEntry` (suivi du temps) n'existe pas encore (PJ8), c'est un
-    stub honnete plutot qu'une fausse facture a 0."""
 
 
 def _ensure_client_partner(project: PrjProject) -> UUID:
@@ -193,15 +197,43 @@ def bill_by_percentage(project: PrjProject, user: User) -> UUID:
 
 
 def bill_time_and_material(project: PrjProject, user: User, *, hourly_rate: Decimal) -> UUID:
-    """Cf. docstring de module, point 3 — STUB HONNETE, jamais appele avec
-    succes tant que `PrjTimeEntry` (PJ8) n'existe pas."""
-    raise TimeAndMaterialNotImplementedError(
-        _(
-            "Facturation en regie temps & materiel non disponible : le "
-            "suivi du temps passe (PrjTimeEntry) sera introduit a l'etape "
-            "PJ8 du plan. Aucune facture n'est generee."
+    """Cf. docstring de module, point 3 — reutilise `services/time_
+    tracking.py::get_unbilled_billable_hours` (aucune reimplementation de
+    l'agregation du temps ici)."""
+    if hourly_rate <= 0:
+        raise ValidationError(_("Le taux horaire doit etre strictement positif."))
+    unbilled_hours = get_unbilled_billable_hours(project)
+    if unbilled_hours <= 0:
+        raise ValidationError(
+            _("Rien a facturer : aucune heure facturable non encore facturee sur ce projet.")
         )
+    amount = (unbilled_hours * hourly_rate).quantize(_MONEY_QUANT)
+    label = _("Facturation en regie (%(hours)s heures x %(rate)s)") % {
+        "hours": unbilled_hours,
+        "rate": hourly_rate,
+    }
+    # Selectionne AVANT la creation de facture (le montant facture doit
+    # correspondre EXACTEMENT aux entrees marquees `billed=True` ensuite) —
+    # `list(...)` fige la liste d'ids avant tout risque de course avec une
+    # nouvelle entree creee entre-temps.
+    unbilled_entry_ids = list(
+        PrjTimeEntry.objects.filter(
+            task__project=project,
+            is_active=True,
+            stopped_at__isnull=False,
+            billable=True,
+            billed=False,
+        ).values_list("id", flat=True)
     )
+    invoice_id = _create_invoice_and_record(
+        project,
+        mode=PrjInvoicingRecord.MODE_TIME_AND_MATERIAL,
+        amount=amount,
+        label=str(label),
+        user=user,
+    )
+    PrjTimeEntry.objects.filter(id__in=unbilled_entry_ids).update(billed=True)
+    return invoice_id
 
 
 def bill_fixed(project: PrjProject, user: User, *, amount: Decimal) -> UUID:

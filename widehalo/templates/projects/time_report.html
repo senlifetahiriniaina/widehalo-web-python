@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapport de temps" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapport de temps" %} — {{ project.reference }} — {{ project.name }}</h1>
+
+  <form method="get">
+    <input type="date" name="date_from" value="{{ date_from }}" aria-label="{% trans 'Du' %}">
+    <input type="date" name="date_to" value="{{ date_to }}" aria-label="{% trans 'Au' %}">
+    <button type="submit">{% trans "Filtrer" %}</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Utilisateur" %}</th>
+        <th>{% trans "Total (minutes)" %}</th>
+        <th>{% trans "Facturable (minutes)" %}</th>
+        <th>{% trans "Deja facture (minutes)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in report %}
+        <tr>
+          <td>{{ row.user_id }}</td>
+          <td>{{ row.total_minutes }}</td>
+          <td>{{ row.billable_minutes }}</td>
+          <td>{{ row.billed_minutes }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune entree de temps." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

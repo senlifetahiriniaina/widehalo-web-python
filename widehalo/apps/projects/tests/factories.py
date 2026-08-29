@@ -19,6 +19,7 @@ from apps.projects.models import (
     PrjTask,
     PrjTaskDependency,
     PrjTeamMember,
+    PrjTimeEntry,
 )
 
 
@@ -107,6 +108,22 @@ class PrjTeamMemberFactory(factory.django.DjangoModelFactory):
     user = factory.SubFactory("apps.core.tests.factories.UserFactory")
     role = "developpeur"
     allocation_pct = 50
+
+
+class PrjTimeEntryFactory(factory.django.DjangoModelFactory):
+    """PJ8 — entree de suivi du temps."""
+
+    class Meta:
+        model = PrjTimeEntry
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    task = factory.SubFactory(PrjTaskFactory, tenant=factory.SelfAttribute("..tenant"))
+    user = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    started_at = factory.LazyFunction(lambda: dt.datetime.now(dt.UTC))
+    stopped_at = factory.LazyAttribute(lambda o: o.started_at + dt.timedelta(hours=1))
+    duration_minutes = 60
+    billable = True
+    billed = False
 
 
 class PrjCustomFieldDefinitionFactory(factory.django.DjangoModelFactory):

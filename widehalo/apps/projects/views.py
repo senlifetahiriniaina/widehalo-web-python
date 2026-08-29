@@ -28,9 +28,9 @@ from apps.projects.models import (
     PrjSprint,
     PrjTask,
     PrjTeamMember,
+    PrjTimeEntry,
 )
 from apps.projects.services.billing import (
-    TimeAndMaterialNotImplementedError,
     bill_by_milestone,
     bill_by_percentage,
     bill_fixed,
@@ -61,6 +61,7 @@ from apps.projects.services.tasks import (
     start_task,
     unblock_task,
 )
+from apps.projects.services.time_tracking import get_time_report, start_timer, stop_timer
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -117,11 +118,20 @@ def project_create(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
+    """**PJ8** : bouton demarrer/arrete le chrono directement depuis cette
+    liste de taches (aucun ecran de detail tache dedie n'existe encore dans
+    ce depot, cf. plan) — `action=start_timer`/`stop_timer`. `stop_timer`
+    resout le chrono en cours de L'UTILISATEUR COURANT sur cette tache
+    (`user=request.user, stopped_at__isnull=True`) : un utilisateur ne voit
+    jamais le chrono d'un collegue depuis cet ecran, `services/time_
+    tracking.py::stop_timer` re-verifie de toute facon la propriete cote
+    service (defense en profondeur)."""
     project = get_object_or_404(PrjProject, id=project_id)
     error = None
 
     if request.method == "POST":
         action = request.POST.get("action")
+        user = cast(User, request.user)
         try:
             if action == "add_task":
                 parent_id = request.POST.get("parent_id") or None
@@ -134,18 +144,34 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
                     task_type=request.POST.get("task_type", PrjTask.TYPE_TASK),
                     parent=parent,
                 )
+            elif action == "start_timer":
+                task_id = request.POST.get("task_id", "")
+                task = get_object_or_404(PrjTask, id=task_id, project=project)
+                start_timer(task, user)
+            elif action == "stop_timer":
+                task_id = request.POST.get("task_id", "")
+                task = get_object_or_404(PrjTask, id=task_id, project=project)
+                time_entry = get_object_or_404(
+                    PrjTimeEntry, task=task, user=user, stopped_at__isnull=True
+                )
+                stop_timer(time_entry, user)
             else:
                 task_id = request.POST.get("task_id", "")
                 task = get_object_or_404(PrjTask, id=task_id, project=project)
                 transition_fn = _TASK_TRANSITIONS.get(action or "")
                 if transition_fn is not None:
-                    transition_fn(task, cast(User, request.user))
+                    transition_fn(task, user)
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = str(exc)
         except TransitionPermissionError as exc:
             error = str(exc)
 
     tasks = project.tasks.filter(is_active=True)
+    running_task_ids = set(
+        PrjTimeEntry.objects.filter(
+            task__project=project, user=cast(User, request.user), stopped_at__isnull=True
+        ).values_list("task_id", flat=True)
+    )
     return render(
         request,
         "projects/detail.html",
@@ -153,6 +179,7 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
             "project": project,
             "tasks": tasks,
             "task_types": PrjTask.TYPE_CHOICES,
+            "running_task_ids": running_task_ids,
             "error": error,
         },
     )
@@ -287,8 +314,6 @@ def project_billing(request: HttpRequest, project_id: str) -> HttpResponse:
             if invoice_id is not None:
                 success = _("Facture creee (brouillon, a valider dans le module Comptabilite).")
         except (ValidationError, InvalidOperation, ValueError) as exc:
-            error = str(exc)
-        except TimeAndMaterialNotImplementedError as exc:
             error = str(exc)
 
     records = project.invoicing_records.filter(is_active=True)
@@ -459,6 +484,30 @@ def project_team(request: HttpRequest, project_id: str) -> HttpResponse:
         request,
         "projects/team.html",
         {"project": project, "summary": summary, "error": error},
+    )
+
+
+@login_required
+def project_time_report(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran HTMX minimal de rapport de temps par projet (PJ8) — cf.
+    `services/time_tracking.py::get_time_report`. Filtre optionnel
+    `date_from`/`date_to` (formulaire GET, memes bornes que le service :
+    inclusives des deux cotes)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    date_from_raw = request.GET.get("date_from") or ""
+    date_to_raw = request.GET.get("date_to") or ""
+    date_from = dt.date.fromisoformat(date_from_raw) if date_from_raw else None
+    date_to = dt.date.fromisoformat(date_to_raw) if date_to_raw else None
+    report = get_time_report(project, date_from=date_from, date_to=date_to)
+    return render(
+        request,
+        "projects/time_report.html",
+        {
+            "project": project,
+            "report": report,
+            "date_from": date_from_raw,
+            "date_to": date_to_raw,
+        },
     )
 
 

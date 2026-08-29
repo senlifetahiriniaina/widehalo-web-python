@@ -27,9 +27,9 @@ from apps.projects.models import (
     PrjSprint,
     PrjTask,
     PrjTeamMember,
+    PrjTimeEntry,
 )
 from apps.projects.services.billing import (
-    TimeAndMaterialNotImplementedError,
     bill_by_milestone,
     bill_by_percentage,
     bill_fixed,
@@ -59,6 +59,12 @@ from apps.projects.services.tasks import (
     finish_task,
     start_task,
     unblock_task,
+)
+from apps.projects.services.time_tracking import (
+    get_time_report,
+    log_manual_time_entry,
+    start_timer,
+    stop_timer,
 )
 
 router = Router(tags=["projects"])
@@ -126,6 +132,16 @@ class CustomFieldDefinitionIn(Schema):
     validation_rule: dict[str, Any] = {}
 
 
+class ManualTimeEntryIn(Schema):
+    """Saisie manuelle a posteriori (sans chrono) — cf. `services/time_
+    tracking.py::log_manual_time_entry`."""
+
+    started_at: str
+    stopped_at: str
+    billable: bool = True
+    note: str = ""
+
+
 class TaskIn(Schema):
     task_type: str = PrjTask.TYPE_TASK
     parent_id: str | None = None
@@ -189,6 +205,20 @@ def _serialize_sprint(sprint: PrjSprint) -> dict[str, Any]:
         "end_date": sprint.end_date.isoformat(),
         "status": sprint.status,
         "goal": sprint.goal,
+    }
+
+
+def _serialize_time_entry(entry: PrjTimeEntry) -> dict[str, Any]:
+    return {
+        "id": str(entry.id),
+        "task_id": str(entry.task_id),
+        "user_id": str(entry.user_id),
+        "started_at": entry.started_at.isoformat(),
+        "stopped_at": entry.stopped_at.isoformat() if entry.stopped_at else None,
+        "duration_minutes": entry.duration_minutes,
+        "billable": entry.billable,
+        "billed": entry.billed,
+        "note": entry.note,
     }
 
 
@@ -456,19 +486,20 @@ def bill_fixed_endpoint(request: Any, project_id: str, payload: BillFixedIn) -> 
 def bill_time_and_material_endpoint(
     request: Any, project_id: str, payload: BillTimeAndMaterialIn
 ) -> dict[str, Any]:
-    """Cf. `services/billing.py::bill_time_and_material` — STUB HONNETE,
-    renvoie systematiquement 501 (Not Implemented) tant que `PrjTimeEntry`
-    (PJ8) n'existe pas, jamais une fausse facture a 0."""
+    """Cf. `services/billing.py::bill_time_and_material` — desormais
+    implemente (PJ8, `PrjTimeEntry`) : jamais plus de 501, meme patron 200/
+    400 que les 3 autres modes."""
     project = get_object_or_404(PrjProject, id=project_id)
     user = request.auth
     assert isinstance(user, User)
     try:
         bill_time_and_material(project, user, hourly_rate=payload.hourly_rate)
-    except TimeAndMaterialNotImplementedError as exc:
-        return JsonResponse({"detail": str(exc)}, status=501)
-    except ValidationError as exc:  # pragma: no cover - defense en profondeur
+    except ValidationError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
-    return {}  # pragma: no cover - jamais atteint (bill_time_and_material leve toujours)
+    record = project.invoicing_records.filter(
+        mode=PrjInvoicingRecord.MODE_TIME_AND_MATERIAL
+    ).latest("created_at")
+    return _serialize_invoicing_record(record)
 
 
 # ---------------------------------------------------------------------------
@@ -679,3 +710,96 @@ def remove_custom_field_definition_endpoint(request: Any, definition_id: str) ->
     definition = get_object_or_404(PrjCustomFieldDefinition, id=definition_id)
     definition.soft_delete()
     return {"id": str(definition.id), "is_active": definition.is_active}
+
+
+# ---------------------------------------------------------------------------
+# PJ8 — Suivi du temps. RBAC : permission PERSONNALISEE `projects.track_
+# prjtimeentry` (declaree en `Meta.permissions` de `PrjTimeEntry`) plutot
+# que les codenames auto-generes `add/change_prjtimeentry` de
+# `ROLE_APP_PERMISSIONS["projects"]` — ce dernier n'accorde PAS "add" a
+# `collaborateur` (cf. sa docstring de role : "gere ses taches assignees et
+# son propre suivi du temps"), or un `collaborateur` DOIT pouvoir demarrer
+# son propre chrono. Cette permission personnalisee est donc accordee a
+# TOUS les roles ayant acces au module `projects` (admin/direction/
+# resp_commercial/resp_production/collaborateur), cf.
+# `apps.core.services.rbac_policy.CUSTOM_PERMISSIONS`. **Scope N3** : la
+# permission N2 ci-dessus donne seulement le DROIT d'utiliser ces
+# endpoints — la restriction reelle "un utilisateur ne gere que SES
+# PROPRES entrees" est portee par `services/time_tracking.py` lui-meme
+# (`start_timer`/`stop_timer` operent explicitement sur `user=request.
+# auth`, `stop_timer` refuse explicitement le chrono d'un tiers), jamais
+# par un filtre applique ici en plus.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/projects/tasks/{task_id}/time/start")
+@require_permission("projects.track_prjtimeentry")
+def start_timer_endpoint(request: Any, task_id: str) -> dict[str, Any]:
+    task = get_object_or_404(PrjTask, id=task_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        entry = start_timer(task, user)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_time_entry(entry)
+
+
+@router.post("/projects/time-entries/{time_entry_id}/stop")
+@require_permission("projects.track_prjtimeentry")
+def stop_timer_endpoint(request: Any, time_entry_id: str) -> dict[str, Any]:
+    time_entry = get_object_or_404(PrjTimeEntry, id=time_entry_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        stop_timer(time_entry, user)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_time_entry(time_entry)
+
+
+@router.post("/projects/tasks/{task_id}/time/manual")
+@require_permission("projects.track_prjtimeentry")
+def log_manual_time_entry_endpoint(
+    request: Any, task_id: str, payload: ManualTimeEntryIn
+) -> dict[str, Any]:
+    task = get_object_or_404(PrjTask, id=task_id)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        entry = log_manual_time_entry(
+            task,
+            user,
+            started_at=dt.datetime.fromisoformat(payload.started_at),
+            stopped_at=dt.datetime.fromisoformat(payload.stopped_at),
+            billable=payload.billable,
+            note=payload.note,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_time_entry(entry)
+
+
+@router.get("/projects/{project_id}/time-report")
+@require_permission("projects.track_prjtimeentry")
+def project_time_report_endpoint(
+    request: Any, project_id: str, date_from: str | None = None, date_to: str | None = None
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    report = get_time_report(
+        project,
+        date_from=dt.date.fromisoformat(date_from) if date_from else None,
+        date_to=dt.date.fromisoformat(date_to) if date_to else None,
+    )
+    return {
+        "project_id": str(project.id),
+        "results": [
+            {
+                "user_id": str(row["user_id"]),
+                "total_minutes": row["total_minutes"],
+                "billable_minutes": row["billable_minutes"],
+                "billed_minutes": row["billed_minutes"],
+            }
+            for row in report
+        ],
+    }

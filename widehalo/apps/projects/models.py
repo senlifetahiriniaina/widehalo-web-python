@@ -647,3 +647,78 @@ class PrjCustomFieldDefinition(BaseModel):
         return (
             f"{self.get_entity_type_display()}.{self.field_key} ({self.get_field_type_display()})"
         )
+
+
+class PrjTimeEntry(BaseModel):
+    """Suivi du temps passe sur une tache (PJ8) — 229e/250 modele de ce
+    depot. Pas `ReferenceMixin` (meme raisonnement que `PrjTaskDependency`/
+    `PrjBudgetLine`/`PrjSprint`/`PrjTeamMember` : une entree de temps se
+    decrit par son couple tache/utilisateur/creneau, aucun besoin de numero
+    de document dedie).
+
+    Alimente `apps/projects/services/time_tracking.py` :
+    - `started_at`/`stopped_at` (`DateTimeField`) : `stopped_at` reste
+      `null=True` tant que le chrono tourne (`start_timer`) — une entree
+      avec `stopped_at=None` EST, par definition, le chrono actif de son
+      `user`. **Regle du chrono unique, disclosed explicitement** : un
+      utilisateur ne peut avoir qu'UN SEUL chrono actif a la fois, tous
+      projets/taches confondus (`start_timer` refuse explicitement toute
+      seconde tentative tant qu'une entree `stopped_at__isnull=True` existe
+      deja pour ce `user`) — une regle simple, volontairement PAS une
+      verification de chevauchement d'intervalles entre plusieurs saisies
+      MANUELLES (`log_manual_time_entry`), qui, elle, n'est pas gardee (deux
+      saisies manuelles peuvent techniquement se chevaucher, disclosed comme
+      hors perimetre de ce chantier).
+    - `duration_minutes` (`PositiveIntegerField`) : calcule UNIQUEMENT par
+      le service au moment de l'arret du chrono (`stop_timer`) ou de la
+      saisie manuelle (`log_manual_time_entry`) — **jamais saisi
+      directement par l'appelant pendant qu'un chrono tourne** (`default=0`
+      tant que `stopped_at is None`, valeur transitoire sans signification
+      metier avant l'arret).
+    - `billable` (`BooleanField`, `default=True`) : temps facturable en
+      regie (mode `bill_time_and_material`, cf. `services/billing.py`) —
+      une entree non facturable (`billable=False`) reste visible dans le
+      rapport de temps mais n'entre jamais dans `get_unbilled_billable_
+      hours`.
+    - `billed` (`BooleanField`, `default=False`) : marque a `True`
+      UNIQUEMENT apres succes confirme d'une facturation T&M (meme
+      discipline anti-double-facturation que `PrjInvoicingRecord`, cf.
+      docstring de ce modele ci-dessus) — jamais avant, jamais en cas
+      d'echec de la creation de facture.
+    - `note` (`TextField`, optionnel) : commentaire libre sur l'entree
+      (ex. description de la tache effectuee durant ce creneau)."""
+
+    task = models.ForeignKey(PrjTask, on_delete=models.CASCADE, related_name="time_entries")
+    user = models.ForeignKey("core.User", on_delete=models.CASCADE, related_name="+")
+    started_at = models.DateTimeField()
+    # Nullable tant que le chrono tourne — cf. docstring de classe.
+    stopped_at = models.DateTimeField(null=True, blank=True)
+    # Calcule a l'arret du chrono/a la saisie manuelle uniquement — jamais
+    # saisi directement pendant qu'un chrono tourne, cf. docstring de
+    # classe.
+    duration_minutes = models.PositiveIntegerField(default=0)
+    billable = models.BooleanField(default=True)
+    billed = models.BooleanField(default=False)
+    note = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "prj_time_entry"
+        ordering = ["-started_at"]
+        # `ROLE_APP_PERMISSIONS["projects"]` n'accorde PAS "add" au role
+        # `collaborateur` (cf. sa docstring : CRUD projet/tache reserve aux
+        # roles "domaine cible") — or un `collaborateur` DOIT pouvoir
+        # demarrer/arreter SON PROPRE chrono (cf. plan PJ8, RBAC). Meme
+        # contournement par permission personnalisee que `projects.bill_
+        # prjproject`/`projects.manage_prjcustomfielddefinition`, mais dans
+        # le sens INVERSE (ELARGIR a un role qui n'a normalement pas "add"
+        # sur ce module, plutot que RESTREINDRE un role qui l'a) — accordee
+        # a TOUS les roles ayant acces au module `projects` (admin/
+        # direction/resp_commercial/resp_production/collaborateur), cf.
+        # `apps.core.services.rbac_policy.CUSTOM_PERMISSIONS`. Le scope N3
+        # ("un utilisateur ne gere que SES PROPRES entrees") est porte par
+        # `services/time_tracking.py` lui-meme, pas par cette permission
+        # N2 (qui donne seulement le DROIT d'utiliser l'endpoint).
+        permissions = [("track_prjtimeentry", "Peut suivre son propre temps sur une tache")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} @ {self.task_id} ({self.started_at})"

@@ -16,6 +16,7 @@
     · <a href="{% url 'projects:kanban' project.id %}">{% trans "Kanban" %}</a>
     · <a href="{% url 'projects:calendar' project.id %}">{% trans "Calendrier" %}</a>
     · <a href="{% url 'projects:roadmap' project.id %}">{% trans "Roadmap" %}</a>
+    · <a href="{% url 'projects:time_report' project.id %}">{% trans "Rapport de temps" %}</a>
   </p>
 
   <h2>{% trans "Taches" %}</h2>
@@ -66,6 +67,19 @@
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="cancel">
                 <button type="submit">{% trans "Annuler" %}</button>
+              </form>
+            {% endif %}
+            {% if task.id in running_task_ids %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="stop_timer">
+                <button type="submit">{% trans "Arreter le chrono" %}</button>
+              </form>
+            {% else %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="hidden" name="action" value="start_timer">
+                <button type="submit">{% trans "Demarrer le chrono" %}</button>
               </form>
             {% endif %}
           </td>

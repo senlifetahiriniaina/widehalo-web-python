@@ -23,6 +23,7 @@ urlpatterns = [
     path("<uuid:project_id>/calendar/", views.project_calendar, name="calendar"),
     path("<uuid:project_id>/roadmap/", views.project_roadmap, name="roadmap"),
     path("<uuid:project_id>/team/", views.project_team, name="team"),
+    path("<uuid:project_id>/time-report/", views.project_time_report, name="time_report"),
     path(
         "<uuid:project_id>/sprints/<uuid:sprint_id>/burndown/",
         views.project_sprint_burndown,

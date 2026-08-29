@@ -21,7 +21,6 @@ from apps.core.tests.utils import use_tenant
 from apps.partners.tests.factories import PartnerFactory
 from apps.projects.models import PrjInvoicingRecord, PrjProject, PrjTask
 from apps.projects.services.billing import (
-    TimeAndMaterialNotImplementedError,
     bill_by_milestone,
     bill_by_percentage,
     bill_fixed,
@@ -30,6 +29,7 @@ from apps.projects.services.billing import (
 from apps.projects.services.evm import add_budget_line
 from apps.projects.services.projects import create_project
 from apps.projects.services.tasks import create_task, finish_task, start_task
+from apps.projects.services.time_tracking import log_manual_time_entry
 
 pytestmark = pytest.mark.django_db
 
@@ -243,18 +243,66 @@ def test_bill_fixed_refuses_non_positive_amount(billing_setup) -> None:
             bill_fixed(project, user, amount=Decimal("0"))
 
 
-# --- bill_time_and_material (stub honnete) -------------------------------------------
+# --- bill_time_and_material (PJ8 : complete le stub honnete de PJ5) -------------------
 
 
-def test_bill_time_and_material_is_an_honest_stub(billing_setup) -> None:
+def test_bill_time_and_material_success_marks_entries_billed(billing_setup) -> None:
     tenant, user, partner = billing_setup
     with use_tenant(tenant.id):
         _setup_accounting(tenant)
         project = create_project(tenant, name="Projet regie", client_partner_id=partner.id)
+        task = create_task(tenant, project=project)
+        now = dt.datetime.now(dt.UTC)
+        entry = log_manual_time_entry(
+            task, user, started_at=now - dt.timedelta(hours=5), stopped_at=now, billable=True
+        )
+        non_billable = log_manual_time_entry(
+            task,
+            user,
+            started_at=now - dt.timedelta(hours=1),
+            stopped_at=now,
+            billable=False,
+        )
 
-        with pytest.raises(TimeAndMaterialNotImplementedError):
+        invoice_id = bill_time_and_material(project, user, hourly_rate=Decimal("100"))
+
+        assert invoice_id is not None
+        record = PrjInvoicingRecord.objects.get(
+            project=project, mode=PrjInvoicingRecord.MODE_TIME_AND_MATERIAL
+        )
+        assert record.amount == Decimal("500.0000")  # 5h x 100
+        entry.refresh_from_db()
+        assert entry.billed is True
+        non_billable.refresh_from_db()
+        assert non_billable.billed is False  # jamais facture (non facturable)
+
+
+def test_bill_time_and_material_refuses_without_unbilled_hours(billing_setup) -> None:
+    tenant, user, partner = billing_setup
+    with use_tenant(tenant.id):
+        _setup_accounting(tenant)
+        project = create_project(
+            tenant, name="Projet regie sans temps", client_partner_id=partner.id
+        )
+
+        with pytest.raises(ValidationError):
             bill_time_and_material(project, user, hourly_rate=Decimal("100"))
         assert not PrjInvoicingRecord.objects.filter(project=project).exists()
+
+
+def test_bill_time_and_material_refuses_non_positive_rate(billing_setup) -> None:
+    tenant, user, partner = billing_setup
+    with use_tenant(tenant.id):
+        _setup_accounting(tenant)
+        project = create_project(
+            tenant, name="Projet regie taux invalide", client_partner_id=partner.id
+        )
+        task = create_task(tenant, project=project)
+        now = dt.datetime.now(dt.UTC)
+        log_manual_time_entry(task, user, started_at=now - dt.timedelta(hours=1), stopped_at=now)
+
+        with pytest.raises(ValidationError):
+            bill_time_and_material(project, user, hourly_rate=Decimal("0"))
 
 
 # --- client_partner_id manquant (commun aux 4 modes) ----------------------------------
@@ -276,6 +324,14 @@ def test_all_modes_refuse_without_client_partner(billing_setup) -> None:
         finish_task(task, user)
         with pytest.raises(ValidationError):
             bill_by_milestone(project, task, user)
+
+        regular_task = create_task(tenant, project=project)
+        now = dt.datetime.now(dt.UTC)
+        log_manual_time_entry(
+            regular_task, user, started_at=now - dt.timedelta(hours=1), stopped_at=now
+        )
+        with pytest.raises(ValidationError):
+            bill_time_and_material(project, user, hourly_rate=Decimal("100"))
 
         assert not PrjInvoicingRecord.objects.filter(project=project).exists()
 

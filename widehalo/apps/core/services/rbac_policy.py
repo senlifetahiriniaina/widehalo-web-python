@@ -345,6 +345,27 @@ CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES = ("admin", "direction", "resp_commerci
 # (contrairement a `bill_prjproject`, qui associe ce dernier).
 CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES = ("admin", "direction")
 
+# PJ8 (suivi du temps `projects`) : `projects.track_prjtimeentry`
+# (declaree en `Meta.permissions` de `PrjTimeEntry`) contourne, dans le
+# sens INVERSE des 2 permissions personnalisees ci-dessus, la granularite
+# app-level de `ROLE_APP_PERMISSIONS["projects"]` — celle-ci n'accorde PAS
+# "add" au role `collaborateur` (cf. sa docstring de role : CRUD projet/
+# tache reserve aux roles "domaine cible"), or un `collaborateur` DOIT
+# pouvoir demarrer/arreter SON PROPRE chrono (cf. plan PJ8, disclosure
+# explicite depuis PJ1 : "un collaborateur gere ses taches assignees et son
+# propre suivi du temps"). Accordee a TOUS les roles ayant acces au module
+# `projects` (admin/direction/resp_commercial/resp_production/
+# collaborateur) — le scope N3 ("un utilisateur ne gere que SES PROPRES
+# entrees") est porte par `apps.projects.services.time_tracking`
+# lui-meme, jamais par cette permission N2.
+CUSTOM_PERMISSIONS_TRACK_PRJ_TIME_ENTRY_ROLES = (
+    "admin",
+    "direction",
+    "resp_commercial",
+    "resp_production",
+    "collaborateur",
+)
+
 # RSK1-2 (chantier risques operationnels) : `RiskItem` vit dans `core`
 # (rattachable a n'importe quel module via content_type/object_id, cf.
 # `apps.core.models.risk`) — `core` n'apparait PAS dans
@@ -445,6 +466,8 @@ for _role in CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.bill_prjproject")
 for _role in CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.manage_prjcustomfielddefinition")
+for _role in CUSTOM_PERMISSIONS_TRACK_PRJ_TIME_ENTRY_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.track_prjtimeentry")
 for _role in _QLT_FULL_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
         {
