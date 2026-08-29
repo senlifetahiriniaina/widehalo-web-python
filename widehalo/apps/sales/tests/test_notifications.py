@@ -126,7 +126,7 @@ def test_invoice_order_notifies_salesperson_on_real_invoice(notif_setup) -> None
         AccPeriodFactory(
             tenant=tenant,
             date_start=dt.date.today().replace(day=1),
-            date_end=dt.date.today().replace(day=28),
+            date_end=dt.date.today() + dt.timedelta(days=5),
         )
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_RECEIVABLE)
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_INCOME)
