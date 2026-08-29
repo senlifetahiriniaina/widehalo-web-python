@@ -45,6 +45,12 @@ CATEGORY_LOGISTICS = "logistique"
 CATEGORY_FINANCIAL = "financier"
 CATEGORY_QUALITY = "qualite"
 CATEGORY_HR = "rh"
+# PJ9 (module `projects`) : categorie ajoutee pour rattacher un risque a un
+# `PrjProject`/`PrjTask` sans dupliquer le mecanisme generique deja construit
+# a RSK1-2 — `projects` ne cree jamais son propre registre de risques, il
+# consomme ce module via un lien "Signaler un risque" (regle de couplage
+# n°5), cf. docstring de tete de fichier.
+CATEGORY_PROJECT = "projet"
 CATEGORY_OTHER = "autre"
 CATEGORY_CHOICES = [
     (CATEGORY_SUPPLIER, _("Fournisseur")),
@@ -53,6 +59,7 @@ CATEGORY_CHOICES = [
     (CATEGORY_FINANCIAL, _("Financier")),
     (CATEGORY_QUALITY, _("Qualite")),
     (CATEGORY_HR, _("Ressources humaines")),
+    (CATEGORY_PROJECT, _("Projet")),
     (CATEGORY_OTHER, _("Autre")),
 ]
 

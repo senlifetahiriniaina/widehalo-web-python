@@ -24,6 +24,8 @@ urlpatterns = [
     path("<uuid:project_id>/roadmap/", views.project_roadmap, name="roadmap"),
     path("<uuid:project_id>/team/", views.project_team, name="team"),
     path("<uuid:project_id>/time-report/", views.project_time_report, name="time_report"),
+    path("<uuid:project_id>/risks/", views.project_risks, name="risks"),
+    path("<uuid:project_id>/risks/new/", views.project_risk_create, name="risk_create"),
     path(
         "<uuid:project_id>/sprints/<uuid:sprint_id>/burndown/",
         views.project_sprint_burndown,

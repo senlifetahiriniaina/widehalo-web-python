@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from typing import cast
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -521,4 +522,63 @@ def user_capacity_heatmap(request: HttpRequest, user_id: str) -> HttpResponse:
         request,
         "projects/capacity_heatmap.html",
         {"target_user": user, "heatmap": heatmap},
+    )
+
+
+@login_required
+def project_risks(request: HttpRequest, project_id: str) -> HttpResponse:
+    """PJ9 : matrice de risques filtree par projet — reutilise integralement
+    le registre generique `core.RiskItem` (RSK1-2), jamais un registre
+    dedie a `projects`. Filtre par `content_type=PrjProject`/`object_id=
+    project.id`, categorie CATEGORY_PROJECT par convention (pas une
+    contrainte technique : un risque rattache a un `PrjProject` avec une
+    autre categorie resterait visible ici, le filtre porte sur le
+    rattachement, pas la categorie)."""
+    from apps.core.models.risk import RiskItem
+
+    project = get_object_or_404(PrjProject, id=project_id)
+    content_type = ContentType.objects.get_for_model(PrjProject)
+    risks = RiskItem.objects.filter(content_type=content_type, object_id=str(project.id))
+    return render(
+        request,
+        "projects/risks.html",
+        {"project": project, "risks": risks},
+    )
+
+
+@login_required
+def project_risk_create(request: HttpRequest, project_id: str) -> HttpResponse:
+    """PJ9 : signale un risque rattache a ce projet — appelle directement
+    `core.services.risk.create_risk_item(content_object=project, ...)`,
+    jamais une duplication du mecanisme de scoring/publication
+    `risk.flagged` deja construit a RSK1-2 (regle de couplage n°5)."""
+    from apps.core.models.risk import CATEGORY_PROJECT
+    from apps.core.services.risk import create_risk_item
+
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        user = cast(User, request.user)
+        try:
+            likelihood = int(request.POST.get("likelihood", "0"))
+            impact = int(request.POST.get("impact", "0"))
+            if not (1 <= likelihood <= 5) or not (1 <= impact <= 5):
+                raise ValueError
+        except ValueError:
+            error = _("Probabilite et impact doivent etre des entiers entre 1 et 5.")
+        else:
+            create_risk_item(
+                tenant=project.tenant,
+                category=CATEGORY_PROJECT,
+                likelihood=likelihood,
+                impact=impact,
+                owner=user,
+                mitigation_plan=request.POST.get("mitigation_plan", ""),
+                content_object=project,
+            )
+            return redirect("projects:risks", project_id=project.id)
+    return render(
+        request,
+        "projects/risk_create.html",
+        {"project": project, "error": error},
     )
