@@ -41,3 +41,23 @@ def is_employee_on_payroll(tenant: Tenant, employee_id: UUID, *, at_date: dt.dat
     from apps.payroll.services.contracts import resolve_active_contract
 
     return resolve_active_contract(tenant, employee_id, at_date=at_date) is not None
+
+
+def get_payroll_mass_projection(tenant: Tenant, *, months: int = 12) -> list[dict[str, Decimal]]:
+    """Nouveau gap ajoute pendant le chantier `strategy` (rapport business
+    plan, section prevision, PAY-PROJ1) : mise a plat tabulaire de
+    `services/projection.py::project_payroll_mass` (calculateur SIMPLE deja
+    construit, EFFECTIF CONSTANT, sans augmentation planifiee) — aucun
+    nouveau calcul ici, primitives en sortie (jamais un objet
+    `MonthProjection`)."""
+    from apps.payroll.services.projection import project_payroll_mass
+
+    projections = project_payroll_mass(tenant, months=months)
+    return [
+        {
+            "month_index": Decimal(projection.month_index),
+            "total_wage_base": projection.total_wage_base,
+            "total_employer_social": projection.total_employer_social,
+        }
+        for projection in projections
+    ]

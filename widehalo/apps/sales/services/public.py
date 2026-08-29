@@ -8,11 +8,14 @@ pourront s'y brancher une fois les etapes ulterieures (S3-S7) livrees."""
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.db.models import Sum
 
-from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation
+from apps.sales.models import SalesForecast, SalesOrder, SalesOrderLine, SalesQuotation
+
+if TYPE_CHECKING:
+    from apps.core.models.tenant import Tenant
 
 
 def get_quotation_reference(quotation_id: Any) -> str:
@@ -44,3 +47,30 @@ def get_delivered_qty_for_order(order_id: Any) -> Decimal | None:
         "total"
     ]
     return total if total is not None else Decimal(0)
+
+
+def get_forecast_summary(
+    tenant: Tenant, *, period_from: str, period_to: str
+) -> list[dict[str, Any]]:
+    """Nouveau gap ajoute pendant le chantier `strategy` (rapport business
+    plan, section prevision) : mise a plat tabulaire des `SalesForecast`
+    deja calcules (S6, `services.forecast.build_forecast`/
+    `recompute_forecasts_for_period`) sur `[period_from, period_to]`
+    inclus, AUCUN nouveau calcul de prevision ici — meme discipline que
+    `services/reports.py::forecast_rows`, mais filtree EXPLICITEMENT sur
+    `tenant` (appelee depuis un autre module, contrairement a `forecast_
+    rows` qui compte sur le `TenantManager` deja scope au contexte HTTP
+    courant)."""
+    forecasts = SalesForecast.objects.filter(
+        tenant=tenant, period__gte=period_from, period__lte=period_to, is_active=True
+    ).order_by("period", "variant_id")
+    return [
+        {
+            "period": forecast.period,
+            "variant_id": str(forecast.variant_id),
+            "qty_forecast": forecast.qty_forecast,
+            "qty_actual": forecast.qty_actual,
+            "confidence": forecast.confidence,
+        }
+        for forecast in forecasts
+    ]

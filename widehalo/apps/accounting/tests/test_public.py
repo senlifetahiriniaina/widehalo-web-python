@@ -32,6 +32,7 @@ from apps.accounting.services.public import (
     create_stock_adjustment_entry_from_source,
     create_supplier_invoice_from_source,
     get_budget_variance_for_analytic_account,
+    get_treasury_forecast_summary,
 )
 from apps.accounting.tests.factories import (
     AccAccountFactory,
@@ -560,6 +561,20 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_open_per
         )
 
         assert result is None
+
+
+def test_get_treasury_forecast_summary_delegates_to_treasury_forecast(public_setup) -> None:
+    """Nouveau gap ajoute pendant le chantier `strategy` (rapport business
+    plan, ACC-TRESO) — simple passe-plat, verifie ici sur un tenant sans
+    aucun mouvement (solde de depart et paniers a zero, jamais une
+    exception)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        result = get_treasury_forecast_summary(
+            tenant, as_of_date=dt.date(2026, 6, 1), horizon_days=90
+        )
+        assert result["starting_cash_mga"] == Decimal(0)
+        assert result["dips"] == []
 
 
 def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_account(

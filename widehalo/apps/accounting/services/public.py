@@ -626,6 +626,22 @@ def post_payroll_batch_entry_from_source(
     return move_id
 
 
+def get_treasury_forecast_summary(
+    tenant: Tenant, *, as_of_date: dt.date | None = None, horizon_days: int = 90
+) -> dict[str, Any]:
+    """Nouveau gap ajoute pendant le chantier `strategy` (rapport business
+    plan, section prevision, ACC-TRESO/A15) : simple passe-plat vers
+    `services/reports.py::treasury_forecast`, deja construit — aucun
+    nouveau calcul ici. `tenant` expose pour la signature (coherent avec le
+    reste de ce fichier) mais NON utilise pour filtrer directement, meme
+    remarque que `treasury_forecast` lui-meme : l'appelant doit deja se
+    trouver dans le contexte tenant courant (`TenantManager`), typiquement
+    le cas d'un rapport genere pendant une requete HTTP authentifiee."""
+    from apps.accounting.services.reports import treasury_forecast
+
+    return treasury_forecast(tenant, as_of_date=as_of_date, horizon_days=horizon_days)
+
+
 def decide_invoice_import_qualification(
     approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
 ) -> None:

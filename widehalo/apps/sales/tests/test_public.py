@@ -15,10 +15,12 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.sales.services.public import (
     get_delivered_qty_for_order,
+    get_forecast_summary,
     get_order_reference,
     get_quotation_reference,
 )
 from apps.sales.tests.factories import (
+    SalesForecastFactory,
     SalesOrderFactory,
     SalesOrderLineFactory,
     SalesQuotationFactory,
@@ -75,3 +77,18 @@ def test_get_delivered_qty_for_order_returns_none_for_unknown_order(public_setup
     tenant = public_setup
     with use_tenant(tenant.id):
         assert get_delivered_qty_for_order(uuid.uuid4()) is None
+
+
+def test_get_forecast_summary_filters_by_period_range(public_setup) -> None:
+    """Nouveau gap ajoute pendant le chantier `strategy` (rapport business
+    plan)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        SalesForecastFactory(tenant=tenant, period="2026-06", qty_forecast=Decimal("100"))
+        SalesForecastFactory(tenant=tenant, period="2026-07", qty_forecast=Decimal("200"))
+
+        rows = get_forecast_summary(tenant, period_from="2026-06", period_to="2026-06")
+
+        assert len(rows) == 1
+        assert rows[0]["period"] == "2026-06"
+        assert rows[0]["qty_forecast"] == Decimal("100")
