@@ -127,6 +127,15 @@ def dispatch_event(event_id: str) -> None:
             for handler in handlers:
                 handler(
                     {
+                        # AUTO4 (chantier Studio de workflow visuel) :
+                        # "id" ajoute pour que `apps.automation.services.
+                        # dispatch.dispatch_event_to_flows` puisse relier
+                        # l'`AutoRun` qu'il declenche a l'`EventLog` reel
+                        # (`AutoRun.triggering_event`) — champ additif,
+                        # aucun abonne existant ne s'attend a un dict
+                        # fige (verifie par la suite `test_event_bus.py`
+                        # qui n'accede qu'aux cles dont il a besoin).
+                        "id": str(event.id),
                         "type": event.event_type,
                         "payload": event.payload,
                         "tenant_id": event.tenant_id,

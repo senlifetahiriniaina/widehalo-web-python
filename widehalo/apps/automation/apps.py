@@ -8,8 +8,11 @@ class AutomationConfig(AppConfig):
     verbose_name = "Studio de workflow visuel"
 
     def ready(self) -> None:
-        # AUTO4 branchera ici l'abonnement generique `core.events.
-        # subscribe_all(dispatch_event_to_flows)` — squelette AUTO3
-        # volontairement sans effet de bord au demarrage (models +
-        # registre d'actions uniquement a ce stade).
-        pass
+        from apps.automation.services.dispatch import dispatch_event_to_flows
+        from apps.core.events import subscribe_all
+
+        # AUTO4 : UN SEUL abonne generique enregistre ici (cf. plan) — reçoit
+        # tout evenement publie par n'importe quel module et dispatche vers
+        # les `AutoFlow` actifs concernes, sans qu'aucun module n'ait besoin
+        # de coder un `@subscribe(event_type)` a l'avance pour le studio.
+        subscribe_all(dispatch_event_to_flows)
