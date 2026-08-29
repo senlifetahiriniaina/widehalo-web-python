@@ -311,7 +311,7 @@ BUDGET_MAX_SCREENS = 200
 # DeepSeek et Kimi (Moonshot AI) exposent tous deux une API "chat
 # completions" compatible OpenAI, d'ou un connecteur HTTP unique
 # (`OpenAICompatibleAIProvider`) plutot que trois implementations separees.
-AI_PROVIDER_CONFIG: dict = {}
+AI_PROVIDER_CONFIG: dict[str, str] = {}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
 # au-dela de ce nombre de secondes ESTIME (cf. `apps.reporting.services.
