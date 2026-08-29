@@ -7,7 +7,7 @@ riches (Gantt SVG, Kanban, EVM...) arrivent aux etapes PJ2+."""
 from __future__ import annotations
 
 import datetime as dt
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import cast
 
 from django.contrib.auth.decorators import login_required
@@ -20,7 +20,8 @@ from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.projects.models import PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjProject, PrjTask
+from apps.projects.services.evm import add_budget_line, compute_s_curve, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
 from apps.projects.services.projects import create_project
 from apps.projects.services.tasks import (
@@ -174,6 +175,46 @@ def project_gantt(request: HttpRequest, project_id: str) -> HttpResponse:
             # `mark_safe` est donc sur une chaine deja assainie, pas sur
             # une entree utilisateur brute.
             "gantt_svg": mark_safe(gantt_svg),  # noqa: S308
+            "error": error,
+        },
+    )
+
+
+@login_required
+def project_budget(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran budget/EVM (PJ4) : tableau des lignes budgetaires + indicateurs
+    SPI/CPI/EAC — cf. `services/evm.py`. **Pas de graphique reel de la
+    courbe en S a ce stade** (disclosed explicitement, cf. docstring de
+    module de `services/evm.py`) : `compute_s_curve` alimente ici une
+    simple table de valeurs cumulees ; l'export graphique proprement dit
+    est reporte a la finalisation PJ15 si le temps le permet."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        try:
+            add_budget_line(
+                project,
+                category=request.POST.get("category", PrjBudgetLine.CATEGORY_OPEX),
+                label=request.POST.get("label", ""),
+                planned_amount=Decimal(request.POST.get("planned_amount") or "0"),
+                actual_amount=Decimal(request.POST.get("actual_amount") or "0"),
+                period=dt.date.fromisoformat(request.POST.get("period", "")),
+            )
+        except (ValidationError, InvalidOperation, ValueError) as exc:
+            error = str(exc)
+
+    snapshot = refresh_project_health(project)
+    lines = project.budget_lines.filter(is_active=True)
+    s_curve = compute_s_curve(project)
+    return render(
+        request,
+        "projects/budget.html",
+        {
+            "project": project,
+            "lines": lines,
+            "snapshot": snapshot,
+            "s_curve": s_curve,
+            "categories": PrjBudgetLine.CATEGORY_CHOICES,
             "error": error,
         },
     )

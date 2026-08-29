@@ -129,6 +129,84 @@ def test_patch_task_gantt_updates_dates_and_recomputes_critical_path(api_project
     assert body["is_critical_path"] is True
 
 
+def test_budget_endpoint_returns_lines_and_evm_snapshot(api_projects) -> None:
+    """PJ4 : `GET .../budget` renvoie les lignes budgetaires creees via
+    `POST .../budget` + un instantane EVM (SPI/CPI/EAC)."""
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet budget API", "start_date": "2026-01-01", "end_date": "2026-01-11"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/budget",
+        {
+            "category": "capex",
+            "label": "Materiel",
+            "planned_amount": "1000",
+            "actual_amount": "500",
+            "period": "2026-01-05",
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["planned_amount"] == "1000"
+
+    response = client.get(f"/api/v1/projects/{project_id}/budget", **headers)
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert len(body["lines"]) == 1
+    assert body["lines"][0]["category"] == "capex"
+    assert body["evm"]["bac"] == "1000.0000"
+    assert body["evm"]["ac"] == "500.0000"
+
+
+def test_create_budget_line_rejects_unknown_category(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet categorie API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/budget",
+        {"category": "unknown", "label": "Ligne", "planned_amount": "10", "period": "2026-01-01"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+
+
+def test_budget_endpoint_requires_projects_view_permission() -> None:
+    """RBAC : un role sans acces au module `projects` recoit 403."""
+    tenant = Tenant.objects.create(code="PRJ-API-BUDGET-RBAC", name="Projects Budget RBAC Tenant")
+    user = User.objects.create_user(
+        email="projects-budget-rbac@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(user, "magasinier")
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.get("/api/v1/projects/00000000-0000-0000-0000-000000000000/budget", **headers)
+    assert response.status_code == 403
+
+
 def test_patch_task_gantt_requires_projects_change_permission() -> None:
     """RBAC : un role sans acces au module `projects` recoit 403 (jamais
     une mise a jour silencieuse des dates)."""

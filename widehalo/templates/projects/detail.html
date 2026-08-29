@@ -8,6 +8,7 @@
   <p>{% trans "Statut" %} : {{ project.get_status_display }}</p>
   <p>{{ project.description }}</p>
   <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
+  <p><a href="{% url 'projects:budget' project.id %}">{% trans "Voir le budget (SPI/CPI/EAC)" %}</a></p>
 
   <h2>{% trans "Taches" %}</h2>
   <table>

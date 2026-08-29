@@ -6,6 +6,7 @@ PJ2-PJ15 (Gantt, sprints, EVM, etc.). RBAC : cf.
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from typing import Any
 
 from django.core.exceptions import ValidationError
@@ -17,7 +18,8 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.projects.models import PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjProject, PrjTask
+from apps.projects.services.evm import add_budget_line, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
 from apps.projects.services.projects import create_project
 from apps.projects.services.tasks import (
@@ -50,6 +52,17 @@ class TaskGanttIn(Schema):
     duration_days: int | None = None
 
 
+class BudgetLineIn(Schema):
+    """Montants toujours en `Decimal` (jamais `float`) — meme discipline
+    stricte que le reste de ce projet, cf. `apps/projects/services/evm.py`."""
+
+    category: str = PrjBudgetLine.CATEGORY_OPEX
+    label: str
+    planned_amount: Decimal
+    actual_amount: Decimal = Decimal("0")
+    period: str
+
+
 class TaskIn(Schema):
     task_type: str = PrjTask.TYPE_TASK
     parent_id: str | None = None
@@ -74,6 +87,32 @@ def _serialize_project(project: PrjProject) -> dict[str, Any]:
         "linked_objective_id": (
             str(project.linked_objective_id) if project.linked_objective_id else None
         ),
+    }
+
+
+def _serialize_budget_line(line: PrjBudgetLine) -> dict[str, Any]:
+    return {
+        "id": str(line.id),
+        "category": line.category,
+        "label": line.label,
+        "planned_amount": str(line.planned_amount),
+        "actual_amount": str(line.actual_amount),
+        "period": line.period.isoformat(),
+    }
+
+
+def _serialize_evm_snapshot(snapshot: Any) -> dict[str, Any]:
+    def _dec(value: Decimal | None) -> str | None:
+        return str(value) if value is not None else None
+
+    return {
+        "pv": _dec(snapshot.pv),
+        "ev": _dec(snapshot.ev),
+        "ac": _dec(snapshot.ac),
+        "bac": _dec(snapshot.bac),
+        "spi": _dec(snapshot.spi),
+        "cpi": _dec(snapshot.cpi),
+        "eac": _dec(snapshot.eac),
     }
 
 
@@ -220,3 +259,42 @@ def update_task_gantt_endpoint(request: Any, task_id: str, payload: TaskGanttIn)
     compute_critical_path(task.project)
     task.refresh_from_db()
     return _serialize_task(task)
+
+
+@router.get("/projects/{project_id}/budget")
+@require_permission("projects.view_prjproject")
+def project_budget_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    """PJ4 : lignes budgetaires du projet + instantane EVM (SPI/CPI/EAC)
+    calcule a la date du jour — cf. `services/evm.py::compute_evm_
+    snapshot`. Met egalement a jour `PrjProject.status` selon la politique
+    de seuils (`refresh_project_health`), coherent avec la lecture du
+    detail projet qui affiche ce statut."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    snapshot = refresh_project_health(project)
+    lines = project.budget_lines.filter(is_active=True)
+    return {
+        "project_id": str(project.id),
+        "status": project.status,
+        "lines": [_serialize_budget_line(line) for line in lines],
+        "evm": _serialize_evm_snapshot(snapshot),
+    }
+
+
+@router.post("/projects/{project_id}/budget")
+@require_permission("projects.add_prjbudgetline")
+def create_budget_line_endpoint(
+    request: Any, project_id: str, payload: BudgetLineIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    try:
+        line = add_budget_line(
+            project,
+            category=payload.category,
+            label=payload.label,
+            planned_amount=payload.planned_amount,
+            actual_amount=payload.actual_amount,
+            period=dt.date.fromisoformat(payload.period),
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_budget_line(line)

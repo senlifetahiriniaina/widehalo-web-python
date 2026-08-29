@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Budget" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Budget & valeur acquise (EVM)" %} — {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Statut projet" %} : {{ project.get_status_display }}</p>
+
+  <h2>{% trans "Indicateurs EVM (a la date du jour)" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "BAC" %}</th>
+        <th>PV</th>
+        <th>EV</th>
+        <th>AC</th>
+        <th>SPI</th>
+        <th>CPI</th>
+        <th>EAC</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ snapshot.bac|default_if_none:"—" }}</td>
+        <td>{{ snapshot.pv|default_if_none:"—" }}</td>
+        <td>{{ snapshot.ev|default_if_none:"—" }}</td>
+        <td>{{ snapshot.ac|default_if_none:"—" }}</td>
+        <td>{{ snapshot.spi|default_if_none:"—" }}</td>
+        <td>{{ snapshot.cpi|default_if_none:"—" }}</td>
+        <td>{{ snapshot.eac|default_if_none:"—" }}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="hint">
+    {% trans "SPI/CPI/EAC non calculables (« — ») quand le projet n'a pas encore de dates de debut/fin, aucune tache active ou aucun cout reel constate." %}
+  </p>
+
+  <h2>{% trans "Lignes budgetaires" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Categorie" %}</th>
+        <th>{% trans "Libelle" %}</th>
+        <th>{% trans "Periode" %}</th>
+        <th>{% trans "Montant planifie" %}</th>
+        <th>{% trans "Montant reel" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.get_category_display }}</td>
+          <td>{{ line.label }}</td>
+          <td>{{ line.period }}</td>
+          <td>{{ line.planned_amount }}</td>
+          <td>{{ line.actual_amount }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune ligne budgetaire." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une ligne budgetaire" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <select name="category" aria-label="{% trans 'Categorie' %}">
+      {% for value, label in categories %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="label" placeholder="{% trans 'Libelle' %}" required>
+    <input type="date" name="period" required>
+    <input type="number" step="0.01" name="planned_amount" placeholder="{% trans 'Montant planifie' %}" required>
+    <input type="number" step="0.01" name="actual_amount" placeholder="{% trans 'Montant reel' %}">
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+
+  <h2>{% trans "Courbe en S CAPEX/OPEX (valeurs cumulees par mois)" %}</h2>
+  <p class="hint">
+    {% trans "Table de valeurs uniquement a ce stade — le rendu graphique reel est reporte a une etape ulterieure de finalisation." %}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Mois" %}</th>
+        <th>{% trans "CAPEX planifie cumule" %}</th>
+        <th>{% trans "CAPEX reel cumule" %}</th>
+        <th>{% trans "OPEX planifie cumule" %}</th>
+        <th>{% trans "OPEX reel cumule" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for point in s_curve %}
+        <tr>
+          <td>{{ point.period }}</td>
+          <td>{{ point.capex_planned_cumulative }}</td>
+          <td>{{ point.capex_actual_cumulative }}</td>
+          <td>{{ point.opex_planned_cumulative }}</td>
+          <td>{{ point.opex_actual_cumulative }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune donnee." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

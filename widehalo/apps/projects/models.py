@@ -63,6 +63,8 @@ n'est pas un pre-requis du squelette demande par PJ1."""
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
@@ -280,3 +282,47 @@ class PrjTaskDependency(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.from_task_id} -> {self.to_task_id} ({self.dependency_type})"
+
+
+class PrjBudgetLine(BaseModel):
+    """Ligne budgetaire d'un projet (PJ4) — pas `ReferenceMixin` (meme
+    raisonnement que `PrjTaskDependency` : une simple ligne d'un budget,
+    aucun besoin de numero de document dedie). Alimente le service EVM
+    (`apps/projects/services/evm.py`) :
+    - `planned_amount` (somme -> `BAC`, Budget At Completion) et
+      `actual_amount` (somme -> `AC`, Actual Cost) sont les deux entrees
+      brutes du calcul EVM (SPI/CPI/EAC).
+    - `category` (`capex`/`opex`) et `period` (mois de rattachement de la
+      ligne) alimentent la courbe en S cumulee (`compute_s_curve`) —
+      **`period` est toujours normalise au 1er jour du mois** par la
+      courbe en S (granularite mensuelle unique en V1, cf. docstring de
+      `services/evm.py`), mais la ligne elle-meme peut porter n'importe
+      quelle date du mois concerne (pas de contrainte DB sur le jour).
+
+    Montants toujours `Decimal` (jamais `float`), meme discipline stricte
+    que le reste de ce projet (`DecimalField(max_digits=18,
+    decimal_places=4)`, meme precision que `catalog`/`sales`)."""
+
+    CATEGORY_CAPEX = "capex"
+    CATEGORY_OPEX = "opex"
+    CATEGORY_CHOICES = [
+        (CATEGORY_CAPEX, _("Investissement (CAPEX)")),
+        (CATEGORY_OPEX, _("Fonctionnement (OPEX)")),
+    ]
+
+    project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="budget_lines")
+    category = models.CharField(max_length=8, choices=CATEGORY_CHOICES, default=CATEGORY_OPEX)
+    label = models.CharField(max_length=255)
+    planned_amount = models.DecimalField(max_digits=18, decimal_places=4)
+    actual_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    # Mois/date de rattachement de la ligne — utilise par la courbe en S
+    # (`services/evm.py::compute_s_curve`) pour regrouper/cumuler les
+    # montants par mois calendaire.
+    period = models.DateField()
+
+    class Meta:
+        db_table = "prj_budget_line"
+        ordering = ["project", "period", "category"]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.get_category_display()}, {self.period})"
