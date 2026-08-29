@@ -78,3 +78,12 @@ def add_dependency(
         to_task=to_task,
         dependency_type=dependency_type,
     )
+
+
+def remove_dependency(dependency: PrjTaskDependency) -> None:
+    """Suppression douce (`soft_delete`, cf. `BaseModel`) d'une dependance
+    — PJ15 : completude API, aucune logique metier nouvelle. Ne recalcule
+    PAS le chemin critique elle-meme (l'appelant API/vue reste responsable
+    d'appeler `services/gantt.py::compute_critical_path` si necessaire,
+    meme discipline que `update_task_gantt_endpoint`)."""
+    dependency.soft_delete()

@@ -1,31 +1,32 @@
 """Module `projects` (Gestion de projets) — porte depuis l'ancienne version
 WideHalo (Laravel, 19 fonctionnalites), reecrit pour ce socle Django
 modulith. Cf. plan, section « Module `projects` (Gestion de projets) »,
-sous-sequencement PJ1-PJ15. **PJ1+PJ2** : squelette d'app + les 2 modeles
-de hierarchie unifiee (`PrjProject`, `PrjTask`, PJ1) + `PrjTaskDependency`
-(PJ2, dependances entre taches/detection de cycle/Gantt SVG/chemin
-critique CPM/endpoint PATCH drag-and-drop des dates) ; PJ4 (`PrjBudgetLine`,
-EVM) ; PJ5 (`PrjInvoicingRecord`, facturation multi-modes) ; PJ6 (`PrjSprint`,
-backlog agile/burndown/velocite, cf. sa propre docstring plus bas et la
-section "Etat d'avancement — PJ6 TERMINE" du plan) — les modeles restants
-(`PrjTimeEntry`, `PrjTeamMember`, `PrjCustomFieldDefinition`, `PrjWikiPage`,
-`PrjGuestAccess`, ...) arrivent aux etapes PJ7-PJ14.
+sous-sequencement PJ1-PJ15, **chantier TERMINE** : les 11 modeles
+concrets du module (`PrjProject`, `PrjTask`, `PrjTaskDependency`,
+`PrjBudgetLine`, `PrjInvoicingRecord`, `PrjSprint`, `PrjTeamMember`,
+`PrjCustomFieldDefinition`, `PrjTimeEntry`, `PrjWikiPage`,
+`PrjGuestAccess`) sont tous en place depuis PJ1-PJ14 — PJ15 (dernier
+jalon) n'ajoute AUCUN nouveau modele (budget applicatif inchange, cf.
+docstring de `PrjGuestAccess` plus bas), seulement le catalogue de
+rapports (`services/reports_registration.py`), une derniere passe de
+completude API et ce close-out documentaire.
 
 Dependances declarees (`module.py`) : `core`, `partners`, `accounting`,
-`strategy` — mais **aucune n'est reellement consommee a ce stade** (regle
-de couplage n1 : jamais de FK Django cross-app, uniquement `services.
-public`) :
+`strategy` — **toutes desormais reellement consommees**, chacune UNIQUEMENT
+via `services.public` (regle de couplage n1 : jamais de FK Django
+cross-app) :
 - `client_partner_id` (sur `PrjProject`) reste un simple `UUIDField`
-  nullable, JAMAIS une FK vers `apps.partners.models.Partner` ni un appel
-  a `partners.services.public` — aucun ecran de ce premier jalon n'exige
-  encore de resoudre ce partenaire (validation/affichage reportes a une
-  etape ulterieure, cf. plan).
+  nullable (JAMAIS une FK vers `apps.partners.models.Partner`), mais
+  `services/billing.py` le lit desormais pour construire la facture client
+  (PJ5) — refuse explicitement toute facturation si non renseigne.
 - `linked_objective_id` (sur `PrjProject`) reste un simple `UUIDField`
-  nullable, vers un futur `apps.strategy.models.StgObjective` — le gap
-  `strategy.services.public` correspondant est explicitement reporte a
-  PJ13 (« Liaison KPI/Stratégie »), cf. plan.
+  nullable vers `apps.strategy.models.StgObjective`, cable a PJ13
+  (« Liaison KPI/Stratégie ») : `services/public.py::
+  get_linked_objective_summary` appelle reellement `strategy.services.
+  public.get_objective_summary`.
 - La facturation multi-modes (`accounting.services.public.
-  create_customer_invoice_from_source`) est reportee a PJ5.
+  create_customer_invoice_from_source`) est cablee depuis PJ5, cf.
+  `services/billing.py`.
 
 **Decision de conception disclosed — champ `sprint` de `PrjTask`** : le
 plan (§ modele `PrjTask`) mentionne un `sprint` FK nullable vers un futur

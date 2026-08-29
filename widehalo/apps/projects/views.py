@@ -281,10 +281,15 @@ def project_gantt(request: HttpRequest, project_id: str) -> HttpResponse:
 def project_budget(request: HttpRequest, project_id: str) -> HttpResponse:
     """Ecran budget/EVM (PJ4) : tableau des lignes budgetaires + indicateurs
     SPI/CPI/EAC — cf. `services/evm.py`. **Pas de graphique reel de la
-    courbe en S a ce stade** (disclosed explicitement, cf. docstring de
-    module de `services/evm.py`) : `compute_s_curve` alimente ici une
-    simple table de valeurs cumulees ; l'export graphique proprement dit
-    est reporte a la finalisation PJ15 si le temps le permet."""
+    courbe en S** (disclosed explicitement, cf. docstring de module de
+    `services/evm.py`) : `compute_s_curve` alimente ici une simple table de
+    valeurs cumulees. **Decision de cloture PJ15** : un rendu graphique
+    dedie (SVG/JS) de cette courbe reste une simplification V1 assumee,
+    definitivement pas construite dans ce chantier — les donnees restent
+    disponibles (`compute_s_curve`) pour un futur module de visualisation,
+    mais le catalogue de rapports PJ15 (`PRJ-GANTT`/`PRJ-EVM`/`PRJ-STATUS`,
+    cf. `services/reports_registration.py`) ne l'inclut pas non plus (hors
+    perimetre disclosed, cf. rapport de cloture)."""
     project = get_object_or_404(PrjProject, id=project_id)
     error = None
     if request.method == "POST":

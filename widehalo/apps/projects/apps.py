@@ -9,10 +9,13 @@ class ProjectsConfig(AppConfig):
 
     # PJ11 : auto-enregistrement des actions dans le registre partage
     # `core.services.automation_registry` (meme patron que `apps.mrp`/
-    # `apps.purchase`, chantier Studio de workflow visuel). Les rapports
-    # Gantt/EVM/avancement (`reports_registry`) restent a PJ15 —
-    # `register_reports()` sera ajoute a cette etape.
+    # `apps.purchase`, chantier Studio de workflow visuel).
+    # PJ15 : auto-enregistrement des rapports Gantt/EVM/etat de projet dans
+    # le registre partage `core.services.reports_registry` — cf.
+    # `apps.projects.services.reports_registration` pour le detail.
     def ready(self) -> None:
         from apps.projects.services.automation_registration import register_actions
+        from apps.projects.services.reports_registration import register_reports
 
         register_actions()
+        register_reports()

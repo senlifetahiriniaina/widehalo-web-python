@@ -73,9 +73,13 @@ exploitable directement par un futur graphique (report PDF/ecran, cf.
 PJ15) : `{"period": "AAAA-MM-01", "capex_planned_cumulative": Decimal,
 "capex_actual_cumulative": Decimal, "opex_planned_cumulative": Decimal,
 "opex_actual_cumulative": Decimal}`. **Le rendu graphique reel de cette
-courbe (SVG/JS) n'est PAS construit a ce stade** — reporte a la
-finalisation PJ15 si le temps le permet, disclosed explicitement ; l'ecran
-HTMX de PJ4 affiche cette serie sous forme de simple tableau de valeurs."""
+courbe (SVG/JS) n'est PAS construit** — simplification V1 assumee et
+definitivement close a PJ15 (chantier termine, cf. plan) : l'ecran HTMX de
+PJ4 affiche cette serie sous forme de simple tableau de valeurs, et le
+catalogue de rapports PJ15 (`services/reports_registration.py`) ne
+l'expose pas non plus — un futur graphique resterait un candidat naturel
+d'evolution HORS de ce chantier, `compute_s_curve` restant disponible tel
+quel comme source de donnees."""
 
 from __future__ import annotations
 

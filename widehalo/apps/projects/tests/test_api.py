@@ -954,3 +954,104 @@ def test_kpi_summary_endpoint_requires_view_permission() -> None:
         "/api/v1/projects/00000000-0000-0000-0000-000000000000/kpi-summary", **headers
     )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# PJ15 : completude API — dependances entre taches + portail invite.
+# ---------------------------------------------------------------------------
+
+
+def test_task_dependency_create_list_and_remove_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    project_id = client.post(
+        "/api/v1/projects",
+        {"name": "Projet dependances"},
+        content_type="application/json",
+        **headers,
+    ).json()["id"]
+    task_a = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"task_type": "task"},
+        content_type="application/json",
+        **headers,
+    ).json()["id"]
+    task_b = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"task_type": "task"},
+        content_type="application/json",
+        **headers,
+    ).json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/dependencies",
+        {"from_task_id": task_a, "to_task_id": task_b},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    dependency_id = response.json()["id"]
+    assert response.json()["dependency_type"] == "finish_to_start"
+
+    # Le cycle direct (B -> A) est refuse — cf. `services/dependencies.py`.
+    response = client.post(
+        f"/api/v1/projects/{project_id}/dependencies",
+        {"from_task_id": task_b, "to_task_id": task_a},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400, response.content
+
+    response = client.get(f"/api/v1/projects/{project_id}/dependencies", **headers)
+    assert response.status_code == 200
+    assert [d["id"] for d in response.json()["results"]] == [dependency_id]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/dependencies/{dependency_id}/remove",
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["is_active"] is False
+
+    response = client.get(f"/api/v1/projects/{project_id}/dependencies", **headers)
+    assert response.json()["results"] == []
+
+
+def test_guest_access_create_list_and_revoke_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    project_id = client.post(
+        "/api/v1/projects", {"name": "Projet invite"}, content_type="application/json", **headers
+    ).json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/guest-access",
+        {
+            "guest_email": "invite@example.com",
+            "expires_at": (dt.datetime.now(dt.UTC) + dt.timedelta(days=7)).isoformat(),
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    guest_access_id = response.json()["id"]
+    assert response.json()["revoked_at"] is None
+
+    response = client.get(f"/api/v1/projects/{project_id}/guest-access", **headers)
+    assert response.status_code == 200
+    assert [g["id"] for g in response.json()["results"]] == [guest_access_id]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/guest-access/{guest_access_id}/revoke",
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["revoked_at"] is not None

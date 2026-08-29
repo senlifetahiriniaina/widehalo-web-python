@@ -24,10 +24,12 @@ from apps.core.services.workflow import TransitionPermissionError
 from apps.projects.models import (
     PrjBudgetLine,
     PrjCustomFieldDefinition,
+    PrjGuestAccess,
     PrjInvoicingRecord,
     PrjProject,
     PrjSprint,
     PrjTask,
+    PrjTaskDependency,
     PrjTeamMember,
     PrjTimeEntry,
     PrjWikiPage,
@@ -51,8 +53,10 @@ from apps.projects.services.capacity import (
     compute_user_workload_heatmap,
     remove_team_member,
 )
+from apps.projects.services.dependencies import add_dependency, remove_dependency
 from apps.projects.services.evm import add_budget_line, compute_evm_snapshot, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
+from apps.projects.services.guest_portal import create_guest_access, revoke_guest_access
 from apps.projects.services.projects import create_project
 from apps.projects.services.public import get_linked_objective_summary, link_project_to_objective
 from apps.projects.services.sprints import (
@@ -172,6 +176,25 @@ class WikiPageIn(Schema):
     title: str
     body: str = ""
     parent_id: str | None = None
+
+
+class TaskDependencyIn(Schema):
+    """PJ15 : payload de creation d'une dependance entre deux taches DU
+    MEME projet — cf. `services/dependencies.py::add_dependency`."""
+
+    from_task_id: str
+    to_task_id: str
+    dependency_type: str = PrjTaskDependency.TYPE_FINISH_TO_START
+
+
+class GuestAccessIn(Schema):
+    """PJ15 : payload de creation d'un lien de portail invite — cf.
+    `services/guest_portal.py::create_guest_access`. `expires_at` au
+    format ISO 8601 (`datetime.fromisoformat`), meme convention que
+    `ManualTimeEntryIn.started_at`."""
+
+    guest_email: str
+    expires_at: str
 
 
 class GenerateTasksFromSpecIn(Schema):
@@ -1059,3 +1082,108 @@ def generate_tasks_from_spec_endpoint(
 def suggest_prioritization_endpoint(request: Any, project_id: str) -> dict[str, Any]:
     project = get_object_or_404(PrjProject, id=project_id)
     return {"suggestion": suggest_prioritization(project)}
+
+
+# ---------------------------------------------------------------------------
+# PJ15 : completude API restante — dependances entre taches (PJ2, jusqu'ici
+# consommees uniquement en interne par `services/gantt.py`/les tests, sans
+# aucun point d'entree API) et gestion du portail invite (PJ14, jusqu'ici
+# consommee uniquement par l'ecran HTMX `projects/guest_links.html`).
+# RBAC : permissions app-level standard `projects` (view/add/change), memes
+# codenames auto-generes que le CRUD projet/tache/sprint courant — ni l'une
+# ni l'autre de ces deux operations n'est plus sensible que le CRUD deja
+# couvert par `ROLE_APP_PERMISSIONS["projects"]`.
+# ---------------------------------------------------------------------------
+
+
+def _serialize_dependency(dependency: PrjTaskDependency) -> dict[str, Any]:
+    return {
+        "id": str(dependency.id),
+        "from_task_id": str(dependency.from_task_id),
+        "to_task_id": str(dependency.to_task_id),
+        "dependency_type": dependency.dependency_type,
+    }
+
+
+@router.get("/projects/{project_id}/dependencies")
+@require_permission("projects.view_prjtaskdependency")
+def list_task_dependencies_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    dependencies = PrjTaskDependency.objects.filter(
+        from_task__project=project, to_task__project=project, is_active=True
+    )
+    return {"results": [_serialize_dependency(d) for d in dependencies]}
+
+
+@router.post("/projects/{project_id}/dependencies")
+@require_permission("projects.add_prjtaskdependency")
+def create_task_dependency_endpoint(
+    request: Any, project_id: str, payload: TaskDependencyIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    from_task = get_object_or_404(PrjTask, id=payload.from_task_id, project=project)
+    to_task = get_object_or_404(PrjTask, id=payload.to_task_id, project=project)
+    try:
+        dependency = add_dependency(from_task, to_task, payload.dependency_type)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_dependency(dependency)
+
+
+@router.post("/projects/{project_id}/dependencies/{dependency_id}/remove")
+@require_permission("projects.change_prjtaskdependency")
+def remove_task_dependency_endpoint(
+    request: Any, project_id: str, dependency_id: str
+) -> dict[str, Any]:
+    dependency = get_object_or_404(
+        PrjTaskDependency, id=dependency_id, from_task__project_id=project_id
+    )
+    remove_dependency(dependency)
+    return {"id": str(dependency.id), "is_active": dependency.is_active}
+
+
+def _serialize_guest_access(guest_access: PrjGuestAccess) -> dict[str, Any]:
+    return {
+        "id": str(guest_access.id),
+        "project_id": str(guest_access.project_id),
+        "guest_email": guest_access.guest_email,
+        "expires_at": guest_access.expires_at.isoformat(),
+        "revoked_at": guest_access.revoked_at.isoformat() if guest_access.revoked_at else None,
+        "permissions": guest_access.permissions,
+    }
+
+
+@router.get("/projects/{project_id}/guest-access")
+@require_permission("projects.view_prjguestaccess")
+def list_guest_access_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    accesses = project.guest_accesses.filter(is_active=True)
+    return {"results": [_serialize_guest_access(g) for g in accesses]}
+
+
+@router.post("/projects/{project_id}/guest-access")
+@require_permission("projects.add_prjguestaccess")
+def create_guest_access_endpoint(
+    request: Any, project_id: str, payload: GuestAccessIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = request.auth
+    assert isinstance(user, User)
+    guest_access = create_guest_access(
+        project,
+        guest_email=payload.guest_email,
+        expires_at=dt.datetime.fromisoformat(payload.expires_at),
+        created_by=user,
+    )
+    return _serialize_guest_access(guest_access)
+
+
+@router.post("/projects/{project_id}/guest-access/{guest_access_id}/revoke")
+@require_permission("projects.change_prjguestaccess")
+def revoke_guest_access_endpoint(
+    request: Any, project_id: str, guest_access_id: str
+) -> dict[str, Any]:
+    guest_access = get_object_or_404(PrjGuestAccess, id=guest_access_id, project_id=project_id)
+    revoke_guest_access(guest_access)
+    guest_access.refresh_from_db()
+    return _serialize_guest_access(guest_access)
