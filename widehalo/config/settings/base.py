@@ -288,9 +288,29 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # `stocks`, cf. paragraphe ci-dessus) : relever BUDGET_MAX_MODELS a 220,
 # marge proportionnee pour `payroll` et les chantiers restants (reporting,
 # strategy, financing, extension sectorielle, pays #2).
-BUDGET_MAX_MODELS = 220
+# Le plafond de 220 a ete atteint EXACTEMENT (220/220, zero marge) a la
+# cloture du chantier PRC1-3 (veille prix fournisseurs). Le module `projects`
+# (gestion de projets, porte depuis l'ancienne version WideHalo) necessite
+# ~10 nouveaux modeles economises (hierarchie epic/tache/jalon unifiee dans
+# un seul PrjTask, etc.) — **Decision explicite actee avec l'utilisateur**
+# (meme precedent que les deux relevements precedents ci-dessus) : relever
+# BUDGET_MAX_MODELS a 250, marge de 20 au-dela des besoins de ce chantier
+# pour la suite du Lot 2 Madagascar et le demarrage du pays #2.
+BUDGET_MAX_MODELS = 250
 BUDGET_MAX_ENDPOINTS = 600
 BUDGET_MAX_SCREENS = 200
+
+# Chantier `projects` : configuration du connecteur IA generique
+# (`apps.core.services.ai_assistant`). Dictionnaire VIDE par defaut — le
+# `StubAIProvider` reste actif tant qu'aucune cle n'est fournie explicitement
+# (meme discipline que WHATSAPP_ENABLED/PRICE_WATCH_PROVIDERS deja dans ce
+# depot : jamais d'appel reseau reel sans configuration explicite de
+# l'utilisateur). Cles attendues si renseigne : {"backend": "deepseek"|
+# "kimi"|"custom", "api_key": "...", "base_url": "...", "model": "..."} —
+# DeepSeek et Kimi (Moonshot AI) exposent tous deux une API "chat
+# completions" compatible OpenAI, d'ou un connecteur HTTP unique
+# (`OpenAICompatibleAIProvider`) plutot que trois implementations separees.
+AI_PROVIDER_CONFIG: dict = {}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
 # au-dela de ce nombre de secondes ESTIME (cf. `apps.reporting.services.
