@@ -32,6 +32,13 @@ from apps.projects.models import (
     PrjTimeEntry,
     PrjWikiPage,
 )
+from apps.projects.services.ai_assistant import (
+    estimate_task_duration,
+    generate_status_report,
+    generate_tasks_from_spec,
+    identify_risks,
+    suggest_prioritization,
+)
 from apps.projects.services.billing import (
     bill_by_milestone,
     bill_by_percentage,
@@ -157,6 +164,14 @@ class WikiPageIn(Schema):
     title: str
     body: str = ""
     parent_id: str | None = None
+
+
+class GenerateTasksFromSpecIn(Schema):
+    """PJ12-4 : payload de decomposition IA d'une specification libre en
+    propositions de taches — cf. `apps.projects.services.ai_assistant.
+    generate_tasks_from_spec`."""
+
+    spec_text: str
 
 
 class WikiPageUpdateIn(Schema):
@@ -932,3 +947,53 @@ def list_project_documents_endpoint(request: Any, project_id: str) -> dict[str, 
     project = get_object_or_404(PrjProject, id=project_id)
     documents = list_documents_for(project)
     return {"results": [_serialize_document(doc) for doc in documents]}
+
+
+# PJ12 : 5 endpoints d'assistance IA — mecanisme generique documente dans
+# `apps.core.services.ai_assistant` (stub par defaut, connecteur reel
+# optionnel via `settings.AI_PROVIDER_CONFIG`). Toutes ces routes
+# retournent un TEXTE/DONNEES pour revue humaine, jamais une ecriture
+# automatique (cf. docstring de `apps.projects.services.ai_assistant`).
+
+
+@router.post("/projects/tasks/{task_id}/ai/estimate-duration")
+@require_permission("projects.view_prjtask")
+def estimate_task_duration_endpoint(request: Any, task_id: str) -> dict[str, Any]:
+    task = get_object_or_404(PrjTask, id=task_id)
+    result = estimate_task_duration(task)
+    return {
+        "estimate_text": result.estimate_text,
+        "is_ai_generated": result.is_ai_generated,
+        "similar_tasks_sample_size": result.similar_tasks_sample_size,
+    }
+
+
+@router.post("/projects/{project_id}/ai/identify-risks")
+@require_permission("projects.view_prjproject")
+def identify_risks_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return {"analysis": identify_risks(project)}
+
+
+@router.post("/projects/{project_id}/ai/status-report")
+@require_permission("projects.view_prjproject")
+def generate_status_report_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return {"report": generate_status_report(project)}
+
+
+@router.post("/projects/{project_id}/ai/generate-tasks")
+@require_permission("projects.add_prjtask")
+def generate_tasks_from_spec_endpoint(
+    request: Any, project_id: str, payload: GenerateTasksFromSpecIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    proposals = generate_tasks_from_spec(project, payload.spec_text)
+    return {"proposals": proposals}
+
+
+@router.post("/projects/{project_id}/ai/suggest-prioritization")
+@require_permission("projects.view_prjproject")
+def suggest_prioritization_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return {"suggestion": suggest_prioritization(project)}
