@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ page.title }} — {{ project.reference }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'projects:wiki' project.id %}">&larr; {% trans "Retour au wiki" %}</a></p>
+  <h1>{{ page.title }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Modifier" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update">
+    <label for="title">{% trans "Titre" %}</label>
+    <input id="title" type="text" name="title" value="{{ page.title }}" required>
+    <label for="body">{% trans "Contenu" %}</label>
+    <textarea id="body" name="body" rows="10">{{ page.body }}</textarea>
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+
+  <h2>{% trans "Documents" %}</h2>
+  <ul>
+    {% for document in documents %}
+      <li>{{ document.original_name }}</li>
+    {% empty %}
+      <li>{% trans "Aucun document." %}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="upload_document">
+    <label for="document-upload">{% trans "Ajouter un document" %}</label>
+    <input id="document-upload" type="file" name="document" required>
+    <button type="submit">{% trans "Envoyer" %}</button>
+  </form>
+{% endblock %}

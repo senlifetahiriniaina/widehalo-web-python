@@ -30,6 +30,7 @@ from apps.projects.models import (
     PrjTask,
     PrjTeamMember,
     PrjTimeEntry,
+    PrjWikiPage,
 )
 from apps.projects.services.billing import (
     bill_by_milestone,
@@ -63,6 +64,14 @@ from apps.projects.services.tasks import (
     unblock_task,
 )
 from apps.projects.services.time_tracking import get_time_report, start_timer, stop_timer
+from apps.projects.services.wiki import (
+    attach_document_to_project,
+    attach_document_to_wiki_page,
+    create_wiki_page,
+    list_documents_for,
+    list_wiki_pages,
+    update_wiki_page,
+)
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -581,4 +590,102 @@ def project_risk_create(request: HttpRequest, project_id: str) -> HttpResponse:
         request,
         "projects/risk_create.html",
         {"project": project, "error": error},
+    )
+
+
+def _wiki_page_rows(project: PrjProject) -> list[tuple[PrjWikiPage, int]]:
+    """Aplati la hierarchie de pages en une liste `(page, niveau)` —
+    indentation simple par niveau, cf. plan (« pas besoin d'un arbre
+    interactif riche »)."""
+    rows: list[tuple[PrjWikiPage, int]] = []
+
+    def _walk(page: PrjWikiPage, level: int) -> None:
+        rows.append((page, level))
+        for child in page.children.filter(is_active=True).order_by("title"):
+            _walk(child, level + 1)
+
+    for root in list_wiki_pages(project).order_by("title"):
+        _walk(root, 0)
+    return rows
+
+
+@login_required
+def project_wiki(request: HttpRequest, project_id: str) -> HttpResponse:
+    """PJ10 : liste hierarchique des pages de wiki du projet (indentation
+    par niveau) + formulaire de creation d'une nouvelle page (racine ou
+    sous-page d'une page existante)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        user = cast(User, request.user)
+        parent_id = request.POST.get("parent_id") or None
+        parent = (
+            get_object_or_404(PrjWikiPage, id=parent_id, project=project) if parent_id else None
+        )
+        try:
+            page = create_wiki_page(
+                project,
+                title=request.POST.get("title", ""),
+                body=request.POST.get("body", ""),
+                author=user,
+                parent=parent,
+            )
+        except ValidationError as exc:
+            error = str(exc)
+        else:
+            return redirect("projects:wiki_detail", project_id=project.id, page_id=page.id)
+    return render(
+        request,
+        "projects/wiki.html",
+        {"project": project, "rows": _wiki_page_rows(project), "error": error},
+    )
+
+
+@login_required
+def wiki_page_detail(request: HttpRequest, project_id: str, page_id: str) -> HttpResponse:
+    """PJ10 : detail/edition d'une page de wiki + formulaire d'upload de
+    document rattache a CETTE page (`services/wiki.py::
+    attach_document_to_wiki_page`)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    page = get_object_or_404(PrjWikiPage, id=page_id, project=project)
+    error = None
+
+    if request.method == "POST":
+        user = cast(User, request.user)
+        action = request.POST.get("action", "update")
+        uploaded_file = request.FILES.get("document")
+        if action == "upload_document" and uploaded_file is not None:
+            attach_document_to_wiki_page(page, uploaded_file, user)
+        else:
+            update_wiki_page(
+                page,
+                title=request.POST.get("title") or None,
+                body=request.POST.get("body"),
+            )
+        return redirect("projects:wiki_detail", project_id=project.id, page_id=page.id)
+
+    documents = list_documents_for(page)
+    return render(
+        request,
+        "projects/wiki_detail.html",
+        {"project": project, "page": page, "documents": documents, "error": error},
+    )
+
+
+@login_required
+def project_documents(request: HttpRequest, project_id: str) -> HttpResponse:
+    """PJ10 : documents rattaches directement au PROJET (pas a une page de
+    wiki en particulier) + formulaire d'upload, cf. `services/wiki.py::
+    attach_document_to_project`."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    uploaded_file = request.FILES.get("document")
+    if request.method == "POST" and uploaded_file is not None:
+        user = cast(User, request.user)
+        attach_document_to_project(project, uploaded_file, user)
+        return redirect("projects:documents", project_id=project.id)
+    documents = list_documents_for(project)
+    return render(
+        request,
+        "projects/documents.html",
+        {"project": project, "documents": documents},
     )

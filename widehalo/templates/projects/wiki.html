@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Wiki" %} — {{ project.reference }}{% endblock %}
+{% block content %}
+  <h1>{% trans "Wiki du projet" %} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <ul>
+    {% for page, level in rows %}
+      <li style="margin-left: {{ level }}em;">
+        <a href="{% url 'projects:wiki_detail' project.id page.id %}">{{ page.title }}</a>
+      </li>
+    {% empty %}
+      <li>{% trans "Aucune page de wiki pour ce projet." %}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>{% trans "Nouvelle page" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <label for="parent_id">{% trans "Page parente (optionnel)" %}</label>
+    <select id="parent_id" name="parent_id">
+      <option value="">{% trans "Aucune (page racine)" %}</option>
+      {% for page, level in rows %}
+        <option value="{{ page.id }}">{{ page.title }}</option>
+      {% endfor %}
+    </select>
+    <label for="title">{% trans "Titre" %}</label>
+    <input id="title" type="text" name="title" required>
+    <label for="body">{% trans "Contenu" %}</label>
+    <textarea id="body" name="body"></textarea>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

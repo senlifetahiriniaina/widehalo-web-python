@@ -13,8 +13,10 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from ninja import Router, Schema
+from ninja import File, Router, Schema
+from ninja.files import UploadedFile
 
+from apps.core.models.document import Document
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
@@ -28,6 +30,7 @@ from apps.projects.models import (
     PrjTask,
     PrjTeamMember,
     PrjTimeEntry,
+    PrjWikiPage,
 )
 from apps.projects.services.billing import (
     bill_by_milestone,
@@ -65,6 +68,14 @@ from apps.projects.services.time_tracking import (
     log_manual_time_entry,
     start_timer,
     stop_timer,
+)
+from apps.projects.services.wiki import (
+    attach_document_to_project,
+    attach_document_to_wiki_page,
+    create_wiki_page,
+    list_documents_for,
+    list_wiki_pages,
+    update_wiki_page,
 )
 
 router = Router(tags=["projects"])
@@ -140,6 +151,20 @@ class ManualTimeEntryIn(Schema):
     stopped_at: str
     billable: bool = True
     note: str = ""
+
+
+class WikiPageIn(Schema):
+    title: str
+    body: str = ""
+    parent_id: str | None = None
+
+
+class WikiPageUpdateIn(Schema):
+    """Tous les champs optionnels — seuls ceux fournis sont mis a jour,
+    cf. `services/wiki.py::update_wiki_page`."""
+
+    title: str | None = None
+    body: str | None = None
 
 
 class TaskIn(Schema):
@@ -219,6 +244,28 @@ def _serialize_time_entry(entry: PrjTimeEntry) -> dict[str, Any]:
         "billable": entry.billable,
         "billed": entry.billed,
         "note": entry.note,
+    }
+
+
+def _serialize_wiki_page(page: PrjWikiPage) -> dict[str, Any]:
+    return {
+        "id": str(page.id),
+        "project_id": str(page.project_id),
+        "parent_id": str(page.parent_id) if page.parent_id else None,
+        "title": page.title,
+        "body": page.body,
+        "author_id": str(page.author_id) if page.author_id else None,
+    }
+
+
+def _serialize_document(document: Document) -> dict[str, Any]:
+    return {
+        "id": str(document.id),
+        "original_name": document.original_name,
+        "mime_type": document.mime_type,
+        "size": document.size,
+        "sha256": document.sha256,
+        "av_scan_status": document.av_scan_status,
     }
 
 
@@ -803,3 +850,85 @@ def project_time_report_endpoint(
             for row in report
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# Wiki projet + rattachement de documents (PJ10) — cf. `services/wiki.py`.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/projects/{project_id}/wiki")
+@require_permission("projects.view_prjwikipage")
+def list_wiki_pages_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    pages = list_wiki_pages(project)
+    return {"results": [_serialize_wiki_page(page) for page in pages]}
+
+
+@router.post("/projects/{project_id}/wiki")
+@require_permission("projects.add_prjwikipage")
+def create_wiki_page_endpoint(request: Any, project_id: str, payload: WikiPageIn) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    parent = get_object_or_404(PrjWikiPage, id=payload.parent_id) if payload.parent_id else None
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        page = create_wiki_page(
+            project, title=payload.title, body=payload.body, author=user, parent=parent
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_wiki_page(page)
+
+
+@router.get("/projects/wiki/{page_id}")
+@require_permission("projects.view_prjwikipage")
+def wiki_page_detail_endpoint(request: Any, page_id: str) -> dict[str, Any]:
+    page = get_object_or_404(PrjWikiPage, id=page_id)
+    return _serialize_wiki_page(page)
+
+
+@router.patch("/projects/wiki/{page_id}")
+@require_permission("projects.change_prjwikipage")
+def update_wiki_page_endpoint(
+    request: Any, page_id: str, payload: WikiPageUpdateIn
+) -> dict[str, Any]:
+    page = get_object_or_404(PrjWikiPage, id=page_id)
+    page = update_wiki_page(page, title=payload.title, body=payload.body)
+    return _serialize_wiki_page(page)
+
+
+@router.post("/projects/wiki/{page_id}/documents")
+@require_permission("projects.change_prjwikipage")
+def attach_document_to_wiki_page_endpoint(
+    request: Any,
+    page_id: str,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+) -> dict[str, Any]:
+    page = get_object_or_404(PrjWikiPage, id=page_id)
+    user = request.auth
+    assert isinstance(user, User)
+    document = attach_document_to_wiki_page(page, file, user)
+    return _serialize_document(document)
+
+
+@router.post("/projects/{project_id}/documents")
+@require_permission("projects.change_prjproject")
+def attach_document_to_project_endpoint(
+    request: Any,
+    project_id: str,
+    file: UploadedFile = File(...),  # noqa: B008 — idiome django-ninja standard
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = request.auth
+    assert isinstance(user, User)
+    document = attach_document_to_project(project, file, user)
+    return _serialize_document(document)
+
+
+@router.get("/projects/{project_id}/documents")
+@require_permission("projects.view_prjproject")
+def list_project_documents_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    documents = list_documents_for(project)
+    return {"results": [_serialize_document(doc) for doc in documents]}

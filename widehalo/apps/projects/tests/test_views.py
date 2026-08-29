@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
 from apps.core.models.tenant import Tenant
@@ -16,6 +17,7 @@ from apps.projects.services.evm import add_budget_line
 from apps.projects.services.projects import create_project
 from apps.projects.services.sprints import create_sprint
 from apps.projects.services.tasks import create_task, start_task
+from apps.projects.services.wiki import create_wiki_page
 
 pytestmark = pytest.mark.django_db
 
@@ -433,3 +435,109 @@ def test_config_custom_fields_screen_create(web_projects) -> None:
     )
     assert response.status_code == 200
     assert b"budget_code" in response.content
+
+
+# --- PJ10 : wiki projet + rattachement de documents -------------------------
+
+
+def test_project_wiki_screen_lists_pages_with_indentation(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet wiki ecran")
+        root = create_wiki_page(project, title="Racine ecran", author=user)
+        create_wiki_page(project, title="Enfant ecran", author=user, parent=root)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/projects/{project.id}/wiki/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert b"Racine ecran" in response.content
+    assert b"Enfant ecran" in response.content
+
+
+def test_project_wiki_screen_creates_page_via_form(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet wiki formulaire")
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.post(
+        f"/projects/{project.id}/wiki/",
+        {"title": "Page creee via formulaire", "body": "Corps"},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 302
+    with use_tenant(tenant.id):
+        page = project.wiki_pages.get()
+        assert page.title == "Page creee via formulaire"
+
+
+def test_wiki_page_detail_screen_updates_and_uploads_document(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet wiki detail")
+        page = create_wiki_page(project, title="Page detail", body="Initial", author=user)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(
+        f"/projects/{project.id}/wiki/{page.id}/", HTTP_X_TENANT_ID=str(tenant.id)
+    )
+    assert response.status_code == 200
+    assert b"Page detail" in response.content
+
+    response = client.post(
+        f"/projects/{project.id}/wiki/{page.id}/",
+        {"action": "update", "title": "Page modifiee", "body": "Nouveau corps"},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 302
+    with use_tenant(tenant.id):
+        page.refresh_from_db()
+        assert page.title == "Page modifiee"
+
+    uploaded = SimpleUploadedFile("wiki-doc.txt", b"contenu wiki", content_type="text/plain")
+    response = client.post(
+        f"/projects/{project.id}/wiki/{page.id}/",
+        {"action": "upload_document", "document": uploaded},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 302
+
+    response = client.get(
+        f"/projects/{project.id}/wiki/{page.id}/", HTTP_X_TENANT_ID=str(tenant.id)
+    )
+    assert b"wiki-doc.txt" in response.content
+
+
+def test_project_documents_screen_uploads_and_lists(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet documents ecran")
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    uploaded = SimpleUploadedFile("cahier.txt", b"cahier des charges", content_type="text/plain")
+    response = client.post(
+        f"/projects/{project.id}/documents/",
+        {"document": uploaded},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 302
+
+    response = client.get(f"/projects/{project.id}/documents/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert b"cahier.txt" in response.content

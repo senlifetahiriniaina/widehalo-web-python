@@ -20,6 +20,7 @@ from apps.projects.models import (
     PrjTaskDependency,
     PrjTeamMember,
     PrjTimeEntry,
+    PrjWikiPage,
 )
 
 
@@ -138,3 +139,16 @@ class PrjCustomFieldDefinitionFactory(factory.django.DjangoModelFactory):
     field_label = factory.Sequence(lambda n: f"Champ {n}")
     field_type = PrjCustomFieldDefinition.FIELD_TYPE_TEXT
     validation_rule = factory.LazyFunction(dict)
+
+
+class PrjWikiPageFactory(factory.django.DjangoModelFactory):
+    """PJ10 — page de wiki projet."""
+
+    class Meta:
+        model = PrjWikiPage
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
+    title = factory.Sequence(lambda n: f"Page {n}")
+    body = "Contenu de la page."
+    author = factory.SubFactory("apps.core.tests.factories.UserFactory")

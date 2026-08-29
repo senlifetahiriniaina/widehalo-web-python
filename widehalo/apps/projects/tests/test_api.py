@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import io
 
 import pytest
 from django.contrib.auth.models import Group, Permission
@@ -740,3 +741,144 @@ def test_custom_field_definitions_crud_via_api_reserved_to_admin() -> None:
     )
     assert response.status_code == 200
     assert response.json()["is_active"] is False
+
+
+# --- PJ10 : wiki projet + rattachement de documents -------------------------
+
+
+def test_wiki_page_crud_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet wiki API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/wiki",
+        {"title": "Page racine", "body": "Contenu"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    page_id = response.json()["id"]
+    assert response.json()["title"] == "Page racine"
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/wiki",
+        {"title": "Page enfant", "parent_id": page_id},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200
+    child_id = response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/wiki", **headers)
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["results"]] == [page_id]
+
+    response = client.get(f"/api/v1/projects/wiki/{child_id}", **headers)
+    assert response.status_code == 200
+    assert response.json()["parent_id"] == page_id
+
+    response = client.patch(
+        f"/api/v1/projects/wiki/{page_id}",
+        {"title": "Page racine modifiee"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["title"] == "Page racine modifiee"
+
+
+def test_wiki_page_rejects_parent_from_another_project_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects", {"name": "Projet A"}, content_type="application/json", **headers
+    )
+    project_a_id = response.json()["id"]
+    response = client.post(
+        "/api/v1/projects", {"name": "Projet B"}, content_type="application/json", **headers
+    )
+    project_b_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_a_id}/wiki",
+        {"title": "Page A"},
+        content_type="application/json",
+        **headers,
+    )
+    page_a_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_b_id}/wiki",
+        {"title": "Page B avec parent errone", "parent_id": page_a_id},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+
+
+def test_attach_document_to_wiki_page_and_project_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet documents API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+    response = client.post(
+        f"/api/v1/projects/{project_id}/wiki",
+        {"title": "Page avec doc"},
+        content_type="application/json",
+        **headers,
+    )
+    page_id = response.json()["id"]
+
+    upload = io.BytesIO(b"contenu du document de wiki")
+    upload.name = "wiki-doc.txt"
+    response = client.post(
+        f"/api/v1/projects/wiki/{page_id}/documents", {"file": upload}, **headers
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["original_name"] == "wiki-doc.txt"
+
+    upload2 = io.BytesIO(b"cahier des charges projet")
+    upload2.name = "cahier.txt"
+    response = client.post(f"/api/v1/projects/{project_id}/documents", {"file": upload2}, **headers)
+    assert response.status_code == 200, response.content
+
+    response = client.get(f"/api/v1/projects/{project_id}/documents", **headers)
+    assert response.status_code == 200
+    names = {row["original_name"] for row in response.json()["results"]}
+    assert names == {"cahier.txt"}
+
+
+def test_wiki_endpoints_require_projects_view_permission() -> None:
+    """RBAC : un role sans acces au module `projects` recoit 403."""
+    tenant = Tenant.objects.create(code="PRJ-API-WIKI-RBAC", name="Projects Wiki RBAC Tenant")
+    user = User.objects.create_user(
+        email="projects-wiki-rbac@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(user, "magasinier")
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.get("/api/v1/projects/00000000-0000-0000-0000-000000000000/wiki", **headers)
+    assert response.status_code == 403

@@ -722,3 +722,43 @@ class PrjTimeEntry(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.user_id} @ {self.task_id} ({self.started_at})"
+
+
+class PrjWikiPage(BaseModel):
+    """Page de wiki projet (PJ10) — 230e/250 modele de ce depot, budget
+    encore respecte. Plus simple qu'une generalisation cross-module de
+    `StgNote` (cf. plan, section modele `PrjWikiPage`) : scope
+    volontairement limite a `projects`, hierarchie de pages via `parent`
+    (meme patron que `PrjTask.parent`, cf. sa docstring).
+
+    Rattachement de documents (PJ10) : **aucun champ dedie ici** — un
+    document se rattache a une page ou a un projet via le mecanisme
+    generique deja construit `core.services.documents.store_document`
+    (`content_type`/`object_id`), jamais une FK/relation propre a ce
+    modele (meme discipline que `Partner`/`AccMove`/`PrjProject.risks`,
+    cf. `apps/projects/services/wiki.py`).
+
+    `body` n'est PAS wrappe en `gettext` : contenu narratif redige par un
+    humain (texte libre de la page de wiki), pas un libelle d'interface —
+    meme distinction deja appliquee a `StgNote.body` (cf. sa docstring)."""
+
+    project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="wiki_pages")
+    # Hierarchie de pages (meme patron que `PrjTask.parent`) — la garde
+    # structurelle "un parent doit appartenir au meme projet" vit dans
+    # `services/wiki.py::create_wiki_page`, jamais ici (coherent avec
+    # `services/tasks.py::create_task`).
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.CASCADE, related_name="children"
+    )
+    title = models.CharField(max_length=255)
+    body = models.TextField(blank=True)
+    author = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "prj_wiki_page"
+        ordering = ["project", "title"]
+
+    def __str__(self) -> str:
+        return self.title
