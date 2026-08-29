@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouvelle inspection qualite" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouvelle inspection qualite" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if not template %}
+    <form method="get">
+      <label for="qlt-template-select">{% trans "Choisir un gabarit" %}</label>
+      <select id="qlt-template-select" name="template_id" onchange="this.form.submit()">
+        <option value="">—</option>
+        {% for t in templates %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% else %}
+    <h2>{{ template.name }}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="template_id" value="{{ template.id }}">
+      <table>
+        <thead>
+          <tr>
+            <th>{% trans "Critere" %}</th>
+            <th>{% trans "Resultat" %}</th>
+            <th>{% trans "Commentaire" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in template.items %}
+            <tr>
+              <td>
+                {{ item.label }}
+                <input type="hidden" name="result_code" value="{{ item.code }}">
+              </td>
+              <td>
+                <select name="result_status">
+                  {% for value, label in result_status_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="text" name="result_comment"></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="submit">{% trans "Enregistrer l'inspection" %}</button>
+    </form>
+  {% endif %}
+{% endblock %}

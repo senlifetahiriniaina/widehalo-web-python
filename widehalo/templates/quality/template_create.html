@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau gabarit de controle" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau gabarit de controle" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label for="qlt-name">{% trans "Nom" %}</label>
+    <input id="qlt-name" type="text" name="name" required>
+
+    <label for="qlt-sector">{% trans "Secteur" %}</label>
+    <select id="qlt-sector" name="sector_code">
+      <option value="">—</option>
+      {% for value, label in sector_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <h2>{% trans "Criteres de controle" %}</h2>
+    <div class="qlt-item-row">
+      <input type="text" name="item_code" placeholder="{% trans 'Code' %}">
+      <input type="text" name="item_label" placeholder="{% trans 'Libelle' %}">
+      <input type="text" name="item_expected" placeholder="{% trans 'Attendu' %}">
+    </div>
+    <div class="qlt-item-row">
+      <input type="text" name="item_code" placeholder="{% trans 'Code' %}">
+      <input type="text" name="item_label" placeholder="{% trans 'Libelle' %}">
+      <input type="text" name="item_expected" placeholder="{% trans 'Attendu' %}">
+    </div>
+    <div class="qlt-item-row">
+      <input type="text" name="item_code" placeholder="{% trans 'Code' %}">
+      <input type="text" name="item_label" placeholder="{% trans 'Libelle' %}">
+      <input type="text" name="item_expected" placeholder="{% trans 'Attendu' %}">
+    </div>
+
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

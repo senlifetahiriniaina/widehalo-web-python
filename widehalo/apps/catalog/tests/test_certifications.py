@@ -63,3 +63,27 @@ def test_expired_certification_is_excluded(certification_setup) -> None:
         )
         codes = get_valid_certifications(variant.id, on_date=dt.date(2026, 6, 1))
         assert codes == []
+
+
+def test_certification_status_defaults_to_obtained(certification_setup) -> None:
+    """QLT1-2 : le defaut `STATUS_OBTAINED` preserve le comportement suppose
+    par toute certification creee avant l'ajout de ce champ (cf. docstring
+    de `CatalogCertification`)."""
+    tenant, variant, standard = certification_setup
+    with use_tenant(tenant.id):
+        certification = CatalogCertification.objects.create(
+            tenant=tenant, variant=variant, standard=standard
+        )
+    assert certification.status == CatalogCertification.STATUS_OBTAINED
+
+
+def test_certification_status_can_be_set_to_targeted_or_in_progress(certification_setup) -> None:
+    tenant, variant, standard = certification_setup
+    with use_tenant(tenant.id):
+        targeted = CatalogCertification.objects.create(
+            tenant=tenant,
+            variant=variant,
+            standard=standard,
+            status=CatalogCertification.STATUS_TARGETED,
+        )
+    assert targeted.status == CatalogCertification.STATUS_TARGETED

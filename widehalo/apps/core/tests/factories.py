@@ -23,6 +23,7 @@ from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.notification import Notification, WhatsAppMessage
+from apps.core.models.quality import QltChecklistTemplate, QltInspection
 from apps.core.models.rbac import RoleProfile
 from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParameter
 from apps.core.models.risk import CATEGORY_OTHER, RiskItem
@@ -248,6 +249,31 @@ class RiskItemFactory(factory.django.DjangoModelFactory):
     impact = 2
     score = 4
     owner = factory.SubFactory(UserFactory)
+
+
+class QltChecklistTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = QltChecklistTemplate
+
+    tenant = factory.SubFactory(TenantFactory)
+    name = factory.Sequence(lambda n: f"Gabarit qualite {n}")
+    items = factory.LazyFunction(
+        lambda: [{"code": "C1", "label": "Critere 1", "expected": "Conforme"}]
+    )
+
+
+class QltInspectionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = QltInspection
+
+    tenant = factory.SubFactory(TenantFactory)
+    template = factory.SubFactory(
+        QltChecklistTemplateFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    results = factory.LazyFunction(lambda: [{"code": "C1", "status": "conforme", "comment": ""}])
+    passed = True
+    inspector = factory.SubFactory(UserFactory)
+    inspected_at = factory.LazyFunction(lambda: datetime.datetime.now(tz=datetime.UTC))
 
 
 class ApprovalDelegationFactory(factory.django.DjangoModelFactory):

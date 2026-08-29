@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Gabarits de controle qualite" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gabarits de controle qualite" %}</h1>
+  <p>
+    <a href="{% url 'qlt_template_create' %}">{% trans "Nouveau gabarit" %}</a>
+    <a href="{% url 'qlt_inspection_list' %}">{% trans "Voir les inspections" %}</a>
+  </p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.base import BaseModel, ReferenceMixin
 
@@ -299,7 +300,36 @@ class CatalogStandard(BaseModel):
 class CatalogCertification(BaseModel):
     """Certification datee d'une variante par un fournisseur donne — utilise
     par `mrp` (RG bloquante MRP-QQCD1 : conformite bloquante si une
-    certification obligatoire manque ou est expiree)."""
+    certification obligatoire manque ou est expiree).
+
+    **`status` (QLT1-2, chantier qualite/certifications) — defaut
+    `STATUS_OBTAINED` (choix assume)** : avant ce lot, une
+    `CatalogCertification` ne pouvait representer QUE le cas "certification
+    deja acquise" — c'est exactement le comportement suppose par toutes les
+    fixtures/tests existants (`CatalogCertificationFactory`, `seed_catalog`,
+    `load_sample_products`) et par `get_valid_certifications` (filtre
+    uniquement sur les dates `valid_from`/`valid_until`, jamais sur un
+    statut). Un defaut different (ex. `STATUS_TARGETED`) aurait
+    silencieusement change le sens de chaque ligne deja creee sans qu'aucun
+    appelant existant ne le decide explicitement — casse assumee a eviter.
+    `status` reste un champ librement modifiable ensuite (ex. `vise` ->
+    `en_cours` -> `obtenue`, ou `obtenue` -> `expiree`) pour suivre le cycle
+    de vie reel d'une certification vise par le CDC (§5 qualite/
+    certifications) ; son cablage dans `get_valid_certifications` (ex.
+    n'accepter que `obtenue`) reste un travail futur hors perimetre QLT1-2
+    (disclosed) : ce lot ajoute le champ de suivi, pas un nouveau
+    comportement de blocage MRP."""
+
+    STATUS_TARGETED = "vise"
+    STATUS_IN_PROGRESS = "en_cours"
+    STATUS_OBTAINED = "obtenue"
+    STATUS_EXPIRED = "expiree"
+    STATUS_CHOICES = [
+        (STATUS_TARGETED, _("Visee")),
+        (STATUS_IN_PROGRESS, _("En cours")),
+        (STATUS_OBTAINED, _("Obtenue")),
+        (STATUS_EXPIRED, _("Expiree")),
+    ]
 
     variant = models.ForeignKey(
         ProductVariant, on_delete=models.CASCADE, related_name="certifications_detail"
@@ -309,6 +339,7 @@ class CatalogCertification(BaseModel):
     partner_id = models.UUIDField(null=True, blank=True)
     valid_from = models.DateField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OBTAINED)
 
     class Meta:
         db_table = "catalog_certification"

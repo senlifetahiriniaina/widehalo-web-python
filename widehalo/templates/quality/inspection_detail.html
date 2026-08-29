@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ inspection.template.name }} — WideHalo{% endblock %}
+{% block content %}
+  <div class="workflow-banner">
+    <strong>{% trans "Resultat" %}:</strong>
+    {% if inspection.passed %}{% trans "Conforme" %}{% else %}{% trans "Non conforme" %}{% endif %}
+  </div>
+
+  <h1>{{ inspection.template.name }}</h1>
+  <p>{% trans "Inspecteur" %}: {{ inspection.inspector }}</p>
+  <p>{% trans "Date" %}: {{ inspection.inspected_at }}</p>
+
+  <h2>{% trans "Resultats par critere" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Commentaire" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in inspection.results %}
+        <tr>
+          <td>{{ entry.code }}</td>
+          <td>{{ entry.status }}</td>
+          <td>{{ entry.comment }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

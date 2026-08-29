@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ template.name }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ template.name }}</h1>
+  <p>{% trans "Secteur" %}: {{ template.get_sector_code_display|default:"—" }}</p>
+
+  <h2>{% trans "Criteres de controle" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Libelle" %}</th>
+        <th>{% trans "Attendu" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in template.items %}
+        <tr>
+          <td>{{ item.code }}</td>
+          <td>{{ item.label }}</td>
+          <td>{{ item.expected }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p>
+    <a href="{% url 'qlt_inspection_create' %}?template_id={{ template.id }}">
+      {% trans "Lancer une inspection avec ce gabarit" %}
+    </a>
+  </p>
+{% endblock %}

@@ -290,6 +290,26 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 _RISK_FULL_ROLES = ("admin", "direction")
 _RISK_ADD_VIEW_ROLES = ("acheteur", "resp_production", "resp_commercial", "rh")
 
+# QLT1-2 (chantier qualite : preparation, controle, suivi, certifications) :
+# meme raisonnement que RSK1-2 ci-dessus — `QltChecklistTemplate`/
+# `QltInspection` vivent dans `core` (rattachables a n'importe quel module
+# via content_type/object_id, cf. `apps.core.models.quality`), `core`
+# n'apparait pas dans `ROLE_APP_PERMISSIONS`, donc les codenames
+# auto-generes Django sont ajoutes ICI. Roles "domaine cible" retenus par le
+# cadrage du lot : `resp_production`/`chef_atelier` (pilotage qualite en
+# atelier/production) et `acheteur` (controle qualite a reception
+# fournisseur, cf. `apps.purchase`) recoivent les 3 actions sur les 2
+# modeles — contrairement a RSK1-2, pas de scoping "owner" ici (une
+# inspection qualite est une donnee d'equipe, pas un signalement personnel
+# a filtrer par auteur) donc aucune raison de limiter ces roles a
+# `add`/`view` seulement. `admin`/`direction` recoivent les 3 actions
+# (pilotage transverse, meme discipline que partout ailleurs dans ce
+# registre). Aucun autre role ne recoit d'acces (pas de lecture seule
+# generalisee : aucune exigence explicite du cadrage ne la demande, et
+# l'ouvrir a tous les roles aurait ete plus large que ce que RSK1-2 a fait
+# pour un besoin similaire).
+_QLT_FULL_ROLES = ("admin", "direction", "resp_production", "chef_atelier", "acheteur")
+
 CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     "admin": {
         "accounting.validate_accmove",
@@ -323,6 +343,17 @@ for _role in _RISK_FULL_ROLES:
     )
 for _role in _RISK_ADD_VIEW_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update({"core.add_riskitem", "core.view_riskitem"})
+for _role in _QLT_FULL_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
+        {
+            "core.add_qltchecklisttemplate",
+            "core.view_qltchecklisttemplate",
+            "core.change_qltchecklisttemplate",
+            "core.add_qltinspection",
+            "core.view_qltinspection",
+            "core.change_qltinspection",
+        }
+    )
 
 _DJANGO_ACTIONS = ("view", "add", "change")
 

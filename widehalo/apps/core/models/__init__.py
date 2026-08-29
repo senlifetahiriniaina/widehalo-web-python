@@ -4,6 +4,7 @@ from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
 from apps.core.models.notification import Notification, WhatsAppMessage
+from apps.core.models.quality import QltChecklistTemplate, QltInspection
 from apps.core.models.rbac import RoleProfile
 from apps.core.models.regulatory import CountryDefaultsProfile, RegulatoryParameter
 from apps.core.models.risk import RiskItem
@@ -37,6 +38,8 @@ __all__ = [
     "RoleProfile",
     "CountryDefaultsProfile",
     "RegulatoryParameter",
+    "QltChecklistTemplate",
+    "QltInspection",
     "RiskItem",
     "SearchDocument",
     "Sequence",
