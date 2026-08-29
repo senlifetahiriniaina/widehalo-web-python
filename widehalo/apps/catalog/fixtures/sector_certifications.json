@@ -1,0 +1,26 @@
+[
+  {
+    "sector_code": "cuir",
+    "code": "LWG-AUDIT",
+    "name": "Leather Working Group — protocole environnemental tannerie",
+    "description": "Referentiel indicatif d'audit environnemental de tannerie (gestion de l'eau, des dechets, tracabilite du cuir). Reserve non-experte, non validee par un auditeur LWG independant."
+  },
+  {
+    "sector_code": "agroalimentaire",
+    "code": "HACCP",
+    "name": "HACCP — Hazard Analysis Critical Control Point",
+    "description": "Methode de maitrise des points critiques de securite sanitaire des aliments. Reserve non-experte, non validee par un auditeur qualite independant."
+  },
+  {
+    "sector_code": "agroalimentaire",
+    "code": "BIO-MG",
+    "name": "Agriculture biologique (referentiel indicatif Madagascar)",
+    "description": "Referentiel indicatif d'agriculture biologique, non rattache a un organisme certificateur precis. Reserve non-experte, a remplacer par le referentiel officiel retenu par le tenant."
+  },
+  {
+    "sector_code": "artisanat",
+    "code": "LABEL-ARTISANAT-MG",
+    "name": "Label artisanat malgache (reserve indicative)",
+    "description": "Label indicatif de valorisation de l'artisanat local, non officiel. Reserve non-experte, a remplacer par un label reconnu si le tenant en utilise un."
+  }
+]
