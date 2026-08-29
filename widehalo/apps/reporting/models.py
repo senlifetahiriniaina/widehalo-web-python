@@ -115,3 +115,43 @@ class RptJob(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.report_code} ({self.state})"
+
+
+class RptSchedule(BaseModel):
+    """RPT-7 : planification quotidienne/hebdomadaire/mensuelle d'un
+    rapport + envoi e-mail aux destinataires. Executee par une commande de
+    management SANS cron auto-enregistre (`run_report_schedules`) — meme
+    discipline que `run_sales_recurrences`/`run_presence_maintenance` :
+    c'est a l'operateur (ou son ordonnanceur systeme, ex. cron externe) de
+    l'appeler periodiquement, ce depot ne programme jamais lui-meme un
+    cron. RPT-8 (tracabilite) est satisfait par construction : `RptSchedule`
+    et `RptJob` heritent de `BaseModel`, donc chaque creation/modification
+    est deja journalisee automatiquement par `core.audit_signals` (aucun
+    code supplementaire necessaire ici)."""
+
+    FREQUENCY_DAILY = "daily"
+    FREQUENCY_WEEKLY = "weekly"
+    FREQUENCY_MONTHLY = "monthly"
+    FREQUENCY_CHOICES = [
+        (FREQUENCY_DAILY, "Quotidien"),
+        (FREQUENCY_WEEKLY, "Hebdomadaire"),
+        (FREQUENCY_MONTHLY, "Mensuel"),
+    ]
+
+    name = models.CharField(max_length=200)
+    report_code = models.CharField(max_length=64, db_index=True)
+    params = models.JSONField(default=dict, blank=True)
+    format = models.CharField(max_length=8, choices=RptJob.FORMAT_CHOICES)
+    lang = models.CharField(max_length=5, default="fr")
+    frequency = models.CharField(max_length=16, choices=FREQUENCY_CHOICES)
+    recipients = models.ManyToManyField("core.User", related_name="report_schedules", blank=True)
+    enabled = models.BooleanField(default=True)
+    next_run_at = models.DateTimeField()
+    last_run_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "rpt_schedule"
+        ordering = ["next_run_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.frequency})"

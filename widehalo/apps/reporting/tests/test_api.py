@@ -150,3 +150,53 @@ def test_generate_status_and_download_round_trip() -> None:
     download_response = client.get(f"/api/v1/reporting/jobs/{job_id}/download", **headers)
     assert download_response.status_code == 200
     assert b"a" in download_response.content
+
+
+def test_create_and_toggle_schedule_round_trip() -> None:
+    register_report(
+        code="RPT-TEST-API-SCHEDULE",
+        module="reporting",
+        label="Schedule API",
+        permission="reporting.view_rptdefinition",
+        render_rows=_rows,
+        fields=("a",),
+    )
+    tenant = Tenant.objects.create(code="RPT-API-SCHED", name="Reporting API Schedule Tenant")
+    user = User.objects.create_user(email="rpt-api-sched@example.com", password="Str0ngPassw0rd!23")
+    _grant(
+        user,
+        app_label="reporting",
+        codenames=[
+            "add_rptschedule",
+            "view_rptschedule",
+            "change_rptschedule",
+            "view_rptdefinition",
+        ],
+    )
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/reporting/schedules",
+        {
+            "name": "Hebdo test API",
+            "code": "RPT-TEST-API-SCHEDULE",
+            "frequency": "weekly",
+            "format": "json",
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    schedule_id = create_response.json()["id"]
+    assert create_response.json()["enabled"] is True
+
+    list_response = client.get("/api/v1/reporting/schedules", **headers)
+    assert list_response.status_code == 200
+    assert any(row["id"] == schedule_id for row in list_response.json()["results"])
+
+    toggle_response = client.post(f"/api/v1/reporting/schedules/{schedule_id}/toggle", **headers)
+    assert toggle_response.status_code == 200
+    assert toggle_response.json()["enabled"] is False

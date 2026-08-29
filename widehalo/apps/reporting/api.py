@@ -1,10 +1,11 @@
-"""API django-ninja du module `reporting` (§5.11). REP2 ajoute la generation
-(RPT-1/RPT-6/RPT-9) au catalogue (RPT-5) livre par REP1 — planification
-(RPT-7) et archivage legal (RPT-10) arrivent aux etapes suivantes du meme
-chantier."""
+"""API django-ninja du module `reporting` (§5.11). REP2 a ajoute la
+generation (RPT-1/RPT-6/RPT-9) au catalogue (RPT-5) livre par REP1 — REP3
+ajoute la planification (RPT-7). L'archivage legal (RPT-10) arrive a
+l'etape suivante du meme chantier."""
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from django.http import HttpResponse, JsonResponse
@@ -12,12 +13,14 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
 from ninja import Router, Schema
 
+from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.reports_registry import get_registered_report, list_registered_reports
 from apps.core.tenant_context import activate_tenant
-from apps.reporting.models import RptJob
+from apps.reporting.models import RptJob, RptSchedule
 from apps.reporting.services.catalog import sync_report_definitions
 from apps.reporting.services.engine import UnknownReportError, generate_report
+from apps.reporting.services.scheduling import compute_next_run_at
 
 router = Router(tags=["reporting"])
 
@@ -132,3 +135,75 @@ def job_download_endpoint(request, job_id: str):
     response = HttpResponse(job.file.read(), content_type=content_types[job.format])
     response["Content-Disposition"] = f'attachment; filename="{job.report_code}.{job.format}"'
     return response
+
+
+class ScheduleIn(Schema):
+    name: str
+    code: str
+    params: dict[str, Any] = {}
+    format: str = "json"
+    lang: str = "fr"
+    frequency: str
+    recipient_ids: list[str] = []
+
+
+def _serialize_schedule(schedule: RptSchedule) -> dict[str, Any]:
+    return {
+        "id": str(schedule.id),
+        "name": schedule.name,
+        "report_code": schedule.report_code,
+        "frequency": schedule.frequency,
+        "enabled": schedule.enabled,
+        "next_run_at": schedule.next_run_at,
+        "last_run_at": schedule.last_run_at,
+        "recipients": [str(uid) for uid in schedule.recipients.values_list("id", flat=True)],
+    }
+
+
+@router.get("/reporting/schedules")
+@require_permission("reporting.view_rptschedule")
+def list_schedules_endpoint(request):
+    tenant_id = request.headers.get("X-Tenant-Id")
+    schedules = RptSchedule.objects.filter(tenant_id=tenant_id)
+    return {"results": [_serialize_schedule(s) for s in schedules]}
+
+
+@router.post("/reporting/schedules")
+@require_permission("reporting.add_rptschedule")
+def create_schedule_endpoint(request, payload: ScheduleIn):
+    """RPT-7 : comme pour la generation immediate, la permission generique
+    `reporting.add_rptschedule` ouvre l'action de planifier — le rapport
+    CIBLE reste gate par sa propre permission."""
+    report = get_registered_report(payload.code)
+    if report is None:
+        return JsonResponse({"detail": _("rapport inconnu")}, status=404)
+    if not request.auth.has_perm(report.permission):
+        return JsonResponse({"detail": _("permission refusée")}, status=403)
+    if payload.frequency not in dict(RptSchedule.FREQUENCY_CHOICES):
+        return JsonResponse({"detail": _("frequence de planification inconnue")}, status=400)
+
+    tenant_id = request.headers.get("X-Tenant-Id")
+    schedule = RptSchedule.objects.create(
+        tenant_id=tenant_id,
+        name=payload.name,
+        report_code=payload.code,
+        params=payload.params,
+        format=payload.format,
+        lang=payload.lang,
+        frequency=payload.frequency,
+        next_run_at=compute_next_run_at(payload.frequency),
+        created_by=request.auth,
+    )
+    if payload.recipient_ids:
+        recipients = User.objects.filter(id__in=[uuid.UUID(r) for r in payload.recipient_ids])
+        schedule.recipients.set(recipients)
+    return _serialize_schedule(schedule)
+
+
+@router.post("/reporting/schedules/{schedule_id}/toggle")
+@require_permission("reporting.change_rptschedule")
+def toggle_schedule_endpoint(request, schedule_id: str):
+    schedule = get_object_or_404(RptSchedule, id=schedule_id)
+    schedule.enabled = not schedule.enabled
+    schedule.save(update_fields=["enabled"])
+    return _serialize_schedule(schedule)

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import factory
+import datetime as dt
 
-from apps.reporting.models import RptDefinition, RptJob, RptLayout
+import factory
+from django.utils import timezone
+
+from apps.reporting.models import RptDefinition, RptJob, RptLayout, RptSchedule
 
 
 class RptDefinitionFactory(factory.django.DjangoModelFactory):
@@ -35,3 +38,16 @@ class RptJobFactory(factory.django.DjangoModelFactory):
     report_code = "TEST-RPT"
     params = factory.LazyFunction(dict)
     format = RptJob.FORMAT_JSON
+
+
+class RptScheduleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = RptSchedule
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Planification {n}")
+    report_code = "TEST-RPT"
+    params = factory.LazyFunction(dict)
+    format = RptJob.FORMAT_JSON
+    frequency = RptSchedule.FREQUENCY_DAILY
+    next_run_at = factory.LazyFunction(lambda: timezone.now() + dt.timedelta(days=1))
