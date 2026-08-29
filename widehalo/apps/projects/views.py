@@ -6,6 +6,7 @@ riches (Gantt SVG, Kanban, EVM...) arrivent aux etapes PJ2+."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import InvalidOperation
 from typing import cast
 
@@ -13,12 +14,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.safestring import mark_safe
 
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.projects.models import PrjProject, PrjTask
+from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
 from apps.projects.services.projects import create_project
 from apps.projects.services.tasks import (
     block_task,
@@ -120,6 +123,57 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
             "project": project,
             "tasks": tasks,
             "task_types": PrjTask.TYPE_CHOICES,
+            "error": error,
+        },
+    )
+
+
+@login_required
+def project_gantt(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran Gantt (PJ2) : rendu SVG serveur (`render_gantt_svg`) +
+    formulaire HTMX classique de modification des dates d'une tache, qui
+    poste vers cette meme vue (pas encore un "drag" visuel en JS — cf.
+    disclosure de `services/gantt.py`, l'amelioration interactive reelle
+    est reportee ; l'API `PATCH /api/v1/projects/tasks/{id}/gantt`
+    equivalente est deja disponible pour un futur client JS)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        task_id = request.POST.get("task_id", "")
+        task = get_object_or_404(PrjTask, id=task_id, project=project)
+        try:
+            update_fields = []
+            start_date = request.POST.get("start_date") or ""
+            end_date = request.POST.get("end_date") or ""
+            duration_days = request.POST.get("duration_days") or ""
+            if start_date:
+                task.start_date = dt.date.fromisoformat(start_date)
+                update_fields.append("start_date")
+            if end_date:
+                task.end_date = dt.date.fromisoformat(end_date)
+                update_fields.append("end_date")
+            if duration_days:
+                task.duration_days = int(duration_days)
+                update_fields.append("duration_days")
+            if update_fields:
+                task.save(update_fields=update_fields)
+            compute_critical_path(project)
+        except (ValidationError, ValueError) as exc:
+            error = str(exc)
+
+    tasks = project.tasks.filter(is_active=True)
+    gantt_svg = render_gantt_svg(project)
+    return render(
+        request,
+        "projects/gantt.html",
+        {
+            "project": project,
+            "tasks": tasks,
+            # `render_gantt_svg` echappe (`html.escape`) chaque fragment
+            # texte interpole (reference/nom de tache) avant assemblage —
+            # `mark_safe` est donc sur une chaine deja assainie, pas sur
+            # une entree utilisateur brute.
+            "gantt_svg": mark_safe(gantt_svg),  # noqa: S308
             "error": error,
         },
     )

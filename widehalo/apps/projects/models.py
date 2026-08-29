@@ -1,11 +1,13 @@
 """Module `projects` (Gestion de projets) — porte depuis l'ancienne version
 WideHalo (Laravel, 19 fonctionnalites), reecrit pour ce socle Django
 modulith. Cf. plan, section « Module `projects` (Gestion de projets) »,
-sous-sequencement PJ1-PJ15. **PJ1 uniquement** : squelette d'app + les 2
-modeles de hierarchie unifiee (`PrjProject`, `PrjTask`) — les 13 modeles
-restants (`PrjTaskDependency`, `PrjSprint`, `PrjBudgetLine`,
-`PrjTimeEntry`, `PrjTeamMember`, `PrjCustomFieldDefinition`, `PrjWikiPage`,
-`PrjGuestAccess`, ...) arrivent aux etapes PJ2-PJ14.
+sous-sequencement PJ1-PJ15. **PJ1+PJ2** : squelette d'app + les 2 modeles
+de hierarchie unifiee (`PrjProject`, `PrjTask`, PJ1) + `PrjTaskDependency`
+(PJ2, dependances entre taches/detection de cycle/Gantt SVG/chemin
+critique CPM/endpoint PATCH drag-and-drop des dates) — les 12 modeles
+restants (`PrjSprint`, `PrjBudgetLine`, `PrjTimeEntry`, `PrjTeamMember`,
+`PrjCustomFieldDefinition`, `PrjWikiPage`, `PrjGuestAccess`, ...) arrivent
+aux etapes PJ3-PJ14.
 
 Dependances declarees (`module.py`) : `core`, `partners`, `accounting`,
 `strategy` — mais **aucune n'est reellement consommee a ce stade** (regle
@@ -223,3 +225,58 @@ class PrjTask(BaseModel, ReferenceMixin):
     )
     def cancel(self) -> None:
         pass
+
+
+class PrjTaskDependency(BaseModel):
+    """Dependance entre deux taches d'un MEME projet (PJ2). Le graphe forme
+    par ce modele alimente deux services de `apps/projects/services/` :
+    - `dependencies.py::add_dependency` : REFUSE explicitement (leve
+      `ValidationError`, jamais une creation silencieuse suivie d'un crash
+      ailleurs) toute dependance qui introduirait un cycle dans le graphe
+      du projet — differenciateur documente au plan comme absent
+      d'Asana/Monday/Jira/ClickUp.
+    - `gantt.py::compute_critical_path` : algorithme CPM (Critical Path
+      Method) classique, cf. docstring de ce module pour les hypotheses
+      simplificatrices retenues en V1 (traitement de tout type de
+      dependance comme `finish_to_start` pour le calcul du chemin
+      critique lui-meme ; les autres types sont bien stockes/affiches
+      dans le Gantt mais n'influencent pas encore le forward/backward
+      pass mathematique — disclosed explicitement plutot qu'une fausse
+      precision).
+
+    `UniqueConstraint(from_task, to_task)` : empeche la duplication d'une
+    MEME arete (une paire from/to ne peut porter qu'un seul enregistrement
+    de dependance) — la detection de doublon applicative (message
+    explicite avant meme d'atteindre la contrainte DB) vit dans
+    `add_dependency`."""
+
+    TYPE_FINISH_TO_START = "finish_to_start"
+    TYPE_START_TO_START = "start_to_start"
+    TYPE_FINISH_TO_FINISH = "finish_to_finish"
+    TYPE_START_TO_FINISH = "start_to_finish"
+    TYPE_CHOICES = [
+        (TYPE_FINISH_TO_START, _("Fin -> Debut")),
+        (TYPE_START_TO_START, _("Debut -> Debut")),
+        (TYPE_FINISH_TO_FINISH, _("Fin -> Fin")),
+        (TYPE_START_TO_FINISH, _("Debut -> Fin")),
+    ]
+
+    from_task = models.ForeignKey(
+        PrjTask, on_delete=models.CASCADE, related_name="dependencies_out"
+    )
+    to_task = models.ForeignKey(PrjTask, on_delete=models.CASCADE, related_name="dependencies_in")
+    dependency_type = models.CharField(
+        max_length=20, choices=TYPE_CHOICES, default=TYPE_FINISH_TO_START
+    )
+
+    class Meta:
+        db_table = "prj_task_dependency"
+        ordering = ["from_task", "to_task"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_task", "to_task"], name="uniq_prj_task_dependency_pair"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.from_task_id} -> {self.to_task_id} ({self.dependency_type})"

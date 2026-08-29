@@ -91,3 +91,60 @@ def test_unauthenticated_request_is_rejected() -> None:
     client = Client()
     response = client.get("/api/v1/projects")
     assert response.status_code == 401
+
+
+def test_patch_task_gantt_updates_dates_and_recomputes_critical_path(api_projects) -> None:
+    """PJ2 : l'endpoint drag-and-drop met a jour les dates de la tache et
+    recalcule automatiquement le chemin critique du projet."""
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects", {"name": "Projet Gantt API"}, content_type="application/json", **headers
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"duration_days": 5},
+        content_type="application/json",
+        **headers,
+    )
+    task_id = response.json()["id"]
+
+    response = client.patch(
+        f"/api/v1/projects/tasks/{task_id}/gantt",
+        {"start_date": "2026-02-01", "end_date": "2026-02-10", "duration_days": 9},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["start_date"] == "2026-02-01"
+    assert body["end_date"] == "2026-02-10"
+    assert body["duration_days"] == 9
+    # Une seule tache sans dependance -> chemin critique par definition.
+    assert body["is_critical_path"] is True
+
+
+def test_patch_task_gantt_requires_projects_change_permission() -> None:
+    """RBAC : un role sans acces au module `projects` recoit 403 (jamais
+    une mise a jour silencieuse des dates)."""
+    tenant = Tenant.objects.create(code="PRJ-API-RBAC", name="Projects API RBAC Tenant")
+    user = User.objects.create_user(
+        email="projects-api-rbac@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(user, "magasinier")
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.patch(
+        "/api/v1/projects/tasks/00000000-0000-0000-0000-000000000000/gantt",
+        {"duration_days": 1},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 403

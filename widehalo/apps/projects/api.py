@@ -18,6 +18,7 @@ from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
 from apps.projects.models import PrjProject, PrjTask
+from apps.projects.services.gantt import compute_critical_path
 from apps.projects.services.projects import create_project
 from apps.projects.services.tasks import (
     block_task,
@@ -38,6 +39,15 @@ class ProjectIn(Schema):
     client_partner_id: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+
+
+class TaskGanttIn(Schema):
+    """Payload de l'endpoint PATCH drag-and-drop (PJ2) — tous les champs
+    sont optionnels : seuls ceux fournis sont mis a jour."""
+
+    start_date: str | None = None
+    end_date: str | None = None
+    duration_days: int | None = None
 
 
 class TaskIn(Schema):
@@ -181,5 +191,32 @@ def transition_task_endpoint(request: Any, task_id: str, action: str) -> dict[st
         transition_fn(task, user)
     except TransitionPermissionError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
+    task.refresh_from_db()
+    return _serialize_task(task)
+
+
+@router.patch("/projects/tasks/{task_id}/gantt")
+@require_permission("projects.change_prjtask")
+def update_task_gantt_endpoint(request: Any, task_id: str, payload: TaskGanttIn) -> dict[str, Any]:
+    """Endpoint drag-and-drop (PJ2) : met a jour `start_date`/`end_date`/
+    `duration_days` d'une tache puis recalcule automatiquement le chemin
+    critique (CPM) de tout le projet — cf. `services/gantt.py::
+    compute_critical_path`. RBAC identique aux autres endpoints de gestion
+    de projet (`projects.change_prjtask`, accorde a `resp_commercial`/
+    `resp_production`/`admin`/`direction`, cf. `rbac_policy.py`)."""
+    task = get_object_or_404(PrjTask, id=task_id)
+    update_fields = []
+    if payload.start_date is not None:
+        task.start_date = dt.date.fromisoformat(payload.start_date)
+        update_fields.append("start_date")
+    if payload.end_date is not None:
+        task.end_date = dt.date.fromisoformat(payload.end_date)
+        update_fields.append("end_date")
+    if payload.duration_days is not None:
+        task.duration_days = payload.duration_days
+        update_fields.append("duration_days")
+    if update_fields:
+        task.save(update_fields=update_fields)
+    compute_critical_path(task.project)
     task.refresh_from_db()
     return _serialize_task(task)

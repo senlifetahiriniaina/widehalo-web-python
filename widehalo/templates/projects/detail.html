@@ -7,6 +7,7 @@
   <p>{% trans "Methodologie" %} : {{ project.get_methodology_display }}</p>
   <p>{% trans "Statut" %} : {{ project.get_status_display }}</p>
   <p>{{ project.description }}</p>
+  <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
 
   <h2>{% trans "Taches" %}</h2>
   <table>

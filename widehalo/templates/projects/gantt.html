@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Gantt" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gantt" %} — {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p class="hint">
+    {% trans "Rendu SVG cote serveur, echelle fixe en jours (V1) : le glisser-deposer visuel n'est pas encore construit ici — modifiez les dates via le formulaire ci-dessous, qui recalcule automatiquement le chemin critique (barres orange)." %}
+  </p>
+
+  <div class="gantt-container" style="overflow-x:auto">
+    {{ gantt_svg }}
+  </div>
+
+  <h2>{% trans "Modifier les dates d'une tache" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <select name="task_id" aria-label="{% trans 'Tache' %}">
+      {% for task in tasks %}
+        <option value="{{ task.id }}">
+          {{ task.reference }} — {{ task.get_task_type_display }}
+          {% if task.is_critical_path %}({% trans "chemin critique" %}){% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    <label>{% trans "Debut" %} <input type="date" name="start_date"></label>
+    <label>{% trans "Fin" %} <input type="date" name="end_date"></label>
+    <label>{% trans "Duree (jours)" %} <input type="number" name="duration_days" min="0"></label>
+    <button type="submit">{% trans "Mettre a jour" %}</button>
+  </form>
+
+  <p><a href="{% url 'projects:detail' project.id %}">{% trans "Retour au projet" %}</a></p>
+{% endblock %}
