@@ -51,9 +51,18 @@ def _is_schedulable(task: PrjTask) -> bool:
     )
 
 
+def dates_overlap(a_start: dt.date, a_end: dt.date, b_start: dt.date, b_end: dt.date) -> bool:
+    """Chevauchement de deux intervalles de dates fermes `[a_start, a_end]`/
+    `[b_start, b_end]` — arithmetique pure, reutilisee telle quelle par
+    `services/capacity.py::compute_user_workload_heatmap` (PJ7) pour tester
+    le chevauchement d'une tache avec une semaine de l'horizon, plutot que
+    de dupliquer cette meme comparaison a deux bornes."""
+    return a_start <= b_end and b_start <= a_end
+
+
 def _overlaps(a: PrjTask, b: PrjTask) -> bool:
     assert a.start_date and a.end_date and b.start_date and b.end_date
-    return a.start_date <= b.end_date and b.start_date <= a.end_date
+    return dates_overlap(a.start_date, a.end_date, b.start_date, b.end_date)
 
 
 def detect_scheduling_conflicts(user: User) -> list[SchedulingConflict]:

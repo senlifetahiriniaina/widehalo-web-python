@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -18,13 +19,27 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjSprint, PrjTask
+from apps.projects.models import (
+    PrjBudgetLine,
+    PrjCustomFieldDefinition,
+    PrjInvoicingRecord,
+    PrjProject,
+    PrjSprint,
+    PrjTask,
+    PrjTeamMember,
+)
 from apps.projects.services.billing import (
     TimeAndMaterialNotImplementedError,
     bill_by_milestone,
     bill_by_percentage,
     bill_fixed,
     bill_time_and_material,
+)
+from apps.projects.services.capacity import (
+    add_team_member,
+    compute_project_capacity_summary,
+    compute_user_workload_heatmap,
+    remove_team_member,
 )
 from apps.projects.services.evm import add_budget_line, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
@@ -97,6 +112,20 @@ class SprintIn(Schema):
     goal: str = ""
 
 
+class TeamMemberIn(Schema):
+    user_id: str
+    role: str = ""
+    allocation_pct: int
+
+
+class CustomFieldDefinitionIn(Schema):
+    entity_type: str
+    field_key: str
+    field_label: str
+    field_type: str
+    validation_rule: dict[str, Any] = {}
+
+
 class TaskIn(Schema):
     task_type: str = PrjTask.TYPE_TASK
     parent_id: str | None = None
@@ -105,6 +134,7 @@ class TaskIn(Schema):
     end_date: str | None = None
     duration_days: int = 0
     story_points: int | None = None
+    custom_fields: dict[str, Any] = {}
 
 
 def _serialize_project(project: PrjProject) -> dict[str, Any]:
@@ -242,6 +272,7 @@ def create_task_endpoint(request: Any, project_id: str, payload: TaskIn) -> dict
             end_date=dt.date.fromisoformat(payload.end_date) if payload.end_date else None,
             duration_days=payload.duration_days,
             story_points=payload.story_points,
+            custom_fields=payload.custom_fields,
         )
     except ValidationError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
@@ -522,3 +553,129 @@ def sprint_burndown_endpoint(request: Any, project_id: str, sprint_id: str) -> d
 def project_velocity_endpoint(request: Any, project_id: str) -> dict[str, Any]:
     project = get_object_or_404(PrjProject, id=project_id)
     return {"project_id": str(project.id), "velocity": str(compute_velocity(project))}
+
+
+# ---------------------------------------------------------------------------
+# PJ7 — Equipe projet + heatmap de capacite. RBAC : memes permissions
+# app-level "projects" (view/add/change) que le CRUD projet/tache/sprint
+# courant (cf. `ROLE_APP_PERMISSIONS`) — gerer l'equipe d'un projet n'est
+# PAS aussi sensible que la facturation (PJ5), pas de permission
+# personnalisee dediee.
+# ---------------------------------------------------------------------------
+
+
+def _serialize_team_member(member: PrjTeamMember) -> dict[str, Any]:
+    return {
+        "id": str(member.id),
+        "project_id": str(member.project_id),
+        "user_id": str(member.user_id),
+        "role": member.role,
+        "allocation_pct": member.allocation_pct,
+    }
+
+
+@router.get("/projects/{project_id}/team")
+@require_permission("projects.view_prjteammember")
+def project_team_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return compute_project_capacity_summary(project)
+
+
+@router.post("/projects/{project_id}/team")
+@require_permission("projects.add_prjteammember")
+def add_team_member_endpoint(
+    request: Any, project_id: str, payload: TeamMemberIn
+) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    user = get_object_or_404(User, id=payload.user_id)
+    try:
+        member = add_team_member(
+            project, user, role=payload.role, allocation_pct=payload.allocation_pct
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_team_member(member)
+
+
+@router.post("/projects/{project_id}/team/{member_id}/remove")
+@require_permission("projects.change_prjteammember")
+def remove_team_member_endpoint(request: Any, project_id: str, member_id: str) -> dict[str, Any]:
+    member = get_object_or_404(PrjTeamMember, id=member_id, project_id=project_id)
+    remove_team_member(member)
+    return {"id": str(member.id), "is_active": member.is_active}
+
+
+@router.get("/projects/users/{user_id}/capacity-heatmap")
+@require_permission("projects.view_prjteammember")
+def user_capacity_heatmap_endpoint(request: Any, user_id: str) -> dict[str, Any]:
+    user = get_object_or_404(User, id=user_id)
+    heatmap = compute_user_workload_heatmap(user)
+    return {
+        "user_id": str(user.id),
+        "weeks": [
+            {
+                "week_start": week["week_start"].isoformat(),
+                "week_end": week["week_end"].isoformat(),
+                "allocation_pct": week["allocation_pct"],
+                "active_task_count": week["active_task_count"],
+                "is_overallocated": week["is_overallocated"],
+            }
+            for week in heatmap
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# PJ7 — Champs personnalises. RBAC : `projects.manage_prjcustomfielddefinition`
+# (permission PERSONNALISEE, cf. `PrjCustomFieldDefinition.Meta.permissions`)
+# restreinte a `admin`/`direction` — un PARAMETRAGE, pas une operation
+# courante de gestion de projet (meme discipline que
+# `projects.bill_prjproject`, cf. `apps.core.services.rbac_policy`).
+# ---------------------------------------------------------------------------
+
+
+def _serialize_custom_field_definition(definition: PrjCustomFieldDefinition) -> dict[str, Any]:
+    return {
+        "id": str(definition.id),
+        "entity_type": definition.entity_type,
+        "field_key": definition.field_key,
+        "field_label": definition.field_label,
+        "field_type": definition.field_type,
+        "validation_rule": definition.validation_rule,
+    }
+
+
+@router.get("/projects/config/custom-fields")
+@require_permission("projects.manage_prjcustomfielddefinition")
+def list_custom_field_definitions_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    definitions = PrjCustomFieldDefinition.objects.filter(tenant=tenant, is_active=True)
+    return {"results": [_serialize_custom_field_definition(d) for d in definitions]}
+
+
+@router.post("/projects/config/custom-fields")
+@require_permission("projects.manage_prjcustomfielddefinition")
+def create_custom_field_definition_endpoint(
+    request: Any, payload: CustomFieldDefinitionIn
+) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        definition = PrjCustomFieldDefinition.objects.create(
+            tenant=tenant,
+            entity_type=payload.entity_type,
+            field_key=payload.field_key,
+            field_label=payload.field_label,
+            field_type=payload.field_type,
+            validation_rule=payload.validation_rule,
+        )
+    except (ValidationError, IntegrityError) as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_custom_field_definition(definition)
+
+
+@router.post("/projects/config/custom-fields/{definition_id}/remove")
+@require_permission("projects.manage_prjcustomfielddefinition")
+def remove_custom_field_definition_endpoint(request: Any, definition_id: str) -> dict[str, Any]:
+    definition = get_object_or_404(PrjCustomFieldDefinition, id=definition_id)
+    definition.soft_delete()
+    return {"id": str(definition.id), "is_active": definition.is_active}

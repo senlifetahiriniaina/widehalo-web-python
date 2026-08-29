@@ -21,13 +21,26 @@ from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjSprint, PrjTask
+from apps.projects.models import (
+    PrjBudgetLine,
+    PrjInvoicingRecord,
+    PrjProject,
+    PrjSprint,
+    PrjTask,
+    PrjTeamMember,
+)
 from apps.projects.services.billing import (
     TimeAndMaterialNotImplementedError,
     bill_by_milestone,
     bill_by_percentage,
     bill_fixed,
     bill_time_and_material,
+)
+from apps.projects.services.capacity import (
+    add_team_member,
+    compute_project_capacity_summary,
+    compute_user_workload_heatmap,
+    remove_team_member,
 )
 from apps.projects.services.evm import add_budget_line, compute_s_curve, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
@@ -411,4 +424,52 @@ def project_sprint_burndown(request: HttpRequest, project_id: str, sprint_id: st
         request,
         "projects/burndown.html",
         {"project": project, "sprint": sprint, "burndown": burndown, "velocity": velocity},
+    )
+
+
+@login_required
+def project_team(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran HTMX minimal de gestion d'equipe (PJ7) : ajout/retrait de
+    membres avec allocation — cf. `services/capacity.py::add_team_member`/
+    `remove_team_member`. Meme discipline "chaque vue appelle directement
+    les fonctions de service" que le reste du module."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        action = request.POST.get("action", "add")
+        try:
+            if action == "add":
+                user = get_object_or_404(User, id=request.POST.get("user_id", ""))
+                add_team_member(
+                    project,
+                    user,
+                    role=request.POST.get("role", ""),
+                    allocation_pct=int(request.POST.get("allocation_pct") or 0),
+                )
+            elif action == "remove":
+                member = get_object_or_404(
+                    PrjTeamMember, id=request.POST.get("member_id", ""), project=project
+                )
+                remove_team_member(member)
+        except (ValidationError, ValueError) as exc:
+            error = str(exc)
+
+    summary = compute_project_capacity_summary(project)
+    return render(
+        request,
+        "projects/team.html",
+        {"project": project, "summary": summary, "error": error},
+    )
+
+
+@login_required
+def user_capacity_heatmap(request: HttpRequest, user_id: str) -> HttpResponse:
+    """Ecran HTMX de heatmap de capacite d'un utilisateur (PJ7) — cf.
+    `services/capacity.py::compute_user_workload_heatmap`."""
+    user = get_object_or_404(User, id=user_id)
+    heatmap = compute_user_workload_heatmap(user)
+    return render(
+        request,
+        "projects/capacity_heatmap.html",
+        {"target_user": user, "heatmap": heatmap},
     )

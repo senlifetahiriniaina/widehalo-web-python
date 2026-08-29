@@ -1,12 +1,15 @@
-"""Creation de tache et transitions FSM (PJ1). Cf. docstring de
-`apps/projects/models.py` pour le niveau de validation de hierarchie
+"""Creation de tache et transitions FSM (PJ1, complete PJ7). Cf. docstring
+de `apps/projects/models.py` pour le niveau de validation de hierarchie
 applique ici (structurel uniquement — un `parent` doit appartenir au meme
 projet ; la coherence semantique des types epic/tache/jalon est reportee
-a PJ2)."""
+a PJ2). PJ7 ajoute la validation de `custom_fields` contre les
+`PrjCustomFieldDefinition` du tenant AVANT toute ecriture (cf.
+`services/custom_fields.py::validate_custom_fields`)."""
 
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -16,7 +19,8 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
 from apps.core.services.workflow import attempt_transition
-from apps.projects.models import PrjProject, PrjTask
+from apps.projects.models import PrjCustomFieldDefinition, PrjProject, PrjTask
+from apps.projects.services.custom_fields import validate_custom_fields
 
 
 def create_task(
@@ -30,11 +34,13 @@ def create_task(
     end_date: dt.date | None = None,
     duration_days: int = 0,
     story_points: int | None = None,
+    custom_fields: dict[str, Any] | None = None,
 ) -> PrjTask:
     if parent is not None and parent.project_id != project.id:
         raise ValidationError(
             _("Une tache parente doit appartenir au meme projet que la tache creee.")
         )
+    validate_custom_fields(tenant, PrjCustomFieldDefinition.ENTITY_TASK, custom_fields)
     reference = next_reference(tenant, "PRJ-TACHE", timezone.now().year)
     return PrjTask.objects.create(
         tenant=tenant,
@@ -47,6 +53,7 @@ def create_task(
         end_date=end_date,
         duration_days=duration_days,
         story_points=story_points,
+        custom_fields=custom_fields or {},
     )
 
 

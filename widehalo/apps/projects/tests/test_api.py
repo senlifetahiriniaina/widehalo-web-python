@@ -4,6 +4,7 @@ import calendar
 import datetime as dt
 
 import pytest
+from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
 from apps.accounting.models import AccAccount, AccJournal
@@ -428,3 +429,163 @@ def test_backlog_burndown_and_velocity_endpoints_via_api(api_projects) -> None:
     response = client.get(f"/api/v1/projects/{project_id}/velocity", **headers)
     assert response.status_code == 200
     assert response.json()["velocity"] == "0"
+
+
+# --- PJ7 : equipe projet, heatmap de capacite, champs personnalises via l'API ---------
+
+
+def test_team_management_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    with use_tenant(tenant.id):
+        member_user = User.objects.create_user(
+            email="team-api-member@example.com", password="Str0ngPassw0rd!23"
+        )
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet equipe API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/team",
+        {"user_id": str(member_user.id), "role": "developpeur", "allocation_pct": 50},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    member_id = response.json()["id"]
+    assert response.json()["allocation_pct"] == 50
+
+    # Sur-allocation refusee (50 + 60 > 100).
+    response = client.post(
+        f"/api/v1/projects/{project_id}/team",
+        {"user_id": str(member_user.id), "role": "developpeur", "allocation_pct": 60},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400
+
+    response = client.get(f"/api/v1/projects/{project_id}/team", **headers)
+    assert response.status_code == 200
+    assert response.json()["total_allocation_pct"] == 50
+
+    response = client.post(f"/api/v1/projects/{project_id}/team/{member_id}/remove", **headers)
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False
+
+    response = client.get(f"/api/v1/projects/{project_id}/team", **headers)
+    assert response.json()["total_allocation_pct"] == 0
+
+
+def test_user_capacity_heatmap_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    with use_tenant(tenant.id):
+        member_user = User.objects.create_user(
+            email="heatmap-api-member@example.com", password="Str0ngPassw0rd!23"
+        )
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet heatmap API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+    client.post(
+        f"/api/v1/projects/{project_id}/team",
+        {"user_id": str(member_user.id), "allocation_pct": 30},
+        content_type="application/json",
+        **headers,
+    )
+
+    response = client.get(f"/api/v1/projects/users/{member_user.id}/capacity-heatmap", **headers)
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["user_id"] == str(member_user.id)
+    assert len(body["weeks"]) == 12  # DEFAULT_HORIZON_WEEKS
+    assert all(week["allocation_pct"] == 30 for week in body["weeks"])
+
+
+def test_custom_field_definitions_crud_via_api_reserved_to_admin() -> None:
+    """RBAC : `projects.manage_prjcustomfielddefinition` est restreinte a
+    `admin`/`direction` — `resp_commercial` (co-porteur de la gestion de
+    projet courante) est explicitement REFUSE, cf. `apps.core.services.
+    rbac_policy.CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES`. **Groupe
+    ad hoc plutot que `grant_role("admin")`** : `admin` est dans
+    `CORE_MFA_REQUIRED_ROLES`, ce qui bloquerait la connexion JWT de ce
+    test tant qu'un device TOTP n'est pas enrole (meme constat/meme
+    contournement que `apps.financing.tests.test_api::api_financing`, cf.
+    son commentaire) — un groupe portant directement le codename personnalise
+    exerce reellement le meme controle sans ce blocage."""
+    tenant = Tenant.objects.create(code="PRJ-API-CFD", name="Projects Custom Fields API Tenant")
+    admin_user = User.objects.create_user(
+        email="projects-cfd-admin@example.com", password="Str0ngPassw0rd!23"
+    )
+    group, _ = Group.objects.get_or_create(name="projects-cfd-manage-test")
+    group.permissions.set(
+        Permission.objects.filter(
+            content_type__app_label="projects",
+            codename="manage_prjcustomfielddefinition",
+        )
+    )
+    admin_user.groups.add(group)
+    commercial_user = User.objects.create_user(
+        email="projects-cfd-commercial@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(commercial_user, "resp_commercial")
+
+    client = Client()
+    admin_token = _access_token(client, admin_user.email, "Str0ngPassw0rd!23")
+    admin_headers = _headers(admin_token, str(tenant.id))
+    commercial_token = _access_token(client, commercial_user.email, "Str0ngPassw0rd!23")
+    commercial_headers = _headers(commercial_token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects/config/custom-fields",
+        {
+            "entity_type": "task",
+            "field_key": "budget_code",
+            "field_label": "Code budgetaire",
+            "field_type": "text",
+            "validation_rule": {"required": True},
+        },
+        content_type="application/json",
+        **admin_headers,
+    )
+    assert response.status_code == 200, response.content
+    definition_id = response.json()["id"]
+
+    response = client.get("/api/v1/projects/config/custom-fields", **admin_headers)
+    assert response.status_code == 200
+    assert len(response.json()["results"]) == 1
+
+    # `resp_commercial` refuse malgre son acces large au module `projects`.
+    response = client.get("/api/v1/projects/config/custom-fields", **commercial_headers)
+    assert response.status_code == 403
+    response = client.post(
+        "/api/v1/projects/config/custom-fields",
+        {
+            "entity_type": "task",
+            "field_key": "autre_champ",
+            "field_label": "Autre",
+            "field_type": "text",
+        },
+        content_type="application/json",
+        **commercial_headers,
+    )
+    assert response.status_code == 403
+
+    response = client.post(
+        f"/api/v1/projects/config/custom-fields/{definition_id}/remove", **admin_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False

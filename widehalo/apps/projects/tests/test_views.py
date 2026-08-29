@@ -10,6 +10,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.projects.models import PrjTask
+from apps.projects.services.capacity import add_team_member
 from apps.projects.services.dependencies import add_dependency
 from apps.projects.services.evm import add_budget_line
 from apps.projects.services.projects import create_project
@@ -353,3 +354,82 @@ def test_project_sprint_burndown_screen_renders(web_projects) -> None:
     )
     assert response.status_code == 200
     assert b"2026-10-01" in response.content
+
+
+def test_project_team_screen_add_and_remove_member(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet equipe ecran")
+        member_user = User.objects.create_user(
+            email="team-view-member@example.com", password="Str0ngPassw0rd!23"
+        )
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.post(
+        f"/projects/{project.id}/team/",
+        {
+            "action": "add",
+            "user_id": str(member_user.id),
+            "role": "developpeur",
+            "allocation_pct": "40",
+        },
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    assert b"40%" in response.content
+
+    with use_tenant(tenant.id):
+        member_id = str(project.team_members.get(user=member_user).id)
+
+    response = client.post(
+        f"/projects/{project.id}/team/",
+        {"action": "remove", "member_id": member_id},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    assert b"Aucun membre." in response.content
+
+
+def test_user_capacity_heatmap_screen_renders(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet heatmap ecran")
+        add_team_member(project, user, allocation_pct=70)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(
+        f"/projects/users/{user.id}/capacity-heatmap/", HTTP_X_TENANT_ID=str(tenant.id)
+    )
+    assert response.status_code == 200
+    assert b"70%" in response.content
+
+
+def test_config_custom_fields_screen_create(web_projects) -> None:
+    tenant, user = web_projects
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.post(
+        "/projects/config/custom-fields/",
+        {
+            "entity_type": "task",
+            "field_key": "budget_code",
+            "field_label": "Code budgetaire",
+            "field_type": "text",
+            "required": "on",
+        },
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    assert b"budget_code" in response.content

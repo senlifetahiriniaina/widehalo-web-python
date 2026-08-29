@@ -332,6 +332,19 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
 # facturation client).
 CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES = ("admin", "direction", "resp_commercial")
 
+# PJ7 (heatmap de capacite + champs personnalises `projects`) :
+# `projects.manage_prjcustomfielddefinition` (declaree en `Meta.permissions`
+# de `PrjCustomFieldDefinition`) contourne la granularite app-level de
+# `ROLE_APP_PERMISSIONS["projects"]` (qui accorderait sinon add/view/change
+# sur CE modele a `resp_commercial`/`resp_production` aussi, cf. sa
+# docstring de module) — meme mecanisme deja etabli par
+# `CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES` ci-dessus. Configurer les
+# champs personnalises est un PARAMETRAGE (comme `accounting/views_config.
+# py`), pas une operation courante de gestion de projet — restreint a
+# `admin`/`direction` uniquement, ni `resp_commercial` ni `resp_production`
+# (contrairement a `bill_prjproject`, qui associe ce dernier).
+CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES = ("admin", "direction")
+
 # RSK1-2 (chantier risques operationnels) : `RiskItem` vit dans `core`
 # (rattachable a n'importe quel module via content_type/object_id, cf.
 # `apps.core.models.risk`) — `core` n'apparait PAS dans
@@ -430,6 +443,8 @@ for _role in _RISK_ADD_VIEW_ROLES:
 
 for _role in CUSTOM_PERMISSIONS_BILL_PRJPROJECT_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.bill_prjproject")
+for _role in CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.manage_prjcustomfielddefinition")
 for _role in _QLT_FULL_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
         {

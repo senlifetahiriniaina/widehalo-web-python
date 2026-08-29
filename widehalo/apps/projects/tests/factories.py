@@ -12,11 +12,13 @@ import factory
 
 from apps.projects.models import (
     PrjBudgetLine,
+    PrjCustomFieldDefinition,
     PrjInvoicingRecord,
     PrjProject,
     PrjSprint,
     PrjTask,
     PrjTaskDependency,
+    PrjTeamMember,
 )
 
 
@@ -92,3 +94,30 @@ class PrjInvoicingRecordFactory(factory.django.DjangoModelFactory):
     amount = Decimal("1000.0000")
     invoice_id = factory.LazyFunction(uuid.uuid4)
     billed_date = factory.LazyFunction(lambda: dt.date.today())
+
+
+class PrjTeamMemberFactory(factory.django.DjangoModelFactory):
+    """PJ7 — affectation d'un utilisateur a un projet."""
+
+    class Meta:
+        model = PrjTeamMember
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
+    user = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    role = "developpeur"
+    allocation_pct = 50
+
+
+class PrjCustomFieldDefinitionFactory(factory.django.DjangoModelFactory):
+    """PJ7 — definition de champ personnalise (projet/tache)."""
+
+    class Meta:
+        model = PrjCustomFieldDefinition
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    entity_type = PrjCustomFieldDefinition.ENTITY_TASK
+    field_key = factory.Sequence(lambda n: f"champ_{n}")
+    field_label = factory.Sequence(lambda n: f"Champ {n}")
+    field_type = PrjCustomFieldDefinition.FIELD_TYPE_TEXT
+    validation_rule = factory.LazyFunction(dict)

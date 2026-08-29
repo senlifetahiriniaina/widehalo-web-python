@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Equipe" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Equipe du projet" %} — {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Allocation combinee sur ce projet" %} : {{ summary.total_allocation_pct }}%</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Utilisateur" %}</th>
+        <th>{% trans "Role" %}</th>
+        <th>{% trans "Allocation" %}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for member in summary.members %}
+        <tr>
+          <td>{{ member.user_id }}</td>
+          <td>{{ member.role }}</td>
+          <td>{{ member.allocation_pct }}%</td>
+          <td>
+            <form method="post" style="display:inline">{% csrf_token %}
+              <input type="hidden" name="action" value="remove">
+              <input type="hidden" name="member_id" value="{{ member.member_id }}">
+              <button type="submit">{% trans "Retirer" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun membre." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter un membre" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <input type="text" name="user_id" placeholder="{% trans 'Identifiant utilisateur (UUID)' %}" required>
+    <input type="text" name="role" placeholder="{% trans 'Role (ex. chef de projet, developpeur)' %}">
+    <input type="number" name="allocation_pct" min="0" max="100" placeholder="{% trans 'Allocation %' %}" required>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+{% endblock %}

@@ -484,3 +484,166 @@ class PrjSprint(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.get_status_display()})"
+
+
+class PrjTeamMember(BaseModel):
+    """Affectation d'un utilisateur `core.User` a un projet (PJ7) — 227e/250
+    modele de ce depot. Pas `ReferenceMixin` (meme raisonnement que
+    `PrjTaskDependency`/`PrjBudgetLine`/`PrjSprint` : une affectation
+    d'equipe se decrit par son couple projet/utilisateur, aucun besoin de
+    numero de document dedie).
+
+    `role` : `CharField` LIBRE (pas un choix ferme) — le plan enumere des
+    exemples ("chef de projet", "developpeur"...) mais explicitement PAS
+    une liste fermee (contrairement a `PrjProject.methodology`/`PrjTask.
+    task_type`, qui sont de vrais choix structurants pour le comportement
+    du systeme) : le role d'equipe est une etiquette informative affichee
+    a l'ecran, jamais teste par du code metier ici.
+
+    `allocation_pct` : pourcentage de temps de travail de l'utilisateur
+    alloue a CE projet (0-100). `UniqueConstraint(project, user)` : un
+    utilisateur n'a qu'UNE SEULE affectation par projet (pas de double
+    ligne pour le meme couple, une eventuelle evolution de son allocation
+    se fait par UPDATE de la ligne existante, jamais par une seconde ligne
+    additive) — verifie par `services/capacity.py::add_team_member` avec un
+    message explicite AVANT meme d'atteindre la contrainte DB (meme
+    discipline que `PrjTaskDependency`). **Contrainte simple, PAS une
+    contrainte partielle `condition=Q(is_active=True)`** (aucun precedent
+    d'index partiel dans ce depot, cf. `apps.stocks.models.
+    StkNegativeStockException`, meme raisonnement explicitement repris
+    ici) : `add_team_member` REACTIVE la ligne existante (potentiellement
+    soft-supprimee par `remove_team_member`) plutot que d'en creer une
+    seconde pour le meme couple projet/utilisateur.
+
+    **Garde anti-sur-allocation (disclosed comme volontairement simple,
+    cf. `services/capacity.py::add_team_member`)** : la somme des
+    `allocation_pct` de TOUES les affectations actives d'un utilisateur
+    (tous projets actifs confondus) ne doit jamais depasser 100 au moment
+    de la CREATION d'une nouvelle affectation. C'est un GARDE-FOU
+    DECLARATIF sur un pourcentage annonce, PAS une verification de
+    disponibilite reelle jour par jour (qui necessiterait de croiser
+    `PrjTask.start_date`/`end_date`/`duration_days` de TOUTES les taches de
+    TOUS les projets de l'utilisateur, un calcul de bien plus haut niveau,
+    hors perimetre de ce garde-fou volontairement simple). Rien n'empeche
+    aujourd'hui de modifier `allocation_pct` d'une ligne existante APRES
+    coup (par un futur ecran d'edition) sans repasser par cette garde — un
+    signal `pre_save` dedie serait une evolution possible mais hors
+    perimetre de ce chantier (disclosed)."""
+
+    project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="team_members")
+    user = models.ForeignKey("core.User", on_delete=models.CASCADE, related_name="+")
+    role = models.CharField(max_length=100, blank=True)
+    allocation_pct = models.PositiveSmallIntegerField()
+
+    class Meta:
+        db_table = "prj_team_member"
+        ordering = ["project", "user"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "user"], name="uniq_prj_team_member_project_user"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} @ {self.project_id} ({self.allocation_pct}%)"
+
+
+class PrjCustomFieldDefinition(BaseModel):
+    """Definition de champ personnalise applicable a `PrjProject` ou
+    `PrjTask` (PJ7) — 228e/250 modele de ce depot. Alimente
+    `services/custom_fields.py::validate_custom_fields`, appelee AVANT
+    toute ecriture dans `PrjTask.custom_fields` (`services/tasks.py::
+    create_task`) — les valeurs elles-memes restent stockees dans le
+    `JSONField` deja existant de l'entite cible (`PrjTask.custom_fields`),
+    JAMAIS un champ par definition (economie de modele/colonnes deja
+    appliquee partout ailleurs dans ce depot, ex. `PrjTask.custom_fields`
+    lui-meme, deja pose des PJ1 avec cette intention documentee).
+
+    `entity_type` : `project`/`task` — a ce stade (PJ7) seul `PrjTask.
+    custom_fields` existe reellement comme cible d'ecriture valide via
+    `create_task` ; `PrjProject` n'a PAS encore de `JSONField` equivalent
+    (aucun champ `custom_fields` sur `PrjProject` dans le modele actuel) —
+    une definition `entity_type=project` peut donc etre CREEE des
+    maintenant (le choix existe au niveau modele, conformement a l'enonce)
+    mais n'a, disclosed explicitement, AUCUN point d'ecriture qui
+    l'applique encore (ajouter `PrjProject.custom_fields` + le brancher
+    dans `services/projects.py::create_project` est laisse a un chantier
+    ulterieur si le besoin se confirme).
+
+    `field_type` : `text`/`number`/`date`/`boolean`/`choice`.
+
+    `validation_rule` : `JSONField` a structure LIBRE mais documentee,
+    interpretee uniquement par `field_type` :
+    - `{"required": bool}` — cle commune a tous les types.
+    - `field_type=number` : `{"min": <nombre>, "max": <nombre>}` (bornes
+      optionnelles, chacune independamment absente ou presente).
+    - `field_type=choice` : `{"choices": [<valeur>, ...]}` (obligatoire
+      pour ce type — une definition `choice` sans `choices` non vide est
+      elle-meme refusee a la creation, cf. `services/custom_fields.py`).
+    - `text`/`date`/`boolean` : seule la cle `required` est interpretee
+      (aucune borne/format supplementaire en V1, disclosed comme
+      volontairement simple — une chaine `date` est acceptee au format ISO
+      `AAAA-MM-JJ` uniquement).
+
+    `UniqueConstraint(tenant, entity_type, field_key)` : un meme
+    `field_key` ne peut pas etre redefini deux fois pour le meme type
+    d'entite au sein d'un meme tenant (evite toute ambiguite de resolution
+    au moment de la validation)."""
+
+    ENTITY_PROJECT = "project"
+    ENTITY_TASK = "task"
+    ENTITY_CHOICES = [
+        (ENTITY_PROJECT, _("Projet")),
+        (ENTITY_TASK, _("Tache")),
+    ]
+
+    FIELD_TYPE_TEXT = "text"
+    FIELD_TYPE_NUMBER = "number"
+    FIELD_TYPE_DATE = "date"
+    FIELD_TYPE_BOOLEAN = "boolean"
+    FIELD_TYPE_CHOICE = "choice"
+    FIELD_TYPE_CHOICES = [
+        (FIELD_TYPE_TEXT, _("Texte")),
+        (FIELD_TYPE_NUMBER, _("Nombre")),
+        (FIELD_TYPE_DATE, _("Date")),
+        (FIELD_TYPE_BOOLEAN, _("Booleen")),
+        (FIELD_TYPE_CHOICE, _("Choix")),
+    ]
+
+    entity_type = models.CharField(max_length=16, choices=ENTITY_CHOICES)
+    field_key = models.CharField(max_length=100)
+    field_label = models.CharField(max_length=255)
+    field_type = models.CharField(max_length=16, choices=FIELD_TYPE_CHOICES)
+    validation_rule = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "prj_custom_field_definition"
+        ordering = ["entity_type", "field_key"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "entity_type", "field_key"],
+                name="uniq_prj_custom_field_definition_tenant_entity_key",
+            )
+        ]
+        # Configuration (parametrage), pas une operation courante — cf.
+        # `services/custom_fields.py`/`api.py` : reservee a `admin`/
+        # `direction` via un codename PERSONNALISE plutot que les
+        # permissions auto-generees `add_prjcustomfielddefinition`/etc.
+        # (celles-ci restent techniquement accordees plus largement par la
+        # matrice app-level `ROLE_APP_PERMISSIONS["projects"]`, qui ne
+        # descend pas au niveau du modele — cf. sa docstring de module ;
+        # le meme contournement par permission personnalisee que
+        # `projects.bill_prjproject` (PJ5) est reemploye ici pour
+        # restreindre effectivement l'acces malgre cette granularite
+        # app-level).
+        permissions = [
+            (
+                "manage_prjcustomfielddefinition",
+                "Peut configurer les champs personnalises de projets et taches",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.get_entity_type_display()}.{self.field_key} ({self.get_field_type_display()})"
+        )

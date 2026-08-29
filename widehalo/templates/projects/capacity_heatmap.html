@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Heatmap de capacite" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Heatmap de capacite" %} — {{ target_user }}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Semaine" %}</th>
+        <th>{% trans "Allocation declaree" %}</th>
+        <th>{% trans "Taches actives" %}</th>
+        <th>{% trans "Sur-allocation" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in heatmap %}
+        <tr{% if week.is_overallocated %} class="form-error"{% endif %}>
+          <td>{{ week.week_start }} — {{ week.week_end }}</td>
+          <td>{{ week.allocation_pct }}%</td>
+          <td>{{ week.active_task_count }}</td>
+          <td>{% if week.is_overallocated %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune donnee." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
