@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau dossier de financement" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau dossier de financement" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="type">{% trans "Type" %}</label>
+      <select id="type" name="type">
+        {% for value, label in types %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="amount_requested_mga">{% trans "Montant demande (MGA)" %}</label>
+      <input id="amount_requested_mga" type="number" step="0.01" name="amount_requested_mga" required>
+    </div>
+    <div class="form-field">
+      <label for="duration_months">{% trans "Duree (mois)" %}</label>
+      <input id="duration_months" type="number" name="duration_months" required>
+    </div>
+    <div class="form-field">
+      <label for="bank_name">{% trans "Banque" %}</label>
+      <input id="bank_name" type="text" name="bank_name">
+    </div>
+    <div class="form-field">
+      <label for="purpose">{% trans "Objet" %}</label>
+      <textarea id="purpose" name="purpose"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

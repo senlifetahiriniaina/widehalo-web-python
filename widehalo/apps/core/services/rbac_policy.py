@@ -59,6 +59,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # "change" (gestion des planifications RPT-7) reserve a
         # admin/direction, pilotage transverse comme le reste de la matrice.
         "reporting": {"view", "add", "change"},
+        # `financing` (FIN1-FIN4, cf. plan) : un dossier de financement
+        # bancaire n'est PAS une operation courante (pas un role "domaine
+        # cible" comme `purchase`/`acheteur`) — RBAC scope explicitement a
+        # `admin`/`direction`/`comptable` uniquement (cf. `module.py` et
+        # docstring de `services/reports_registration.py`), aucun autre
+        # role de la matrice ne recoit `financing` ci-dessous.
+        "financing": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -78,12 +85,19 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "presence": {"view", "change"},
         "strategy": {"view", "add", "change"},
         "reporting": {"view", "add", "change"},
+        # `financing` : pilotage/validation transverse, meme raisonnement
+        # que le reste de ce role — "view"+"change" (jamais "add", pas de
+        # creation de dossier de premier niveau par ce role).
+        "financing": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
         "partners": {"view"},
         "catalog": {"view"},
         "reporting": {"view", "add"},
+        # `financing` : role "domaine cible" (assemblage du dossier
+        # bancaire, plan de financement, garanties, CREDOC) — acces complet.
+        "financing": {"view", "add", "change"},
         # Pas de responsabilite de departement identifiee pour ce role (cf.
         # `apps.strategy.services.scoping.DEPARTMENT_HEAD_ROLES`) : "change"
         # accorde ICI est un droit N2 large (comme pour tous les roles

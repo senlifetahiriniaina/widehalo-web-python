@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Dossiers de financement" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Dossiers de financement" %}</h1>
+  <p><a href="{% url 'financing:create' %}">{% trans "Nouveau dossier" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

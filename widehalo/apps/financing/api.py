@@ -1,0 +1,159 @@
+"""API django-ninja du module `financing` (dossiers de financement bancaire
+PME). RBAC scope explicitement a `admin`/`direction`/`comptable` (cf.
+`apps.core.services.rbac_policy.ROLE_APP_PERMISSIONS`) — un dossier de
+financement bancaire n'est pas une operation courante des autres roles."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any
+
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from ninja import Router, Schema
+
+from apps.core.models.tenant import Tenant
+from apps.core.services.permissions import require_permission
+from apps.financing.models import FinFinancingPlanLine, FinLoanApplication
+from apps.financing.services.loan_applications import (
+    add_financing_plan_line,
+    create_loan_application,
+    decide_application,
+    financing_plan_total,
+    submit_application,
+)
+
+router = Router(tags=["financing"])
+
+
+class LoanApplicationIn(Schema):
+    type: str
+    amount_requested_mga: Decimal
+    duration_months: int
+    purpose: str = ""
+    currency: str = "MGA"
+    bank_partner_id: str | None = None
+    bank_name: str = ""
+    own_contribution_pct: Decimal = Decimal(30)
+
+
+class FinancingPlanLineIn(Schema):
+    source: str
+    amount_mga: Decimal
+    label: str = ""
+
+
+class DecisionIn(Schema):
+    accepted: bool
+    rejection_reason: str = ""
+
+
+def _serialize_application(application: FinLoanApplication) -> dict[str, Any]:
+    return {
+        "id": str(application.id),
+        "reference": application.reference,
+        "type": application.type,
+        "state": application.state,
+        "amount_requested_mga": application.amount_requested_mga,
+        "currency": application.currency,
+        "duration_months": application.duration_months,
+        "own_contribution_pct": application.own_contribution_pct,
+        "bank_name": application.bank_name,
+        "financing_plan_total_mga": financing_plan_total(application),
+    }
+
+
+def _serialize_line(line: FinFinancingPlanLine) -> dict[str, Any]:
+    return {
+        "id": str(line.id),
+        "source": line.source,
+        "label": line.label,
+        "amount_mga": line.amount_mga,
+    }
+
+
+# NOTE ordre des decorateurs : `@router.xxx` DOIT rester le decorateur
+# EXTERNE et `@require_permission(...)` l'INTERNE (juste au-dessus de
+# `def`) — meme piege deja documente dans tous les autres `api.py`.
+@router.get("/financing/loan-applications")
+@require_permission("financing.view_finloanapplication")
+def list_loan_applications_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    applications = FinLoanApplication.objects.filter(tenant=tenant, is_active=True)
+    return {"results": [_serialize_application(a) for a in applications]}
+
+
+@router.post("/financing/loan-applications")
+@require_permission("financing.add_finloanapplication")
+def create_loan_application_endpoint(request: Any, payload: LoanApplicationIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        application = create_loan_application(
+            tenant,
+            type=payload.type,
+            amount_requested_mga=payload.amount_requested_mga,
+            duration_months=payload.duration_months,
+            purpose=payload.purpose,
+            currency=payload.currency,
+            bank_partner_id=payload.bank_partner_id,
+            bank_name=payload.bank_name,
+            own_contribution_pct=payload.own_contribution_pct,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_application(application)
+
+
+@router.get("/financing/loan-applications/{application_id}")
+@require_permission("financing.view_finloanapplication")
+def loan_application_detail_endpoint(request: Any, application_id: str) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    lines = application.financing_plan_lines.filter(is_active=True)
+    return {
+        **_serialize_application(application),
+        "financing_plan_lines": [_serialize_line(line) for line in lines],
+    }
+
+
+@router.post("/financing/loan-applications/{application_id}/financing-plan-lines")
+@require_permission("financing.change_finloanapplication")
+def add_financing_plan_line_endpoint(
+    request: Any, application_id: str, payload: FinancingPlanLineIn
+) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    try:
+        line = add_financing_plan_line(
+            application, source=payload.source, amount_mga=payload.amount_mga, label=payload.label
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_line(line)
+
+
+@router.post("/financing/loan-applications/{application_id}/submit")
+@require_permission("financing.change_finloanapplication")
+def submit_loan_application_endpoint(request: Any, application_id: str) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    try:
+        submit_application(application)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    application.refresh_from_db()
+    return _serialize_application(application)
+
+
+@router.post("/financing/loan-applications/{application_id}/decide")
+@require_permission("financing.change_finloanapplication")
+def decide_loan_application_endpoint(
+    request: Any, application_id: str, payload: DecisionIn
+) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    try:
+        decide_application(
+            application, accepted=payload.accepted, rejection_reason=payload.rejection_reason
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    application.refresh_from_db()
+    return _serialize_application(application)

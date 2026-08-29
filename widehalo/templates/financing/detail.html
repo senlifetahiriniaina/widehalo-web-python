@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ application.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Dossier de financement" %} {{ application.reference }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Type" %} : {{ application.get_type_display }}</p>
+  <p>{% trans "Statut" %} : {{ application.get_state_display }}</p>
+  <p>{% trans "Montant demande" %} : {{ application.amount_requested_mga }} {{ application.currency }}</p>
+  <p>{% trans "Apport propre" %} : {{ application.own_contribution_pct }}%</p>
+
+  <h2>{% trans "Plan de financement" %}</h2>
+  <table>
+    <thead>
+      <tr><th>{% trans "Source" %}</th><th>{% trans "Libelle" %}</th><th>{% trans "Montant" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr><td>{{ line.get_source_display }}</td><td>{{ line.label }}</td><td>{{ line.amount_mga }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>{% trans "Total" %} : {{ total }}</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_line">
+    <select name="source">
+      <option value="fonds_propres">{% trans "Fonds propres" %}</option>
+      <option value="emprunt_sollicite">{% trans "Emprunt sollicite" %}</option>
+      <option value="autre">{% trans "Autre" %}</option>
+    </select>
+    <input type="text" name="label" placeholder="{% trans 'Libelle' %}">
+    <input type="number" step="0.01" name="amount_mga" placeholder="{% trans 'Montant' %}">
+    <button type="submit">{% trans "Ajouter une ligne" %}</button>
+  </form>
+
+  {% if application.state == "draft" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="submit">
+      <button type="submit">{% trans "Soumettre a la banque" %}</button>
+    </form>
+  {% endif %}
+
+  {% if application.state == "submitted" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="decide">
+      <select name="decision">
+        <option value="accepted">{% trans "Accepte" %}</option>
+        <option value="rejected">{% trans "Rejete" %}</option>
+      </select>
+      <input type="text" name="rejection_reason" placeholder="{% trans 'Motif de rejet' %}">
+      <button type="submit">{% trans "Enregistrer la decision" %}</button>
+    </form>
+  {% endif %}
+{% endblock %}
