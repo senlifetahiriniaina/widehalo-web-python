@@ -51,6 +51,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "add", "change"},
         "logistics": {"view", "add", "change"},
         "presence": {"view", "add", "change"},
+        # §5.11 reporting : catalogue/generation pour tous les roles
+        # (le filtrage reel par rapport passe par `RegisteredReport.
+        # permission`, deja porte par le module cible — ex. un rapport
+        # `accounting` reste invisible a qui n'a pas `accounting.view_*`) ;
+        # "change" (gestion des planifications RPT-7) reserve a
+        # admin/direction, pilotage transverse comme le reste de la matrice.
+        "reporting": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -68,17 +75,20 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "change"},
         "logistics": {"view", "change"},
         "presence": {"view", "change"},
+        "reporting": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
         "partners": {"view"},
         "catalog": {"view"},
+        "reporting": {"view", "add"},
     },
     "commercial": {
         "crm": {"view", "add", "change"},
         "partners": {"view", "add", "change"},
         "catalog": {"view"},
         "sales": {"view", "add", "change"},
+        "reporting": {"view", "add"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
@@ -91,6 +101,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `apps.core.services.permissions`), cf. commentaire sur le role
         # `rh` plus bas pour la decision de conception complete.
         "payroll": {"view"},
+        "reporting": {"view", "add"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -100,6 +111,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "mrp": {"view", "change"},
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},
+        "reporting": {"view", "add"},
     },
     "resp_production": {
         "mrp": {"view", "add", "change"},
@@ -107,6 +119,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
+        "reporting": {"view", "add"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
@@ -115,6 +128,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
+        "reporting": {"view", "add"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
@@ -128,12 +142,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # expeditions) relevent naturellement du meme role, faute d'un
         # role dedie "logisticien" dans les 11 roles acquis du CDC.
         "logistics": {"view", "add", "change"},
+        "reporting": {"view", "add"},
     },
     "rh": {
         # Domaine cible = `presence` + `payroll` (ce chantier, RG-PAY-9)
         # — acces complet aux 2.
         "presence": {"view", "add", "change"},
         "payroll": {"view", "add", "change"},
+        "reporting": {"view", "add"},
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
@@ -145,6 +161,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # enregistrements).
         "partners": {"view"},
         "catalog": {"view"},
+        # "view" seul (pas de generation directe) : un collaborateur
+        # consulte le catalogue mais les rapports auxquels il a reellement
+        # droit (§RG-PAY-9, "own") restent portes par `RegisteredReport.
+        # permission` propre a chaque module, pas par ce role transverse.
+        "reporting": {"view"},
         "presence": {"view"},
         "payroll": {"view"},
     },

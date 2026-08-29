@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Catalogue des rapports" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Catalogue des rapports" %}</h1>
+  <p>{% trans "Rapports auxquels vous avez acces, tous modules confondus." %}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Module" %}</th>
+        <th>{% trans "Libelle" %}</th>
+        <th>PDF</th>
+        <th>XLSX/CSV/JSON</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in reports %}
+        <tr>
+          <td>{{ report.code }}</td>
+          <td>{{ report.module }}</td>
+          <td>{{ report.label }}</td>
+          <td>{% if report.supports_pdf %}✓{% endif %}</td>
+          <td>{% if report.supports_rows %}✓{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun rapport accessible." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

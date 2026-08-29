@@ -33,6 +33,7 @@ urlpatterns = [
     path("logistics/", include("apps.logistics.urls")),
     path("presence/", include("apps.presence.urls")),
     path("payroll/", include("apps.payroll.urls")),
+    path("reporting/", include("apps.reporting.urls")),
 ]
 
 if settings.DEBUG:
