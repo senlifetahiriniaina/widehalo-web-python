@@ -51,9 +51,10 @@ from apps.projects.services.capacity import (
     compute_user_workload_heatmap,
     remove_team_member,
 )
-from apps.projects.services.evm import add_budget_line, refresh_project_health
+from apps.projects.services.evm import add_budget_line, compute_evm_snapshot, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
 from apps.projects.services.projects import create_project
+from apps.projects.services.public import get_linked_objective_summary, link_project_to_objective
 from apps.projects.services.sprints import (
     complete_sprint,
     compute_burndown,
@@ -95,6 +96,13 @@ class ProjectIn(Schema):
     client_partner_id: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+
+
+class LinkObjectiveIn(Schema):
+    """Payload PJ13 : `objective_id=None` (ou champ omis) efface le lien
+    existant — cf. `services/public.py::link_project_to_objective`."""
+
+    objective_id: str | None = None
 
 
 class TaskGanttIn(Schema):
@@ -429,6 +437,60 @@ def update_task_gantt_endpoint(request: Any, task_id: str, payload: TaskGanttIn)
     compute_critical_path(task.project)
     task.refresh_from_db()
     return _serialize_task(task)
+
+
+def _serialize_kpi_summary(project: PrjProject) -> dict[str, Any]:
+    """PJ13 : combine l'EVM du projet (donnee PROPRE a `projects`) et le
+    resume de l'objectif lie (`services/public.py::get_linked_objective_
+    summary`, `None` si non lie ou reference perimee) — meme structure de
+    retour que l'ecran/le widget detail projet, cf. `views.py::
+    project_detail`."""
+    snapshot = compute_evm_snapshot(project)
+    objective_summary = get_linked_objective_summary(project)
+    serialized_objective = None
+    if objective_summary is not None:
+        serialized_objective = {
+            **objective_summary,
+            "key_results": [
+                {
+                    **kr,
+                    "target_value": str(kr["target_value"]),
+                    "current_value": str(kr["current_value"]),
+                    "progress_pct": str(kr["progress_pct"]),
+                }
+                for kr in objective_summary["key_results"]
+            ],
+        }
+    return {
+        "project_id": str(project.id),
+        "evm": _serialize_evm_snapshot(snapshot),
+        "linked_objective": serialized_objective,
+    }
+
+
+@router.get("/projects/{project_id}/kpi-summary")
+@require_permission("projects.view_prjproject")
+def project_kpi_summary_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    """PJ13 : widget KPI (EVM + objectif strategique lie) — cf.
+    `_serialize_kpi_summary`."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    return _serialize_kpi_summary(project)
+
+
+@router.patch("/projects/{project_id}/link-objective")
+@require_permission("projects.change_prjproject")
+def link_project_objective_endpoint(
+    request: Any, project_id: str, payload: LinkObjectiveIn
+) -> dict[str, Any]:
+    """PJ13 : (re)lie ou delie (`objective_id=None`) un projet a un
+    `StgObjective` — cf. `services/public.py::link_project_to_objective`.
+    Meme permission `projects.change_prjproject` que le reste du CRUD
+    projet courant (pas d'operation aussi sensible que la facturation
+    `projects.bill_prjproject`, aucune permission personnalisee dediee)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    link_project_to_objective(project, payload.objective_id)
+    project.refresh_from_db()
+    return _serialize_project(project)
 
 
 @router.get("/projects/{project_id}/budget")

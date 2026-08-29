@@ -22,6 +22,50 @@
     · <a href="{% url 'projects:documents' project.id %}">{% trans "Documents" %}</a>
   </p>
 
+  <h2>{% trans "Liaison KPI / Strategie" %}</h2>
+  {% if linked_objective %}
+    <p>
+      {% trans "Objectif lie" %} : <strong>{{ linked_objective.title }}</strong>
+      ({{ linked_objective.status }})
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>{% trans "Indicateur" %}</th>
+          <th>{% trans "Cible" %}</th>
+          <th>{% trans "Valeur actuelle" %}</th>
+          <th>{% trans "Progression" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for kr in linked_objective.key_results %}
+          <tr>
+            <td>{{ kr.metric_name }}</td>
+            <td>{{ kr.target_value }} {{ kr.unit }}</td>
+            <td>{{ kr.current_value }} {{ kr.unit }}</td>
+            <td>{{ kr.progress_pct }}%</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">{% trans "Aucun indicateur cle." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif project.linked_objective_id %}
+    <p>{% trans "Objectif lie introuvable (reference perimee)." %}</p>
+  {% else %}
+    <p>{% trans "Aucun objectif strategique lie a ce projet." %}</p>
+  {% endif %}
+  <p>
+    {% trans "SPI" %} : {{ evm_snapshot.spi|default:"—" }}
+    · {% trans "CPI" %} : {{ evm_snapshot.cpi|default:"—" }}
+  </p>
+  <form method="post" style="display:inline">{% csrf_token %}
+    <input type="hidden" name="action" value="link_objective">
+    <input type="text" name="objective_id" placeholder="{% trans 'UUID objectif' %}"
+           value="{{ project.linked_objective_id|default:'' }}">
+    <button type="submit">{% trans "Lier / Delier l'objectif" %}</button>
+  </form>
+
   <h2>{% trans "Taches" %}</h2>
   <table>
     <thead>

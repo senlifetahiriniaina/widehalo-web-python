@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 import io
+from decimal import Decimal
 
 import pytest
 from django.contrib.auth.models import Group, Permission
@@ -881,4 +882,75 @@ def test_wiki_endpoints_require_projects_view_permission() -> None:
     headers = _headers(token, str(tenant.id))
 
     response = client.get("/api/v1/projects/00000000-0000-0000-0000-000000000000/wiki", **headers)
+    assert response.status_code == 403
+
+
+def test_link_objective_endpoint_then_kpi_summary_includes_it(api_projects) -> None:
+    """PJ13 : `PATCH .../link-objective` puis `GET .../kpi-summary` renvoie
+    le resume de l'objectif (titre/statut/key results) a cote de l'EVM."""
+    from apps.strategy.models import StgObjective
+    from apps.strategy.services.objectives import add_key_result, create_objective
+
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects", {"name": "Projet KPI"}, content_type="application/json", **headers
+    )
+    project_id = response.json()["id"]
+
+    with use_tenant(tenant.id):
+        objective = create_objective(
+            tenant,
+            title="Objectif API",
+            level=StgObjective.LEVEL_COMPANY,
+            period_start=dt.date(2026, 1, 1),
+            period_end=dt.date(2026, 12, 31),
+        )
+        add_key_result(objective, metric_name="CA MGA", target_value=Decimal("100"))
+
+    response = client.patch(
+        f"/api/v1/projects/{project_id}/link-objective",
+        {"objective_id": str(objective.id)},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["linked_objective_id"] == str(objective.id)
+
+    response = client.get(f"/api/v1/projects/{project_id}/kpi-summary", **headers)
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["linked_objective"]["title"] == "Objectif API"
+    assert body["linked_objective"]["key_results"][0]["metric_name"] == "CA MGA"
+    assert "spi" in body["evm"]
+
+    response = client.patch(
+        f"/api/v1/projects/{project_id}/link-objective",
+        {"objective_id": None},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["linked_objective_id"] is None
+
+    response = client.get(f"/api/v1/projects/{project_id}/kpi-summary", **headers)
+    assert response.json()["linked_objective"] is None
+
+
+def test_kpi_summary_endpoint_requires_view_permission() -> None:
+    tenant = Tenant.objects.create(code="PRJ-API-KPI-RBAC", name="Projects KPI RBAC Tenant")
+    user = User.objects.create_user(
+        email="projects-kpi-rbac@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(user, "magasinier")
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.get(
+        "/api/v1/projects/00000000-0000-0000-0000-000000000000/kpi-summary", **headers
+    )
     assert response.status_code == 403

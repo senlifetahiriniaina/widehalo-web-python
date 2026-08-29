@@ -44,9 +44,15 @@ from apps.projects.services.capacity import (
     compute_user_workload_heatmap,
     remove_team_member,
 )
-from apps.projects.services.evm import add_budget_line, compute_s_curve, refresh_project_health
+from apps.projects.services.evm import (
+    add_budget_line,
+    compute_evm_snapshot,
+    compute_s_curve,
+    refresh_project_health,
+)
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
 from apps.projects.services.projects import create_project
+from apps.projects.services.public import get_linked_objective_summary, link_project_to_objective
 from apps.projects.services.sprints import (
     complete_sprint,
     compute_burndown,
@@ -165,6 +171,12 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
                     PrjTimeEntry, task=task, user=user, stopped_at__isnull=True
                 )
                 stop_timer(time_entry, user)
+            elif action == "link_objective":
+                # PJ13 : champ vide -> deliaison explicite (`None`), meme
+                # discipline que `services/public.py::
+                # link_project_to_objective`.
+                objective_id = request.POST.get("objective_id", "").strip() or None
+                link_project_to_objective(project, objective_id)
             else:
                 task_id = request.POST.get("task_id", "")
                 task = get_object_or_404(PrjTask, id=task_id, project=project)
@@ -182,6 +194,12 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
             task__project=project, user=cast(User, request.user), stopped_at__isnull=True
         ).values_list("task_id", flat=True)
     )
+    # PJ13 : widget KPI — EVM propre au projet (donnee deja calculee par
+    # PJ4, jamais recalculee ici) + resume de l'objectif strategique lie
+    # (`None` si non lie ou reference perimee/etrangere, cf. `services/
+    # public.py::get_linked_objective_summary`).
+    evm_snapshot = compute_evm_snapshot(project)
+    linked_objective = get_linked_objective_summary(project)
     return render(
         request,
         "projects/detail.html",
@@ -190,6 +208,8 @@ def project_detail(request: HttpRequest, project_id: str) -> HttpResponse:
             "tasks": tasks,
             "task_types": PrjTask.TYPE_CHOICES,
             "running_task_ids": running_task_ids,
+            "evm_snapshot": evm_snapshot,
+            "linked_objective": linked_objective,
             "error": error,
         },
     )
