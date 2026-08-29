@@ -19,6 +19,7 @@ from apps.catalog.models import (
     Attribute,
     AttributeValue,
     CatalogCertification,
+    CatalogCustomizationOption,
     CatalogMaterialReference,
     CatalogStandard,
     Category,
@@ -359,6 +360,49 @@ def config_material_references(request: HttpRequest) -> HttpResponse:
         {
             "materials": materials,
             "nature_choices": CatalogMaterialReference.NATURE_CHOICES,
+            "error": error,
+        },
+    )
+
+
+@login_required
+def config_customization_options(request: HttpRequest) -> HttpResponse:
+    """REF2 (enrichissement referentiel LIFE MDG, cf. plan) : options de
+    personnalisation (broderie/serigraphie/sublimation/transfert
+    thermocollant/floquage/gravure/badge) avec compatibilite matiere
+    (M2M vers `CatalogMaterialReference`)."""
+    tenant = resolve_tenant(request)
+    materials = CatalogMaterialReference.objects.filter(tenant=tenant, is_active=True).order_by(
+        "code"
+    )
+    error = None
+
+    if request.method == "POST":
+        try:
+            option = CatalogCustomizationOption.objects.create(
+                tenant=tenant,
+                code=request.POST.get("code", ""),
+                name=request.POST.get("name", ""),
+                technique=request.POST.get("technique", ""),
+                notes=request.POST.get("notes", ""),
+            )
+            compatible_ids = request.POST.getlist("compatible_material_ids")
+            option.compatible_materials.set(materials.filter(id__in=compatible_ids))
+        except (ValidationError, IntegrityError) as exc:
+            error = str(exc)
+
+    options = (
+        CatalogCustomizationOption.objects.filter(tenant=tenant, is_active=True)
+        .prefetch_related("compatible_materials")
+        .order_by("code")
+    )
+    return render(
+        request,
+        "catalog/config_customization_options.html",
+        {
+            "options": options,
+            "materials": materials,
+            "technique_choices": CatalogCustomizationOption.TECHNIQUE_CHOICES,
             "error": error,
         },
     )

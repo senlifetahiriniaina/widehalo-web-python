@@ -18,6 +18,7 @@ from apps.catalog.models import (
     Attribute,
     AttributeValue,
     CatalogCertification,
+    CatalogCustomizationOption,
     CatalogMaterialReference,
     CatalogSectorSpec,
     CatalogStandard,
@@ -200,3 +201,15 @@ class CatalogMaterialReferenceFactory(factory.django.DjangoModelFactory):
     nature = CatalogMaterialReference.NATURE_NATURELLE_CELLULOSIQUE
     typical_gsm_min = Decimal("140.00")
     typical_gsm_max = Decimal("200.00")
+
+
+class CatalogCustomizationOptionFactory(factory.django.DjangoModelFactory):
+    """REF2 (enrichissement referentiel LIFE MDG)."""
+
+    class Meta:
+        model = CatalogCustomizationOption
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"CUSTOM{n}")
+    name = factory.Sequence(lambda n: f"Personnalisation {n}")
+    technique = CatalogCustomizationOption.TECHNIQUE_BRODERIE

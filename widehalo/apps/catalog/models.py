@@ -425,3 +425,48 @@ class CatalogMaterialReference(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+
+class CatalogCustomizationOption(BaseModel):
+    """REF2 (enrichissement referentiel LIFE MDG, cf. plan) : option de
+    personnalisation d'un produit (broderie, serigraphie, sublimation,
+    transfert thermocollant, floquage, gravure, badge). `compatible_materials`
+    (M2M vers `CatalogMaterialReference`, meme app donc FK/M2M legitime,
+    regle de couplage n°1) documente les compatibilites matiere connues
+    (ex. la sublimation necessite ~100% PES — cf. `notes` et fixture
+    `customization_options.json`) — c'est une liste POSITIVE de
+    compatibilites connues, pas une contrainte bloquante en base : une
+    option non listee comme compatible avec une matiere n'est pas
+    forcement impossible, seulement non documentee dans le fixture
+    indicatif (meme reserve non-experte que le reste du referentiel)."""
+
+    TECHNIQUE_BRODERIE = "broderie"
+    TECHNIQUE_SERIGRAPHIE = "serigraphie"
+    TECHNIQUE_SUBLIMATION = "sublimation"
+    TECHNIQUE_TRANSFERT_THERMOCOLLANT = "transfert_thermocollant"
+    TECHNIQUE_FLOQUAGE = "floquage"
+    TECHNIQUE_GRAVURE = "gravure"
+    TECHNIQUE_BADGE = "badge"
+    TECHNIQUE_CHOICES = [
+        (TECHNIQUE_BRODERIE, "Broderie"),
+        (TECHNIQUE_SERIGRAPHIE, "Serigraphie"),
+        (TECHNIQUE_SUBLIMATION, "Sublimation"),
+        (TECHNIQUE_TRANSFERT_THERMOCOLLANT, "Transfert thermocollant"),
+        (TECHNIQUE_FLOQUAGE, "Floquage"),
+        (TECHNIQUE_GRAVURE, "Gravure"),
+        (TECHNIQUE_BADGE, "Badge"),
+    ]
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=120)
+    technique = models.CharField(max_length=32, choices=TECHNIQUE_CHOICES)
+    compatible_materials = models.ManyToManyField(
+        CatalogMaterialReference, blank=True, related_name="customization_options"
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "catalog_customization_option"
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.name}"

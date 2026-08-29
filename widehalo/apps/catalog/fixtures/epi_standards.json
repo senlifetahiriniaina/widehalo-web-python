@@ -1,0 +1,127 @@
+[
+  {
+    "code": "EN-ISO-20471",
+    "name": "EN ISO 20471 — Vetements haute visibilite",
+    "description": "Classes 1 a 3 selon la surface de materiau fluorescent/retro-reflechissant. Reserve non-experte, non validee par un organisme de certification independant — a verifier contre le texte officiel avant toute allegation de conformite commerciale."
+  },
+  {
+    "code": "EN-ISO-11612",
+    "name": "EN ISO 11612 — Vetements de protection contre la chaleur et la flamme",
+    "description": "Codes de performance A a F (propagation de flamme, chaleur convective/radiante, metal en fusion...). Reserve non-experte."
+  },
+  {
+    "code": "EN-ISO-11611",
+    "name": "EN ISO 11611 — Vetements de protection pour le soudage et techniques connexes",
+    "description": "Deux classes selon le niveau de risque (procede/intensite de soudage). Reserve non-experte."
+  },
+  {
+    "code": "EN-1149-5",
+    "name": "EN 1149-5 — Vetements de protection aux proprietes electrostatiques",
+    "description": "Exigences de materiau et de conception pour dissiper les charges electrostatiques. Reserve non-experte."
+  },
+  {
+    "code": "IEC-61482",
+    "name": "IEC 61482 — Vetements de protection contre les risques thermiques de l'arc electrique",
+    "description": "Deux methodes d'essai (arc en boite / arc ouvert), classes de performance associees. Reserve non-experte."
+  },
+  {
+    "code": "EN-343",
+    "name": "EN 343:2019 — Vetements de protection contre la pluie",
+    "description": "Classes d'impermeabilite (colonne d'eau) et de respirabilite (RET), 1 a 4 chacune. Reserve non-experte."
+  },
+  {
+    "code": "EN-14058",
+    "name": "EN 14058 — Vetements de protection contre les ambiances fraiches",
+    "description": "Isolation thermique pour environnements frais (hors froid extreme, cf. EN 342). Reserve non-experte."
+  },
+  {
+    "code": "EN-342",
+    "name": "EN 342 — Vetements de protection contre le froid",
+    "description": "Isolation thermique et permeabilite a l'air pour environnements froids/tres froids. Reserve non-experte."
+  },
+  {
+    "code": "EN-13034",
+    "name": "EN 13034 — Vetements de protection chimique a efficacite limitee (type 6)",
+    "description": "Protection contre projections/pulverisations chimiques liquides de faible toxicite. Reserve non-experte."
+  },
+  {
+    "code": "EN-14605",
+    "name": "EN 14605 — Vetements de protection contre les produits chimiques liquides (types 3/4)",
+    "description": "Etancheite au jet (type 3) ou aux pulverisations (type 4) de produits chimiques liquides. Reserve non-experte."
+  },
+  {
+    "code": "EN-13982-1",
+    "name": "EN 13982-1 — Vetements de protection contre les particules solides (type 5)",
+    "description": "Etancheite aux particules solides en suspension dans l'air. Reserve non-experte."
+  },
+  {
+    "code": "EN-943-1",
+    "name": "EN 943-1 — Vetements de protection contre les produits chimiques gazeux (type 1)",
+    "description": "Etancheite aux gaz, exigences generales de performance. Reserve non-experte."
+  },
+  {
+    "code": "EN-943-2",
+    "name": "EN 943-2 — Vetements de protection chimique gazeuse pour equipes d'intervention",
+    "description": "Complement a EN 943-1 pour les equipes d'intervention d'urgence (RCUV). Reserve non-experte."
+  },
+  {
+    "code": "EN-14126",
+    "name": "EN 14126 — Vetements de protection contre les agents infectieux",
+    "description": "Exigences complementaires aux normes de la serie EN 14605/13034/13982 pour la protection biologique. Reserve non-experte."
+  },
+  {
+    "code": "EN-388",
+    "name": "EN 388:2016 — Gants de protection contre les risques mecaniques",
+    "description": "Indices abrasion/coupe/dechirure/perforation (+ option coupe TDM/impact). Reserve non-experte."
+  },
+  {
+    "code": "EN-374-1",
+    "name": "EN 374-1 — Gants de protection contre les produits chimiques et micro-organismes",
+    "description": "Classification par terminologie et niveaux de performance chimique/biologique. Reserve non-experte."
+  },
+  {
+    "code": "EN-407",
+    "name": "EN 407 — Gants de protection contre les risques thermiques",
+    "description": "Indices de resistance a la flamme, chaleur de contact/convective/radiante, projections de metal. Reserve non-experte."
+  },
+  {
+    "code": "EN-511",
+    "name": "EN 511 — Gants de protection contre le froid",
+    "description": "Indices de froid convectif/de contact et permeabilite a l'eau. Reserve non-experte."
+  },
+  {
+    "code": "EN-361",
+    "name": "EN 361 — Harnais d'antichute",
+    "description": "Exigences pour harnais du corps entier utilises en protection antichute. Reserve non-experte."
+  },
+  {
+    "code": "EN-ISO-20345",
+    "name": "EN ISO 20345:2022 — Chaussures de securite",
+    "description": "Categories SB a S7 (embout, semelle anti-perforation, etancheite...). Reserve non-experte."
+  },
+  {
+    "code": "EN-397",
+    "name": "EN 397 — Casques de protection industrielle",
+    "description": "Exigences generales pour casques de chantier/industrie. Reserve non-experte."
+  },
+  {
+    "code": "EN-12492",
+    "name": "EN 12492 — Casques d'alpinisme",
+    "description": "Exigences specifiques aux activites d'escalade/alpinisme (impacts multidirectionnels). Reserve non-experte."
+  },
+  {
+    "code": "EN-1078",
+    "name": "EN 1078 — Casques pour cyclistes et utilisateurs de skateboards/patins a roulettes",
+    "description": "Exigences de choc et de retention pour usage sportif urbain. Reserve non-experte."
+  },
+  {
+    "code": "ECE-22.06",
+    "name": "ECE R22.06 — Casques pour conducteurs et passagers de motocycles",
+    "description": "Reglement UNECE (revision 06) pour casques moto homologues route. Reserve non-experte."
+  },
+  {
+    "code": "EN-ISO-13688",
+    "name": "EN ISO 13688 — Vetements de protection, exigences generales",
+    "description": "Norme-cadre (ergonomie, innocuite, marquage, notice d'information) complementaire aux normes specifiques par risque ci-dessus. Reserve non-experte."
+  }
+]

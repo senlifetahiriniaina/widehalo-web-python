@@ -10,6 +10,7 @@ from ninja.files import UploadedFile
 
 from apps.catalog.models import (
     AttributeValue,
+    CatalogCustomizationOption,
     CatalogMaterialReference,
     Category,
     ProductTemplate,
@@ -183,6 +184,33 @@ def set_color_reference_endpoint(request, attribute_value_id: str, payload: Colo
         "id": str(updated.id),
         "pantone_code": updated.pantone_code,
         "hex_approximation": updated.hex_approximation,
+    }
+
+
+@router.get("/catalog/customization-options")
+@require_permission("catalog.view_catalogcustomizationoption")
+def list_customization_options(request, material_id: str = ""):
+    """REF2 (enrichissement referentiel LIFE MDG) : liste les options de
+    personnalisation (~7 techniques fixture, cf.
+    `fixtures/customization_options.json`) — filtrable par
+    `material_id` (`CatalogMaterialReference.id`) pour n'afficher QUE les
+    options connues compatibles avec cette matiere (ex. la gravure,
+    reservee au cuir/metal, disparait de la liste filtree par une matiere
+    textile — cf. scenario manuel de fin de chantier, plan REF)."""
+    queryset = CatalogCustomizationOption.objects.filter(is_active=True)
+    if material_id:
+        queryset = queryset.filter(compatible_materials__id=material_id)
+    return {
+        "results": [
+            {
+                "id": str(o.id),
+                "code": o.code,
+                "name": o.name,
+                "technique": o.technique,
+                "compatible_material_codes": [m.code for m in o.compatible_materials.all()],
+            }
+            for o in queryset.distinct().order_by("code")
+        ]
     }
 
 

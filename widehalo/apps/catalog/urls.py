@@ -31,4 +31,9 @@ urlpatterns = [
         views_config.config_material_references,
         name="config_material_references",
     ),
+    path(
+        "config/customization-options/",
+        views_config.config_customization_options,
+        name="config_customization_options",
+    ),
 ]

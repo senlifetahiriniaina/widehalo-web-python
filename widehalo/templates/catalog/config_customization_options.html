@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Personnalisation" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Options de personnalisation" %}</h1>
+  <p>
+    {% trans "Broderie, serigraphie, sublimation, transfert thermocollant, floquage, gravure, badge — compatibilite matiere indicative (ex. la sublimation necessite une matiere ~100% polyester)." %}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Technique" %}</th>
+        <th>{% trans "Matieres compatibles" %}</th>
+        <th>{% trans "Notes" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for option in options %}
+        <tr>
+          <td>{{ option.code }}</td>
+          <td>{{ option.name }}</td>
+          <td>{{ option.get_technique_display }}</td>
+          <td>
+            {% for material in option.compatible_materials.all %}
+              {{ material.code }}{% if not forloop.last %}, {% endif %}
+            {% empty %}
+              —
+            {% endfor %}
+          </td>
+          <td>{{ option.notes }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune option de personnalisation." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle option de personnalisation" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="technique">{% trans "Technique" %}</label>
+      <select id="technique" name="technique" required>
+        {% for code, label in technique_choices %}
+          <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <fieldset>
+      <legend>{% trans "Matieres compatibles" %}</legend>
+      {% for material in materials %}
+        <label>
+          <input type="checkbox" name="compatible_material_ids" value="{{ material.id }}">
+          {{ material.code }} — {{ material.name }}
+        </label>
+      {% empty %}
+        <p>{% trans "Aucune matiere de reference disponible." %}</p>
+      {% endfor %}
+    </fieldset>
+    <div class="form-field">
+      <label for="notes">{% trans "Notes" %}</label>
+      <textarea id="notes" name="notes"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
