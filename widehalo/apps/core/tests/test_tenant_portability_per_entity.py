@@ -47,13 +47,19 @@ from django.db.models import Field, ForeignKey, Model
 
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
+from apps.core.services.object_remap import SECRET_TOKEN_FIELD_NAMES
 from apps.core.services.tenant_export import export_tenant_archive, import_tenant_archive
 from apps.core.tests.utils import use_tenant
 
 pytestmark = pytest.mark.django_db
 
 # Champs jamais compares : regeneres/reattribues par construction a l'import.
-_ALWAYS_SKIPPED_FIELDS = {"id", "tenant", "created_at", "updated_at"}
+# `SECRET_TOKEN_FIELD_NAMES` (ex. `PrjGuestAccess.token`) : meme raison que
+# `id` — `import_tenant_archive` les regenere DELIBEREMENT (cf. `apps.core.
+# services.object_remap.regenerate_secret_token_fields`), un champ `unique=
+# True` sans `tenant` dans sa contrainte ne peut/doit pas survivre a
+# l'identique des que la source et la copie coexistent dans la meme base.
+_ALWAYS_SKIPPED_FIELDS = {"id", "tenant", "created_at", "updated_at"} | SECRET_TOKEN_FIELD_NAMES
 
 # `created_by`/`updated_by` pointent vers `core.User`, qui n'est PAS une
 # sous-classe de `BaseModel` (pas de tenant, jamais inclus dans l'archive) —

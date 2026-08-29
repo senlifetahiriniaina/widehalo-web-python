@@ -1,0 +1,90 @@
+{% load i18n %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ project_name }} — {% trans "Portail invite" %}</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem auto; max-width: 960px; padding: 0 1rem; color: #212529; }
+    h1 { margin-bottom: 0.25rem; }
+    .hint { color: #495057; font-size: 0.9rem; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 1.5rem; }
+    th, td { border: 1px solid #dee2e6; padding: 0.4rem 0.6rem; text-align: left; }
+    .gantt-container { overflow-x: auto; border: 1px solid #dee2e6; padding: 0.5rem; }
+    footer { margin-top: 2rem; font-size: 0.8rem; color: #868e96; }
+  </style>
+</head>
+<body>
+  {# Portail 100% anonyme — AUCUN lien de navigation vers l'application authentifiee, #}
+  {# AUCUN formulaire, AUCUN token CSRF (rien n'est jamais soumis depuis cette page). #}
+  <h1>{{ project_name }}</h1>
+  <p class="hint">{{ project_reference }} — {{ project_status_display }}</p>
+  {% if project_description %}<p>{{ project_description }}</p>{% endif %}
+
+  <p>
+    {% trans "Periode" %} :
+    {{ start_date|default:"—" }} &rarr; {{ end_date|default:"—" }}
+  </p>
+
+  {% if overall_progress_percent is not None %}
+    <p>{% trans "Avancement global" %} : {{ overall_progress_percent }}%</p>
+  {% endif %}
+
+  <h2>{% trans "Planning (Gantt)" %}</h2>
+  <div class="gantt-container">{{ gantt_svg|safe }}</div>
+
+  <h2>{% trans "Jalons" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Etat" %}</th>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Avancement" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in milestones %}
+        <tr>
+          <td>{{ task.reference }}</td>
+          <td>{{ task.state_display }}</td>
+          <td>{{ task.end_date|default:task.start_date|default:"—" }}</td>
+          <td>{{ task.percent_complete }}%</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun jalon." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Taches" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Etat" %}</th>
+        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Fin" %}</th>
+        <th>{% trans "Avancement" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.reference }}</td>
+          <td>{{ task.task_type_display }}</td>
+          <td>{{ task.state_display }}</td>
+          <td>{{ task.start_date|default:"—" }}</td>
+          <td>{{ task.end_date|default:"—" }}</td>
+          <td>{{ task.percent_complete }}%</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune tache." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <footer>{% trans "Vue lecture seule generee pour un invite externe — aucune donnee financiere interne n'est affichee ici." %}</footer>
+</body>
+</html>

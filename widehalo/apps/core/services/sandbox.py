@@ -27,7 +27,11 @@ from django.utils.translation import gettext as _
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
-from apps.core.services.object_remap import IdRemap, remap_all_references
+from apps.core.services.object_remap import (
+    IdRemap,
+    regenerate_secret_token_fields,
+    remap_all_references,
+)
 from apps.core.tenant_context import activate_tenant
 
 DEFAULT_EXPIRY_DAYS = 30
@@ -95,6 +99,14 @@ def clone_tenant_to_sandbox(source: Tenant, expires_in_days: int = DEFAULT_EXPIR
             for field_name in PII_FIELD_NAMES:
                 if hasattr(clone, field_name):
                     setattr(clone, field_name, _anonymize_field_value(field_name, counter))
+            # Meme raisonnement que pour les PII ci-dessus, sur un registre
+            # de champs distinct (cf. `object_remap.SECRET_TOKEN_FIELD_
+            # NAMES`) : un jeton `unique=True` sans `tenant` dans sa
+            # contrainte (ex. `PrjGuestAccess.token`) doit etre regenere,
+            # jamais recopie tel quel, sous peine de collision UNIQUE avec
+            # la ligne source ET de partage d'un meme credential entre le
+            # tenant source et son bac a sable.
+            regenerate_secret_token_fields(clone)
 
             clones.append(clone)
 

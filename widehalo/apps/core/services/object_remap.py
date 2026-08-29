@@ -16,6 +16,7 @@ au lieu de deux copies potentiellement divergentes."""
 
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -28,6 +29,35 @@ from apps.core.models.base import BaseModel
 # (`ContentType.model` est deja en minuscules), donc un seul dict sert aux
 # deux appelants sans conversion.
 IdRemap = dict[tuple[str, str], Any]
+
+# Champs consideres comme des JETONS SECRETS uniques GLOBALEMENT (pas
+# seulement par tenant, ex. `PrjGuestAccess.token`, `unique=True` SANS
+# `tenant` dans la contrainte) — meme patron par NOM DE CHAMP que
+# `sandbox.PII_FIELD_NAMES`. Recopier un tel objet sans regenerer ce champ
+# echouerait sur la contrainte `UNIQUE` des que la source et la copie
+# coexistent dans la meme base (import cote a cote d'un backup, clonage
+# sandbox) — et, PIRE qu'une simple collision technique pour un champ qui
+# sert de CREDENTIAL d'authentification anonyme, laisserait deux tenants
+# distincts partager le MEME secret resolvable (fuite cross-tenant directe :
+# le token du tenant source resoudrait alors, au choix du SGBD, vers l'une
+# OU l'autre des deux lignes). Regenere via `secrets.token_urlsafe` — le
+# meme generateur que celui utilise a la creation d'origine du jeton (cf.
+# `apps.projects.services.guest_portal.create_guest_access`) ; convient a
+# tout champ de ce registre car AUCUN n'a de contrainte de format au-dela de
+# "chaine opaque unique" (contrairement a un champ structure : email,
+# reference numerotee...).
+SECRET_TOKEN_FIELD_NAMES = {"token"}
+
+
+def regenerate_secret_token_fields(instance: Any) -> None:
+    """Regenere en place tout champ de `SECRET_TOKEN_FIELD_NAMES` porte par
+    `instance`, AVANT sauvegarde — a appeler par tout appelant qui recopie
+    un `BaseModel` vers un nouveau tenant (`tenant_export.import_tenant_
+    archive`, `sandbox.clone_tenant_to_sandbox`), au meme titre que le
+    remappage d'id/references (cf. docstring de module)."""
+    for field_name in SECRET_TOKEN_FIELD_NAMES:
+        if hasattr(instance, field_name):
+            setattr(instance, field_name, secrets.token_urlsafe(32))
 
 
 def remap_generic_fk(imported: Any, id_remap: IdRemap, content_type_labels: dict[int, str]) -> None:

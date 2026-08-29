@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Liens invite" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Portail invite" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <p class="hint">
+    {% trans "Un lien invite donne acces a une vue lecture seule de ce projet a un tiers externe (client, partenaire), sans compte ni mot de passe. Aucun montant de cout/marge interne n'est jamais visible depuis ce lien." %}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if new_link_url %}
+    <p class="form-success">
+      {% trans "Lien cree — copiez-le maintenant, il ne sera plus jamais raffiche :" %}<br>
+      <code>{{ new_link_url }}</code>
+    </p>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Email invite" %}</th>
+        <th>{% trans "Expire le" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for guest_access in guest_accesses %}
+        <tr>
+          <td>{{ guest_access.guest_email }}</td>
+          <td>{{ guest_access.expires_at }}</td>
+          <td>
+            {% if guest_access.revoked_at %}{% trans "Revoque" %}
+            {% else %}{% trans "Actif" %}{% endif %}
+          </td>
+          <td>
+            {% if not guest_access.revoked_at %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="action" value="revoke">
+                <input type="hidden" name="guest_access_id" value="{{ guest_access.id }}">
+                <button type="submit">{% trans "Revoquer" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun lien invite." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Creer un lien invite" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <input type="email" name="guest_email" placeholder="{% trans 'Email invite' %}" required>
+    <label>{% trans "Expire le" %} <input type="datetime-local" name="expires_at" required></label>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+
+  <p><a href="{% url 'projects:detail' project.id %}">{% trans "Retour au projet" %}</a></p>
+{% endblock %}

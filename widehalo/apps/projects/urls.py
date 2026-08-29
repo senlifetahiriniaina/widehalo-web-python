@@ -7,6 +7,11 @@ app_name = "projects"
 urlpatterns = [
     path("", views.project_list, name="list"),
     path("new/", views.project_create, name="create"),
+    # PJ14 : portail invite anonyme — HORS de tout prefixe `<uuid:project_id>`
+    # existant, jamais decore `@login_required` (cf. docstring de la vue),
+    # segment litteral "guest/" donc jamais capture par le convertisseur
+    # `uuid` des routes `<uuid:project_id>/...` ci-dessous.
+    path("guest/<str:token>/", views.guest_project_view, name="guest_view"),
     path("config/custom-fields/", views_config.config_custom_fields, name="config_custom_fields"),
     path(
         "users/<uuid:user_id>/capacity-heatmap/",
@@ -29,6 +34,7 @@ urlpatterns = [
     path("<uuid:project_id>/wiki/", views.project_wiki, name="wiki"),
     path("<uuid:project_id>/wiki/<uuid:page_id>/", views.wiki_page_detail, name="wiki_detail"),
     path("<uuid:project_id>/documents/", views.project_documents, name="documents"),
+    path("<uuid:project_id>/guest-links/", views.project_guest_links, name="guest_links"),
     path(
         "<uuid:project_id>/sprints/<uuid:sprint_id>/burndown/",
         views.project_sprint_burndown,

@@ -13,17 +13,22 @@ from typing import cast
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
+from django.views.decorators.http import require_GET
 
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
+from apps.core.tenant_context import activate_tenant
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.projects.models import (
     PrjBudgetLine,
+    PrjGuestAccess,
     PrjInvoicingRecord,
     PrjProject,
     PrjSprint,
@@ -51,6 +56,12 @@ from apps.projects.services.evm import (
     refresh_project_health,
 )
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
+from apps.projects.services.guest_portal import (
+    create_guest_access,
+    get_guest_project_view,
+    resolve_guest_access,
+    revoke_guest_access,
+)
 from apps.projects.services.projects import create_project
 from apps.projects.services.public import get_linked_objective_summary, link_project_to_objective
 from apps.projects.services.sprints import (
@@ -709,3 +720,77 @@ def project_documents(request: HttpRequest, project_id: str) -> HttpResponse:
         "projects/documents.html",
         {"project": project, "documents": documents},
     )
+
+
+@login_required
+def project_guest_links(request: HttpRequest, project_id: str) -> HttpResponse:
+    """PJ14 : ecran HTMX minimal de gestion des liens de portail invite d'un
+    projet (creation/revocation) — cf. `services/guest_portal.py` pour le
+    mecanisme de resolution de token. **L'URL complete du lien invite n'est
+    affichee qu'UNE SEULE FOIS**, juste apres sa creation (`new_link_url`
+    dans le contexte) — la liste des liens existants ci-dessous n'affiche
+    plus jamais l'URL/le token en clair, seulement l'email invite/l'echeance
+    /le statut, meme discipline "secret affiche une seule fois" qu'un mot de
+    passe temporaire genere (cf. `bootstrap_admin`)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    new_link_url = None
+    if request.method == "POST":
+        action = request.POST.get("action", "create")
+        user = cast(User, request.user)
+        try:
+            if action == "create":
+                expires_at_raw = request.POST.get("expires_at", "")
+                expires_at = dt.datetime.fromisoformat(expires_at_raw)
+                if timezone.is_naive(expires_at):
+                    expires_at = timezone.make_aware(expires_at)
+                guest_access = create_guest_access(
+                    project,
+                    guest_email=request.POST.get("guest_email", ""),
+                    expires_at=expires_at,
+                    created_by=user,
+                )
+                new_link_url = request.build_absolute_uri(
+                    reverse("projects:guest_view", args=[guest_access.token])
+                )
+            elif action == "revoke":
+                guest_access = get_object_or_404(
+                    PrjGuestAccess, id=request.POST.get("guest_access_id", ""), project=project
+                )
+                revoke_guest_access(guest_access)
+        except (ValidationError, ValueError) as exc:
+            error = str(exc)
+
+    guest_accesses = project.guest_accesses.filter(is_active=True)
+    return render(
+        request,
+        "projects/guest_links.html",
+        {
+            "project": project,
+            "guest_accesses": guest_accesses,
+            "new_link_url": new_link_url,
+            "error": error,
+        },
+    )
+
+
+@require_GET
+def guest_project_view(request: HttpRequest, token: str) -> HttpResponse:
+    """PJ14 : portail externe invite — ecran HTML entierement ANONYME,
+    jamais de compte `core.User`/session/JWT, gate uniquement par la
+    possession du `token` (`services/guest_portal.py::resolve_guest_access`,
+    lire sa docstring pour le mecanisme complet de resolution du tenant
+    AVANT tout contexte tenant connu). `@require_GET` (pas
+    `@login_required`, volontairement hors du cycle `TenantMiddleware`
+    normal) : aucune methode d'ecriture n'est exposee a cette URL, un `POST`
+    y est rejete par Django lui-meme (405) avant meme d'atteindre cette
+    fonction. Les 3 cas d'echec (token introuvable / revoque / expire)
+    renvoient EXACTEMENT la meme 404 generique — cf. docstring de
+    `resolve_guest_access` pour la justification (ne jamais reveler au
+    porteur d'un token invalide LEQUEL des 3 cas s'est produit)."""
+    guest_access = resolve_guest_access(token)
+    if guest_access is None:
+        raise Http404
+    with activate_tenant(guest_access.tenant_id):
+        view_data = get_guest_project_view(guest_access)
+    return render(request, "projects/guest_portal.html", view_data)

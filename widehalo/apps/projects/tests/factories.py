@@ -5,6 +5,7 @@ couches)."""
 from __future__ import annotations
 
 import datetime as dt
+import secrets
 import uuid
 from decimal import Decimal
 
@@ -13,6 +14,7 @@ import factory
 from apps.projects.models import (
     PrjBudgetLine,
     PrjCustomFieldDefinition,
+    PrjGuestAccess,
     PrjInvoicingRecord,
     PrjProject,
     PrjSprint,
@@ -152,3 +154,19 @@ class PrjWikiPageFactory(factory.django.DjangoModelFactory):
     title = factory.Sequence(lambda n: f"Page {n}")
     body = "Contenu de la page."
     author = factory.SubFactory("apps.core.tests.factories.UserFactory")
+
+
+class PrjGuestAccessFactory(factory.django.DjangoModelFactory):
+    """PJ14 — lien de portail invite. `token` genere via `secrets.
+    token_urlsafe` (jamais une sequence previsible), meme discipline que
+    `services/guest_portal.py::create_guest_access`."""
+
+    class Meta:
+        model = PrjGuestAccess
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
+    token = factory.LazyFunction(lambda: secrets.token_urlsafe(32))
+    guest_email = factory.Sequence(lambda n: f"invite{n}@example.com")
+    expires_at = factory.LazyFunction(lambda: dt.datetime.now(dt.UTC) + dt.timedelta(days=7))
+    permissions = PrjGuestAccess.PERMISSIONS_READ_ONLY

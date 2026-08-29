@@ -762,3 +762,78 @@ class PrjWikiPage(BaseModel):
 
     def __str__(self) -> str:
         return self.title
+
+
+class PrjGuestAccess(BaseModel):
+    """Portail externe invite (PJ14) — 231e/250 modele de ce depot, budget
+    encore respecte. Donne acces a une vue LECTURE SEULE d'un projet a un
+    tiers externe (client, partenaire) qui n'a et n'aura JAMAIS de compte
+    `core.User`, de session Django, ni de JWT — l'unique moyen d'acces est
+    la possession du `token`. Ce modele est donc, par construction, la
+    seule porte d'entree de tout ce depot dont l'authentification ne passe
+    ni par `TenantMiddleware` (session/`X-Tenant-Id`), ni par l'API
+    django-ninja JWT (`apps.core.api_auth`), ni par le RBAC interne
+    (`apps.core.services.rbac_policy` — ce portail est explicitement HORS
+    de ce systeme, cf. `apps/projects/services/guest_portal.py`).
+
+    **`token`** : genere par `secrets.token_urlsafe(32)` (cote service,
+    jamais ici) — 32 octets d'entropie cryptographique, encodes en
+    base64 URL-safe (~43 caracteres). Deliberement PAS un UUID4 seul :
+    bien qu'un UUID4 soit lui-meme tire d'un generateur cryptographique
+    sur CPython, un identifiant technique de ce type reste concu pour
+    l'UNICITE, pas explicitement documente/audite comme un secret
+    resistant a l'enumeration — `secrets.token_urlsafe` est le module
+    standard prevu specifiquement pour generer des jetons de securite
+    (cf. https://docs.python.org/3/library/secrets.html), c'est le choix
+    qui doit rester la seule source de ce champ. `unique=True` +
+    `db_index=True` : la recherche par token (cf. `resolve_guest_access`)
+    doit rester O(1)/O(log n), jamais un scan complet de la table.
+
+    **Revocation** (`revoked_at`) distincte de l'expiration naturelle
+    (`expires_at`) : un lien peut avoir ete partage par erreur ou son
+    destinataire ne doit plus y avoir acces avant l'echeance prevue —
+    `revoke_guest_access` est idempotente (poser `revoked_at` une seconde
+    fois sur un acces deja revoque n'est pas une erreur).
+
+    **`permissions`** : champ `CharField` a choix fige a `read_only` en V1
+    (pas d'enum sur-construite) — ce portail ne construit AUCUNE capacite
+    d'ecriture, le champ existe pour rendre le modele de donnees explicite
+    et extensible sans migration de schema si un futur "invite peut
+    commenter" venait a exister (hors perimetre PJ14).
+
+    **`RLS_FORCE_FOR_OWNER = False`** : derogation generique disclosee dans
+    `apps.core.management.commands.apply_rls` — SANS elle, `ALTER TABLE ...
+    FORCE ROW LEVEL SECURITY` empecherait meme le PROPRIETAIRE de la table
+    (le role de connexion Django, `widehalo_app`, verifie ni superuser ni
+    `BYPASSRLS`) de retrouver une ligne par son `token` tant qu'aucun
+    tenant n'est actif — ce qui est structurellement TOUJOURS le cas au
+    tout premier instant de resolution d'un token invite (aucune session,
+    aucun JWT, donc aucun tenant connu AVANT cette resolution). Lire
+    `resolve_guest_access` (`services/guest_portal.py`) pour la ou cette
+    derogation est reellement exploitee (et nulle part ailleurs)."""
+
+    RLS_FORCE_FOR_OWNER = False
+
+    PERMISSIONS_READ_ONLY = "read_only"
+    PERMISSIONS_CHOICES = [
+        (PERMISSIONS_READ_ONLY, _("Lecture seule")),
+    ]
+
+    project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="guest_accesses")
+    token = models.CharField(max_length=128, unique=True, db_index=True, editable=False)
+    guest_email = models.EmailField()
+    expires_at = models.DateTimeField()
+    permissions = models.CharField(
+        max_length=16, choices=PERMISSIONS_CHOICES, default=PERMISSIONS_READ_ONLY
+    )
+    created_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "prj_guest_access"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.project_id} — {self.guest_email}"

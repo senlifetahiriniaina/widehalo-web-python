@@ -25,7 +25,7 @@ from django.utils.translation import gettext as _
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
-from apps.core.services.object_remap import remap_all_references
+from apps.core.services.object_remap import regenerate_secret_token_fields, remap_all_references
 from apps.core.tenant_context import activate_tenant
 
 FORMAT_VERSION = 1
@@ -104,7 +104,15 @@ def import_tenant_archive(archive_bytes: bytes, *, target_tenant: Tenant) -> dic
     supprimee), ce qui est a la fois incorrect et une fuite inter-tenant
     (la RLS du tenant cible ne verrait meme pas cette ligne). Les objets sont
     sauvegardes en plusieurs passes (une par "vague" de dependances FK
-    resolues) car l'ordre d'export ne garantit aucun ordre topologique."""
+    resolues) car l'ordre d'export ne garantit aucun ordre topologique.
+
+    Meme raisonnement applique a `apps.core.services.object_remap.
+    regenerate_secret_token_fields` (ex. `PrjGuestAccess.token`) : un champ
+    `unique=True` SANS `tenant` dans sa contrainte doit lui aussi etre
+    regenere plutot que reimporte tel quel, sans quoi une reimportation aux
+    cotes du tenant source echouerait sur la contrainte d'unicite — et,
+    pour un jeton qui sert de credential, laisserait deux tenants partager
+    le meme secret resolvable."""
     archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
     manifest = json.loads(archive.read("manifest.json"))
     manifest = _upgrade_manifest(manifest)
@@ -122,6 +130,7 @@ def import_tenant_archive(archive_bytes: bytes, *, target_tenant: Tenant) -> dic
             instance.pk = new_id
             instance.id = new_id
             instance.tenant_id = target_tenant.id
+            regenerate_secret_token_fields(instance)
         all_objects[label] = objects
 
     counts: dict[str, int] = {label: len(objects) for label, objects in all_objects.items()}
