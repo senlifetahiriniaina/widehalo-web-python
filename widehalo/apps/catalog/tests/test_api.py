@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from django.test import Client
 
-from apps.catalog.models import UnitOfMeasure
+from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
@@ -81,3 +81,64 @@ def test_create_template_without_permission_is_forbidden() -> None:
         **headers,
     )
     assert create_response.status_code == 403
+
+
+def test_create_sector_spec_via_api() -> None:
+    """SEC1 (extension sectorielle Madagascar) : cree la fiche sectorielle
+    d'une variante existante via l'API."""
+    tenant = Tenant.objects.create(code="CAT-API-SEC", name="Catalog API Sector Tenant")
+    user = User.objects.create_user(email="cat-api-sec@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "acheteur")
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Sac cuir", base_uom=uom, reference="TPL-API-SEC-0001"
+        )
+        variant = ProductVariant.objects.create(
+            tenant=tenant, template=template, reference="VAR-API-SEC-0001"
+        )
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = {"HTTP_AUTHORIZATION": f"Bearer {token}", "HTTP_X_TENANT_ID": str(tenant.id)}
+
+    response = client.post(
+        f"/api/v1/catalog/variants/{variant.id}/sector-spec",
+        {"sector_code": "cuir", "attributes": {"type_peau": "chevre", "tannage": "vegetal"}},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["sector_code"] == "cuir"
+
+
+def test_create_sector_spec_via_api_rejects_invalid_attributes() -> None:
+    tenant = Tenant.objects.create(code="CAT-API-SEC-BAD", name="Catalog API Sector Bad Tenant")
+    user = User.objects.create_user(
+        email="cat-api-sec-bad@example.com", password="Str0ngPassw0rd!23"
+    )
+    grant_role(user, "acheteur")
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Sac cuir", base_uom=uom, reference="TPL-API-SEC-0002"
+        )
+        variant = ProductVariant.objects.create(
+            tenant=tenant, template=template, reference="VAR-API-SEC-0002"
+        )
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = {"HTTP_AUTHORIZATION": f"Bearer {token}", "HTTP_X_TENANT_ID": str(tenant.id)}
+
+    response = client.post(
+        f"/api/v1/catalog/variants/{variant.id}/sector-spec",
+        {"sector_code": "cuir", "attributes": {"tannage": "inconnu"}},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 400

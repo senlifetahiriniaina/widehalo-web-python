@@ -11,6 +11,7 @@ from ninja.files import UploadedFile
 from apps.catalog.models import Category, ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.catalog.services.catalog_import import import_catalog_xlsx
 from apps.catalog.services.pricing import get_price
+from apps.catalog.services.sector_specs import create_sector_spec
 from apps.catalog.services.variants import generate_variants, set_variant_attributes
 from apps.core.services.permissions import require_permission
 
@@ -26,6 +27,11 @@ class TemplateIn(Schema):
 
 class VariantAttributesIn(Schema):
     attribute_ids: list[str]
+
+
+class SectorSpecIn(Schema):
+    sector_code: str
+    attributes: dict
 
 
 def _serialize_template(template: ProductTemplate) -> dict:
@@ -94,6 +100,26 @@ def generate_variants_endpoint(request, template_id: str):
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return {"results": [_serialize_variant(v) for v in variants]}
+
+
+@router.post("/catalog/variants/{variant_id}/sector-spec")
+@require_permission("catalog.add_catalogsectorspec")
+def create_sector_spec_endpoint(request, variant_id: str, payload: SectorSpecIn):
+    """SEC1 (extension sectorielle Madagascar) : cree la fiche sectorielle
+    (cuir/agroalimentaire/artisanat, jamais import_export — cf.
+    `services/sector_specs.py`) d'une variante deja existante."""
+    variant = get_object_or_404(ProductVariant, id=variant_id)
+    try:
+        spec = create_sector_spec(
+            variant, sector_code=payload.sector_code, attributes=payload.attributes
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {
+        "id": str(spec.id),
+        "sector_code": spec.sector_code,
+        "attributes": spec.attributes,
+    }
 
 
 @router.get("/catalog/variants/{variant_id}/price")

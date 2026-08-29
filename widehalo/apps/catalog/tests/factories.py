@@ -18,6 +18,7 @@ from apps.catalog.models import (
     Attribute,
     AttributeValue,
     CatalogCertification,
+    CatalogSectorSpec,
     CatalogStandard,
     Category,
     Packaging,
@@ -169,3 +170,18 @@ class CatalogCertificationFactory(factory.django.DjangoModelFactory):
     variant = factory.SubFactory(ProductVariantFactory, tenant=factory.SelfAttribute("..tenant"))
     standard = factory.SubFactory(CatalogStandardFactory, tenant=factory.SelfAttribute("..tenant"))
     partner_id = factory.LazyFunction(uuid.uuid4)
+
+
+class CatalogSectorSpecFactory(factory.django.DjangoModelFactory):
+    """SEC1 (extension sectorielle Madagascar) — attributs par defaut
+    valides pour le secteur cuir (cf. `services/sector_specs.py`)."""
+
+    class Meta:
+        model = CatalogSectorSpec
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    variant = factory.SubFactory(ProductVariantFactory, tenant=factory.SelfAttribute("..tenant"))
+    sector_code = CatalogSectorSpec.SECTOR_CUIR
+    attributes = factory.LazyFunction(
+        lambda: {"type_peau": "chevre", "tannage": "vegetal", "epaisseur_mm": 1.5}
+    )

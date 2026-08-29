@@ -265,3 +265,53 @@ class CatalogCertification(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} — {self.standard.code}"
+
+
+class CatalogSectorSpec(BaseModel):
+    """SEC1 (extension sectorielle Madagascar, cf. plan) : fiche de
+    specification sectorielle pour cuir & maroquinerie / agroalimentaire /
+    artisanat — jamais `import_export`, dont le negoce sans transformation
+    est deja couvert nativement par `purchase`/`stocks`/`sales`/`logistics`
+    sans aucune extension (confirme par audit prealable, cf. plan) : aucun
+    code n'existe donc ici pour ce secteur, ni dans
+    `SECTOR_CHOICES` ci-dessous, ni dans les validateurs de
+    `services/sector_specs.py`.
+
+    **Un seul modele flexible**, choisi plutot que trois modeles rigides
+    façon `TextileSpec` duplique par secteur, pour economiser le budget de
+    modeles (`tests/architecture/test_budget.py`) et suivre le patron JSONB
+    deja applique a `TextileSpec.composition`/`mrp.MrpBomLine.qty_by_size` :
+    `attributes` (JSONB) a un schema qui varie selon `sector_code`, valide
+    en service par un petit dictionnaire de validateurs Python
+    (`services/sector_specs.py`), PAS par un moteur JSON Schema generique —
+    simplification deliberee et documentee, coherente avec le choix deja
+    fait pour `TextileSpec.composition` (JSONB libre, jamais verrouille par
+    un schema formel externe).
+
+    Meme mecanique de relation qu'une extension `TextileSpec` : FK directe
+    vers `ProductVariant` legitime car les deux modeles vivent dans la
+    meme app `catalog` (pas un couplage cross-app, cf. regle de couplage
+    n°1). Un seul secteur par variante (`OneToOne`), meme choix que
+    `TextileSpec` — une variante donnee releve d'un seul secteur metier a
+    la fois."""
+
+    SECTOR_CUIR = "cuir"
+    SECTOR_AGROALIMENTAIRE = "agroalimentaire"
+    SECTOR_ARTISANAT = "artisanat"
+    SECTOR_CHOICES = [
+        (SECTOR_CUIR, "Cuir & maroquinerie"),
+        (SECTOR_AGROALIMENTAIRE, "Agroalimentaire"),
+        (SECTOR_ARTISANAT, "Artisanat"),
+    ]
+
+    variant = models.OneToOneField(
+        ProductVariant, on_delete=models.CASCADE, related_name="sector_spec"
+    )
+    sector_code = models.CharField(max_length=16, choices=SECTOR_CHOICES)
+    attributes = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "catalog_sector_spec"
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} — {self.sector_code}"

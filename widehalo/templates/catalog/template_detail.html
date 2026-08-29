@@ -80,6 +80,59 @@
     </tbody>
   </table>
 
+  <h2>{% trans "Fiches sectorielles (cuir, agroalimentaire, artisanat)" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Variante" %}</th>
+        <th>{% trans "Secteur" %}</th>
+        <th>{% trans "Attributs" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for variant in variants %}
+        {% with spec=variant.sector_spec %}
+          {% if spec %}
+            <tr>
+              <td>{{ variant.reference }}</td>
+              <td>{{ spec.get_sector_code_display }}</td>
+              <td>{{ spec.attributes }}</td>
+            </tr>
+          {% endif %}
+        {% endwith %}
+      {% empty %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter une fiche sectorielle" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_sector_spec">
+    <div class="form-field">
+      <label for="sector_variant_id">{% trans "Variante" %}</label>
+      <select id="sector_variant_id" name="variant_id" required>
+        {% for variant in variants %}
+          <option value="{{ variant.id }}">{{ variant.reference }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="sector_code">{% trans "Secteur" %}</label>
+      <select id="sector_code" name="sector_code" required>
+        {% for code, label in sector_choices %}
+          <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="sector_attributes">{% trans "Attributs (JSON)" %}</label>
+      <textarea id="sector_attributes" name="attributes" rows="3"
+                placeholder='{"type_peau": "chevre", "tannage": "vegetal"}'></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+
   <h2>{% trans "Prix (listes applicables)" %}</h2>
   <table class="smart-table">
     <thead>
