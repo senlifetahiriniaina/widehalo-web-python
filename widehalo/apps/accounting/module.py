@@ -15,6 +15,10 @@ MODULE = ModuleSpec(
     # `sales`/`purchase`) plutot que de dupliquer la construction de
     # facture — un import explicite de son propre `services.public`,
     # declare ici comme tout autre gap consomme.
-    dependencies=("core", "partners", "stocks", "catalog", "accounting"),
+    # "reporting" ajoute par le chantier §5.11 (REP4) : `services.
+    # reports_registration._adapter_invoice_pdf` consomme `apps.reporting.
+    # services.public.render_and_archive` pour l'archivage RPT-10 de
+    # ACC-FAC — jamais `apps.reporting.models`.
+    dependencies=("core", "partners", "stocks", "catalog", "accounting", "reporting"),
     verbose_name="Comptabilite",
 )

@@ -1,0 +1,29 @@
+{% extends "reports/_base.html" %}
+{% block title %}Bon de livraison / Delivery note {{ order.reference }}{% endblock %}
+{% block document_title %}Bon de livraison / Delivery note{% endblock %}
+{% block header_meta %}
+  <p>{{ order.reference }}</p>
+  <p>Date : {{ order.date }}</p>
+{% endblock %}
+{% block content %}
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>Designation / Description</th>
+        <th>Qte commandee / Qty ordered</th>
+        <th>Qte livree / Qty delivered</th>
+        <th>UdM / UoM</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty_ordered }}</td>
+          <td>{{ line.qty_delivered }}</td>
+          <td>{{ line.uom }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

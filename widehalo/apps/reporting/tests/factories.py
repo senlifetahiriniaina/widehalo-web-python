@@ -27,7 +27,7 @@ class RptLayoutFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     code = factory.Sequence(lambda n: f"LAYOUT-{n}")
     name = "Gabarit de test"
-    template_path = "reports/base.html"
+    template_path = "reports/_base.html"
 
 
 class RptJobFactory(factory.django.DjangoModelFactory):

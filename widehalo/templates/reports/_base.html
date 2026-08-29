@@ -1,0 +1,25 @@
+{% load i18n %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}WideHalo{% endblock %}</title>
+  <style>
+    body { font-family: "DejaVu Sans", sans-serif; font-size: 11pt; color: #1a1a1a; }
+    header.report-header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 16px; }
+    header.report-header h1 { font-size: 16pt; margin: 0; }
+    table.report-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    table.report-table th, table.report-table td { border: 1px solid #999; padding: 4px 8px; text-align: left; font-size: 10pt; }
+    table.report-table th { background: #eee; }
+    footer.report-footer { margin-top: 24px; font-size: 8pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+  </style>
+  {% block extra_style %}{% endblock %}
+</head>
+<body>
+  <header class="report-header">
+    <h1>{% block document_title %}{% endblock %}</h1>
+    <div>{% block header_meta %}{% endblock %}</div>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="report-footer">{% block footer %}WideHalo{% endblock %}</footer>
+</body>
+</html>

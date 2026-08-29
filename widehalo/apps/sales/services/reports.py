@@ -133,6 +133,25 @@ def delivery_note_rows(order: SalesOrder) -> list[dict[str, Any]]:
     ]
 
 
+def delivery_note_pdf(order: SalesOrder) -> bytes:
+    """SAL-BL, PDF — construit pour RPT-10 (§reporting, REP4) : `sales`
+    n'avait jusqu'ici jamais eu besoin d'un PDF pour le bon de livraison
+    (seul `delivery_note_rows` existait, consomme en tabulaire). Contrairement
+    a `quotation_pdf`/`order_confirmation_pdf` ci-dessus (HTML inline, patron
+    historique du Lot 2), ce nouveau gabarit utilise le fichier de template
+    partage `templates/reports/_base.html` (RPT-3 : "les NOUVEAUX gabarits
+    de ce module" — la mise en page unifiee s'applique ici, les gabarits
+    deja construits par ce module ne sont pas retrofites)."""
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    html = render_to_string(
+        "reports/legal/delivery_note.html", {"order": order, "lines": delivery_note_rows(order)}
+    )
+    result: bytes = HTML(string=html).write_pdf()
+    return result
+
+
 def revenue_report(
     *, date_from: dt.date, date_to: dt.date, group_by: str = "partner_id"
 ) -> list[dict[str, Any]]:
