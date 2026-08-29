@@ -26,6 +26,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
 
@@ -277,3 +278,103 @@ class FinGuarantee(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or str(self.id)
+
+
+class FinCredoc(BaseModel, ReferenceMixin):
+    """Credit documentaire a l'importation (FIN3, RUU 600 — Regles et
+    Usances Uniformes relatives aux Credits Documentaires, publication 600
+    de la CCI, reference normative citee par le plan). Machine a etats
+    COMPLETE (`django-fsm-2`/`attempt_transition()` du socle, jamais un
+    appel direct a une methode `@transition` — meme discipline que
+    `PurOrder`/`SalesOrder`/`LogShipment`, chacune documentee ainsi).
+
+    **Simplification assumee et disclosed** : le plan decrit un cycle
+    lineaire a 5 etats (`demande -> ouvert -> documents_recus -> paye ->
+    clos`) SANS branche d'annulation/litige explicite (a la difference de
+    `PurOrder`/`LogShipment`, dont le CDC decrit des branches "annule"/"en
+    litige"/"bloquee") — un seul champ FSM lineaire suffit ici, sans
+    branchement, plutot que d'inventer une branche non demandee par le
+    plan. RUU 600 elle-meme prevoit des mecanismes de rejet de documents
+    non conformes ("discrepancies") : hors perimetre v1, a construire dans
+    un futur durcissement si le besoin est confirme avec un etablissement
+    bancaire reel.
+
+    Rattache par UUID nu (jamais de FK Django, regle de couplage n°1) a
+    `pur_order` (`purchase.services.public.get_order_reference`) et,
+    optionnellement, a `log_shipment` (`logistics.services.public.
+    get_shipment_reference`, gap ajoute par ce chantier — LOG1 laissait ce
+    contrat vide jusqu'ici)."""
+
+    STATE_REQUESTED = "demande"
+    STATE_OPENED = "ouvert"
+    STATE_DOCUMENTS_RECEIVED = "documents_recus"
+    STATE_PAID = "paye"
+    STATE_CLOSED = "clos"
+    STATE_CHOICES = [
+        (STATE_REQUESTED, _("Demande")),
+        (STATE_OPENED, _("Ouvert")),
+        (STATE_DOCUMENTS_RECEIVED, _("Documents recus")),
+        (STATE_PAID, _("Paye")),
+        (STATE_CLOSED, _("Clos")),
+    ]
+
+    # Memes 5 valeurs qu'`apps.purchase.models.PurOrder.INCOTERM_CHOICES` —
+    # constante propre plutot qu'un import (regle de couplage n°1 interdit
+    # tout import de modele cross-app), chaines identiques par convention.
+    INCOTERM_EXW = "EXW"
+    INCOTERM_FOB = "FOB"
+    INCOTERM_CIF = "CIF"
+    INCOTERM_DAP = "DAP"
+    INCOTERM_DDP = "DDP"
+    INCOTERM_CHOICES = [
+        (INCOTERM_EXW, _("EXW — A l'usine")),
+        (INCOTERM_FOB, _("FOB — Franco a bord")),
+        (INCOTERM_CIF, _("CIF — Cout, assurance et fret")),
+        (INCOTERM_DAP, _("DAP — Rendu au lieu de destination")),
+        (INCOTERM_DDP, _("DDP — Rendu droits acquittes")),
+    ]
+
+    loan_application = models.ForeignKey(
+        FinLoanApplication, null=True, blank=True, on_delete=models.SET_NULL, related_name="credocs"
+    )
+    # Jamais de FK Django vers `apps.purchase.models.PurOrder`/
+    # `apps.logistics.models.LogShipment`.
+    purchase_order_id = models.UUIDField()
+    log_shipment_id = models.UUIDField(null=True, blank=True)
+    bank = models.CharField(max_length=255)
+    advising_bank = models.CharField(max_length=255, blank=True)
+    beneficiary = models.CharField(max_length=255)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    currency = models.CharField(max_length=3, default="MGA")
+    validity_date = models.DateField()
+    incoterm = models.CharField(max_length=8, choices=INCOTERM_CHOICES, blank=True)
+    # Checklist documentaire RUU 600 (ex. ["facture commerciale",
+    # "connaissement maritime (B/L)", "certificat d'origine", "liste de
+    # colisage", "police d'assurance"]) — texte libre en JSON, jamais un
+    # canevas fige : le plan n'impose pas de liste normative exacte, cf.
+    # meme reserve OECFM/DGI que pour les canevas fiscaux `accounting`
+    # (a faire valider aupres de la banque emettrice avant tout usage reel).
+    documents_required = models.JSONField(default=list, blank=True)
+    state = FSMField(default=STATE_REQUESTED, choices=STATE_CHOICES)
+
+    class Meta:
+        db_table = "fin_credoc"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+    @transition(field=state, source=STATE_REQUESTED, target=STATE_OPENED)
+    def open(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_OPENED, target=STATE_DOCUMENTS_RECEIVED)
+    def receive_documents(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_DOCUMENTS_RECEIVED, target=STATE_PAID)
+    def pay(self) -> None:
+        pass
+
+    @transition(field=state, source=STATE_PAID, target=STATE_CLOSED)
+    def close(self) -> None:
+        pass

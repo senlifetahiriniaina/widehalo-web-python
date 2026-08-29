@@ -4,11 +4,13 @@ modele concret (couche T1 du plan de durcissement, CDC §14 couches)."""
 from __future__ import annotations
 
 import datetime
+import uuid
 from decimal import Decimal
 
 import factory
 
 from apps.financing.models import (
+    FinCredoc,
     FinFinancingPlanLine,
     FinForecastScenario,
     FinForecastScenarioLine,
@@ -74,3 +76,15 @@ class FinGuaranteeFactory(factory.django.DjangoModelFactory):
     )
     type = FinGuarantee.GUARANTEE_TYPE_MORTGAGE  # noqa: A003
     estimated_value_mga = Decimal("12000000")
+
+
+class FinCredocFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = FinCredoc
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    purchase_order_id = factory.LazyFunction(uuid.uuid4)
+    bank = "Banque emettrice test"
+    beneficiary = "Fournisseur test"
+    amount_mga = Decimal("20000000")
+    validity_date = datetime.date(2026, 12, 31)
