@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Credits documentaires" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Credits documentaires (CREDOC)" %}</h1>
+  <p><a href="{% url 'financing:credoc-create' %}">{% trans "Nouveau CREDOC" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

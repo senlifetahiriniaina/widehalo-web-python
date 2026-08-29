@@ -55,4 +55,38 @@
       <button type="submit">{% trans "Enregistrer la decision" %}</button>
     </form>
   {% endif %}
+
+  <h2>{% trans "Suretes" %}</h2>
+  <table>
+    <thead>
+      <tr><th>{% trans "Reference" %}</th><th>{% trans "Type" %}</th><th>{% trans "Valeur estimee" %}</th><th>{% trans "Statut" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for guarantee in guarantees %}
+        <tr>
+          <td>{{ guarantee.reference }}</td>
+          <td>{{ guarantee.get_type_display }}</td>
+          <td>{{ guarantee.estimated_value_mga }}</td>
+          <td>{{ guarantee.get_formalization_status_display }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>
+    {% trans "Couverture (regle >= 120% du credit)" %} :
+    {{ coverage.total_guarantee_value_mga }} / {{ coverage.required_value_mga }} —
+    {% if coverage.is_covered %}{% trans "conforme" %}{% else %}{% trans "insuffisante" %}{% endif %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_guarantee">
+    <select name="type">
+      {% for value, label in guarantee_types %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="asset_description" placeholder="{% trans 'Description du bien' %}">
+    <input type="number" step="0.01" name="estimated_value_mga" placeholder="{% trans 'Valeur estimee' %}">
+    <button type="submit">{% trans "Ajouter une surete" %}</button>
+  </form>
 {% endblock %}

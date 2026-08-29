@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -9,6 +11,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.financing.models import FinLoanApplication
+from apps.financing.services.credoc import create_credoc
 from apps.financing.services.loan_applications import create_loan_application
 
 pytestmark = pytest.mark.django_db
@@ -56,4 +59,37 @@ def test_loan_application_detail_screen_renders(web_financing) -> None:
     session.save()
 
     response = client.get(f"/financing/{application.id}/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+
+
+def test_credoc_list_screen_renders(web_financing) -> None:
+    tenant, user = web_financing
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/financing/credocs/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+
+
+def test_credoc_detail_screen_renders(web_financing) -> None:
+    tenant, user = web_financing
+    with use_tenant(tenant.id):
+        credoc = create_credoc(
+            tenant,
+            purchase_order_id=uuid.uuid4(),
+            bank="Banque emettrice",
+            beneficiary="Fournisseur",
+            amount_mga=Decimal("10000000"),
+            validity_date=dt.date(2026, 12, 31),
+        )
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/financing/credocs/{credoc.id}/", HTTP_X_TENANT_ID=str(tenant.id))
     assert response.status_code == 200

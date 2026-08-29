@@ -5,6 +5,7 @@ financement bancaire n'est pas une operation courante des autres roles."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 
@@ -14,8 +15,18 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
-from apps.financing.models import FinFinancingPlanLine, FinLoanApplication
+from apps.core.services.workflow import TransitionPermissionError
+from apps.financing.models import FinCredoc, FinFinancingPlanLine, FinGuarantee, FinLoanApplication
+from apps.financing.services.credoc import (
+    close_credoc,
+    create_credoc,
+    open_credoc,
+    pay_credoc,
+    receive_documents,
+)
+from apps.financing.services.guarantees import add_guarantee, check_guarantee_coverage
 from apps.financing.services.loan_applications import (
     add_financing_plan_line,
     create_loan_application,
@@ -49,6 +60,25 @@ class DecisionIn(Schema):
     rejection_reason: str = ""
 
 
+class GuaranteeIn(Schema):
+    type: str
+    estimated_value_mga: Decimal
+    asset_description: str = ""
+
+
+class CredocIn(Schema):
+    purchase_order_id: str
+    bank: str
+    beneficiary: str
+    amount_mga: Decimal
+    validity_date: str
+    currency: str = "MGA"
+    advising_bank: str = ""
+    log_shipment_id: str | None = None
+    incoterm: str = ""
+    documents_required: list[str] = []
+
+
 def _serialize_application(application: FinLoanApplication) -> dict[str, Any]:
     return {
         "id": str(application.id),
@@ -70,6 +100,35 @@ def _serialize_line(line: FinFinancingPlanLine) -> dict[str, Any]:
         "source": line.source,
         "label": line.label,
         "amount_mga": line.amount_mga,
+    }
+
+
+def _serialize_guarantee(guarantee: FinGuarantee) -> dict[str, Any]:
+    return {
+        "id": str(guarantee.id),
+        "reference": guarantee.reference,
+        "type": guarantee.type,
+        "asset_description": guarantee.asset_description,
+        "estimated_value_mga": guarantee.estimated_value_mga,
+        "formalization_status": guarantee.formalization_status,
+    }
+
+
+def _serialize_credoc(credoc: FinCredoc) -> dict[str, Any]:
+    return {
+        "id": str(credoc.id),
+        "reference": credoc.reference,
+        "state": credoc.state,
+        "purchase_order_id": str(credoc.purchase_order_id),
+        "log_shipment_id": str(credoc.log_shipment_id) if credoc.log_shipment_id else None,
+        "bank": credoc.bank,
+        "advising_bank": credoc.advising_bank,
+        "beneficiary": credoc.beneficiary,
+        "amount_mga": credoc.amount_mga,
+        "currency": credoc.currency,
+        "validity_date": credoc.validity_date.isoformat(),
+        "incoterm": credoc.incoterm,
+        "documents_required": credoc.documents_required,
     }
 
 
@@ -157,3 +216,96 @@ def decide_loan_application_endpoint(
         return JsonResponse({"detail": str(exc)}, status=400)
     application.refresh_from_db()
     return _serialize_application(application)
+
+
+@router.get("/financing/loan-applications/{application_id}/guarantees")
+@require_permission("financing.view_finguarantee")
+def list_guarantees_endpoint(request: Any, application_id: str) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    guarantees = application.guarantees.filter(is_active=True)
+    coverage = check_guarantee_coverage(application)
+    return {
+        "results": [_serialize_guarantee(g) for g in guarantees],
+        "coverage": coverage,
+    }
+
+
+@router.post("/financing/loan-applications/{application_id}/guarantees")
+@require_permission("financing.add_finguarantee")
+def add_guarantee_endpoint(
+    request: Any, application_id: str, payload: GuaranteeIn
+) -> dict[str, Any]:
+    application = get_object_or_404(FinLoanApplication, id=application_id)
+    try:
+        guarantee = add_guarantee(
+            application,
+            type=payload.type,
+            estimated_value_mga=payload.estimated_value_mga,
+            asset_description=payload.asset_description,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_guarantee(guarantee)
+
+
+@router.get("/financing/credocs")
+@require_permission("financing.view_fincredoc")
+def list_credocs_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    credocs = FinCredoc.objects.filter(tenant=tenant, is_active=True)
+    return {"results": [_serialize_credoc(c) for c in credocs]}
+
+
+@router.post("/financing/credocs")
+@require_permission("financing.add_fincredoc")
+def create_credoc_endpoint(request: Any, payload: CredocIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    try:
+        credoc = create_credoc(
+            tenant,
+            purchase_order_id=payload.purchase_order_id,
+            bank=payload.bank,
+            beneficiary=payload.beneficiary,
+            amount_mga=payload.amount_mga,
+            validity_date=dt.date.fromisoformat(payload.validity_date),
+            currency=payload.currency,
+            advising_bank=payload.advising_bank,
+            log_shipment_id=payload.log_shipment_id,
+            incoterm=payload.incoterm,
+            documents_required=payload.documents_required,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_credoc(credoc)
+
+
+@router.get("/financing/credocs/{credoc_id}")
+@require_permission("financing.view_fincredoc")
+def credoc_detail_endpoint(request: Any, credoc_id: str) -> dict[str, Any]:
+    credoc = get_object_or_404(FinCredoc, id=credoc_id)
+    return _serialize_credoc(credoc)
+
+
+_CREDOC_TRANSITIONS = {
+    "open": open_credoc,
+    "receive_documents": receive_documents,
+    "pay": pay_credoc,
+    "close": close_credoc,
+}
+
+
+@router.post("/financing/credocs/{credoc_id}/transition/{action}")
+@require_permission("financing.change_fincredoc")
+def transition_credoc_endpoint(request: Any, credoc_id: str, action: str) -> dict[str, Any]:
+    credoc = get_object_or_404(FinCredoc, id=credoc_id)
+    transition_fn = _CREDOC_TRANSITIONS.get(action)
+    if transition_fn is None:
+        return JsonResponse({"detail": "action inconnue"}, status=400)
+    user = request.auth
+    assert isinstance(user, User)
+    try:
+        transition_fn(credoc, user)
+    except TransitionPermissionError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    credoc.refresh_from_db()
+    return _serialize_credoc(credoc)

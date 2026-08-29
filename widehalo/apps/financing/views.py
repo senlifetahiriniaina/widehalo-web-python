@@ -1,20 +1,33 @@
-"""Ecrans HTMX minimaux du module `financing` (FIN1) : liste/creation de
-dossier de financement, detail avec plan de financement + soumission/
-decision. Meme patron que `apps.strategy.views` : chaque vue appelle
-directement les fonctions de service, jamais l'API ninja."""
+"""Ecrans HTMX minimaux du module `financing` : liste/creation de dossier de
+financement, detail avec plan de financement + garanties + soumission/
+decision (FIN1/FIN2), liste/detail CREDOC avec transitions (FIN3). Meme
+patron que `apps.strategy.views` : chaque vue appelle directement les
+fonctions de service, jamais l'API ninja."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal, InvalidOperation
+from typing import cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.models.user import User
+from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.financing.models import FinLoanApplication
+from apps.financing.models import FinCredoc, FinGuarantee, FinLoanApplication
+from apps.financing.services.credoc import (
+    close_credoc,
+    create_credoc,
+    open_credoc,
+    pay_credoc,
+    receive_documents,
+)
+from apps.financing.services.guarantees import add_guarantee, check_guarantee_coverage
 from apps.financing.services.loan_applications import (
     add_financing_plan_line,
     create_loan_application,
@@ -92,11 +105,19 @@ def loan_application_detail(request: HttpRequest, application_id: str) -> HttpRe
                     accepted=request.POST.get("decision") == "accepted",
                     rejection_reason=request.POST.get("rejection_reason", ""),
                 )
+            elif action == "add_guarantee":
+                add_guarantee(
+                    application,
+                    type=request.POST.get("type", ""),
+                    estimated_value_mga=Decimal(request.POST.get("estimated_value_mga", "0")),
+                    asset_description=request.POST.get("asset_description", ""),
+                )
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = str(exc)
         application.refresh_from_db()
 
     lines = application.financing_plan_lines.filter(is_active=True)
+    guarantees = application.guarantees.filter(is_active=True)
     return render(
         request,
         "financing/detail.html",
@@ -104,6 +125,76 @@ def loan_application_detail(request: HttpRequest, application_id: str) -> HttpRe
             "application": application,
             "lines": lines,
             "total": financing_plan_total(application),
+            "guarantees": guarantees,
+            "guarantee_types": FinGuarantee.GUARANTEE_TYPE_CHOICES,
+            "coverage": check_guarantee_coverage(application),
             "error": error,
         },
     )
+
+
+CREDOC_COLUMNS = [
+    Column(key="reference", label="Reference"),
+    Column(key="bank", label="Banque"),
+    Column(key="state", label="Statut", searchable=False),
+    Column(key="amount_mga", label="Montant", searchable=False),
+]
+
+_CREDOC_TRANSITIONS = {
+    "open": open_credoc,
+    "receive_documents": receive_documents,
+    "pay": pay_credoc,
+    "close": close_credoc,
+}
+
+
+@login_required
+def credoc_list(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    queryset = FinCredoc.objects.filter(tenant=tenant, is_active=True)
+    return smart_table_response(
+        request,
+        table_key="financing.credocs",
+        columns=CREDOC_COLUMNS,
+        queryset=queryset,
+        page_template="financing/credoc_list.html",
+        page_context={"row_url_name": "financing:credoc-detail"},
+    )
+
+
+@login_required
+def credoc_create(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    error = None
+    if request.method == "POST":
+        try:
+            credoc = create_credoc(
+                tenant,
+                purchase_order_id=request.POST.get("purchase_order_id", ""),
+                bank=request.POST.get("bank", ""),
+                beneficiary=request.POST.get("beneficiary", ""),
+                amount_mga=Decimal(request.POST.get("amount_mga", "0")),
+                validity_date=dt.date.fromisoformat(request.POST.get("validity_date", "")),
+            )
+            return redirect("financing:credoc-detail", credoc_id=credoc.id)
+        except (ValidationError, InvalidOperation, ValueError) as exc:
+            error = str(exc)
+    return render(request, "financing/credoc_create.html", {"error": error})
+
+
+@login_required
+def credoc_detail(request: HttpRequest, credoc_id: str) -> HttpResponse:
+    credoc = get_object_or_404(FinCredoc, id=credoc_id)
+    error = None
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        transition_fn = _CREDOC_TRANSITIONS.get(action or "")
+        if transition_fn is not None:
+            try:
+                transition_fn(credoc, cast(User, request.user))
+            except TransitionPermissionError as exc:
+                error = str(exc)
+            credoc.refresh_from_db()
+
+    return render(request, "financing/credoc_detail.html", {"credoc": credoc, "error": error})

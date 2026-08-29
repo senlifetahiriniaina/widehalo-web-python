@@ -7,8 +7,13 @@ class FinancingConfig(AppConfig):
     label = "financing"
     verbose_name = "Financement bancaire PME"
 
-    # Note : `ready()` n'enregistre le registre `reporting` (FIN-DOSSIER/
-    # FIN-CREDOC) qu'a partir de FIN4 (cf. `services/reports_registration.py`,
-    # meme sequencement que `strategy` — STRATEGY-BP n'a ete cable qu'a STR3,
-    # pas des STR1) — pas de hook prematurement dependant d'un module qui
-    # n'existe pas encore a FIN1/FIN2/FIN3.
+    def ready(self) -> None:
+        # §5.11 reporting (REP5) : auto-enregistrement dans le registre
+        # partage `core.services.reports_registry`, meme patron que tous
+        # les autres modules metier — jamais un import direct par
+        # `apps.reporting`. Cable a partir de FIN4 (cf. `services/
+        # reports_registration.py`, meme sequencement que `strategy` —
+        # STRATEGY-BP n'a ete cable qu'a STR3, pas des STR1).
+        from apps.financing.services.reports_registration import register_reports
+
+        register_reports()

@@ -653,3 +653,31 @@ def decide_invoice_import_qualification(
 
     approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
     decide_qualification(approval_request, decided_by, approved=approved, comment=comment)
+
+
+def get_financial_ratios_summary(tenant: Tenant, *, fiscal_year_id: UUID) -> dict[str, Any] | None:
+    """Nouveau gap ajoute pendant le chantier `financing` (FIN4, rapport
+    FIN-DOSSIER — section "etats financiers historiques" du dossier
+    bancaire) : simple passe-plat vers `services/reports.py::
+    financial_ratios` (A13), deja construit, aucun nouveau calcul ici.
+
+    **Simplification assumee et disclosed** : plutot que d'embarquer le
+    PDF complet de la liasse fiscale (`generate_liasse_is`/
+    `generate_liasse_ir`, A12) dans le composite FIN-DOSSIER — ce qui
+    demanderait un outillage de FUSION de flux PDF binaires jamais utilise
+    ailleurs dans ce depot, tous les rapports composites existants
+    (`generate_liasse_is/ir`, `STRATEGY-BP`) assemblent des SECTIONS HTML,
+    jamais 2 PDF deja rendus — FIN-DOSSIER n'inclut qu'un RESUME
+    (ratios financiers deja calcules par A13), coherent avec le patron
+    HTML-sections-only deja etabli.
+
+    Retourne `None` (jamais une exception) si `fiscal_year_id` ne
+    correspond a aucun exercice reel de ce tenant — meme discipline que
+    les autres gaps de ce fichier (`create_customer_invoice_from_source`
+    et consorts, "jamais d'exception pour une configuration manquante")."""
+    from apps.accounting.services.reports import financial_ratios
+
+    fiscal_year = AccFiscalYear.objects.filter(id=fiscal_year_id, tenant=tenant).first()
+    if fiscal_year is None:
+        return None
+    return financial_ratios(fiscal_year)

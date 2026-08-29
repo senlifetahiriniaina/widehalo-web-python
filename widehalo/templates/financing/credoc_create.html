@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau CREDOC" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau credit documentaire" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="purchase_order_id">{% trans "Commande fournisseur (UUID)" %}</label>
+      <input id="purchase_order_id" type="text" name="purchase_order_id" required>
+    </div>
+    <div class="form-field">
+      <label for="bank">{% trans "Banque emettrice" %}</label>
+      <input id="bank" type="text" name="bank" required>
+    </div>
+    <div class="form-field">
+      <label for="beneficiary">{% trans "Beneficiaire" %}</label>
+      <input id="beneficiary" type="text" name="beneficiary" required>
+    </div>
+    <div class="form-field">
+      <label for="amount_mga">{% trans "Montant (MGA)" %}</label>
+      <input id="amount_mga" type="number" step="0.01" name="amount_mga" required>
+    </div>
+    <div class="form-field">
+      <label for="validity_date">{% trans "Date de validite" %}</label>
+      <input id="validity_date" type="date" name="validity_date" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
