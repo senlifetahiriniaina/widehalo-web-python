@@ -6,7 +6,20 @@ distribue apres commit de la transaction via `core/tasks.py::enqueue()`
 
 Chaque module s'abonne a un `event_type` avec `@subscribe(...)`, appele
 depuis son propre `apps.py::ready()` — jamais un signal Django connecte
-directement d'une app a une autre (regle de couplage n°5)."""
+directement d'une app a une autre (regle de couplage n°5).
+
+**AUTO2 (chantier Studio de workflow visuel)** : `subscribe_all(handler)`
+est une extension MINIMALE et RETROCOMPATIBLE de ce bus, ajoutee pour un
+besoin different de `@subscribe(event_type)` — celui-ci suppose un
+developpeur qui code d'avance, dans `ready()`, l'`event_type` exact qui
+l'interesse ; le studio d'automatisation a au contraire besoin de recevoir
+TOUS les evenements publies, quel que soit leur `event_type`, pour
+dispatcher dynamiquement vers les `AutoFlow` actifs configures par un
+utilisateur (jamais connus a l'ecriture du code). Un abonne generique est
+appele EN PLUS des abonnes specifiques de `dispatch_event` (jamais a leur
+place), avec le meme contrat de retry/backoff — un abonne generique qui
+leve une exception retarde/echoue exactement comme un abonne specifique,
+il n'a aucun traitement d'erreur privilegie."""
 
 from __future__ import annotations
 
@@ -25,6 +38,12 @@ Handler = Callable[[dict[str, Any]], None]
 
 _HANDLERS: dict[str, list[Handler]] = defaultdict(list)
 
+# AUTO2 : abonnes "wildcard", recoivent TOUT evenement publie quel que soit
+# son `event_type` — liste distincte de `_HANDLERS`, jamais fusionnee dans
+# le dict par cle (un abonne generique n'appartient a aucun `event_type`
+# en particulier).
+_WILDCARD_HANDLERS: list[Handler] = []
+
 
 def subscribe(event_type: str) -> Callable[[Handler], Handler]:
     def decorator(func: Handler) -> Handler:
@@ -32,6 +51,21 @@ def subscribe(event_type: str) -> Callable[[Handler], Handler]:
         return func
 
     return decorator
+
+
+def subscribe_all(handler: Handler) -> Handler:
+    """Enregistre `handler` comme abonne GENERIQUE, appele pour chaque
+    evenement publie quel que soit son `event_type` — a l'inverse de
+    `subscribe(event_type)`, s'utilise directement comme decorateur SANS
+    parametre (`@subscribe_all`), puisqu'il n'y a pas d'`event_type` a
+    fournir. Appele depuis `apps.py::ready()`, comme `subscribe()` — jamais
+    un signal Django connecte directement d'une app a une autre (regle de
+    couplage n°5). `apps.automation` (Studio de workflow visuel) est
+    concu pour n'enregistrer qu'UN SEUL abonne generique
+    (`dispatch_event_to_flows`) ; rien n'empeche techniquement d'en
+    enregistrer plusieurs si un futur besoin le justifie."""
+    _WILDCARD_HANDLERS.append(handler)
+    return handler
 
 
 def publish_event(
@@ -64,7 +98,11 @@ def dispatch_event(event_id: str) -> None:
     from apps.core.models.event import EventLog
 
     event = EventLog.objects.get(id=event_id)
-    handlers = _HANDLERS.get(event.event_type, [])
+    # AUTO2 : les abonnes generiques (`subscribe_all`) recoivent l'evenement
+    # EN PLUS des abonnes specifiques de cet `event_type` — meme liste,
+    # meme boucle de retry, aucun traitement d'erreur privilegie pour l'un
+    # ou l'autre type d'abonne.
+    handlers = [*_HANDLERS.get(event.event_type, []), *_WILDCARD_HANDLERS]
 
     for attempt in range(MAX_ATTEMPTS):
         try:
