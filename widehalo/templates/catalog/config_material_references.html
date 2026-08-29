@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Matieres de reference" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Referentiel de matieres (fibres/tissus)" %}</h1>
+  <p>
+    {% trans "Fourchettes de grammage indicatives (document source LIFE MDG) — pas des specifications absolues, varient par fabricant/construction/lavage." %}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Nature" %}</th>
+        <th>{% trans "Grammage min (g/m2)" %}</th>
+        <th>{% trans "Grammage max (g/m2)" %}</th>
+        <th>{% trans "Reference fournisseur" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for material in materials %}
+        <tr>
+          <td>{{ material.code }}</td>
+          <td>{{ material.name }}</td>
+          <td>{{ material.get_nature_display }}</td>
+          <td>{{ material.typical_gsm_min|default:"—" }}</td>
+          <td>{{ material.typical_gsm_max|default:"—" }}</td>
+          <td>{{ material.supplier_reference|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune matiere de reference." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle matiere de reference" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="nature">{% trans "Nature" %}</label>
+      <select id="nature" name="nature" required>
+        {% for code, label in nature_choices %}
+          <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="typical_gsm_min">{% trans "Grammage min (g/m2)" %}</label>
+      <input id="typical_gsm_min" type="number" step="0.01" name="typical_gsm_min">
+    </div>
+    <div class="form-field">
+      <label for="typical_gsm_max">{% trans "Grammage max (g/m2)" %}</label>
+      <input id="typical_gsm_max" type="number" step="0.01" name="typical_gsm_max">
+    </div>
+    <div class="form-field">
+      <label for="usage_notes">{% trans "Notes d'usage" %}</label>
+      <textarea id="usage_notes" name="usage_notes"></textarea>
+    </div>
+    <div class="form-field">
+      <label for="supplier_reference">{% trans "Reference fournisseur (texte libre)" %}</label>
+      <input id="supplier_reference" type="text" name="supplier_reference">
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

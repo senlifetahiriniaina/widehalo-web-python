@@ -18,6 +18,7 @@ from apps.catalog.models import (
     Attribute,
     AttributeValue,
     CatalogCertification,
+    CatalogMaterialReference,
     CatalogSectorSpec,
     CatalogStandard,
     Category,
@@ -185,3 +186,17 @@ class CatalogSectorSpecFactory(factory.django.DjangoModelFactory):
     attributes = factory.LazyFunction(
         lambda: {"type_peau": "chevre", "tannage": "vegetal", "epaisseur_mm": 1.5}
     )
+
+
+class CatalogMaterialReferenceFactory(factory.django.DjangoModelFactory):
+    """REF1 (enrichissement referentiel LIFE MDG)."""
+
+    class Meta:
+        model = CatalogMaterialReference
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    code = factory.Sequence(lambda n: f"MAT{n}")
+    name = factory.Sequence(lambda n: f"Matiere {n}")
+    nature = CatalogMaterialReference.NATURE_NATURELLE_CELLULOSIQUE
+    typical_gsm_min = Decimal("140.00")
+    typical_gsm_max = Decimal("200.00")

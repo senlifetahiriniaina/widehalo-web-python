@@ -10,7 +10,11 @@
       <h3>{{ attribute.name }}</h3>
       <ul>
         {% for value in attribute.values.all %}
-          <li>{{ value.value }}</li>
+          <li>
+            {{ value.value }}
+            {% if value.pantone_code %}<span class="tag">{{ value.pantone_code }}</span>{% endif %}
+            {% if value.hex_approximation %}<span class="tag">{{ value.hex_approximation }}</span>{% endif %}
+          </li>
         {% empty %}
           <li>{% trans "Aucune valeur." %}</li>
         {% endfor %}
@@ -20,6 +24,8 @@
         <input type="hidden" name="action" value="add_value">
         <input type="hidden" name="attribute_id" value="{{ attribute.id }}">
         <input type="text" name="value" placeholder="{% trans 'Nouvelle valeur' %}" required>
+        <input type="text" name="pantone_code" placeholder="{% trans 'Code Pantone (NN-NNNN TCX, optionnel)' %}">
+        <input type="text" name="hex_approximation" placeholder="{% trans 'Approximation hex (#RRGGBB, optionnel)' %}">
         <button type="submit">{% trans "Ajouter la valeur" %}</button>
       </form>
     </div>

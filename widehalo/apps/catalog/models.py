@@ -17,7 +17,19 @@ cuir/agroalimentaire/artisanat (cf.
 ci-dessous etait reellement verrouille sur le textile ; `CatalogSectorSpec`
 est son pendant pour les 3 autres secteurs. `import_export` (negoce
 generaliste) n'a recu aucun code : deja couvert nativement par
-`purchase`/`stocks`/`sales`/`logistics` sans transformation."""
+`purchase`/`stocks`/`sales`/`logistics` sans transformation.
+
+REF1-REF3 (enrichissement referentiel LIFE MDG, cf. plan) — deux nouveaux
+modeles legers : `CatalogMaterialReference` (referentiel de matieres
+fibres/tissus reutilisable) et `CatalogCustomizationOption` (options de
+personnalisation broderie/serigraphie/... avec compatibilite matiere,
+cf. bas de fichier). `AttributeValue.pantone_code`/`hex_approximation` :
+format de reference Pantone FHI Cotton TCX SANS aucune valeur
+colorimetrique proprietaire chargee (reserve legale explicite, cf.
+docstring `AttributeValue`). Composants semi-finis (trims), produits
+d'exemple par famille et entrees lamba malgaches : AUCUN nouveau modele,
+ce sont des `ProductTemplate`/`ProductVariant` ordinaires en fixture
+demonstrative (REF3)."""
 
 from __future__ import annotations
 
@@ -90,8 +102,31 @@ class Attribute(BaseModel):
 
 
 class AttributeValue(BaseModel):
+    """REF1 (enrichissement referentiel LIFE MDG, cf. plan) : `pantone_code`/
+    `hex_approximation` documentent une valeur d'attribut couleur avec le
+    format de reference **Pantone FHI Cotton TCX** (`NN-NNNN TCX`, ex.
+    `19-4052 TCX`) — SANS jamais charger de valeur colorimetrique
+    proprietaire Pantone (RGB/hex) dans ce depot. `pantone_code` est un
+    simple format structure (regex validee par
+    `services/material_reference.py::validate_pantone_code`, jamais au
+    niveau modele — meme discipline que `CatalogSectorSpec.attributes`,
+    valide en service). `hex_approximation` reste TOUJOURS une saisie
+    manuelle de l'utilisateur (jamais auto-remplie depuis une source
+    Pantone) : l'entreprise doit posseder son propre nuancier physique
+    Cotton TCX pour la correspondance exacte, exactement comme le document
+    source le recommande lui-meme. Cf. reserve legale explicite du plan."""
+
     attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name="values")
     value = models.CharField(max_length=80)
+    pantone_code = models.CharField(max_length=16, blank=True, help_text="Format 'NN-NNNN TCX'.")
+    hex_approximation = models.CharField(
+        max_length=7,
+        blank=True,
+        help_text=(
+            "Approximation hex saisie manuellement — jamais une valeur "
+            "sourcee du nuancier Pantone (reserve legale, cf. plan)."
+        ),
+    )
 
     class Meta:
         db_table = "catalog_attribute_value"
@@ -330,3 +365,63 @@ class CatalogSectorSpec(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} — {self.sector_code}"
+
+
+class CatalogMaterialReference(BaseModel):
+    """REF1 (enrichissement referentiel LIFE MDG, cf. plan) : referentiel
+    normalise de matieres fibres/tissus (coton, PES, polycoton,
+    modacrylique, Nomex, Kevlar, laine, soie, lin, neoprene, Gore-Tex,
+    mesh...), reutilisable d'une variante a l'autre — a la difference de
+    `TextileSpec.composition` (JSONB libre, propre a UNE variante), ce
+    modele documente une liste de reference PARTAGEE que plusieurs
+    `TextileSpec`/produits peuvent citer (par `code`, en texte libre pour
+    l'instant — aucune FK depuis `TextileSpec` : simplification deliberee,
+    cf. `services/material_reference.py`, pas de rupture retroactive sur
+    les fiches textiles deja saisies en JSONB libre).
+
+    `typical_gsm_min`/`typical_gsm_max` : fourchette de grammage indicative
+    (tableau du document source), PAS une specification absolue — varie
+    par fabricant/construction/lavage (disclosed explicitement dans le
+    fixture `materials_reference_mg.json`, meme reserve non-experte que
+    `pcg2005_mg.json`/`textile_mg.json`).
+
+    `supplier_reference` : texte libre (ex. "DuPont", "W.L. Gore") —
+    documentaire, JAMAIS une FK vers `apps.partners.models.Partner` : ce
+    sont des references industrielles generiques (marques de matiere),
+    pas necessairement des fournisseurs reels du tenant tant qu'aucune
+    relation commerciale n'existe (regle de couplage n°1)."""
+
+    NATURE_NATURELLE_CELLULOSIQUE = "naturelle_cellulosique"
+    NATURE_NATURELLE_PROTEIQUE = "naturelle_proteique"
+    NATURE_SYNTHETIQUE_HYDROPHOBE = "synthetique_hydrophobe"
+    NATURE_SYNTHETIQUE_FR = "synthetique_fr"
+    NATURE_MELANGE = "melange"
+    NATURE_CAOUTCHOUC = "caoutchouc"
+    NATURE_MEMBRANE = "membrane"
+    NATURE_CHOICES = [
+        (NATURE_NATURELLE_CELLULOSIQUE, "Naturelle cellulosique"),
+        (NATURE_NATURELLE_PROTEIQUE, "Naturelle proteique"),
+        (NATURE_SYNTHETIQUE_HYDROPHOBE, "Synthetique hydrophobe"),
+        (NATURE_SYNTHETIQUE_FR, "Synthetique ignifuge (FR)"),
+        (NATURE_MELANGE, "Melange"),
+        (NATURE_CAOUTCHOUC, "Caoutchouc"),
+        (NATURE_MEMBRANE, "Membrane technique"),
+    ]
+
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=120)
+    nature = models.CharField(max_length=32, choices=NATURE_CHOICES)
+    typical_gsm_min = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, help_text="Grammage min, g/m²"
+    )
+    typical_gsm_max = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, help_text="Grammage max, g/m²"
+    )
+    usage_notes = models.TextField(blank=True)
+    supplier_reference = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        db_table = "catalog_material_reference"
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.name}"

@@ -8,8 +8,16 @@ from django.shortcuts import get_object_or_404
 from ninja import File, Router, Schema
 from ninja.files import UploadedFile
 
-from apps.catalog.models import Category, ProductTemplate, ProductVariant, UnitOfMeasure
+from apps.catalog.models import (
+    AttributeValue,
+    CatalogMaterialReference,
+    Category,
+    ProductTemplate,
+    ProductVariant,
+    UnitOfMeasure,
+)
 from apps.catalog.services.catalog_import import import_catalog_xlsx
+from apps.catalog.services.material_reference import set_attribute_value_color_reference
 from apps.catalog.services.pricing import get_price
 from apps.catalog.services.sector_specs import create_sector_spec
 from apps.catalog.services.variants import generate_variants, set_variant_attributes
@@ -32,6 +40,16 @@ class VariantAttributesIn(Schema):
 class SectorSpecIn(Schema):
     sector_code: str
     attributes: dict
+
+
+class ColorReferenceIn(Schema):
+    """REF1 (enrichissement referentiel LIFE MDG) : `pantone_code` valide
+    par `services/material_reference.py` (format `NN-NNNN TCX`, jamais de
+    valeur Pantone proprietaire), `hex_approximation` toujours saisie
+    manuellement par l'utilisateur."""
+
+    pantone_code: str = ""
+    hex_approximation: str = ""
 
 
 def _serialize_template(template: ProductTemplate) -> dict:
@@ -119,6 +137,52 @@ def create_sector_spec_endpoint(request, variant_id: str, payload: SectorSpecIn)
         "id": str(spec.id),
         "sector_code": spec.sector_code,
         "attributes": spec.attributes,
+    }
+
+
+@router.get("/catalog/material-references")
+@require_permission("catalog.view_catalogmaterialreference")
+def list_material_references(request):
+    """REF1 (enrichissement referentiel LIFE MDG) : referentiel de matieres
+    fibres/tissus reutilisable (~14 entrees fixture, cf.
+    `fixtures/materials_reference_mg.json`), utilise pour peupler une liste
+    de selection dans la fiche variante (aucune FK — cf. docstring
+    `CatalogMaterialReference`)."""
+    return {
+        "results": [
+            {
+                "id": str(m.id),
+                "code": m.code,
+                "name": m.name,
+                "nature": m.nature,
+                "typical_gsm_min": str(m.typical_gsm_min) if m.typical_gsm_min else None,
+                "typical_gsm_max": str(m.typical_gsm_max) if m.typical_gsm_max else None,
+            }
+            for m in CatalogMaterialReference.objects.filter(is_active=True).order_by("code")
+        ]
+    }
+
+
+@router.post("/catalog/attribute-values/{attribute_value_id}/color-reference")
+@require_permission("catalog.change_attributevalue")
+def set_color_reference_endpoint(request, attribute_value_id: str, payload: ColorReferenceIn):
+    """REF1 (enrichissement referentiel LIFE MDG) : fixe le format de
+    reference Pantone (`pantone_code`, `NN-NNNN TCX`) et l'approximation
+    hex manuelle d'une `AttributeValue` de couleur — reserve legale
+    explicite, cf. `services/material_reference.py`."""
+    attribute_value = get_object_or_404(AttributeValue, id=attribute_value_id)
+    try:
+        updated = set_attribute_value_color_reference(
+            attribute_value,
+            pantone_code=payload.pantone_code,
+            hex_approximation=payload.hex_approximation,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return {
+        "id": str(updated.id),
+        "pantone_code": updated.pantone_code,
+        "hex_approximation": updated.hex_approximation,
     }
 
 

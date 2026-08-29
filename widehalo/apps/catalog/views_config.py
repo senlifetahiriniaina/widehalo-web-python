@@ -19,6 +19,7 @@ from apps.catalog.models import (
     Attribute,
     AttributeValue,
     CatalogCertification,
+    CatalogMaterialReference,
     CatalogStandard,
     Category,
     Packaging,
@@ -28,6 +29,7 @@ from apps.catalog.models import (
     UnitConversion,
     UnitOfMeasure,
 )
+from apps.catalog.services.material_reference import set_attribute_value_color_reference
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -76,11 +78,22 @@ def config_attributes(request: HttpRequest) -> HttpResponse:
                 attribute = Attribute.objects.get(
                     id=request.POST.get("attribute_id"), tenant=tenant
                 )
-                AttributeValue.objects.create(
+                value = AttributeValue.objects.create(
                     tenant=tenant,
                     attribute=attribute,
                     value=request.POST.get("value", ""),
                 )
+                # REF1 (enrichissement referentiel LIFE MDG) : format de
+                # reference Pantone optionnel, jamais de valeur
+                # proprietaire chargee (cf. services/material_reference.py).
+                pantone_code = request.POST.get("pantone_code", "")
+                hex_approximation = request.POST.get("hex_approximation", "")
+                if pantone_code or hex_approximation:
+                    set_attribute_value_color_reference(
+                        value,
+                        pantone_code=pantone_code,
+                        hex_approximation=hex_approximation,
+                    )
             else:
                 Attribute.objects.create(tenant=tenant, name=request.POST.get("name", ""))
         except Attribute.DoesNotExist:
@@ -307,6 +320,45 @@ def config_certifications(request: HttpRequest) -> HttpResponse:
             "certifications": certifications,
             "variants": variants,
             "standards": standards,
+            "error": error,
+        },
+    )
+
+
+@login_required
+def config_material_references(request: HttpRequest) -> HttpResponse:
+    """REF1 (enrichissement referentiel LIFE MDG, cf. plan) : referentiel
+    de matieres fibres/tissus reutilisable (coton, PES, Nomex, Kevlar...),
+    utilisable comme liste de reference dans la fiche variante (texte
+    libre `TextileSpec.material`, aucune FK — cf. docstring
+    `CatalogMaterialReference`). Meme patron qu'un `config_standards`."""
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        try:
+            CatalogMaterialReference.objects.create(
+                tenant=tenant,
+                code=request.POST.get("code", ""),
+                name=request.POST.get("name", ""),
+                nature=request.POST.get("nature", ""),
+                typical_gsm_min=request.POST.get("typical_gsm_min") or None,
+                typical_gsm_max=request.POST.get("typical_gsm_max") or None,
+                usage_notes=request.POST.get("usage_notes", ""),
+                supplier_reference=request.POST.get("supplier_reference", ""),
+            )
+        except (ValidationError, InvalidOperation, IntegrityError) as exc:
+            error = str(exc)
+
+    materials = CatalogMaterialReference.objects.filter(tenant=tenant, is_active=True).order_by(
+        "code"
+    )
+    return render(
+        request,
+        "catalog/config_material_references.html",
+        {
+            "materials": materials,
+            "nature_choices": CatalogMaterialReference.NATURE_CHOICES,
             "error": error,
         },
     )

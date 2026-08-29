@@ -26,4 +26,9 @@ urlpatterns = [
         views_config.config_certifications,
         name="config_certifications",
     ),
+    path(
+        "config/material-references/",
+        views_config.config_material_references,
+        name="config_material_references",
+    ),
 ]
