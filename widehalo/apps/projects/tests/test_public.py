@@ -38,9 +38,7 @@ def test_link_project_to_objective_then_read_summary() -> None:
             period_start=datetime.date(2026, 1, 1),
             period_end=datetime.date(2026, 12, 31),
         )
-        add_key_result(
-            objective, metric_name="CA MGA", target_value=Decimal("100"), unit="MGA"
-        )
+        add_key_result(objective, metric_name="CA MGA", target_value=Decimal("100"), unit="MGA")
 
         link_project_to_objective(project, objective.id)
         project.refresh_from_db()
