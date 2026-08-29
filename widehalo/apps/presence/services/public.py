@@ -13,7 +13,13 @@ from uuid import UUID
 
 from django.db.models import Sum
 
-from apps.presence.models import PrsAbsence, PrsEmployee, PrsLeaveBalance, PrsOvertime
+from apps.presence.models import (
+    PrsAbsence,
+    PrsDepartment,
+    PrsEmployee,
+    PrsLeaveBalance,
+    PrsOvertime,
+)
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -107,6 +113,26 @@ def get_period_absence_summary(
         {"category": category, "pay_rate_pct": Decimal(rate), "days": days}
         for (category, rate), days in totals.items()
     ]
+
+
+def get_department_display_name(tenant: Tenant, department_id: UUID) -> str | None:
+    """Nouveau gap ajoute pendant le chantier `strategy` (`StgObjective.
+    department_id` reference un departement `presence` par UUID, jamais une
+    FK Django — regle de couplage n°1). Retourne `None` si le departement
+    n'existe pas/plus (jamais une chaine vide qui masquerait l'absence de
+    donnee)."""
+    department = PrsDepartment.objects.filter(tenant=tenant, id=department_id).first()
+    return department.name if department else None
+
+
+def get_department_ids_managed_by(tenant: Tenant, user: User) -> list[UUID]:
+    """Nouveau gap ajoute pendant le chantier `strategy` (RBAC N3 : un
+    responsable de departement ne gere QUE les objectifs departement de son
+    ou ses propres departements, cf. `apps.strategy.services.scoping`) —
+    tous les `PrsDepartment` dont `user` est `manager`."""
+    return list(
+        PrsDepartment.objects.filter(tenant=tenant, manager=user).values_list("id", flat=True)
+    )
 
 
 def is_employee_absent_on(tenant: Tenant, employee_id: UUID, *, date: dt.date) -> bool:

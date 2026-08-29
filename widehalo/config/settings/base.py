@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.presence",
     "apps.payroll",
     "apps.reporting",
+    "apps.strategy",
 ]
 
 MIDDLEWARE = [

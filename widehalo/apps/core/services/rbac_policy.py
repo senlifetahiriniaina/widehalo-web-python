@@ -51,6 +51,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "add", "change"},
         "logistics": {"view", "add", "change"},
         "presence": {"view", "add", "change"},
+        "strategy": {"view", "add", "change"},
         # §5.11 reporting : catalogue/generation pour tous les roles
         # (le filtrage reel par rapport passe par `RegisteredReport.
         # permission`, deja porte par le module cible — ex. un rapport
@@ -75,6 +76,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "change"},
         "logistics": {"view", "change"},
         "presence": {"view", "change"},
+        "strategy": {"view", "add", "change"},
         "reporting": {"view", "add", "change"},
     },
     "comptable": {
@@ -82,6 +84,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view"},
         "catalog": {"view"},
         "reporting": {"view", "add"},
+        # Pas de responsabilite de departement identifiee pour ce role
+        # (cf. `apps.strategy.services.scoping.DEPARTMENT_HEAD_ROLES`) :
+        # "add" seul autorise la creation de ses propres objectifs
+        # individuels, jamais un objectif departement/entreprise.
+        "strategy": {"view", "add"},
     },
     "commercial": {
         "crm": {"view", "add", "change"},
@@ -89,6 +96,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
         "sales": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        "strategy": {"view", "add"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
@@ -102,6 +110,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `rh` plus bas pour la decision de conception complete.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        # Responsable de departement identifie (cf. plan `strategy`,
+        # `DEPARTMENT_HEAD_ROLES`) : cree/gere les objectifs departement
+        # scopes a son propre departement (`apply_scope`/`scope_objectives_
+        # for_user`), en plus de ses objectifs individuels.
+        "strategy": {"view", "add", "change"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -112,6 +125,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # Retenu comme responsable de departement "achats" faute d'un role
+        # dedie (cf. plan `strategy`, a verifier/affiner si un role
+        # "resp_achats" est cree plus tard).
+        "strategy": {"view", "add", "change"},
     },
     "resp_production": {
         "mrp": {"view", "add", "change"},
@@ -120,6 +137,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        "strategy": {"view", "add", "change"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
@@ -129,6 +147,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        "strategy": {"view", "add"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
@@ -143,6 +162,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # role dedie "logisticien" dans les 11 roles acquis du CDC.
         "logistics": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        "strategy": {"view", "add"},
     },
     "rh": {
         # Domaine cible = `presence` + `payroll` (ce chantier, RG-PAY-9)
@@ -150,6 +170,9 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "presence": {"view", "add", "change"},
         "payroll": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # Responsable de departement identifie (cf. plan `strategy`) —
+        # idem `resp_commercial` ci-dessus.
+        "strategy": {"view", "add", "change"},
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
@@ -168,6 +191,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "reporting": {"view"},
         "presence": {"view"},
         "payroll": {"view"},
+        # "add" : un collaborateur cree ses propres objectifs individuels
+        # (RBAC `strategy`, cf. plan) — le scoping N3 (`scope_objectives_
+        # for_user`) restreint ensuite la LECTURE/MODIFICATION aux seuls
+        # objectifs dont il est createur ou owner.
+        "strategy": {"view", "add"},
     },
 }
 
