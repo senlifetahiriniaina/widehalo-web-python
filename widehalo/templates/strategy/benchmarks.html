@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Referentiel sectoriel" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Referentiel sectoriel" %}</h1>
+  <form method="get">
+    <select name="sector" onchange="this.form.submit()">
+      {% for value, label in sectors %}
+        <option value="{{ value }}" {% if value == current_sector %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "KPI" %}</th>
+        <th>{% trans "Cible min" %}</th>
+        <th>{% trans "Cible max" %}</th>
+        <th>{% trans "Unite" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for benchmark in benchmarks %}
+        <tr>
+          <td>{{ benchmark.kpi_label }}</td>
+          <td>{{ benchmark.target_min|default:"—" }}</td>
+          <td>{{ benchmark.target_max|default:"—" }}</td>
+          <td>{{ benchmark.unit }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun benchmark charge pour ce secteur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

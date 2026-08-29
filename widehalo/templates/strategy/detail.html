@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ objective.title }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ objective.title }}</h1>
+  <p>{% trans "Reference" %}: {{ objective.reference }}</p>
+  <p>{% trans "Niveau" %}: {{ objective.get_level_display }}</p>
+  <p>{% trans "Statut" %}: {{ objective.get_status_display }}</p>
+  <p>{{ objective.description }}</p>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Resultats cles" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Indicateur" %}</th>
+        <th>{% trans "Cible" %}</th>
+        <th>{% trans "Valeur actuelle" %}</th>
+        <th>{% trans "Progression" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key_result in key_results %}
+        <tr>
+          <td>{{ key_result.metric_name }}</td>
+          <td>{{ key_result.target_value }}</td>
+          <td>{{ key_result.current_value }}</td>
+          <td>{{ key_result.progress_pct }}%</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter un resultat cle" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_key_result">
+    <input type="text" name="metric_name" placeholder="{% trans 'Indicateur' %}" required>
+    <input type="text" name="target_value" placeholder="{% trans 'Cible' %}" required>
+    <input type="text" name="unit" placeholder="{% trans 'Unite' %}">
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+
+  <h3>{% trans "Ajouter un check-in" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_check_in">
+    <select name="key_result_id">
+      {% for key_result in key_results %}
+        <option value="{{ key_result.id }}">{{ key_result.metric_name }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="date" required>
+    <input type="text" name="value" placeholder="{% trans 'Valeur' %}" required>
+    <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}">
+    <button type="submit">{% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

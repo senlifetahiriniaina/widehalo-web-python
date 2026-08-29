@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Objectifs (OKR)" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Objectifs (OKR)" %}</h1>
+  <p><a href="{% url 'strategy:create' %}">{% trans "Nouvel objectif" %}</a></p>
+  <p><a href="{% url 'strategy:benchmarks' %}">{% trans "Referentiel sectoriel" %}</a></p>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

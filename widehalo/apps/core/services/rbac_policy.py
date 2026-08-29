@@ -84,11 +84,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view"},
         "catalog": {"view"},
         "reporting": {"view", "add"},
-        # Pas de responsabilite de departement identifiee pour ce role
-        # (cf. `apps.strategy.services.scoping.DEPARTMENT_HEAD_ROLES`) :
-        # "add" seul autorise la creation de ses propres objectifs
-        # individuels, jamais un objectif departement/entreprise.
-        "strategy": {"view", "add"},
+        # Pas de responsabilite de departement identifiee pour ce role (cf.
+        # `apps.strategy.services.scoping.DEPARTMENT_HEAD_ROLES`) : "change"
+        # accorde ICI est un droit N2 large (comme pour tous les roles
+        # ci-dessous), restreint en pratique par le scoping N3
+        # (`scope_objectives_for_user`/`assert_can_manage_level`) a SES
+        # PROPRES objectifs individuels — jamais un objectif departement/
+        # entreprise, ni ceux d'un tiers.
+        "strategy": {"view", "add", "change"},
     },
     "commercial": {
         "crm": {"view", "add", "change"},
@@ -96,7 +99,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
         "sales": {"view", "add", "change"},
         "reporting": {"view", "add"},
-        "strategy": {"view", "add"},
+        "strategy": {"view", "add", "change"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
@@ -147,7 +150,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
         "reporting": {"view", "add"},
-        "strategy": {"view", "add"},
+        "strategy": {"view", "add", "change"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
@@ -162,7 +165,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # role dedie "logisticien" dans les 11 roles acquis du CDC.
         "logistics": {"view", "add", "change"},
         "reporting": {"view", "add"},
-        "strategy": {"view", "add"},
+        "strategy": {"view", "add", "change"},
     },
     "rh": {
         # Domaine cible = `presence` + `payroll` (ce chantier, RG-PAY-9)
@@ -195,7 +198,7 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (RBAC `strategy`, cf. plan) — le scoping N3 (`scope_objectives_
         # for_user`) restreint ensuite la LECTURE/MODIFICATION aux seuls
         # objectifs dont il est createur ou owner.
-        "strategy": {"view", "add"},
+        "strategy": {"view", "add", "change"},
     },
 }
 

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouvel objectif" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouvel objectif" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="title">{% trans "Titre" %}</label>
+      <input id="title" type="text" name="title" required>
+    </div>
+    <div class="form-field">
+      <label for="level">{% trans "Niveau" %}</label>
+      <select id="level" name="level">
+        {% for value, label in levels %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    <div class="form-field">
+      <label for="department_id">{% trans "Departement (UUID, si applicable)" %}</label>
+      <input id="department_id" type="text" name="department_id">
+    </div>
+    <div class="form-field">
+      <label for="period_start">{% trans "Debut de periode" %}</label>
+      <input id="period_start" type="date" name="period_start" required>
+    </div>
+    <div class="form-field">
+      <label for="period_end">{% trans "Fin de periode" %}</label>
+      <input id="period_end" type="date" name="period_end" required>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}
