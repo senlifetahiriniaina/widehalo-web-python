@@ -118,3 +118,162 @@ class FinFinancingPlanLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.get_source_display()}: {self.amount_mga}"
+
+
+class FinForecastScenario(BaseModel, ReferenceMixin):
+    """Scenario de prevision (FIN2) rattache — optionnellement — a un
+    dossier de financement : conteneur des lignes de compte de resultat/
+    bilan/tresorerie previsionnels (`FinForecastScenarioLine`).
+
+    **Simplification assumee et disclosed** : contrairement a l'intention
+    initiale du plan (« alimente par `sales.services.public` pour les
+    previsions de vente ET `mrp`/`payroll`/`accounting` pour les couts/
+    projections »), le sous-sequencement final (cf. plan, section
+    "Sous-sequencement") a restreint l'auto-alimentation reelle en LIGNES
+    DE SCENARIO (montants MGA) a `payroll.services.public.
+    get_payroll_mass_projection` (charges de personnel) et `accounting.
+    services.public.get_treasury_forecast_summary` (tresorerie) — cf.
+    `services/forecast.py::populate_income_statement_from_payroll_
+    projection`/`populate_cash_flow_from_treasury_forecast`.
+    `sales.services.public.get_forecast_summary` renvoie une prevision en
+    UNITES (`qty_forecast`), jamais en MGA — `financing` NE DECLARE PAS
+    `catalog` comme dependance (cf. `module.py`), necessaire pour valoriser
+    ces unites en chiffre d'affaires previsionnel. Plutot que d'inventer un
+    prix ou d'ajouter une dependance non prevue par le plan, la prevision
+    de vente est affichee comme section INFORMATIVE (volumes, pas de
+    montant) directement dans le rapport composite FIN-DOSSIER (FIN4,
+    `services/reports.py`), jamais materialisee en `FinForecastScenarioLine`
+    — a faire evoluer si/quand `financing` declare `catalog` comme
+    dependance reelle. Les lignes de chiffre d'affaires previsionnel
+    (produits) du compte de resultat restent donc, en v1, une SAISIE
+    MANUELLE (`add_scenario_line`), comme toute ligne de ce scenario."""
+
+    STATEMENT_INCOME = "income_statement"
+    STATEMENT_BALANCE_SHEET = "balance_sheet"
+    STATEMENT_CASH_FLOW = "cash_flow"
+    STATEMENT_CHOICES = [
+        (STATEMENT_INCOME, _("Compte de resultat previsionnel")),
+        (STATEMENT_BALANCE_SHEET, _("Bilan previsionnel")),
+        (STATEMENT_CASH_FLOW, _("Tresorerie previsionnelle")),
+    ]
+
+    loan_application = models.ForeignKey(
+        FinLoanApplication,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="forecast_scenarios",
+    )
+    name = models.CharField(max_length=255)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "fin_forecast_scenario"
+
+    def __str__(self) -> str:
+        return self.reference or self.name
+
+
+class FinForecastScenarioLine(BaseModel):
+    """Ligne d'un scenario de prevision — `statement_type` distingue les 3
+    etats financiers previsionnels demandes par le plan (compte de
+    resultat/bilan/tresorerie), tous portes par le MEME modele de ligne
+    (memes 4 champs : libelle, periode, montant, source) plutot que 3
+    modeles paralleles quasi-identiques — simplification assumee, meme
+    esprit que `AccBudgetLine` (A14) qui ne distingue pas non plus les
+    natures de charge/produit par un modele different.
+
+    **Convention de signe** (documentee, jamais imposee par une contrainte
+    BDD) : `amount_mga` positif = produit/entree/actif, negatif = charge/
+    sortie/passif — coherent avec la convention deja en usage dans
+    `accounting.services.public.create_customer_invoice_from_source`
+    (lignes signees, jamais 2 colonnes debit/credit dans cet objet simple).
+
+    `source` distingue une ligne saisie MANUELLEMENT (defaut) d'une ligne
+    injectee automatiquement par un des 2 gaps `services.public` cites
+    dans la docstring `FinForecastScenario` — jamais recalculee sur place,
+    une regeneration re-appelle simplement la fonction de peuplement, qui
+    supprime puis recree ses propres lignes marquees de la meme `source`
+    (cf. `services/forecast.py`)."""
+
+    SOURCE_MANUAL = "manuel"
+    SOURCE_PAYROLL_PROJECTION = "payroll_projection"
+    SOURCE_TREASURY_FORECAST = "treasury_forecast"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, _("Saisie manuelle")),
+        (SOURCE_PAYROLL_PROJECTION, _("Projection masse salariale (payroll)")),
+        (SOURCE_TREASURY_FORECAST, _("Tresorerie previsionnelle (accounting)")),
+    ]
+
+    scenario = models.ForeignKey(
+        FinForecastScenario, on_delete=models.CASCADE, related_name="lines"
+    )
+    statement_type = models.CharField(max_length=32, choices=FinForecastScenario.STATEMENT_CHOICES)
+    label = models.CharField(max_length=255)
+    # Format "AAAA-MM", meme convention que `sales.SalesForecast.period`.
+    period = models.CharField(max_length=7)
+    amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+
+    class Meta:
+        db_table = "fin_forecast_scenario_line"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.period}): {self.amount_mga}"
+
+
+class FinGuarantee(BaseModel, ReferenceMixin):
+    """Surete rattachee a un dossier de financement (FIN2). La regle
+    "valeur estimee >= 120% du credit" (observee au cadrage, cf. plan)
+    n'est PAS une contrainte de modele/creation (une premiere surete peut
+    legitimement etre insuffisante avant qu'une seconde ne soit ajoutee) :
+    verifiee en service (`services/guarantees.py::check_guarantee_
+    coverage`), meme discipline "aide au diagnostic, jamais un blocage
+    rigide" que `validate_financing_plan_balance` (FIN1).
+
+    Document juridique attache via `core.services.documents.store_document`
+    (`content_object=guarantee`) — pas de FK dediee ici, le lien passe par
+    `content_type`/`object_id` generiques deja portes par `core.Document`
+    (regle de nommage generic FK n2 du projet)."""
+
+    FORMALIZATION_PENDING = "a_formaliser"
+    FORMALIZATION_IN_PROGRESS = "en_cours"
+    FORMALIZATION_DONE = "formalisee"
+    FORMALIZATION_CHOICES = [
+        (FORMALIZATION_PENDING, _("A formaliser")),
+        (FORMALIZATION_IN_PROGRESS, _("En cours de formalisation")),
+        (FORMALIZATION_DONE, _("Formalisee")),
+    ]
+
+    GUARANTEE_TYPE_MORTGAGE = "hypotheque"
+    GUARANTEE_TYPE_PLEDGE = "nantissement"
+    GUARANTEE_TYPE_PERSONAL_SURETY = "caution_personnelle"
+    GUARANTEE_TYPE_BANK_GUARANTEE = "caution_bancaire"
+    GUARANTEE_TYPE_LIEN = "gage"
+    GUARANTEE_TYPE_OTHER = "autre"
+    GUARANTEE_TYPE_CHOICES = [
+        (GUARANTEE_TYPE_MORTGAGE, _("Hypotheque")),
+        (GUARANTEE_TYPE_PLEDGE, _("Nantissement")),
+        (GUARANTEE_TYPE_PERSONAL_SURETY, _("Caution personnelle")),
+        (GUARANTEE_TYPE_BANK_GUARANTEE, _("Caution bancaire")),
+        (GUARANTEE_TYPE_LIEN, _("Gage")),
+        (GUARANTEE_TYPE_OTHER, _("Autre surete")),
+    ]
+
+    loan_application = models.ForeignKey(
+        FinLoanApplication, on_delete=models.CASCADE, related_name="guarantees"
+    )
+    type = models.CharField(max_length=32, choices=GUARANTEE_TYPE_CHOICES)  # noqa: A003
+    asset_description = models.TextField(blank=True)
+    estimated_value_mga = models.DecimalField(max_digits=18, decimal_places=4)
+    formalization_status = models.CharField(
+        max_length=16, choices=FORMALIZATION_CHOICES, default=FORMALIZATION_PENDING
+    )
+
+    class Meta:
+        db_table = "fin_guarantee"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
