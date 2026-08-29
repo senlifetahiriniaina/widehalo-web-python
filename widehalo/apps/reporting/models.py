@@ -2,7 +2,7 @@
 registre en memoire `apps.core.services.reports_registry` — pas une
 redefinition : le code/module/permission/formats viennent tous du
 `register_report()` appele par chaque module metier, `sync_report_
-definitions()` (services/public.py) se contente de creer/mettre a jour les
+definitions()` (services/catalog.py) se contente de creer/mettre a jour les
 lignes correspondantes. Le seul champ que ce miroir ajoute au registre est
 `is_enabled`, une bascule PAR TENANT (RPT-5 : un tenant peut desactiver un
 rapport de son catalogue sans toucher au code) — raison d'etre de cette
@@ -60,3 +60,58 @@ class RptLayout(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class RptJob(BaseModel):
+    """Suivi d'une generation de rapport (RPT-6 asynchronisme, RPT-9
+    reproductibilite). Etats geres par simple `CharField` reecrit via
+    `.save(update_fields=[...])`, PAS par django-fsm-2 : les transitions
+    sont exclusivement pilotees par le systeme lui-meme (jamais une decision
+    utilisateur gardee par permission, contrairement a un workflow metier
+    FSM) — meme choix deja fait pour `core.EventLog.status` (cf.
+    `apps/core/models/event.py`), aucune raison de s'en ecarter ici."""
+
+    STATE_QUEUED = "queued"
+    STATE_RUNNING = "running"
+    STATE_DONE = "done"
+    STATE_FAILED = "failed"
+    STATE_CHOICES = [
+        (STATE_QUEUED, "En attente"),
+        (STATE_RUNNING, "En cours"),
+        (STATE_DONE, "Termine"),
+        (STATE_FAILED, "Echec"),
+    ]
+
+    FORMAT_PDF = "pdf"
+    FORMAT_XLSX = "xlsx"
+    FORMAT_CSV = "csv"
+    FORMAT_JSON = "json"
+    FORMAT_CHOICES = [
+        (FORMAT_PDF, "PDF"),
+        (FORMAT_XLSX, "XLSX"),
+        (FORMAT_CSV, "CSV"),
+        (FORMAT_JSON, "JSON"),
+    ]
+
+    report_code = models.CharField(max_length=64, db_index=True)
+    params = models.JSONField(default=dict, blank=True)
+    format = models.CharField(max_length=8, choices=FORMAT_CHOICES)
+    lang = models.CharField(max_length=5, default="fr")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_QUEUED)
+    requested_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    file = models.FileField(upload_to="reports/jobs/", null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    # RPT-6 : purge a 7 jours (meme patron que `sandbox.purge_expired_
+    # sandboxes`) — positionne a la creation, jamais recalcule.
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "rpt_job"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.report_code} ({self.state})"

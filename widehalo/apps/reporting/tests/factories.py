@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import factory
 
-from apps.reporting.models import RptDefinition, RptLayout
+from apps.reporting.models import RptDefinition, RptJob, RptLayout
 
 
 class RptDefinitionFactory(factory.django.DjangoModelFactory):
@@ -25,3 +25,13 @@ class RptLayoutFactory(factory.django.DjangoModelFactory):
     code = factory.Sequence(lambda n: f"LAYOUT-{n}")
     name = "Gabarit de test"
     template_path = "reports/base.html"
+
+
+class RptJobFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = RptJob
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    report_code = "TEST-RPT"
+    params = factory.LazyFunction(dict)
+    format = RptJob.FORMAT_JSON

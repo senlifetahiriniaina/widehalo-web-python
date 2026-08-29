@@ -277,6 +277,19 @@ BUDGET_MAX_MODELS = 220
 BUDGET_MAX_ENDPOINTS = 600
 BUDGET_MAX_SCREENS = 200
 
+# §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
+# au-dela de ce nombre de secondes ESTIME (cf. `apps.reporting.services.
+# engine._should_run_async` — estimation grossiere, jamais une mesure
+# reelle) un rapport part en asynchrone via `core.tasks.enqueue()` plutot
+# que d'etre genere dans le thread de la requete web. Abaisse a l'extreme en
+# test (`config.settings.test`) pour demontrer le mecanisme bout en bout
+# sans avoir a materialiser un vrai jeu de 50 000 lignes en fixture —
+# disclosed, cf. docstring `engine.py`.
+REPORTING_ASYNC_THRESHOLD_SECONDS = 30.0
+# RPT-6 : duree de conservation du fichier genere avant purge (meme patron
+# que `sandbox.DEFAULT_EXPIRY_DAYS`) — 7 jours conformement au CDC.
+REPORTING_JOB_RETENTION = timedelta(days=7)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

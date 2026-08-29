@@ -79,3 +79,74 @@ def test_catalog_endpoint_requires_authentication() -> None:
     client = Client()
     response = client.get("/api/v1/reporting/catalog")
     assert response.status_code == 401
+
+
+def _grant(user: User, *, app_label: str, codenames: list[str]) -> None:
+    group, _ = Group.objects.get_or_create(name=f"reporting-api-test-{'-'.join(codenames)}")
+    group.permissions.add(
+        *Permission.objects.filter(content_type__app_label=app_label, codename__in=codenames)
+    )
+    user.groups.add(group)
+
+
+def test_generate_endpoint_denies_when_missing_underlying_report_permission() -> None:
+    register_report(
+        code="RPT-TEST-API-GEN-DENY",
+        module="accounting",
+        label="Gen deny",
+        permission="accounting.view_accaccount",
+        render_rows=_rows,
+    )
+    tenant = Tenant.objects.create(code="RPT-API-DENY", name="Reporting API Deny Tenant")
+    user = User.objects.create_user(email="rpt-api-deny@example.com", password="Str0ngPassw0rd!23")
+    _grant(user, app_label="reporting", codenames=["add_rptjob", "view_rptjob"])
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    response = client.post(
+        "/api/v1/reporting/generate",
+        {"code": "RPT-TEST-API-GEN-DENY", "format": "json"},
+        content_type="application/json",
+        **_headers(token, str(tenant.id)),
+    )
+    assert response.status_code == 403
+
+
+def test_generate_status_and_download_round_trip() -> None:
+    register_report(
+        code="RPT-TEST-API-GEN-OK",
+        module="reporting",
+        label="Gen ok",
+        permission="reporting.view_rptdefinition",
+        render_rows=_rows,
+        fields=("a",),
+    )
+    tenant = Tenant.objects.create(code="RPT-API-OK", name="Reporting API OK Tenant")
+    user = User.objects.create_user(email="rpt-api-ok@example.com", password="Str0ngPassw0rd!23")
+    _grant(
+        user,
+        app_label="reporting",
+        codenames=["add_rptjob", "view_rptjob", "view_rptdefinition"],
+    )
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    generate_response = client.post(
+        "/api/v1/reporting/generate",
+        {"code": "RPT-TEST-API-GEN-OK", "format": "csv"},
+        content_type="application/json",
+        **headers,
+    )
+    assert generate_response.status_code == 200
+    job_id = generate_response.json()["id"]
+    assert generate_response.json()["state"] == "done"
+
+    status_response = client.get(f"/api/v1/reporting/jobs/{job_id}", **headers)
+    assert status_response.status_code == 200
+    assert status_response.json()["state"] == "done"
+
+    download_response = client.get(f"/api/v1/reporting/jobs/{job_id}/download", **headers)
+    assert download_response.status_code == 200
+    assert b"a" in download_response.content

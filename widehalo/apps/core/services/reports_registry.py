@@ -23,8 +23,8 @@ if TYPE_CHECKING:
 # Un renderer recoit les parametres bruts du rapport (deja valides cote
 # appelant) et l'utilisateur demandeur (pour le scoping RBAC/N3 propre au
 # module, ex. `sales.margin_report(role_codes=...)`).
-RowsRenderer = Callable[[dict[str, Any], "User"], list[dict[str, Any]]]
-PdfRenderer = Callable[[dict[str, Any], "User"], bytes]
+RowsRenderer = Callable[[dict[str, Any], "User | None"], list[dict[str, Any]]]
+PdfRenderer = Callable[[dict[str, Any], "User | None"], bytes]
 
 
 @dataclass(frozen=True)

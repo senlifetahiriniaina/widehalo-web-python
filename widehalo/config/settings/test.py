@@ -17,6 +17,12 @@ Q_CLUSTER = {  # noqa: F405
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
+# §5.11 reporting RPT-6 : seuil abaisse a l'extreme pour demontrer le
+# mecanisme d'asynchronisme (test d'acceptance n°4) sans materialiser
+# 50 000 lignes reelles en fixture — cf. docstring `apps.reporting.services.
+# engine`.
+REPORTING_ASYNC_THRESHOLD_SECONDS = 0.01
+
 CHANNEL_LAYERS = {
     "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
 }
