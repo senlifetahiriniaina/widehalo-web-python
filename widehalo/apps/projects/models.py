@@ -4,10 +4,12 @@ modulith. Cf. plan, section « Module `projects` (Gestion de projets) »,
 sous-sequencement PJ1-PJ15. **PJ1+PJ2** : squelette d'app + les 2 modeles
 de hierarchie unifiee (`PrjProject`, `PrjTask`, PJ1) + `PrjTaskDependency`
 (PJ2, dependances entre taches/detection de cycle/Gantt SVG/chemin
-critique CPM/endpoint PATCH drag-and-drop des dates) — les 12 modeles
-restants (`PrjSprint`, `PrjBudgetLine`, `PrjTimeEntry`, `PrjTeamMember`,
-`PrjCustomFieldDefinition`, `PrjWikiPage`, `PrjGuestAccess`, ...) arrivent
-aux etapes PJ3-PJ14.
+critique CPM/endpoint PATCH drag-and-drop des dates) ; PJ4 (`PrjBudgetLine`,
+EVM) ; PJ5 (`PrjInvoicingRecord`, facturation multi-modes) ; PJ6 (`PrjSprint`,
+backlog agile/burndown/velocite, cf. sa propre docstring plus bas et la
+section "Etat d'avancement — PJ6 TERMINE" du plan) — les modeles restants
+(`PrjTimeEntry`, `PrjTeamMember`, `PrjCustomFieldDefinition`, `PrjWikiPage`,
+`PrjGuestAccess`, ...) arrivent aux etapes PJ7-PJ14.
 
 Dependances declarees (`module.py`) : `core`, `partners`, `accounting`,
 `strategy` — mais **aucune n'est reellement consommee a ce stade** (regle
@@ -185,9 +187,19 @@ class PrjTask(BaseModel, ReferenceMixin):
     parent = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.CASCADE, related_name="children"
     )
-    # PJ6 ajoutera `sprint = FK("projects.PrjSprint", ...)` par migration
-    # additive — cf. docstring de module ci-dessus (option (a) retenue :
-    # champ omis a PJ1, pas de `sprint_id` UUID interimaire).
+    # PJ6 : FK DIRECTE (pas `services.public`) car `PrjSprint` vit dans la
+    # MEME app `projects` — cf. docstring de module ci-dessus (option (a)
+    # retenue a PJ1 : champ omis, pas de `sprint_id` UUID interimaire ;
+    # ajoute ici par une migration additive `AddField`, cf. migration
+    # `0005_sprints_pj6.py`). `null=True`/`blank=True` : une tache reste
+    # assignable/valide meme sans sprint (mode waterfall pur, ou tache du
+    # backlog pas encore planifiee dans un sprint) — `SET_NULL` a la
+    # suppression du sprint plutot que `CASCADE` : supprimer un sprint ne
+    # doit jamais supprimer les taches qu'il contenait, seulement les
+    # detacher (elles retournent au backlog, cf. `get_backlog`).
+    sprint = models.ForeignKey(
+        "projects.PrjSprint", null=True, blank=True, on_delete=models.SET_NULL, related_name="tasks"
+    )
     assignee = models.ForeignKey(
         "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
@@ -429,3 +441,46 @@ class PrjInvoicingRecord(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.project_id} — {self.get_mode_display()} — {self.amount}"
+
+
+class PrjSprint(BaseModel):
+    """Sprint agile (PJ6, "Backlog agile") — 226e/250 modele de ce depot,
+    budget encore largement respecte (cf. `tests/architecture/
+    test_budget.py`). Pas `ReferenceMixin` (meme raisonnement que
+    `PrjTaskDependency`/`PrjBudgetLine` : un sprint se nomme par son
+    `name`, aucun besoin de numero de document dedie type "PRJ-2026-00042").
+
+    Alimente `apps/projects/services/sprints.py` :
+    - un seul sprint `active` a la fois PAR PROJET (regle metier standard
+      agile, verifiee par `start_sprint`, jamais en base par une contrainte
+      DB — un index partiel `UniqueConstraint(project, condition=Q(status=
+      "active"))` aurait ete equivalent, mais la verification applicative
+      permet un message d'erreur explicite nommant le sprint deja actif,
+      plutot qu'une `IntegrityError` brute) ;
+    - `PrjTask.sprint` (FK directe ajoutee sur `PrjTask` par ce meme
+      chantier, cf. docstring de `PrjTask` ci-dessus) rattache une tache a
+      AU PLUS un sprint a la fois — le backlog (`get_backlog`) est defini
+      comme le complement exact (`sprint__isnull=True`)."""
+
+    STATUS_PLANNED = "planned"
+    STATUS_ACTIVE = "active"
+    STATUS_COMPLETED = "completed"
+    STATUS_CHOICES = [
+        (STATUS_PLANNED, _("Planifie")),
+        (STATUS_ACTIVE, _("Actif")),
+        (STATUS_COMPLETED, _("Termine")),
+    ]
+
+    project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="sprints")
+    name = models.CharField(max_length=255)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PLANNED)
+    goal = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "prj_sprint"
+        ordering = ["project", "start_date"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.get_status_display()})"

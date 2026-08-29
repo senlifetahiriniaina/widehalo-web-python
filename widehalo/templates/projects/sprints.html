@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Sprints" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Sprints agiles" %} — {{ project.reference }} — {{ project.name }}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p>{% trans "Velocite (moyenne des points completes sur les derniers sprints termines)" %} : {{ velocity }}</p>
+  <p>
+    <a href="{% url 'projects:backlog' project.id %}">{% trans "Voir le backlog" %}</a>
+    · <a href="{% url 'projects:kanban' project.id %}">{% trans "Voir le Kanban" %}</a>
+    · <a href="{% url 'projects:calendar' project.id %}">{% trans "Voir le calendrier" %}</a>
+    · <a href="{% url 'projects:roadmap' project.id %}">{% trans "Voir la roadmap" %}</a>
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Fin" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Objectif" %}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sprint in sprints %}
+        <tr>
+          <td>{{ sprint.name }}</td>
+          <td>{{ sprint.start_date }}</td>
+          <td>{{ sprint.end_date }}</td>
+          <td>{{ sprint.get_status_display }}</td>
+          <td>{{ sprint.goal }}</td>
+          <td>
+            {% if sprint.status == "planned" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
+                <input type="hidden" name="action" value="start">
+                <button type="submit">{% trans "Demarrer" %}</button>
+              </form>
+            {% endif %}
+            {% if sprint.status == "active" or sprint.status == "planned" %}
+              <form method="post" style="display:inline">{% csrf_token %}
+                <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
+                <input type="hidden" name="action" value="complete">
+                <button type="submit">{% trans "Cloturer" %}</button>
+              </form>
+            {% endif %}
+            {% if sprint.status == "completed" or sprint.status == "active" %}
+              <a href="{% url 'projects:sprint_burndown' project.id sprint.id %}">{% trans "Burndown" %}</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun sprint." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Creer un sprint" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <input type="date" name="start_date" required>
+    <input type="date" name="end_date" required>
+    <input type="text" name="goal" placeholder="{% trans 'Objectif du sprint' %}">
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

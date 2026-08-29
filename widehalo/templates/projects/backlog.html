@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Backlog" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Backlog" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <p class="hint">
+    {% trans "Taches du projet sans sprint assigne (hors taches terminees/annulees) — a planifier dans un futur sprint." %}
+  </p>
+  <p><a href="{% url 'projects:sprints' project.id %}">{% trans "Gerer les sprints" %}</a></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Points" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.reference }}</td>
+          <td>{{ task.get_task_type_display }}</td>
+          <td>{{ task.get_state_display }}</td>
+          <td>{{ task.story_points|default_if_none:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Backlog vide." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

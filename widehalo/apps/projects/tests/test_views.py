@@ -13,7 +13,8 @@ from apps.projects.models import PrjTask
 from apps.projects.services.dependencies import add_dependency
 from apps.projects.services.evm import add_budget_line
 from apps.projects.services.projects import create_project
-from apps.projects.services.tasks import create_task
+from apps.projects.services.sprints import create_sprint
+from apps.projects.services.tasks import create_task, start_task
 
 pytestmark = pytest.mark.django_db
 
@@ -207,3 +208,148 @@ def test_project_budget_screen_adds_budget_line_via_form(web_projects) -> None:
         line = project.budget_lines.get()
         assert line.label == "Prestation"
         assert line.planned_amount == Decimal("200.0000")
+
+
+# --- PJ6 : sprints/backlog/burndown/Kanban/Calendrier/Roadmap -----------------------
+
+
+def test_project_sprints_screen_creates_and_starts_sprint(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet sprints ecran")
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.post(
+        f"/projects/{project.id}/sprints/",
+        {
+            "action": "create",
+            "name": "Sprint 1",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-14",
+            "goal": "Livrer le MVP",
+        },
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    with use_tenant(tenant.id):
+        sprint = project.sprints.get()
+        assert sprint.name == "Sprint 1"
+
+    response = client.post(
+        f"/projects/{project.id}/sprints/",
+        {"action": "start", "sprint_id": str(sprint.id)},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    sprint.refresh_from_db()
+    assert sprint.status == "active"
+
+
+def test_project_backlog_screen_lists_unassigned_tasks(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet backlog ecran")
+        task = create_task(tenant, project=project, story_points=3)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/projects/{project.id}/backlog/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert task.reference.encode() in response.content
+
+
+def test_project_kanban_screen_groups_tasks_by_state(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet kanban ecran")
+        todo_task = create_task(tenant, project=project)
+        in_progress_task = create_task(tenant, project=project)
+        start_task(in_progress_task, user)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/projects/{project.id}/kanban/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert todo_task.reference.encode() in response.content
+    assert in_progress_task.reference.encode() in response.content
+
+
+def test_project_calendar_screen_groups_tasks_by_month(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet calendrier ecran")
+        dated_task = create_task(tenant, project=project, start_date=dt.date(2026, 7, 3))
+        create_task(tenant, project=project)  # sans date : absente du calendrier
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/projects/{project.id}/calendar/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert b"2026-07" in response.content
+    assert dated_task.reference.encode() in response.content
+
+
+def test_project_roadmap_screen_lists_epics_and_milestones_only(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet roadmap ecran")
+        epic = create_task(
+            tenant, project=project, task_type=PrjTask.TYPE_EPIC, start_date=dt.date(2026, 8, 1)
+        )
+        milestone = create_task(
+            tenant,
+            project=project,
+            task_type=PrjTask.TYPE_MILESTONE,
+            start_date=dt.date(2026, 9, 1),
+        )
+        plain_task = create_task(tenant, project=project, task_type=PrjTask.TYPE_TASK)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(f"/projects/{project.id}/roadmap/", HTTP_X_TENANT_ID=str(tenant.id))
+    assert response.status_code == 200
+    assert epic.reference.encode() in response.content
+    assert milestone.reference.encode() in response.content
+    assert plain_task.reference.encode() not in response.content
+
+
+def test_project_sprint_burndown_screen_renders(web_projects) -> None:
+    tenant, user = web_projects
+    with use_tenant(tenant.id):
+        project = create_project(tenant, name="Projet burndown ecran")
+        sprint = create_sprint(
+            project,
+            name="Sprint ecran",
+            start_date=dt.date(2026, 10, 1),
+            end_date=dt.date(2026, 10, 3),
+        )
+        task = create_task(tenant, project=project, story_points=5)
+        task.sprint = sprint
+        task.save(update_fields=["sprint"])
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(
+        f"/projects/{project.id}/sprints/{sprint.id}/burndown/", HTTP_X_TENANT_ID=str(tenant.id)
+    )
+    assert response.status_code == 200
+    assert b"2026-10-01" in response.content

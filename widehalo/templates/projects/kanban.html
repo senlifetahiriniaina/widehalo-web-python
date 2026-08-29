@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Kanban" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Kanban" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <p class="hint">
+    {% trans "Vue en lecture seule — le changement d'etat d'une tache reste pilote depuis l'ecran detail du projet." %}
+  </p>
+
+  <div style="display:flex; gap:1rem; align-items:flex-start;">
+    {% for state, label, column_tasks in columns %}
+      <div style="flex:1; min-width:0;">
+        <h2>{{ label }} ({{ column_tasks|length }})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>{% trans "Reference" %}</th>
+              <th>{% trans "Type" %}</th>
+              <th>{% trans "Points" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in column_tasks %}
+              <tr>
+                <td>{{ task.reference }}</td>
+                <td>{{ task.get_task_type_display }}</td>
+                <td>{{ task.story_points|default_if_none:"—" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3">{% trans "Aucune tache." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

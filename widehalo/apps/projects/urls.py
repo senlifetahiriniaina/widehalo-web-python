@@ -11,4 +11,14 @@ urlpatterns = [
     path("<uuid:project_id>/gantt/", views.project_gantt, name="gantt"),
     path("<uuid:project_id>/budget/", views.project_budget, name="budget"),
     path("<uuid:project_id>/billing/", views.project_billing, name="billing"),
+    path("<uuid:project_id>/sprints/", views.project_sprints, name="sprints"),
+    path("<uuid:project_id>/backlog/", views.project_backlog, name="backlog"),
+    path("<uuid:project_id>/kanban/", views.project_kanban, name="kanban"),
+    path("<uuid:project_id>/calendar/", views.project_calendar, name="calendar"),
+    path("<uuid:project_id>/roadmap/", views.project_roadmap, name="roadmap"),
+    path(
+        "<uuid:project_id>/sprints/<uuid:sprint_id>/burndown/",
+        views.project_sprint_burndown,
+        name="sprint_burndown",
+    ),
 ]

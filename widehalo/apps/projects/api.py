@@ -18,7 +18,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjSprint, PrjTask
 from apps.projects.services.billing import (
     TimeAndMaterialNotImplementedError,
     bill_by_milestone,
@@ -29,6 +29,14 @@ from apps.projects.services.billing import (
 from apps.projects.services.evm import add_budget_line, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path
 from apps.projects.services.projects import create_project
+from apps.projects.services.sprints import (
+    complete_sprint,
+    compute_burndown,
+    compute_velocity,
+    create_sprint,
+    get_backlog,
+    start_sprint,
+)
 from apps.projects.services.tasks import (
     block_task,
     cancel_task,
@@ -80,6 +88,13 @@ class BillFixedIn(Schema):
 
 class BillTimeAndMaterialIn(Schema):
     hourly_rate: Decimal
+
+
+class SprintIn(Schema):
+    name: str
+    start_date: str
+    end_date: str
+    goal: str = ""
 
 
 class TaskIn(Schema):
@@ -135,6 +150,18 @@ def _serialize_evm_snapshot(snapshot: Any) -> dict[str, Any]:
     }
 
 
+def _serialize_sprint(sprint: PrjSprint) -> dict[str, Any]:
+    return {
+        "id": str(sprint.id),
+        "project_id": str(sprint.project_id),
+        "name": sprint.name,
+        "start_date": sprint.start_date.isoformat(),
+        "end_date": sprint.end_date.isoformat(),
+        "status": sprint.status,
+        "goal": sprint.goal,
+    }
+
+
 def _serialize_task(task: PrjTask) -> dict[str, Any]:
     return {
         "id": str(task.id),
@@ -142,6 +169,7 @@ def _serialize_task(task: PrjTask) -> dict[str, Any]:
         "project_id": str(task.project_id),
         "task_type": task.task_type,
         "parent_id": str(task.parent_id) if task.parent_id else None,
+        "sprint_id": str(task.sprint_id) if task.sprint_id else None,
         "assignee_id": str(task.assignee_id) if task.assignee_id else None,
         "state": task.state,
         "start_date": task.start_date.isoformat() if task.start_date else None,
@@ -410,3 +438,87 @@ def bill_time_and_material_endpoint(
     except ValidationError as exc:  # pragma: no cover - defense en profondeur
         return JsonResponse({"detail": str(exc)}, status=400)
     return {}  # pragma: no cover - jamais atteint (bill_time_and_material leve toujours)
+
+
+# ---------------------------------------------------------------------------
+# PJ6 — Sprints agiles (backlog/burndown/velocite). RBAC : memes permissions
+# app-level "projects" (view/add/change) que le CRUD projet/tache courant
+# (cf. `ROLE_APP_PERMISSIONS`) — la creation/demarrage/cloture d'un sprint
+# n'est PAS une operation aussi sensible que la facturation (PJ5), pas de
+# permission personnalisee dediee necessaire.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/projects/{project_id}/sprints")
+@require_permission("projects.view_prjsprint")
+def list_sprints_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    sprints = project.sprints.filter(is_active=True)
+    return {"results": [_serialize_sprint(s) for s in sprints]}
+
+
+@router.post("/projects/{project_id}/sprints")
+@require_permission("projects.add_prjsprint")
+def create_sprint_endpoint(request: Any, project_id: str, payload: SprintIn) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    try:
+        sprint = create_sprint(
+            project,
+            name=payload.name,
+            start_date=dt.date.fromisoformat(payload.start_date),
+            end_date=dt.date.fromisoformat(payload.end_date),
+            goal=payload.goal,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_sprint(sprint)
+
+
+@router.post("/projects/{project_id}/sprints/{sprint_id}/start")
+@require_permission("projects.change_prjsprint")
+def start_sprint_endpoint(request: Any, project_id: str, sprint_id: str) -> dict[str, Any]:
+    sprint = get_object_or_404(PrjSprint, id=sprint_id, project_id=project_id)
+    try:
+        start_sprint(sprint)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return _serialize_sprint(sprint)
+
+
+@router.post("/projects/{project_id}/sprints/{sprint_id}/complete")
+@require_permission("projects.change_prjsprint")
+def complete_sprint_endpoint(request: Any, project_id: str, sprint_id: str) -> dict[str, Any]:
+    sprint = get_object_or_404(PrjSprint, id=sprint_id, project_id=project_id)
+    complete_sprint(sprint)
+    return _serialize_sprint(sprint)
+
+
+@router.get("/projects/{project_id}/backlog")
+@require_permission("projects.view_prjtask")
+def project_backlog_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return {"results": [_serialize_task(t) for t in get_backlog(project)]}
+
+
+@router.get("/projects/{project_id}/sprints/{sprint_id}/burndown")
+@require_permission("projects.view_prjsprint")
+def sprint_burndown_endpoint(request: Any, project_id: str, sprint_id: str) -> dict[str, Any]:
+    sprint = get_object_or_404(PrjSprint, id=sprint_id, project_id=project_id)
+    burndown = compute_burndown(sprint)
+    return {
+        "sprint_id": str(sprint.id),
+        "burndown": [
+            {
+                "date": point["date"].isoformat(),
+                "story_points_remaining": str(point["story_points_remaining"]),
+            }
+            for point in burndown
+        ],
+    }
+
+
+@router.get("/projects/{project_id}/velocity")
+@require_permission("projects.view_prjsprint")
+def project_velocity_endpoint(request: Any, project_id: str) -> dict[str, Any]:
+    project = get_object_or_404(PrjProject, id=project_id)
+    return {"project_id": str(project.id), "velocity": str(compute_velocity(project))}

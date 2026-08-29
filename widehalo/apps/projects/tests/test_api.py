@@ -333,3 +333,98 @@ def test_bill_fixed_via_api_requires_bill_prjproject_permission() -> None:
         **headers,
     )
     assert response.status_code == 403
+
+
+# --- PJ6 : sprints/backlog/burndown/velocite via l'API --------------------------------
+
+
+def test_create_start_and_complete_sprint_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet sprints API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/sprints",
+        {"name": "Sprint API 1", "start_date": "2026-01-01", "end_date": "2026-01-14"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200, response.content
+    sprint_id = response.json()["id"]
+    assert response.json()["status"] == "planned"
+
+    response = client.post(f"/api/v1/projects/{project_id}/sprints/{sprint_id}/start", **headers)
+    assert response.status_code == 200, response.content
+    assert response.json()["status"] == "active"
+
+    # Un second sprint actif sur le meme projet est refuse.
+    response = client.post(
+        f"/api/v1/projects/{project_id}/sprints",
+        {"name": "Sprint API 2", "start_date": "2026-01-15", "end_date": "2026-01-28"},
+        content_type="application/json",
+        **headers,
+    )
+    sprint_2_id = response.json()["id"]
+    response = client.post(f"/api/v1/projects/{project_id}/sprints/{sprint_2_id}/start", **headers)
+    assert response.status_code == 400
+
+    response = client.post(f"/api/v1/projects/{project_id}/sprints/{sprint_id}/complete", **headers)
+    assert response.status_code == 200, response.content
+    assert response.json()["status"] == "completed"
+
+    response = client.get(f"/api/v1/projects/{project_id}/sprints", **headers)
+    assert response.status_code == 200
+    assert {s["id"] for s in response.json()["results"]} == {sprint_id, sprint_2_id}
+
+
+def test_backlog_burndown_and_velocity_endpoints_via_api(api_projects) -> None:
+    tenant, user = api_projects
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/projects",
+        {"name": "Projet backlog API"},
+        content_type="application/json",
+        **headers,
+    )
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/tasks",
+        {"story_points": 3},
+        content_type="application/json",
+        **headers,
+    )
+    task_id = response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/backlog", **headers)
+    assert response.status_code == 200
+    assert [t["id"] for t in response.json()["results"]] == [task_id]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/sprints",
+        {"name": "Sprint burndown API", "start_date": "2026-03-01", "end_date": "2026-03-01"},
+        content_type="application/json",
+        **headers,
+    )
+    sprint_id = response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/sprints/{sprint_id}/burndown", **headers)
+    assert response.status_code == 200
+    # Sprint d'un seul jour sans tache rattachee : un seul point, 0 restant.
+    assert response.json()["burndown"] == [{"date": "2026-03-01", "story_points_remaining": "0"}]
+
+    response = client.get(f"/api/v1/projects/{project_id}/velocity", **headers)
+    assert response.status_code == 200
+    assert response.json()["velocity"] == "0"

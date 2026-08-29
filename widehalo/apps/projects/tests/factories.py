@@ -14,6 +14,7 @@ from apps.projects.models import (
     PrjBudgetLine,
     PrjInvoicingRecord,
     PrjProject,
+    PrjSprint,
     PrjTask,
     PrjTaskDependency,
 )
@@ -62,6 +63,21 @@ class PrjBudgetLineFactory(factory.django.DjangoModelFactory):
     planned_amount = Decimal("1000.0000")
     actual_amount = Decimal("0")
     period = factory.LazyFunction(lambda: dt.date.today().replace(day=1))
+
+
+class PrjSprintFactory(factory.django.DjangoModelFactory):
+    """PJ6 — sprint agile."""
+
+    class Meta:
+        model = PrjSprint
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
+    name = factory.Sequence(lambda n: f"Sprint {n}")
+    start_date = factory.LazyFunction(lambda: dt.date.today())
+    end_date = factory.LazyFunction(lambda: dt.date.today() + dt.timedelta(days=13))
+    status = PrjSprint.STATUS_PLANNED
+    goal = ""
 
 
 class PrjInvoicingRecordFactory(factory.django.DjangoModelFactory):

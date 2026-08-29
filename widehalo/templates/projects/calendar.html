@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Calendrier" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Calendrier" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <p class="hint">
+    {% trans "Vue simplifiee : liste des taches ayant une date de debut, groupees par mois calendaire — pas de grille mensuelle interactive a ce stade." %}
+  </p>
+
+  {% for month, month_tasks in months %}
+    <h2>{{ month }}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>{% trans "Debut" %}</th>
+          <th>{% trans "Fin" %}</th>
+          <th>{% trans "Reference" %}</th>
+          <th>{% trans "Type" %}</th>
+          <th>{% trans "Statut" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in month_tasks %}
+          <tr>
+            <td>{{ task.start_date }}</td>
+            <td>{{ task.end_date|default_if_none:"—" }}</td>
+            <td>{{ task.reference }}</td>
+            <td>{{ task.get_task_type_display }}</td>
+            <td>{{ task.get_state_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% empty %}
+    <p>{% trans "Aucune tache datee." %}</p>
+  {% endfor %}
+{% endblock %}

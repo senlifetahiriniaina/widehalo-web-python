@@ -10,6 +10,13 @@
   <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
   <p><a href="{% url 'projects:budget' project.id %}">{% trans "Voir le budget (SPI/CPI/EAC)" %}</a></p>
   <p><a href="{% url 'projects:billing' project.id %}">{% trans "Facturer ce projet" %}</a></p>
+  <p>
+    <a href="{% url 'projects:sprints' project.id %}">{% trans "Sprints agiles" %}</a>
+    · <a href="{% url 'projects:backlog' project.id %}">{% trans "Backlog" %}</a>
+    · <a href="{% url 'projects:kanban' project.id %}">{% trans "Kanban" %}</a>
+    · <a href="{% url 'projects:calendar' project.id %}">{% trans "Calendrier" %}</a>
+    · <a href="{% url 'projects:roadmap' project.id %}">{% trans "Roadmap" %}</a>
+  </p>
 
   <h2>{% trans "Taches" %}</h2>
   <table>

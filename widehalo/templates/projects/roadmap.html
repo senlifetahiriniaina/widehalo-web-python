@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Roadmap" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Roadmap" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <p class="hint">
+    {% trans "Vue chronologique haut niveau : epics et jalons du projet, tries par date (debut, puis fin a defaut)." %}
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th>
+        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Statut" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.start_date|default_if_none:task.end_date|default_if_none:"—" }}</td>
+          <td>{{ task.reference }}</td>
+          <td>{{ task.get_task_type_display }}</td>
+          <td>{{ task.get_state_display }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun epic/jalon." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -21,7 +21,7 @@ from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjTask
+from apps.projects.models import PrjBudgetLine, PrjInvoicingRecord, PrjProject, PrjSprint, PrjTask
 from apps.projects.services.billing import (
     TimeAndMaterialNotImplementedError,
     bill_by_milestone,
@@ -32,6 +32,14 @@ from apps.projects.services.billing import (
 from apps.projects.services.evm import add_budget_line, compute_s_curve, refresh_project_health
 from apps.projects.services.gantt import compute_critical_path, render_gantt_svg
 from apps.projects.services.projects import create_project
+from apps.projects.services.sprints import (
+    complete_sprint,
+    compute_burndown,
+    compute_velocity,
+    create_sprint,
+    get_backlog,
+    start_sprint,
+)
 from apps.projects.services.tasks import (
     block_task,
     cancel_task,
@@ -285,4 +293,122 @@ def project_billing(request: HttpRequest, project_id: str) -> HttpResponse:
             "error": error,
             "success": success,
         },
+    )
+
+
+@login_required
+def project_sprints(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran HTMX minimal de gestion des sprints (PJ6) : creation, demarrage
+    et cloture — meme discipline "chaque vue appelle directement les
+    fonctions de service" que le reste du module (cf. docstring de module
+    ci-dessus)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    error = None
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "create":
+                create_sprint(
+                    project,
+                    name=request.POST.get("name", ""),
+                    start_date=dt.date.fromisoformat(request.POST.get("start_date", "")),
+                    end_date=dt.date.fromisoformat(request.POST.get("end_date", "")),
+                    goal=request.POST.get("goal", ""),
+                )
+            else:
+                sprint_id = request.POST.get("sprint_id", "")
+                sprint = get_object_or_404(PrjSprint, id=sprint_id, project=project)
+                if action == "start":
+                    start_sprint(sprint)
+                elif action == "complete":
+                    complete_sprint(sprint)
+        except (ValidationError, ValueError) as exc:
+            error = str(exc)
+
+    sprints = project.sprints.filter(is_active=True)
+    velocity = compute_velocity(project)
+    return render(
+        request,
+        "projects/sprints.html",
+        {"project": project, "sprints": sprints, "velocity": velocity, "error": error},
+    )
+
+
+@login_required
+def project_backlog(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran backlog (PJ6) : taches du projet sans sprint assigne, hors
+    `cancelled`/`done` — cf. `services/sprints.py::get_backlog`."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    tasks = get_backlog(project)
+    return render(request, "projects/backlog.html", {"project": project, "tasks": tasks})
+
+
+@login_required
+def project_kanban(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran Kanban en lecture seule (PJ6) : taches du projet groupees par
+    colonne `state` (todo/in_progress/blocked/done) — reutilise les
+    donnees existantes (`PrjTask.state`), aucun nouveau modele. Meme
+    patron visuel simple (tables/listes brutes) que le reste des ecrans
+    HTMX de ce module (cf. `projects/detail.html`) — pas de nouveau
+    CSS/JS de glisser-deposer, disclosed comme simplifie (lecture seule ;
+    le changement d'etat d'une tache reste pilote depuis l'ecran detail/
+    l'API `transition`)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    tasks = project.tasks.filter(is_active=True)
+    columns = [(state, label, tasks.filter(state=state)) for state, label in PrjTask.STATE_CHOICES]
+    return render(request, "projects/kanban.html", {"project": project, "columns": columns})
+
+
+@login_required
+def project_calendar(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran calendrier en lecture seule (PJ6), **volontairement simplifie**
+    (disclosed) : pas de vrai widget de calendrier riche (grille
+    mensuelle interactive) — une liste des taches ayant une `start_date`
+    groupees par mois calendaire suffit au besoin exprime ("vue simple").
+    Une tache sans `start_date` n'apparait dans aucun mois (rien
+    d'invente)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    tasks = project.tasks.filter(is_active=True, start_date__isnull=False).order_by("start_date")
+    months: dict[str, list[PrjTask]] = {}
+    for task in tasks:
+        assert task.start_date is not None  # garanti par le filtre ci-dessus
+        key = task.start_date.strftime("%Y-%m")
+        months.setdefault(key, []).append(task)
+    return render(
+        request,
+        "projects/calendar.html",
+        {"project": project, "months": sorted(months.items())},
+    )
+
+
+@login_required
+def project_roadmap(request: HttpRequest, project_id: str) -> HttpResponse:
+    """Ecran roadmap en lecture seule (PJ6) : vue chronologique haut niveau
+    des taches de type `epic`/`milestone` du projet (les 2 `task_type` de
+    plus haut niveau de la hierarchie unifiee, cf. docstring de `PrjTask`),
+    triees par date (`start_date` si renseignee, sinon `end_date`, sinon en
+    dernier — jamais une date inventee)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    tasks = project.tasks.filter(
+        is_active=True, task_type__in=[PrjTask.TYPE_EPIC, PrjTask.TYPE_MILESTONE]
+    )
+    ordered = sorted(
+        tasks, key=lambda t: (t.start_date or t.end_date or dt.date.max, t.start_date is None)
+    )
+    return render(request, "projects/roadmap.html", {"project": project, "tasks": ordered})
+
+
+@login_required
+def project_sprint_burndown(request: HttpRequest, project_id: str, sprint_id: str) -> HttpResponse:
+    """Ecran burndown/velocite (PJ6) — cf. `services/sprints.py::
+    compute_burndown`/`compute_velocity` pour la methode retenue et ses
+    limitations disclosees (source `StateTransitionLog`)."""
+    project = get_object_or_404(PrjProject, id=project_id)
+    sprint = get_object_or_404(PrjSprint, id=sprint_id, project=project)
+    burndown = compute_burndown(sprint)
+    velocity = compute_velocity(project)
+    return render(
+        request,
+        "projects/burndown.html",
+        {"project": project, "sprint": sprint, "burndown": burndown, "velocity": velocity},
     )
