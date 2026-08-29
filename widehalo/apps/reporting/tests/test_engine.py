@@ -1,5 +1,5 @@
 """REP2 : `apps.reporting.services.engine` — dispatch synchrone, RPT-6
-asynchronisme (test d'acceptance §5.11.7 n°4), purge des jobs expires."""
+asynchronisme (test d'acceptance §5.11.7 n°3), purge des jobs expires."""
 
 from __future__ import annotations
 
@@ -110,17 +110,23 @@ def test_generate_report_unknown_code_raises(tenant_and_user) -> None:
         )
 
 
-def test_acceptance_4_large_report_routes_through_async_job(tenant_and_user) -> None:
-    """Test d'acceptance §5.11.7 n°4 : "rapport de 50 000 lignes -> genere en
-    asynchrone". Simplification disclosed (cf. docstring `engine.py`) :
-    `estimated_row_count=50_000` (le chiffre exact du CDC) route bien vers
-    `core.tasks.enqueue()` plutot qu'une execution en synchrone dans le
+def test_acceptance_3_large_report_routes_through_async_job_and_notifies(
+    tenant_and_user,
+) -> None:
+    """Test d'acceptance §5.11.7 n°3 : "declencher un rapport en asynchrone
+    et recevoir la notification de fin". Simplification disclosed (cf.
+    docstring `engine.py`) : `estimated_row_count=50_000` (le chiffre exact
+    du CDC, "rapport de 50 000 lignes -> genere en asynchrone") route bien
+    vers `core.tasks.enqueue()` plutot qu'une execution en synchrone dans le
     thread appelant — verifie ici en observant que le job existe des le
-    retour de l'appel (cree avant l'enqueue) et finit `done` (Q_CLUSTER
+    retour de l'appel (cree avant l'enqueue), finit `done` (Q_CLUSTER
     `sync=True` en test, cf. `config.settings.test`, execute la tache
-    immediatement — meme piege documente que `core.events`), sans jamais
+    immediatement — meme piege documente que `core.events`) ET qu'une
+    `Notification` de fin a bien ete emise pour le demandeur, sans jamais
     construire 50 000 lignes reelles (le rapport enregistre ici renvoie 1
     seule ligne)."""
+    from apps.core.models.notification import Notification
+
     tenant, user = tenant_and_user
     register_report(
         code="RPT-TEST-ENGINE-ASYNC",
@@ -141,7 +147,12 @@ def test_acceptance_4_large_report_routes_through_async_job(tenant_and_user) -> 
             estimated_row_count=50_000,
         )
         job.refresh_from_db()
-    assert job.state == RptJob.STATE_DONE
+        assert job.state == RptJob.STATE_DONE
+        notifications = Notification.objects.filter(
+            user=user, notification_type="reporting.job_done"
+        )
+        assert notifications.count() == 1
+        assert notifications.first().payload["job_id"] == str(job.id)
 
 
 def test_purge_expired_jobs_removes_only_expired(tenant_and_user) -> None:

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Generer un rapport" %} — {{ code }}{% endblock %}
+{% block content %}
+  <h1>{% trans "Generer" %} {{ report.label }}</h1>
+  <form hx-post="{% url 'reporting:generate_submit' code %}" hx-target="#job-result">
+    <label>{% trans "Parametres (JSON)" %}
+      <textarea name="params" rows="4" cols="60">{}</textarea>
+    </label>
+    <label>{% trans "Format" %}
+      <select name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+        {% if report.supports_pdf %}<option value="pdf">PDF</option>{% endif %}
+      </select>
+    </label>
+    <button type="submit">{% trans "Generer" %}</button>
+  </form>
+  <div id="job-result"></div>
+{% endblock %}

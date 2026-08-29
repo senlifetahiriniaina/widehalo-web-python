@@ -1,0 +1,14 @@
+{% load i18n %}
+<tr id="schedule-row-{{ schedule.id }}">
+  <td>{{ schedule.name }}</td>
+  <td>{{ schedule.report_code }}</td>
+  <td>{{ schedule.get_frequency_display }}</td>
+  <td>{{ schedule.next_run_at }}</td>
+  <td>{% if schedule.enabled %}{% trans "Active" %}{% else %}{% trans "Suspendue" %}{% endif %}</td>
+  <td>
+    <button hx-post="{% url 'reporting:schedule_toggle' schedule.id %}"
+            hx-target="#schedule-row-{{ schedule.id }}" hx-swap="outerHTML">
+      {% if schedule.enabled %}{% trans "Suspendre" %}{% else %}{% trans "Activer" %}{% endif %}
+    </button>
+  </td>
+</tr>

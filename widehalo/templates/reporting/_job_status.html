@@ -1,0 +1,12 @@
+{% load i18n %}
+<div id="job-result"
+     {% if job.state == "queued" or job.state == "running" %}
+     hx-get="{% url 'reporting:job_status' job.id %}" hx-trigger="every 2s" hx-swap="outerHTML"
+     {% endif %}>
+  <p>{% trans "Statut" %} : {{ job.get_state_display }}</p>
+  {% if job.state == "done" %}
+    <a href="/api/v1/reporting/jobs/{{ job.id }}/download">{% trans "Telecharger" %}</a>
+  {% elif job.state == "failed" %}
+    <p class="error">{{ job.error_message }}</p>
+  {% endif %}
+</div>

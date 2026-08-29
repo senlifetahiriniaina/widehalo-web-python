@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Planifications de rapports" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Planifications de rapports" %}</h1>
+
+  <form method="post" hx-post="{% url 'reporting:schedules' %}" hx-target="body">
+    <label>{% trans "Rapport" %}
+      <select name="code" required>
+        {% for report in reports %}
+          <option value="{{ report.code }}">{{ report.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% trans "Nom" %} <input type="text" name="name"></label>
+    <label>{% trans "Frequence" %}
+      <select name="frequency">
+        <option value="daily">{% trans "Quotidien" %}</option>
+        <option value="weekly" selected>{% trans "Hebdomadaire" %}</option>
+        <option value="monthly">{% trans "Mensuel" %}</option>
+      </select>
+    </label>
+    <label>{% trans "Format" %}
+      <select name="format">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="xlsx">XLSX</option>
+      </select>
+    </label>
+    <button type="submit">{% trans "Planifier" %}</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Rapport" %}</th>
+        <th>{% trans "Frequence" %}</th>
+        <th>{% trans "Prochaine execution" %}</th>
+        <th>{% trans "Etat" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for schedule in schedules %}
+        {% include "reporting/_schedule_row.html" %}
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune planification." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

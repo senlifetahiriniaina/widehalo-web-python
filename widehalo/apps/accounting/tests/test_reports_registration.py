@@ -93,6 +93,9 @@ def test_acc_fac_is_registered() -> None:
 
 
 def test_acc_fac_render_pdf_archives_once(posted_invoice) -> None:
+    """Test d'acceptance §5.11.7 n°2 : "generer une facture en PDF puis la
+    reimprimer, verifier l'identite octet-a-octet avec l'archive" (RPT-9/
+    RPT-10)."""
     tenant, comptable, invoice = posted_invoice
     report = get_registered_report("ACC-FAC")
     assert report is not None and report.render_pdf is not None

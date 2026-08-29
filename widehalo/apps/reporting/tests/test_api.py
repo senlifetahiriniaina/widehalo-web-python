@@ -29,10 +29,12 @@ def _headers(token: str, tenant_id: str) -> dict:
 
 
 def test_catalog_endpoint_filters_by_underlying_report_permission() -> None:
-    """RPT-5/RPT-11 : le catalogue ne renvoie que les rapports dont
-    l'utilisateur possede reellement la permission — `reporting.view_
-    rptdefinition` (accordee a tous les roles) ouvre l'ACCES A L'ENDPOINT,
-    pas la visibilite de chaque rapport pris individuellement."""
+    """Test d'acceptance §5.11.7 n°1 : "consulter le catalogue de rapports
+    filtre par permission". RPT-5/RPT-11 : le catalogue ne renvoie que les
+    rapports dont l'utilisateur possede reellement la permission —
+    `reporting.view_rptdefinition` (accordee a tous les roles) ouvre
+    l'ACCES A L'ENDPOINT, pas la visibilite de chaque rapport pris
+    individuellement."""
     register_report(
         code="RPT-TEST-VISIBLE-COMPTABLE",
         module="accounting",

@@ -36,6 +36,9 @@ def test_compute_next_run_at(frequency, expected_delta) -> None:  # noqa: ANN001
 
 
 def test_run_schedule_generates_report_emails_recipients_and_advances_next_run() -> None:
+    """Test d'acceptance §5.11.7 n°4 : "planifier un rapport hebdomadaire"
+    (RPT-7) — verifie generation + envoi e-mail + avancement de
+    `next_run_at` pour une frequence `FREQUENCY_WEEKLY`."""
     register_report(
         code="RPT-TEST-SCHEDULE",
         module="core",

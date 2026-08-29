@@ -4,6 +4,7 @@
 {% block content %}
   <h1>{% trans "Catalogue des rapports" %}</h1>
   <p>{% trans "Rapports auxquels vous avez acces, tous modules confondus." %}</p>
+  <p><a href="{% url 'reporting:schedules' %}">{% trans "Gerer les planifications" %}</a></p>
   <table>
     <thead>
       <tr>
@@ -12,6 +13,7 @@
         <th>{% trans "Libelle" %}</th>
         <th>PDF</th>
         <th>XLSX/CSV/JSON</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -22,9 +24,10 @@
           <td>{{ report.label }}</td>
           <td>{% if report.supports_pdf %}✓{% endif %}</td>
           <td>{% if report.supports_rows %}✓{% endif %}</td>
+          <td><a href="{% url 'reporting:generate_form' report.code %}">{% trans "Generer" %}</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucun rapport accessible." %}</td></tr>
+        <tr><td colspan="6">{% trans "Aucun rapport accessible." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
