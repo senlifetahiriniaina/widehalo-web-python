@@ -89,6 +89,7 @@ _FACTORY_MODULES = [
     "apps.feasibility.tests.factories",
     "apps.projects.tests.factories",
     "apps.ai.tests.factories",
+    "apps.helpdesk.tests.factories",
 ]
 
 
@@ -213,8 +214,13 @@ def _assert_field_matches(
     if isinstance(field, ForeignKey):
         if field.related_model is ContentType:
             # Le catalogue ContentType est global (pas dans l'archive) : id
-            # inchangeable.
-            assert imported.content_type_id == original.content_type_id
+            # inchangeable. `field.attname` (pas un `content_type_id` fige en
+            # dur) : certains modeles nomment ce FK differemment (ex.
+            # `HlpTicketTypeCatalog.related_content_type`, HD1) — cette
+            # verification generique doit couvrir les deux nommages.
+            original_value = getattr(original, field.attname)
+            imported_value = getattr(imported, field.attname)
+            assert imported_value == original_value
             return
 
         related_model = field.related_model

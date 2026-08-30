@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau ticket" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Nouveau ticket" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="subject">{% trans "Sujet" %}</label>
+      <input id="subject" type="text" name="subject" required>
+    </div>
+    <div class="form-field">
+      <label for="kind">{% trans "Type" %}</label>
+      <select id="kind" name="kind" required>
+        {% for value, label in kinds %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="ticket_type_id">{% trans "Type de ticket (catalogue)" %}</label>
+      <select id="ticket_type_id" name="ticket_type_id">
+        <option value="">{% trans "Non specifie" %}</option>
+        {% for entry in ticket_types %}
+          <option value="{{ entry.id }}">{{ entry.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="priority">{% trans "Priorite" %}</label>
+      <select id="priority" name="priority">
+        <option value="">{% trans "Par defaut du type" %}</option>
+        {% for value, label in priorities %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description" %}</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

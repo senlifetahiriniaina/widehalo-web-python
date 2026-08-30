@@ -1,0 +1,57 @@
+"""Factories factory_boy pour les modeles du module `helpdesk` — une par
+modele concret (couche T1 du plan de durcissement, CDC §14 couches).
+
+`tenant` est resolu via un `SubFactory` a chemin pointe vers
+`apps.core.tests.factories.TenantFactory` (resolution paresseuse, meme
+convention que tous les autres modules)."""
+
+from __future__ import annotations
+
+import factory
+
+from apps.helpdesk.models import (
+    KIND_DEMANDE,
+    HlpTeam,
+    HlpTicket,
+    HlpTicketComment,
+    HlpTicketTypeCatalog,
+)
+
+
+class HlpTeamFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpTeam
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Equipe support {n}")
+    description = "Equipe de test"
+
+
+class HlpTicketTypeCatalogFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpTicketTypeCatalog
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    kind = KIND_DEMANDE
+    code = factory.Sequence(lambda n: f"test.code.{n}")
+    label = factory.Sequence(lambda n: f"Type de test {n}")
+
+
+class HlpTicketFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpTicket
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"HLP-2026-{n:04d}")
+    subject = factory.Sequence(lambda n: f"Ticket de test {n}")
+    kind = KIND_DEMANDE
+    requester = factory.SubFactory("apps.core.tests.factories.UserFactory")
+
+
+class HlpTicketCommentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpTicketComment
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    ticket = factory.SubFactory(HlpTicketFactory, tenant=factory.SelfAttribute("..tenant"))
+    body = "Commentaire de test"

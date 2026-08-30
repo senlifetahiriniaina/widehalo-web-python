@@ -97,6 +97,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # dediee (meme posture que `chat`, ouvert a tout utilisateur
         # authentifie), disclosed a chaque etape correspondante.
         "ai": {"view", "add", "change"},
+        # `helpdesk` (HD1, suivi des demandes/incidents operationnels, cf.
+        # plan) : pilotage transverse (gestion SLA/escalade/KB/equipes a
+        # venir en HD2-HD4) — acces complet, meme discipline que
+        # `automation`/`financing` ci-dessus.
+        "helpdesk": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -133,6 +138,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (jamais "add", pas de creation de configuration de premier
         # niveau par ce role).
         "ai": {"view", "change"},
+        # `helpdesk` (HD1, cf. plan section RBAC) : `admin`/`direction`
+        # recoivent tous deux l'acces complet {view, add, change} — pilotage
+        # transverse (gestion SLA/escalade/KB/equipes a venir en HD2-HD4),
+        # meme discipline que `automation`/`financing` ci-dessus. Les 9
+        # autres roles ne recoivent que {view, add} (cf. leurs entrees
+        # respectives ci-dessous).
+        "helpdesk": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -150,6 +162,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # PROPRES objectifs individuels — jamais un objectif departement/
         # entreprise, ni ceux d'un tiers.
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : role non "domaine cible" — "view"+"add"
+        # uniquement (tout employe peut consulter les tickets et en creer
+        # un, cf. plan section RBAC), jamais "change" au niveau app. Le
+        # scope N3 (`services.tickets.user_can_manage_ticket`) permet
+        # neanmoins a ce role de transitionner/commenter SES PROPRES
+        # tickets (requester ou assignee), verifie explicitement dans
+        # `apps.helpdesk.api`.
+        "helpdesk": {"view", "add"},
     },
     "commercial": {
         "crm": {"view", "add", "change"},
@@ -158,6 +178,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "sales": {"view", "add", "change"},
         "reporting": {"view", "add"},
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
@@ -187,6 +209,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (limiter un `collaborateur` a ses seules taches assignees, cf.
         # role `collaborateur` ci-dessous) ne s'applique PAS a ce role.
         "projects": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -201,6 +225,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # dedie (cf. plan `strategy`, a verifier/affiner si un role
         # "resp_achats" est cree plus tard).
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "resp_production": {
         "mrp": {"view", "add", "change"},
@@ -217,6 +243,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `projects` (PJ1) : meme raisonnement que `resp_commercial`
         # ci-dessus (co-porteur de la gestion de projet, cf. plan RBAC).
         "projects": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
@@ -227,6 +255,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "payroll": {"view"},
         "reporting": {"view", "add"},
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —
@@ -242,6 +272,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "logistics": {"view", "add", "change"},
         "reporting": {"view", "add"},
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "rh": {
         # Domaine cible = `presence` + `payroll` (ce chantier, RG-PAY-9)
@@ -252,6 +284,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # Responsable de departement identifie (cf. plan `strategy`) —
         # idem `resp_commercial` ci-dessus.
         "strategy": {"view", "add", "change"},
+        # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
+        "helpdesk": {"view", "add"},
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
@@ -293,6 +327,14 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # Pas de "add" : un collaborateur ne cree ni projet ni tache de
         # premier niveau, seulement les met a jour une fois assignees.
         "projects": {"view", "change"},
+        # `helpdesk` (HD1, cf. plan section RBAC) : role par defaut — un
+        # `collaborateur` peut consulter TOUS les tickets (traçabilite/
+        # suivi, pas de retention d'information) et en creer un, mais pas
+        # "change" au niveau app. Le scope N3 (`services.tickets.
+        # user_can_manage_ticket`) lui permet neanmoins de transitionner/
+        # commenter SES PROPRES tickets (requester ou assignee), jamais
+        # ceux d'un tiers — verifie explicitement dans `apps.helpdesk.api`.
+        "helpdesk": {"view", "add"},
     },
 }
 

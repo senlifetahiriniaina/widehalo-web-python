@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ ticket.subject }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ ticket.subject }}</h1>
+  <p>{% trans "Reference" %}: {{ ticket.reference }}</p>
+  <p>{% trans "Type" %}: {{ ticket.get_kind_display }}
+     {% if ticket.ticket_type %} — {{ ticket.ticket_type.label }}{% endif %}</p>
+  <p>{% trans "Priorite" %}: {{ ticket.get_priority_display }}</p>
+  <p>{% trans "Statut" %}: {{ ticket.get_state_display }}</p>
+  <p>{{ ticket.description }}</p>
+
+  {% if related_model_label %}
+    <p>{% trans "Type d'enregistrement attendu (rattachement)" %}: {{ related_model_label }}</p>
+  {% endif %}
+  {% if related_object %}
+    <p>{% trans "Enregistrement rattache" %}: {{ related_object }}</p>
+  {% endif %}
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if can_manage %}
+    <h2>{% trans "Transitions" %}</h2>
+    <form method="post" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" name="action" value="assign">{% trans "Prendre en charge" %}</button>
+      <button type="submit" name="action" value="request_more_info">{% trans "Demander des informations" %}</button>
+      <button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>
+      <button type="submit" name="action" value="resolve">{% trans "Resoudre" %}</button>
+      <button type="submit" name="action" value="reopen">{% trans "Reouvrir" %}</button>
+      <button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>
+      <button type="submit" name="action" value="escalate">{% trans "Escalader" %}</button>
+      <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
+    </form>
+  {% else %}
+    <p><em>{% trans "Seuls le demandeur, l'assigne ou un gestionnaire peuvent agir sur ce ticket." %}</em></p>
+  {% endif %}
+
+  <h2>{% trans "Fil de suivi" %}</h2>
+  <ul>
+    {% for comment in comments %}
+      <li>
+        <strong>{{ comment.author|default:"—" }}</strong>
+        {% if comment.is_internal_note %}<em>({% trans "note interne" %})</em>{% endif %}
+        — {{ comment.created_at }}<br>
+        {{ comment.body }}
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if can_manage %}
+    <h3>{% trans "Ajouter un commentaire" %}</h3>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="comment">
+      <div class="form-field">
+        <label for="body">{% trans "Message" %}</label>
+        <textarea id="body" name="body" required></textarea>
+      </div>
+      <div class="form-field">
+        <label><input type="checkbox" name="is_internal_note"> {% trans "Note interne" %}</label>
+      </div>
+      <button type="submit">{% trans "Envoyer" %}</button>
+    </form>
+  {% endif %}
+{% endblock %}
