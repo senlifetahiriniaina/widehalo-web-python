@@ -97,6 +97,12 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     ("GET", "/exports"),
     ("GET", "/approvals/pending"),
     ("POST", "/approvals/{request_id}/decide"),
+    # AI2 (assistant contextuel par page/action) : posture RBAC deliberement
+    # ouverte a tout role authentifie, cadrage explicite du plan — meme
+    # raisonnement que les endpoints `chat` ci-dessus (aucun modele metier
+    # direct, guidance utile a n'importe quel role en train de travailler).
+    ("POST", "/ai/assist"),
+    ("GET", "/ai/assist/modules"),
 }
 
 

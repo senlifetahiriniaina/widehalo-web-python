@@ -14,8 +14,12 @@ class ProjectsConfig(AppConfig):
     # le registre partage `core.services.reports_registry` — cf.
     # `apps.projects.services.reports_registration` pour le detail.
     def ready(self) -> None:
+        from apps.projects.services.ai_context_registration import register_ai_context
         from apps.projects.services.automation_registration import register_actions
         from apps.projects.services.reports_registration import register_reports
 
         register_actions()
         register_reports()
+        # AI2 (assistant contextuel par page/action) : meme patron, registre
+        # partage `core.services.ai_context_registry`.
+        register_ai_context()

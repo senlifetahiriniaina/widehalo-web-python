@@ -1,0 +1,9 @@
+{% load i18n %}
+<div class="wh-assist-result">
+  <p>{{ result.guidance }}</p>
+  <p><small>
+    {% if result.is_ai_generated %}{% trans "Genere par le fournisseur IA configure." %}
+    {% else %}{% trans "Guidance statique (aucun fournisseur IA reel actif pour ce tenant)." %}
+    {% endif %}
+  </small></p>
+</div>

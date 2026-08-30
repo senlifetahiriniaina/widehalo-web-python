@@ -55,3 +55,44 @@ def test_list_registered_contexts_is_sorted_by_module() -> None:
     register_context("test_aaa", static_guidance_fr="A", static_guidance_en="A")
     modules = [c.module for c in list_registered_contexts()]
     assert modules == sorted(modules)
+
+
+# AI2 — modules metier deja construits a ce chantier (cf. plan), chacun
+# devant s'auto-enregistrer depuis son propre `apps.py::ready()` (jamais un
+# import direct par `apps.ai`). `chat`/`core`/`ai`/`automation` sont
+# deliberement exclus (cf. docstring du prompt AI2 : `chat` est ouvert a
+# tout utilisateur authentifie sans RBAC, `ai`/`automation` sont de
+# l'infrastructure transverse, pas des modules metier avec un besoin de
+# guidance de page au meme sens).
+_EXPECTED_BUSINESS_MODULES = [
+    "accounting",
+    "catalog",
+    "crm",
+    "feasibility",
+    "financing",
+    "logistics",
+    "mrp",
+    "partners",
+    "patronage",
+    "payroll",
+    "presence",
+    "projects",
+    "purchase",
+    "reporting",
+    "sales",
+    "stocks",
+    "strategy",
+]
+
+
+def test_all_business_modules_are_registered_at_startup() -> None:
+    """Meme genre de verification que `test_automation_registry.py::
+    test_core_notify_role_is_registered_at_startup` : confirme que
+    `apps.py::ready()` a bien execute chaque `register_ai_context()`, deja
+    charge au demarrage de Django pour la suite de tests — jamais un
+    enregistrement manuel refait ici."""
+    for module in _EXPECTED_BUSINESS_MODULES:
+        context = get_context(module)
+        assert context is not None, f"module '{module}' non enregistre dans ai_context_registry"
+        assert context.static_guidance_fr
+        assert context.static_guidance_en

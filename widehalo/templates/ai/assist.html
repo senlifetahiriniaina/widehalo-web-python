@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Assistant IA" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Assistant IA contextuel" %}</h1>
+  <p>{% trans "Choisissez un module et decrivez l'action en cours pour obtenir une guidance." %}</p>
+  <form hx-post="{% url 'ai:assist_fragment' %}" hx-target="#assist-result">
+    {% csrf_token %}
+    <label>{% trans "Module" %}
+      <select name="module">
+        {% for module in modules %}
+          <option value="{{ module }}">{{ module }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% trans "Action en cours" %}
+      <input type="text" name="action" placeholder="{% trans 'ex. consulter, creer, valider...' %}">
+    </label>
+    <button type="submit">{% trans "Obtenir une guidance" %}</button>
+  </form>
+  <div id="assist-result"></div>
+{% endblock %}

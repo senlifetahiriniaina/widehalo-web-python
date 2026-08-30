@@ -106,3 +106,52 @@ def test_rbac_deny_for_role_without_ai_access() -> None:
     headers = _headers(token, str(tenant.id))
     response = client.get("/api/v1/ai/usage/budget", **headers)
     assert response.status_code == 403
+
+
+def test_assist_endpoint_is_reachable_by_any_authenticated_role_no_permission_needed() -> None:
+    """AI2 : cadrage explicite du plan — `POST /ai/assist` et
+    `GET /ai/assist/modules` sont accessibles a n'importe quel role, sans
+    `require_permission`, meme un role sans aucune permission `ai.*`
+    (contrairement aux endpoints de budget ci-dessus)."""
+    tenant = Tenant.objects.create(code="AI-ASSIST-API", name="AI Assist API Tenant")
+    user = User.objects.create_user(email="assist-api@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "resp_commercial")
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    modules_response = client.get("/api/v1/ai/assist/modules", **headers)
+    assert modules_response.status_code == 200
+    assert isinstance(modules_response.json()["results"], list)
+
+    assist_response = client.post(
+        "/api/v1/ai/assist",
+        {"module": "sales", "action": "consulter"},
+        content_type="application/json",
+        **headers,
+    )
+    assert assist_response.status_code == 200
+    body = assist_response.json()
+    assert body["module"] == "sales"
+    assert body["guidance"]
+    assert body["is_ai_generated"] is False
+
+
+def test_assist_endpoint_never_errors_for_an_unregistered_module() -> None:
+    tenant = Tenant.objects.create(code="AI-ASSIST-404", name="AI Assist Unregistered Tenant")
+    user = User.objects.create_user(email="assist-404@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "resp_commercial")
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    response = client.post(
+        "/api/v1/ai/assist",
+        {"module": "module_totalement_inconnu", "action": "consulter"},
+        content_type="application/json",
+        **headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["is_ai_generated"] is False

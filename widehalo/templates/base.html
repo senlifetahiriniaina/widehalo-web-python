@@ -22,6 +22,7 @@
         <li><a href="/chat/">{% trans "Messagerie" %}</a></li>
         <li><a href="/search/">{% trans "Recherche" %}</a></li>
         <li><a href="/documents/">{% trans "Documents" %}</a></li>
+        <li><a href="/ai/assist/">{% trans "Assistant IA" %}</a></li>
         <li x-data="{ open: false }" @click.outside="open = false" style="position:relative;">
           <a href="#" @click.prevent="open = !open">{% trans "Modules metier" %}</a>
           <ul x-show="open" x-cloak class="app-menu-dropdown">

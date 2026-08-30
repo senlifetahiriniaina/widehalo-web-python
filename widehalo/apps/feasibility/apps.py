@@ -12,6 +12,10 @@ class FeasibilityConfig(AppConfig):
         # partage `core.services.reports_registry`, meme patron que tous
         # les autres modules metier (`strategy`/`financing`) — jamais un
         # import direct par `apps.reporting`.
+        from apps.feasibility.services.ai_context_registration import register_ai_context
         from apps.feasibility.services.reports_registration import register_reports
 
         register_reports()
+        # AI2 (assistant contextuel par page/action) : meme patron, registre
+        # partage `core.services.ai_context_registry`.
+        register_ai_context()

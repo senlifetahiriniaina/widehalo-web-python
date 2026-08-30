@@ -1,11 +1,17 @@
-"""API django-ninja du module `ai` (AI1, budget de tokens). Reservee a
-`admin`/`direction` (cf. `apps.core.services.rbac_policy.
+"""API django-ninja du module `ai`. Les endpoints de budget (AI1) restent
+reserves a `admin`/`direction` (cf. `apps.core.services.rbac_policy.
 ROLE_APP_PERMISSIONS["ai"]`) — l'administration du cout/budget IA d'un
 tenant est une operation de pilotage transverse, pas une action courante
-de tous les roles. Les futures fonctionnalites accessibles a tous les
-roles (assistant contextuel, recherche, insights, recommandations, cf.
-AI2-AI7) suivront une posture RBAC plus ouverte, disclosed a chaque
-etape correspondante."""
+de tous les roles.
+
+`POST /ai/assist` et `GET /ai/assist/modules` (AI2, assistant contextuel
+par page/action) suivent au contraire une posture RBAC deliberement
+OUVERTE — cadrage explicite du plan : la guidance contextuelle est utile a
+TOUT role en train de travailler, meme discipline que `chat`
+(`apps.core.services.rbac_policy` exclut deliberement `chat` de sa
+matrice de permissions). Seule l'authentification JWT par defaut
+(`config/api.py::NinjaAPI(auth=JWTAuth())`) s'applique, AUCUN
+`@require_permission(...)` sur ces deux endpoints."""
 
 from __future__ import annotations
 
@@ -13,11 +19,13 @@ from typing import Any
 
 from ninja import Router, Schema
 
+from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.usage_budget import (
     current_month_token_usage,
     get_or_create_usage_limit,
 )
 from apps.core.models.tenant import Tenant
+from apps.core.services.ai_context_registry import list_registered_contexts
 from apps.core.services.permissions import require_permission
 
 router = Router(tags=["ai"])
@@ -85,5 +93,49 @@ def list_usage_requests_endpoint(request: Any) -> dict[str, Any]:
                 "created_at": r.created_at.isoformat(),
             }
             for r in requests_qs
+        ]
+    }
+
+
+class AssistIn(Schema):
+    module: str
+    action: str
+
+
+def _resolve_locale(request: Any) -> str:
+    # `Accept-Language` explicite prioritaire (cf. `tests/i18n/
+    # test_accept_language.py`, meme convention deja etablie ailleurs dans
+    # ce depot) ; a defaut, la langue preferee de l'utilisateur authentifie
+    # (`User.preferred_language`, cf. `apps.reporting.views.generate_submit`
+    # qui l'utilise deja de la meme facon) ; "fr" en tout dernier recours.
+    header = request.headers.get("Accept-Language")
+    if header:
+        return header.split(",")[0].strip()
+    user = getattr(request, "auth", None)
+    preferred = getattr(user, "preferred_language", None)
+    return preferred or "fr"
+
+
+@router.post("/ai/assist")
+def assist_endpoint(request: Any, payload: AssistIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    user = request.auth
+    locale = _resolve_locale(request)
+    response = run_contextual_assist(
+        payload.module, payload.action, tenant=tenant, user=user, locale=locale
+    )
+    return dict(response)
+
+
+@router.get("/ai/assist/modules")
+def list_assist_modules_endpoint(request: Any) -> dict[str, Any]:
+    del request  # non utilise : liste globale, pas de scoping tenant/role
+    return {
+        "results": [
+            {
+                "module": ctx.module,
+                "has_context_builder": ctx.context_builder is not None,
+            }
+            for ctx in list_registered_contexts()
         ]
     }

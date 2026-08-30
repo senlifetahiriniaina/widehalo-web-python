@@ -14,6 +14,10 @@ class FinancingConfig(AppConfig):
         # `apps.reporting`. Cable a partir de FIN4 (cf. `services/
         # reports_registration.py`, meme sequencement que `strategy` —
         # STRATEGY-BP n'a ete cable qu'a STR3, pas des STR1).
+        from apps.financing.services.ai_context_registration import register_ai_context
         from apps.financing.services.reports_registration import register_reports
 
         register_reports()
+        # AI2 (assistant contextuel par page/action) : meme patron, registre
+        # partage `core.services.ai_context_registry`.
+        register_ai_context()
