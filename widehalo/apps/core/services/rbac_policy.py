@@ -86,6 +86,17 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `projects` (PJ1-PJ15, cf. plan) : acces complet transverse,
         # meme discipline que le reste de la matrice pour ce role.
         "projects": {"view", "add", "change"},
+        # `ai` (AI1, chantier module IA transversal, cf. plan) :
+        # l'administration du budget de tokens/cout IA d'un tenant
+        # (`AiUsageLimit`/`AiRequest`) est reservee a `admin`/`direction`,
+        # meme discipline que `automation`/`financing` ci-dessus — un
+        # pilotage de cout, pas une operation courante. Les fonctionnalites
+        # IA a usage large (assistant contextuel, recherche, insights,
+        # recommandations, AI2-AI7) n'ont volontairement PAS besoin de
+        # cette entree : elles seront exposees sans permission de module
+        # dediee (meme posture que `chat`, ouvert a tout utilisateur
+        # authentifie), disclosed a chaque etape correspondante.
+        "ai": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -117,6 +128,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `projects` : pilotage/validation transverse, meme raisonnement
         # que le reste de ce role — "view"+"change" (jamais "add").
         "projects": {"view", "change"},
+        # `ai` : pilotage/validation transverse du budget de tokens IA,
+        # meme raisonnement que le reste de ce role — "view"+"change"
+        # (jamais "add", pas de creation de configuration de premier
+        # niveau par ce role).
+        "ai": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},

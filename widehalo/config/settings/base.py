@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.automation",
     "apps.feasibility",
     "apps.projects",
+    "apps.ai",
 ]
 
 MIDDLEWARE = [
@@ -311,6 +312,11 @@ BUDGET_MAX_SCREENS = 200
 # DeepSeek et Kimi (Moonshot AI) exposent tous deux une API "chat
 # completions" compatible OpenAI, d'ou un connecteur HTTP unique
 # (`OpenAICompatibleAIProvider`) plutot que trois implementations separees.
+# Chantier module `ai` (AI1) : la cle "backend" est desormais reellement
+# lue (par `apps.ai.services.usage_budget._resolve_backend_label`) pour
+# peupler `AiRequest.provider_backend` a des fins de diagnostic/cout —
+# `get_ai_provider()` lui-meme continue de l'ignorer, elle ne pilote jamais
+# quel connecteur est instancie (seuls `base_url`/`api_key` le font).
 AI_PROVIDER_CONFIG: dict[str, str] = {}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
