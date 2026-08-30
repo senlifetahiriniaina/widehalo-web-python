@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import factory
 
-from apps.ai.models import AiAnomaly, AiInsight, AiRequest, AiUsageLimit
+from apps.ai.models import AiAnomaly, AiInsight, AiRecommendation, AiRequest, AiUsageLimit
 from apps.core.services.anomaly_registry import SEVERITY_LOW
 
 
@@ -57,3 +57,18 @@ class AiInsightFactory(factory.django.DjangoModelFactory):
     body = "Corps de l'insight de test (factory)."
     source_modules = factory.LazyFunction(lambda: ["sales"])
     is_ai_generated = False
+
+
+class AiRecommendationFactory(factory.django.DjangoModelFactory):
+    """AI7 — factory de test T1."""
+
+    class Meta:
+        model = AiRecommendation
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    context_module = "purchase"
+    context_action = "consulter"
+    role_code = "resp_commercial"
+    label = "Recommandation de test (factory)."
+    target_module = "purchase"
+    target_action_code = ""

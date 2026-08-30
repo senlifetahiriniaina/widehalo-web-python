@@ -52,7 +52,14 @@ de AI3. Un insight proactif reste par ailleurs une information de
 pilotage utile a tout role en train de travailler sur son module
 (commercial, production, RH), pas seulement `admin`/`direction` — cf.
 `AiInsight.category` volontairement variee ("ventes"/"production"/"rh"/
-"synthese")."""
+"synthese").
+
+`POST /ai/recommendations` (AI7, advisor d'actions/next-best-action) suit
+la MEME posture OUVERTE — cf. commentaire de tete de `ROLE_APP_
+PERMISSIONS["admin"]["ai"]` dans `rbac_policy.py` qui earmarque NOMMEMENT
+"recommandations" (avec assistant/recherche/insights) pour cette posture
+ouverte des AI1, exactement comme AI5 ci-dessus : aucune deviation a
+disclosed ici, la decision etait deja actee au moment de AI1."""
 
 from __future__ import annotations
 
@@ -60,7 +67,8 @@ from typing import Any
 
 from ninja import Router, Schema
 
-from apps.ai.models import AiAnomaly, AiInsight
+from apps.ai.models import AiAnomaly, AiInsight, AiRecommendation
+from apps.ai.services.action_advisor import suggest as run_action_advisor
 from apps.ai.services.anomaly_detection import run_all_checks
 from apps.ai.services.automated_insights import generate as generate_insights
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
@@ -71,7 +79,7 @@ from apps.ai.services.usage_budget import (
 )
 from apps.core.models.tenant import Tenant
 from apps.core.services.ai_context_registry import list_registered_contexts
-from apps.core.services.permissions import require_permission
+from apps.core.services.permissions import require_permission, user_role_codes
 
 router = Router(tags=["ai"])
 
@@ -269,3 +277,62 @@ def list_insights_endpoint(request: Any) -> dict[str, Any]:
     if category_filter:
         insights = insights.filter(category=category_filter)
     return {"results": [_serialize_insight(insight) for insight in insights[:200]]}
+
+
+class RecommendationsIn(Schema):
+    module: str
+    action: str
+
+
+def _primary_role_code(request: Any) -> str:
+    # `suggest()` (cf. plan) prend un `role_code` UNIQUE, pas un ensemble —
+    # contrairement a `_role_code()` de `contextual_assistant` (qui
+    # concatene TOUS les roles, uniquement pour differencier une cle de
+    # cache). Simplification disclosed : le premier role par ordre
+    # alphabetique (deterministe) est retenu comme role "principal" du
+    # contexte, "anon" a defaut de tout role — un utilisateur multi-role
+    # reste couvert par au moins une regle si l'une de ses regles
+    # correspond a N'IMPORTE LEQUEL de ses roles serait plus complet, mais
+    # aucune regle enregistree en AI7 ne filtre encore par role (cf.
+    # `apps.purchase.services.ai_advisor_registration`/`apps.mrp.services.
+    # ai_advisor_registration`, toutes deux pertinentes "quel que soit le
+    # role"), donc cette simplification n'a aucun effet observable a ce
+    # stade — posee pour ne pas re-elargir la signature actee par le plan.
+    user = getattr(request, "auth", None)
+    if user is None:
+        return "anon"
+    codes = sorted(user_role_codes(user))
+    return codes[0] if codes else "anon"
+
+
+def _serialize_recommendation(recommendation: AiRecommendation) -> dict[str, Any]:
+    return {
+        "id": str(recommendation.id),
+        "context_module": recommendation.context_module,
+        "context_action": recommendation.context_action,
+        "role_code": recommendation.role_code,
+        "label": recommendation.label,
+        "target_module": recommendation.target_module,
+        "target_action_code": recommendation.target_action_code,
+        "created_at": recommendation.created_at.isoformat(),
+    }
+
+
+@router.post("/ai/recommendations")
+def suggest_recommendations_endpoint(request: Any, payload: RecommendationsIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    role_code = _primary_role_code(request)
+    created = run_action_advisor(payload.module, payload.action, tenant=tenant, role_code=role_code)
+    return {"results": [_serialize_recommendation(r) for r in created]}
+
+
+@router.get("/ai/recommendations")
+def list_recommendations_endpoint(request: Any) -> dict[str, Any]:
+    # `AiRecommendation.objects` (TenantManager) est deja scope au tenant
+    # courant — meme convention que `list_usage_requests_endpoint`/
+    # `list_anomalies_endpoint`/`list_insights_endpoint` ci-dessus.
+    recommendations = AiRecommendation.objects.filter(is_active=True)
+    module_filter = request.GET.get("context_module")
+    if module_filter:
+        recommendations = recommendations.filter(context_module=module_filter)
+    return {"results": [_serialize_recommendation(r) for r in recommendations[:200]]}

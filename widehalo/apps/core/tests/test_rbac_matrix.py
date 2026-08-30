@@ -115,6 +115,12 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     # la posture restreinte est un choix pragmatique ulterieur disclosed).
     ("POST", "/ai/insights/generate"),
     ("GET", "/ai/insights"),
+    # AI7 (advisor d'actions/next-best-action) : meme posture ouverte —
+    # `rbac_policy.py` earmarque nommement "recommandations" au meme titre
+    # qu'assistant/recherche/insights des AI1 (aucune deviation cette fois,
+    # contrairement a AI5 qui avait du confirmer par lecture de code).
+    ("POST", "/ai/recommendations"),
+    ("GET", "/ai/recommendations"),
 }
 
 

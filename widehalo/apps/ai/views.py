@@ -11,12 +11,14 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from apps.ai.models import AiAnomaly, AiInsight
+from apps.ai.services.action_advisor import suggest as run_action_advisor
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import current_month_token_usage, get_or_create_usage_limit
 from apps.core.context import get_current_tenant_id
 from apps.core.models.tenant import Tenant
 from apps.core.services.ai_context_registry import list_registered_contexts
+from apps.core.services.permissions import user_role_codes
 
 
 @login_required
@@ -101,3 +103,31 @@ def insights_list(request: HttpRequest) -> HttpResponse:
     cote ecran."""
     insights = AiInsight.objects.filter(is_active=True)
     return render(request, "ai/insights_list.html", {"insights": insights})
+
+
+@login_required
+def recommendations_screen(request: HttpRequest) -> HttpResponse:
+    """AI7 — formulaire module/action (module presente sous forme de liste
+    deroulante peuplee par le registre reel `ai_context_registry`, meme
+    convention que `assist_widget`) + resultat rendu directement (parametres
+    GET simples partageables par URL, meme convention que `search_widget`).
+    Meme patron `@login_required` seul (cf. docstring de tete de fichier) :
+    posture RBAC deliberement OUVERTE (cf. docstring de `apps/ai/api.py`)."""
+    module = request.GET.get("module", "").strip()
+    action = request.GET.get("action", "").strip()
+    recommendations = None
+    if module and action:
+        tenant = Tenant.objects.get(id=get_current_tenant_id())
+        codes = sorted(user_role_codes(request.user))
+        role_code = codes[0] if codes else "anon"
+        recommendations = run_action_advisor(module, action, tenant=tenant, role_code=role_code)
+    return render(
+        request,
+        "ai/recommendations.html",
+        {
+            "modules": [ctx.module for ctx in list_registered_contexts()],
+            "module": module,
+            "action": action,
+            "recommendations": recommendations,
+        },
+    )

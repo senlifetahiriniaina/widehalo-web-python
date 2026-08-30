@@ -278,3 +278,60 @@ def test_generate_and_list_insights_endpoint_reachable_by_any_authenticated_role
 
     filtered_response = client.get("/api/v1/ai/insights", {"category": "rh"}, **headers)
     assert filtered_response.json()["results"] == []
+
+
+@pytest.fixture(autouse=True)
+def _isolated_advisor_rule_registry(monkeypatch):
+    """Meme raisonnement que `_isolated_anomaly_registry`/`_isolated_
+    insight_registry` ci-dessus, pour `core.services.advisor_rule_
+    registry._REGISTRY`."""
+    import apps.core.services.advisor_rule_registry as registry_module
+
+    monkeypatch.setattr(registry_module, "_REGISTRY", {})
+
+
+def test_suggest_and_list_recommendations_endpoint_reachable_by_any_authenticated_role() -> None:
+    """AI7 : cadrage disclosed dans `apps/ai/api.py` — les recommandations
+    suivent la MEME posture OUVERTE que `assist`/`search`/`insights`
+    (earmarked nommement par `rbac_policy.py` des AI1)."""
+    from apps.core.services.advisor_rule_registry import (
+        RecommendationCandidate,
+        register_advisor_rule,
+    )
+
+    def _rule(tenant_id: str, action: str, role_code: str) -> list:
+        return [RecommendationCandidate(label="Recommandation de test API", target_module="test")]
+
+    register_advisor_rule("test.api_suggest", module="test", label="API", function=_rule)
+
+    tenant = Tenant.objects.create(code="AI-RECO-API", name="AI Recommendation API Tenant")
+    user = User.objects.create_user(email="reco-api@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "resp_commercial")
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    suggest_response = client.post(
+        "/api/v1/ai/recommendations",
+        {"module": "test", "action": "consulter"},
+        content_type="application/json",
+        **headers,
+    )
+    assert suggest_response.status_code == 200
+    suggested = suggest_response.json()["results"]
+    assert len(suggested) == 1
+    assert suggested[0]["label"] == "Recommandation de test API"
+    assert suggested[0]["context_module"] == "test"
+    assert suggested[0]["role_code"] == "resp_commercial"
+
+    list_response = client.get("/api/v1/ai/recommendations", **headers)
+    assert list_response.status_code == 200
+    listed = list_response.json()["results"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == suggested[0]["id"]
+
+    filtered_response = client.get(
+        "/api/v1/ai/recommendations", {"context_module": "other"}, **headers
+    )
+    assert filtered_response.json()["results"] == []

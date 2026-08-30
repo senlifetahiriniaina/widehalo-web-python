@@ -72,3 +72,41 @@ def test_insights_list_screen_renders(web_ai) -> None:
     response = client.get("/ai/insights/")
     assert response.status_code == 200
     assert b"Insights proactifs" in response.content
+
+
+def test_recommendations_screen_renders_without_query_params(web_ai) -> None:
+    tenant, user = web_ai
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/recommendations/")
+    assert response.status_code == 200
+    assert b"Recommandations d'action" in response.content
+
+
+def test_recommendations_screen_renders_suggestions_for_a_context(web_ai, monkeypatch) -> None:
+    tenant, user = web_ai
+
+    def _fake_suggest(module, action, *, tenant, role_code):
+        from apps.ai.tests.factories import AiRecommendationFactory
+
+        return [
+            AiRecommendationFactory(
+                tenant=tenant, context_module=module, context_action=action, role_code=role_code
+            )
+        ]
+
+    monkeypatch.setattr("apps.ai.views.run_action_advisor", _fake_suggest)
+
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/recommendations/", {"module": "purchase", "action": "consulter"})
+    assert response.status_code == 200
+    assert b"Recommandation de test (factory)." in response.content

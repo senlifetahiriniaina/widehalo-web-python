@@ -205,3 +205,65 @@ class AiInsight(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.category} — {self.title}"
+
+
+class AiRecommendation(BaseModel):
+    """AI7 (advisor d'actions, next-best-action) — persistance d'une
+    `RecommendationCandidate` (cf. `apps.core.services.advisor_rule_
+    registry`) DEJA decidee deterministiquement par une regle d'un module
+    metier, OU d'un rapprochement direct avec `core.services.automation_
+    registry` (une action deja automatisable pour ce module est une
+    candidate naturelle de suggestion, cf. `apps.ai.services.
+    action_advisor`) — jamais une decision prise par un LLM (meme
+    discipline « explicabilite d'abord » que `AiAnomaly`/`AiInsight`).
+
+    Pas de `ReferenceMixin` : meme raisonnement exact que `AiRequest`/
+    `AiAnomaly`/`AiInsight` — un enregistrement d'audit/de suivi, pas un
+    document numerote que l'utilisateur cree lui-meme. Pas de
+    `content_type`/`object_id` generique non plus (contrairement a
+    `AiAnomaly`) : une recommandation est intrinsequement scopee au
+    CONTEXTE module/action/role de l'ecran en cours, jamais rattachee a
+    une entite individuelle precise.
+
+    **`label` EST enveloppe en `gettext` au moment de la creation
+    (deviation disclosed par rapport a `AiAnomaly.description`/`AiInsight.
+    body`, qui restent volontairement du texte libre non traduit)** : ces
+    deux precedents interpolent des donnees runtime dans une phrase
+    construite a la volee par l'appelant (jamais un texte fixe), alors
+    qu'un `label` de recommandation est choisi parmi un petit ensemble de
+    chaines COURTES et FIXES, authored une fois pour toutes par la regle
+    qui l'enregistre — la meme forme que les libelles de `RegisteredAction.
+    label`/`AiRequest.FEATURE_CHOICES`, un cas authentique de "copie
+    d'interface", pas de "contenu genere". La chaine est resolue et
+    stockee DEJA traduite (`django.utils.translation.gettext`, actif via
+    `LocaleMiddleware` sur la requete courante) au moment de l'appel a
+    `suggest()` plutot que `gettext_lazy` : la signature de plan
+    `suggest(module, action, *, tenant, role_code)` ne transporte pas de
+    parametre `locale` explicite (contrairement a `contextual_assistant.
+    assist`), donc s'appuyer sur la langue active de la requete en cours
+    est le mecanisme d'i18n le plus simple qui n'impose pas d'elargir
+    cette signature actee par le plan.
+
+    `target_module`/`target_action_code` : reference textuelle (jamais une
+    FK) vers une action potentiellement enregistree dans `core.services.
+    automation_registry` — meme discipline generique-par-code que
+    `AiAnomaly.check_code` (un code orphelin, ex. action retiree depuis,
+    reste lisible dans l'historique plutot que de faire echouer une
+    contrainte). `target_action_code` reste vide quand la recommandation
+    n'a pas de contrepartie automatisable connue (simple conseil, pas
+    d'action a un clic)."""
+
+    context_module = models.CharField(max_length=64)
+    context_action = models.CharField(max_length=64)
+    role_code = models.CharField(max_length=32)
+    label = models.CharField(max_length=255)
+    target_module = models.CharField(max_length=64, blank=True, default="")
+    target_action_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "ai_recommendation"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["context_module", "context_action", "role_code"])]
+
+    def __str__(self) -> str:
+        return f"{self.context_module}.{self.context_action} ({self.role_code}) — {self.label}"

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Recommandations d'action" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Recommandations d'action" %}</h1>
+  <p>{% trans "Choisissez un module et decrivez l'action en cours pour obtenir 2 a 3 recommandations deterministes (jamais generees par IA)." %}</p>
+  <form method="get">
+    <label>{% trans "Module" %}
+      <select name="module">
+        {% for m in modules %}
+          <option value="{{ m }}" {% if m == module %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{% trans "Action en cours" %}
+      <input type="text" name="action" value="{{ action }}" placeholder="{% trans 'ex. consulter, creer, valider...' %}">
+    </label>
+    <button type="submit">{% trans "Obtenir des recommandations" %}</button>
+  </form>
+  {% if recommendations is not None %}
+    <ul>
+      {% for recommendation in recommendations %}
+        <li>
+          {{ recommendation.label }}
+          {% if recommendation.target_action_code %}
+            <small>({% trans "action" %}: {{ recommendation.target_action_code }})</small>
+          {% endif %}
+        </li>
+      {% empty %}
+        <li>{% trans "Aucune recommandation pour ce contexte." %}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endblock %}
