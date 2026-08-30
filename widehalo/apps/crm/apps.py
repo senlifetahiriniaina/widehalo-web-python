@@ -11,7 +11,10 @@ class CrmConfig(AppConfig):
         # §5.11 reporting (REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.
+        from apps.crm.services.ai_advisor_registration import register_ai_advisor_rules
+        from apps.crm.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.crm.services.ai_context_registration import register_ai_context
+        from apps.crm.services.ai_insight_registration import register_ai_insight_sources
         from apps.crm.services.automation_registration import (
             register_actions as register_automation_actions,
         )
@@ -24,3 +27,8 @@ class CrmConfig(AppConfig):
         # INT1 (chantier interactivite native inter-modules) : meme patron,
         # registre partage `core.services.automation_registry`.
         register_automation_actions()
+        # INT2 (participation aux registres IA generiques) : anomalies,
+        # insights et advisor, meme patron que `helpdesk`/`purchase`.
+        register_ai_anomaly_checks()
+        register_ai_insight_sources()
+        register_ai_advisor_rules()
