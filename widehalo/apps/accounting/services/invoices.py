@@ -242,7 +242,20 @@ def validate_invoice(move: AccMove, user: User, *, comment: str = "") -> AccMove
     attempt_transition(move, "validate", user, comment=comment)
     move.save(update_fields=["invoice_state"])
 
-    return post_move(move)
+    posted_move = post_move(move)
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "accounting.invoice_validated",
+        {
+            "move_id": str(posted_move.id),
+            "partner_id": str(posted_move.partner_id) if posted_move.partner_id else None,
+            "move_type": posted_move.move_type,
+        },
+        tenant_id=str(posted_move.tenant_id),
+    )
+    return posted_move
 
 
 def cancel_invoice(move: AccMove, user: User, *, motif: str) -> AccMove:
@@ -258,6 +271,19 @@ def cancel_invoice(move: AccMove, user: User, *, motif: str) -> AccMove:
 
     attempt_transition(move, "cancel", user, comment=motif)
     move.save(update_fields=["invoice_state"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "accounting.invoice_cancelled",
+        {
+            "move_id": str(move.id),
+            "partner_id": str(move.partner_id) if move.partner_id else None,
+            "move_type": move.move_type,
+            "motif": motif,
+        },
+        tenant_id=str(move.tenant_id),
+    )
     return move
 
 
