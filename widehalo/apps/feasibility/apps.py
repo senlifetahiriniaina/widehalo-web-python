@@ -13,6 +13,9 @@ class FeasibilityConfig(AppConfig):
         # les autres modules metier (`strategy`/`financing`) — jamais un
         # import direct par `apps.reporting`.
         from apps.feasibility.services.ai_context_registration import register_ai_context
+        from apps.feasibility.services.ai_insight_registration import (
+            register_ai_insight_sources,
+        )
         from apps.feasibility.services.automation_registration import (
             register_actions as register_automation_actions,
         )
@@ -25,3 +28,6 @@ class FeasibilityConfig(AppConfig):
         # INT1 (chantier interactivite native inter-modules) : meme patron,
         # registre partage `core.services.automation_registry`.
         register_automation_actions()
+        # INT2 (participation aux registres IA generiques) : insights,
+        # meme patron que `helpdesk`/`sales`.
+        register_ai_insight_sources()
