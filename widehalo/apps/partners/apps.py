@@ -13,5 +13,11 @@ class PartnersConfig(AppConfig):
         # meme patron que tous les autres modules metier — jamais un import
         # direct par `apps.ai`.
         from apps.partners.services.ai_context_registration import register_ai_context
+        from apps.partners.services.automation_registration import (
+            register_actions as register_automation_actions,
+        )
 
         register_ai_context()
+        # INT1 (chantier interactivite native inter-modules) : meme patron,
+        # registre partage `core.services.automation_registry`.
+        register_automation_actions()
