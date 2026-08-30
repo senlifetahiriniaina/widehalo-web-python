@@ -58,21 +58,46 @@ def create_credoc(
     )
 
 
+def _publish_state_changed(credoc: FinCredoc) -> None:
+    """INT1 (chantier interactivite native inter-modules) : evenement
+    UNIQUE `financing.credoc_state_changed` reutilise par CHAQUE etape du
+    cycle de vie RUU 600 (le nouvel etat, deja persiste par l'appelant, est
+    porte par `payload["state"]` — un abonne du Studio de workflow visuel
+    filtre dessus exactement comme `workflow.transitioned` est deja filtre
+    sur `payload.target`, plutot que 4 `event_type` distincts pour la meme
+    machine a etats lineaire)."""
+    from apps.core.events import publish_event
+
+    publish_event(
+        "financing.credoc_state_changed",
+        {
+            "credoc_id": str(credoc.id),
+            "reference": credoc.reference,
+            "state": credoc.state,
+        },
+        tenant_id=str(credoc.tenant_id),
+    )
+
+
 def open_credoc(credoc: FinCredoc, user: User) -> None:
     attempt_transition(credoc, "open", user)
     credoc.save(update_fields=["state"])
+    _publish_state_changed(credoc)
 
 
 def receive_documents(credoc: FinCredoc, user: User) -> None:
     attempt_transition(credoc, "receive_documents", user)
     credoc.save(update_fields=["state"])
+    _publish_state_changed(credoc)
 
 
 def pay_credoc(credoc: FinCredoc, user: User) -> None:
     attempt_transition(credoc, "pay", user)
     credoc.save(update_fields=["state"])
+    _publish_state_changed(credoc)
 
 
 def close_credoc(credoc: FinCredoc, user: User) -> None:
     attempt_transition(credoc, "close", user)
     credoc.save(update_fields=["state"])
+    _publish_state_changed(credoc)
