@@ -310,9 +310,19 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # precedent que les relevements precedents ci-dessus, HD0) : relever
 # BUDGET_MAX_MODELS a 265 et BUDGET_MAX_SCREENS a 215, marge modeste pour
 # la suite du Lot 2 Madagascar et le demarrage du pays #2.
-BUDGET_MAX_MODELS = 265
+# Le plafond de 215 ecrans n'avait plus que 15 de marge (200/215) a la
+# cloture de HD3 (base de connaissances/gabarits de reponse/chat interne du
+# module `helpdesk`), avec HD4-HD6 (rapports combines CSAT/performance
+# agents/conformite SLA, puis integration IA/automatisation transversale,
+# puis finalisation) encore a livrer, en plus du pays #2 a venir sur cette
+# meme base — **Decision explicite actee avec l'utilisateur** (meme
+# precedent que chaque relevement precedent) : relever BUDGET_MAX_MODELS a
+# 290 et BUDGET_MAX_SCREENS a 240, marge confortable pour le reste de
+# `helpdesk` et le demarrage du pays #2 sans avoir a re-relever a chaque
+# etape restante.
+BUDGET_MAX_MODELS = 290
 BUDGET_MAX_ENDPOINTS = 600
-BUDGET_MAX_SCREENS = 215
+BUDGET_MAX_SCREENS = 240
 
 # Chantier `projects` : configuration du connecteur IA generique
 # (`apps.core.services.ai_assistant`). Dictionnaire VIDE par defaut — le
