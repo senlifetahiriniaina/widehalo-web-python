@@ -27,14 +27,17 @@ from apps.core.services.anomaly_registry import (
 # Seuil choisi et disclosed (aucune reference normative externe) : un
 # dossier douanier ouvert depuis plus de 15 jours calendaires sans
 # dedouanement est retenu comme "a risque" (immobilisation prolongee).
-_OPEN_TOO_LONG_DAYS = 15
+# Public (pas de prefixe `_`) : reutilise TEL QUEL par
+# `apps.logistics.services.customs.flag_customs_file_risk` (INT3, chantier
+# interactivite native inter-modules) — meme seuil, jamais duplique.
+OPEN_TOO_LONG_DAYS = 15
 
 
 def _check_customs_files_at_risk(tenant_id: str) -> list[AnomalyCandidate]:
     from apps.logistics.models import LogCustomsFile
 
     today = timezone.now().date()
-    cutoff = today - dt.timedelta(days=_OPEN_TOO_LONG_DAYS)
+    cutoff = today - dt.timedelta(days=OPEN_TOO_LONG_DAYS)
 
     files = LogCustomsFile.objects.filter(
         tenant_id=tenant_id,
@@ -46,7 +49,7 @@ def _check_customs_files_at_risk(tenant_id: str) -> list[AnomalyCandidate]:
     candidates: list[AnomalyCandidate] = []
     for customs_file in files:
         age_days = (today - customs_file.opened_at).days
-        severity = SEVERITY_HIGH if age_days >= _OPEN_TOO_LONG_DAYS * 2 else SEVERITY_MEDIUM
+        severity = SEVERITY_HIGH if age_days >= OPEN_TOO_LONG_DAYS * 2 else SEVERITY_MEDIUM
         candidates.append(
             AnomalyCandidate(
                 content_type_label="logistics.logcustomsfile",

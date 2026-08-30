@@ -23,11 +23,14 @@ from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import create_landed_cost_batch_from_source
 from apps.logistics.models import LogCustomsFile, LogCustomsLine, LogHsCode, LogShipment
+from apps.logistics.services.ai_anomaly_registration import OPEN_TOO_LONG_DAYS
 from apps.purchase.services.public import open_purchase_incident
 from apps.stocks.services.public import apply_landed_cost_to_valuation
 
 if TYPE_CHECKING:
+    from apps.core.models.risk import RiskItem
     from apps.core.models.tenant import Tenant
+    from apps.core.models.user import User
 
 DEFAULT_VAT_RATE_PCT = Decimal("20")
 
@@ -214,6 +217,60 @@ def mark_customs_file_cleared(customs_file: LogCustomsFile) -> LogCustomsFile:
     customs_file.cleared_at = dt.date.today()
     customs_file.save(update_fields=["state", "cleared_at"])
     return customs_file
+
+
+def flag_customs_file_risk(
+    customs_file: LogCustomsFile, *, owner: User, mitigation_plan: str = ""
+) -> RiskItem | None:
+    """INT3 (chantier interactivite native inter-modules) : transforme un
+    dossier douanier REELLEMENT a risque en `RiskItem` generique
+    (`core.services.risk.create_risk_item`, RSK1-2) — reutilise
+    EXACTEMENT le meme seuil que l'anomalie deterministe
+    `logistics.customs_file_at_risk` (`OPEN_TOO_LONG_DAYS`, cf.
+    `apps.logistics.services.ai_anomaly_registration`, INT2), jamais un
+    second calcul divergent. Retourne `None` (jamais d'exception) si le
+    dossier n'est PAS a risque — un dossier `cleared`/`closed`, ou encore
+    `open` mais pas assez vieux, est le cas NORMAL, pas une erreur d'appel
+    (meme discipline que `report_shipment_delay` ci-dessous qui renvoie
+    `None` "trop tot").
+
+    **Jamais automatique sur chaque changement d'etat** : ni
+    `mark_customs_file_cleared` ni `close_customs_file` n'appellent cette
+    fonction — un dossier qui progresse normalement (`open -> cleared ->
+    closed` avant `OPEN_TOO_LONG_DAYS`) ne doit jamais generer de
+    `RiskItem` (ce serait du bruit sur le cas normal). Point d'entree
+    explicite (vue/action manuelle, ou verification periodique) a appeler
+    quand on veut MATERIALISER en risque suivi ce que l'anomalie
+    deterministe a deja detecte en LECTURE SEULE.
+
+    Score assume : `impact=4` (immobilisation/surcout, toujours
+    significatif pour un dossier bloque) ; `likelihood=5` si le dossier
+    est ouvert depuis au moins `2 x OPEN_TOO_LONG_DAYS` jours (meme palier
+    "severite haute" que l'anomalie), sinon `likelihood=3` — meme
+    granularite a 2 paliers que `SEVERITY_HIGH`/`SEVERITY_MEDIUM` de
+    `ai_anomaly_registration`. `owner` doit etre fourni par l'appelant
+    (`LogCustomsFile` ne porte aucun champ utilisateur exploitable : seul
+    `broker` existe, une FK `LogServiceProvider`, jamais un `core.User`)."""
+    if customs_file.state != LogCustomsFile.STATE_OPEN:
+        return None
+
+    age_days = (dt.date.today() - customs_file.opened_at).days
+    if age_days < OPEN_TOO_LONG_DAYS:
+        return None
+
+    from apps.core.models.risk import CATEGORY_LOGISTICS
+    from apps.core.services.risk import create_risk_item
+
+    likelihood = 5 if age_days >= OPEN_TOO_LONG_DAYS * 2 else 3
+    return create_risk_item(
+        tenant=customs_file.tenant,
+        category=CATEGORY_LOGISTICS,
+        likelihood=likelihood,
+        impact=4,
+        owner=owner,
+        mitigation_plan=mitigation_plan,
+        content_object=customs_file,
+    )
 
 
 def report_shipment_delay(
