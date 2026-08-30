@@ -82,7 +82,15 @@ def validate_pattern(pattern: PatPattern) -> PatPattern:
 
 def new_pattern_version(pattern: PatPattern) -> PatPattern:
     """RG-PAT-6 : copie les pieces (pas la geometrie ni les mesures,
-    recalculees pour la nouvelle version) dans un brouillon."""
+    recalculees pour la nouvelle version) dans un brouillon.
+
+    **INT1 (chantier interactivite native inter-modules)** : publie
+    `patronage.pattern_version_changed` apres creation de la nouvelle
+    version — c'est le mecanisme d'approbation ECO existant
+    (`services/eco.py::enforce_eco_validation`) qui decide ensuite si une
+    validation est requise ; cet evenement sert a la simple
+    notification/consultation d'un changement de version, jamais a
+    remplacer ce mecanisme d'approbation."""
     new_pattern = PatPattern.objects.create(
         tenant=pattern.tenant,
         code=pattern.code,
@@ -113,6 +121,19 @@ def new_pattern_version(pattern: PatPattern) -> PatPattern:
             symmetry=piece.symmetry,
             notes=piece.notes,
         )
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "patronage.pattern_version_changed",
+        {
+            "pattern_id": str(new_pattern.id),
+            "parent_pattern_id": str(pattern.id),
+            "code": new_pattern.code,
+            "version": new_pattern.version,
+        },
+        tenant_id=str(new_pattern.tenant_id),
+    )
     return new_pattern
 
 
