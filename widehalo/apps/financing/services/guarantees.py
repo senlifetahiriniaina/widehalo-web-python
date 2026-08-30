@@ -81,3 +81,53 @@ def check_guarantee_coverage(application: FinLoanApplication) -> dict[str, Any]:
         "coverage_ratio": ratio,
         "is_covered": total_value >= required,
     }
+
+
+def flag_guarantee_coverage_risk(
+    application: FinLoanApplication, *, owner: User, mitigation_plan: str = ""
+) -> Any:
+    """INT3 (chantier interactivite native inter-modules) : materialise un
+    `RiskItem` generique (`core.services.risk.create_risk_item`, RSK1-2)
+    quand les suretes ACTIVES d'un dossier ne couvrent PAS encore
+    `GUARANTEE_COVERAGE_RATIO` (120%) — reutilise DIRECTEMENT
+    `check_guarantee_coverage` ci-dessus (deja enveloppe cote advisor par
+    `apps.financing.services.ai_advisor_registration._advise_on_financing`,
+    INT2), AUCUN second calcul divergent. Retourne `None` (jamais
+    d'exception) si le dossier EST deja couvert — un dossier normalement
+    garanti est le cas ATTENDU, pas une erreur d'appel.
+
+    **Jamais automatique sur chaque creation de surete** : `add_guarantee`
+    ci-dessus n'appelle JAMAIS cette fonction — ajouter une surete est une
+    operation de routine (un dossier commence forcement sous-couvert avant
+    sa premiere surete), la declencher a CHAQUE `add_guarantee` noierait le
+    registre. Point d'entree explicite (vue/action manuelle, ou
+    verification periodique avant decision bancaire) a appeler quand on
+    veut suivre formellement un risque de contrepartie deja diagnostique
+    par `check_guarantee_coverage`.
+
+    Score assume : `impact=5` (un credit insuffisamment garanti expose
+    l'entreprise a une perte totale de la surete en cas de defaut,
+    impact maximal) ; `likelihood=3` (risque "moyen" tant que le dossier
+    n'est pas encore accepte — une insuffisance de couverture reste
+    corrigible avant decision, contrairement a un litige fournisseur deja
+    materialise). Score = 15, exactement au seuil `HIGH_SCORE_THRESHOLD`
+    (publie `risk.flagged`) — une couverture insuffisante merite toujours
+    l'alerte transverse, jamais un simple risque "bas bruit". `owner` doit
+    etre fourni par l'appelant (`FinLoanApplication` ne porte aucun champ
+    utilisateur exploitable, cf. `models.py`)."""
+    coverage = check_guarantee_coverage(application)
+    if coverage["is_covered"]:
+        return None
+
+    from apps.core.models.risk import CATEGORY_FINANCIAL
+    from apps.core.services.risk import create_risk_item
+
+    return create_risk_item(
+        tenant=application.tenant,
+        category=CATEGORY_FINANCIAL,
+        likelihood=3,
+        impact=5,
+        owner=owner,
+        mitigation_plan=mitigation_plan,
+        content_object=application,
+    )
