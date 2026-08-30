@@ -15,6 +15,9 @@ from apps.helpdesk.models import (
     PRIORITY_NORMAL,
     HlpEscalationEvent,
     HlpEscalationRule,
+    HlpKbArticle,
+    HlpKbCategory,
+    HlpResponseTemplate,
     HlpSlaBreach,
     HlpSlaPolicy,
     HlpTeam,
@@ -102,3 +105,29 @@ class HlpEscalationEventFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     ticket = factory.SubFactory(HlpTicketFactory, tenant=factory.SelfAttribute("..tenant"))
     reason = "Escalade de test"
+
+
+class HlpKbCategoryFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpKbCategory
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Categorie KB de test {n}")
+
+
+class HlpKbArticleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpKbArticle
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    title = factory.Sequence(lambda n: f"Article de test {n}")
+    body = "Contenu de test."
+
+
+class HlpResponseTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpResponseTemplate
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Gabarit de test {n}")
+    body = "Bonjour, ..."

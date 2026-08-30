@@ -1,0 +1,7 @@
+{% load i18n %}
+{% if suggestion %}
+  <p><strong>{% trans "Suggestion IA" %}</strong></p>
+  <blockquote>{{ suggestion|linebreaks }}</blockquote>
+{% else %}
+  <p><em>{% trans "Aucune suggestion disponible (assistance IA non configuree ou budget mensuel epuise)." %}</em></p>
+{% endif %}

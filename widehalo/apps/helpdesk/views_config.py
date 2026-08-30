@@ -1,15 +1,22 @@
-"""Ecrans de configuration du module `helpdesk` (HD2), regroupes sous le
-hub "Parametres" (meme convention que `apps.purchase.views_config`/
-`apps.accounting.views_config`) : politiques de SLA (`HlpSlaPolicy`) et
-regles d'escalade (`HlpEscalationRule`).
+"""Ecrans de configuration du module `helpdesk` (HD2+HD3), regroupes sous
+le hub "Parametres" (meme convention que `apps.purchase.views_config`/
+`apps.accounting.views_config`) : politiques de SLA (`HlpSlaPolicy`),
+regles d'escalade (`HlpEscalationRule`) et, depuis HD3, gabarits de
+reponse (`HlpResponseTemplate`).
 
-**RBAC** : ces 2 permissions sont PERSONNALISEES et restreintes a
-`admin`/`direction` cote API (`helpdesk.manage_hlpslapolicy`/
+**RBAC** : les 2 permissions SLA/escalade sont PERSONNALISEES et
+restreintes a `admin`/`direction` cote API (`helpdesk.manage_hlpslapolicy`/
 `manage_hlpescalationrule`, cf. `apps.helpdesk.api`/`apps.core.services.
 rbac_policy.CUSTOM_PERMISSIONS_MANAGE_HLP_ROLES`) — l'ecran HTMX lui-meme
 ne fait que `@login_required`, meme discipline exacte que `apps.projects.
 views_config.config_custom_fields` (le controle N2 fin est applique cote
-service/API, pas dans l'ecran)."""
+service/API, pas dans l'ecran).
+
+**HD3 — `HlpResponseTemplate`** : PAS de permission personnalisee (cf.
+`apps.helpdesk.api`, section RBAC dediee KB/gabarits) — les permissions
+auto-generees standard suffisent (`helpdesk.add_hlpresponsetemplate`
+deja accorde a TOUS les 9 roles non admin/direction par la matrice
+app-level, `change`/suppression restant `admin`/`direction`)."""
 
 from __future__ import annotations
 
@@ -22,6 +29,7 @@ from apps.core.views.tenant_web import resolve_tenant
 from apps.helpdesk.models import (
     PRIORITY_CHOICES,
     HlpEscalationRule,
+    HlpResponseTemplate,
     HlpSlaPolicy,
     HlpTeam,
 )
@@ -90,4 +98,29 @@ def config_escalation_rules(request: HttpRequest) -> HttpResponse:
             "teams": HlpTeam.objects.filter(tenant=tenant, is_active=True),
             "error": error,
         },
+    )
+
+
+@login_required
+def config_response_templates(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        try:
+            HlpResponseTemplate.objects.create(
+                tenant=tenant,
+                name=request.POST.get("name", ""),
+                category=request.POST.get("category", ""),
+                body=request.POST.get("body", ""),
+                created_by=request.user,
+            )
+        except ValidationError as exc:
+            error = str(exc)
+
+    templates = HlpResponseTemplate.objects.filter(tenant=tenant, is_active=True)
+    return render(
+        request,
+        "helpdesk/config_response_templates.html",
+        {"templates": templates, "error": error},
     )

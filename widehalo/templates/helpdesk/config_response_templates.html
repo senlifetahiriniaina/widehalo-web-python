@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Gabarits de reponse" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Gabarits de reponse" %}</h1>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Categorie" %}</th><th>{% trans "Contenu" %}</th></tr></thead>
+    <tbody>
+      {% for template in templates %}
+        <tr><td>{{ template.name }}</td><td>{{ template.category }}</td><td>{{ template.body|truncatewords:20 }}</td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun gabarit." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouveau gabarit" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field"><label>{% trans "Nom" %}</label><input type="text" name="name" required></div>
+    <div class="form-field"><label>{% trans "Categorie" %}</label><input type="text" name="category"></div>
+    <div class="form-field"><label>{% trans "Contenu" %}</label><textarea name="body"></textarea></div>
+    <button type="submit">{% trans "Creer" %}</button>
+  </form>
+{% endblock %}

@@ -13,6 +13,11 @@ default_sla_policy`, `HlpTicket.sla_policy`/`first_response_due_at`/
 modification retroactive des champs HD1 deja livres) — cf. docstrings de
 chaque modele pour le detail.
 
+**HD3** (cf. plan, prochaine etape apres HD2 TERMINÉ) ajoute
+`HlpKbCategory`/`HlpKbArticle` (base de connaissances interne) et
+`HlpResponseTemplate` (gabarits de reponse) — aucun champ nouveau sur les
+modeles HD1/HD2 existants.
+
 **Simplifications actees et disclosed restant de HD1** :
 - Le rattachement generique de `HlpTicket` (`content_type`/`object_id`)
   peut etre pre-filtre par `HlpTicketTypeCatalog.related_content_type`
@@ -512,6 +517,91 @@ class HlpEscalationRule(BaseModel):
         permissions = [
             ("manage_hlpescalationrule", "Peut consulter/gerer les regles d'escalade"),
         ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class HlpKbCategory(BaseModel):
+    """Categorie de la base de connaissances (HD3, cf. plan section
+    « État d'avancement — HD2 TERMINÉ » -> prochaine etape HD3).
+    `BaseModel` sans `ReferenceMixin` — donnee de configuration/referentiel,
+    meme categorie que `HlpTeam`/`HlpSlaPolicy`.
+
+    `parent` : hierarchie auto-referencee (categorie de tete si `None`,
+    sous-categorie sinon), meme discipline que `HlpTicketTypeCatalog.parent`
+    ci-dessus — `on_delete=SET_NULL` (meme convention EXACTE que ce champ
+    dans CE MEME app pour une hierarchie parent qui ne doit jamais bloquer
+    la suppression d'une categorie de tete : ses enfants remontent
+    simplement au niveau racine plutot que d'empecher l'archivage)."""
+
+    name = models.CharField(max_length=200)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
+    )
+
+    class Meta:
+        db_table = "hlp_kb_category"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class HlpKbArticle(BaseModel):
+    """Article de la base de connaissances interne (HD3). `BaseModel` sans
+    `ReferenceMixin` — contenu editorial, pas un document numerote.
+
+    `title`/`body` : texte libre, JAMAIS `gettext` — contenu REDIGE PAR LE
+    TENANT (agent/expert metier), pas une chaine d'interface figee. Meme
+    raisonnement exact que `HlpTicketTypeCatalog.label`.
+
+    `view_count`/`helpful_count`/`not_helpful_count` : compteurs agreges
+    simples, incrementes de facon ATOMIQUE via `F(...)` (cf. `services.kb`)
+    — **simplification actee et disclosed** : aucun modele `ArticleView`
+    par lecture/feedback individuel en V1 (pas d'historique nominatif de
+    qui a lu/vote quoi), meme discipline d'economie que `HlpCsatResponse`
+    (une seule ligne agregee par ticket, pas une serie temporelle)."""
+
+    category = models.ForeignKey(
+        HlpKbCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="articles"
+    )
+    title = models.CharField(max_length=255)
+    body = models.TextField(blank=True)
+    is_published = models.BooleanField(default=False)
+    author = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    view_count = models.PositiveIntegerField(default=0)
+    helpful_count = models.PositiveIntegerField(default=0)
+    not_helpful_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "hlp_kb_article"
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class HlpResponseTemplate(BaseModel):
+    """Gabarit de reponse reutilisable par un agent (HD3) — remplace le
+    concept « suggestion de reponse IA A/B testee » du document source par
+    un mecanisme simple et deterministe (cf. plan, section modeles). Une
+    suggestion de PROSE generee par IA reste possible EN COMPLEMENT
+    (`services.ai_assist.suggest_reply`), jamais persistee comme un
+    gabarit.
+
+    `category` : `CharField` texte LIBRE (jamais une FK vers
+    `HlpKbCategory` — deux concepts distincts, une categorisation
+    LEGERE/informelle de gabarit n'a pas besoin de la hierarchie complete
+    de la base de connaissances). `body` : texte libre, JAMAIS `gettext` —
+    contenu redige par le tenant, meme raisonnement que `HlpKbArticle.body`."""
+
+    name = models.CharField(max_length=200)
+    category = models.CharField(max_length=100, blank=True)
+    body = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "hlp_response_template"
 
     def __str__(self) -> str:
         return self.name

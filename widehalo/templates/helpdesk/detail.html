@@ -17,6 +17,15 @@
     <p>{% trans "Enregistrement rattache" %}: {{ related_object }}</p>
   {% endif %}
 
+  <p><a href="/chat/{{ chat_channel_id }}/">{% trans "Ouvrir la messagerie contextuelle" %}</a></p>
+
+  <form hx-post="{% url 'helpdesk:ticket_suggest_reply' ticket_id=ticket.id %}"
+        hx-target="#suggest-reply-result">
+    {% csrf_token %}
+    <button type="submit">{% trans "Suggestion de reponse (IA)" %}</button>
+  </form>
+  <div id="suggest-reply-result"></div>
+
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   {% if can_manage %}

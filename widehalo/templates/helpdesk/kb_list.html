@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Base de connaissances" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Base de connaissances" %}</h1>
+  <p><a href="{% url 'helpdesk:kb_create' %}">{% trans "Nouvel article" %}</a></p>
+
+  <form method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'Rechercher...' %}">
+    <button type="submit">{% trans "Rechercher" %}</button>
+  </form>
+
+  <ul>
+    {% for article in articles %}
+      <li>
+        <a href="{% url 'helpdesk:kb_detail' article_id=article.id %}">{{ article.title }}</a>
+        {% if article.category %} — {{ article.category.name }}{% endif %}
+      </li>
+    {% empty %}
+      <li>{% trans "Aucun article publie." %}</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

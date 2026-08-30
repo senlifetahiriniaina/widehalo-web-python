@@ -18,8 +18,16 @@ from apps.core.module import ModuleSpec
 # (table generique du socle Django, pas un modele metier d'une autre app),
 # de meme pour `HlpTicketTypeCatalog.related_module` (simple CharField
 # documentaire/indicatif, jamais une dependance declaree).
+#
+# HD3 ajoute deux dependances REELLES (consommation `services.public`
+# uniquement, jamais un import de modele) :
+# - `chat` : `apps.chat.services.public.get_or_create_document_channel`
+#   (chat interne integre au detail ticket, cf. `views.py`) ;
+# - `ai` : `apps.ai.services.public.get_budget_gated_provider`/
+#   `record_request`/`estimate_tokens` (suggestion de reponse IA
+#   fallback-first, cf. `services/ai_assist.py`).
 MODULE = ModuleSpec(
     name="helpdesk",
-    dependencies=("core",),
+    dependencies=("core", "chat", "ai"),
     verbose_name="Support et suivi operationnel",
 )

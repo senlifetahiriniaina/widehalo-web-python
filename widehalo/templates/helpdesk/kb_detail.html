@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ article.title }} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{{ article.title }}</h1>
+  <p>
+    {% if article.is_published %}{% trans "Publie" %}{% else %}{% trans "Brouillon" %}{% endif %}
+    — {% trans "Vues" %}: {{ article.view_count }}
+    — {% trans "Utile" %}: {{ article.helpful_count }}
+    — {% trans "Pas utile" %}: {{ article.not_helpful_count }}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <div>{{ article.body|linebreaks }}</div>
+
+  <h2>{% trans "Cet article vous a-t-il aide ?" %}</h2>
+  <form method="post" style="display:inline">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="feedback">
+    <button type="submit" name="helpful" value="1">{% trans "Oui" %}</button>
+    <button type="submit" name="helpful" value="0">{% trans "Non" %}</button>
+  </form>
+
+  {% if can_manage %}
+    <h2>{% trans "Gestion" %}</h2>
+    <form method="post" style="display:inline">
+      {% csrf_token %}
+      {% if article.is_published %}
+        <button type="submit" name="action" value="unpublish">{% trans "Depublier" %}</button>
+      {% else %}
+        <button type="submit" name="action" value="publish">{% trans "Publier" %}</button>
+      {% endif %}
+    </form>
+  {% endif %}
+{% endblock %}

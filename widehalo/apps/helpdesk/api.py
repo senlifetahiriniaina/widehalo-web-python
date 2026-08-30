@@ -9,6 +9,12 @@ admin/direction UNIQUEMENT — cf. section dediee plus bas), declenchement
 manuel `/helpdesk/checks/run` (`helpdesk.run_helpdesk_checks`, memes
 roles), historique d'escalade d'un ticket.
 
+**HD3** : CRUD `HlpKbCategory`/`HlpKbArticle`/`HlpResponseTemplate` (base
+de connaissances + gabarits de reponse, permissions AUTO-GENEREES
+standard — cf. section dediee plus bas pour la decision RBAC disclosed),
+feedback/publication d'article, suggestion de reponse IA fallback-first
+(`/helpdesk/tickets/{id}/suggest-reply`, cf. `services/ai_assist.py`).
+
 NOTE ordre des decorateurs (cf. `apps.core.services.permissions.
 require_permission`) : `@router.xxx` DOIT rester le decorateur EXTERNE et
 `@require_permission(...)` l'INTERNE (juste au-dessus de `def`).
@@ -38,13 +44,17 @@ from apps.core.services.workflow import TransitionPermissionError
 from apps.helpdesk.models import (
     HlpEscalationEvent,
     HlpEscalationRule,
+    HlpKbArticle,
+    HlpKbCategory,
+    HlpResponseTemplate,
     HlpSlaPolicy,
     HlpTeam,
     HlpTicket,
     HlpTicketComment,
     HlpTicketTypeCatalog,
 )
-from apps.helpdesk.services import escalation, sla
+from apps.helpdesk.services import escalation, kb, sla
+from apps.helpdesk.services.ai_assist import suggest_reply
 from apps.helpdesk.services.tickets import (
     add_comment,
     assign_ticket,
@@ -128,6 +138,34 @@ class EscalationRuleIn(Schema):
 class CommentIn(Schema):
     body: str
     is_internal_note: bool = False
+
+
+class KbCategoryIn(Schema):
+    name: str
+    parent_id: str | None = None
+
+
+class KbArticleIn(Schema):
+    title: str
+    body: str = ""
+    category_id: str | None = None
+    is_published: bool = False
+
+
+class KbArticleUpdateIn(Schema):
+    title: str | None = None
+    body: str | None = None
+    category_id: str | None = None
+
+
+class KbFeedbackIn(Schema):
+    helpful: bool
+
+
+class ResponseTemplateIn(Schema):
+    name: str
+    category: str = ""
+    body: str = ""
 
 
 def _serialize_team(team: HlpTeam) -> dict[str, Any]:
@@ -447,6 +485,214 @@ def ticket_escalation_history_endpoint(request: Any, ticket_id: str) -> dict[str
     ticket = get_object_or_404(HlpTicket, id=ticket_id)
     events = ticket.escalation_events.all()
     return {"results": [_serialize_escalation_event(e) for e in events]}
+
+
+# --- HlpKbCategory/HlpKbArticle/HlpResponseTemplate (HD3) ---------------
+#
+# **RBAC (decision disclosed)** : contrairement a `HlpSlaPolicy`/
+# `HlpEscalationRule` ci-dessous (config transverse admin/direction
+# UNIQUEMENT, permission personnalisee), la base de connaissances et les
+# gabarits de reponse restent sur les permissions AUTO-GENEREES standard
+# (`helpdesk.view/add/change_hlpkbcategory`/`hlpkbarticle`/
+# `hlpresponsetemplate`) deja couvertes par la matrice app-level existante
+# (`ROLE_APP_PERMISSIONS["helpdesk"]`, cf. `rbac_policy.py`) : TOUS les 9
+# roles non admin/direction recoivent `view`+`add` (peuvent consulter la KB
+# et CREER un article/gabarit — le partage de connaissance est une
+# contribution largement ouverte, pas une prerogative reservee), seuls
+# `admin`/`direction` recoivent `change` au niveau app. **Scope N3
+# symetrique a `user_can_manage_ticket`** (`_can_manage_kb_article`
+# ci-dessous) : un utilisateur sans `helpdesk.change_hlpkbarticle` peut
+# neanmoins publier/depublier/modifier SON PROPRE article (`author`) —
+# jamais celui d'un tiers. Choix motive : sur-restreindre l'auteur d'un
+# gabarit/article a ne pouvoir QUE creer, sans jamais pouvoir corriger sa
+# propre contribution avant qu'un admin/direction ne s'en charge,
+# decouragerait la contribution — l'objectif explicite du cadrage
+# (« ne pas trop restreindre l'auteur d'une KB »). `HlpResponseTemplate`
+# n'a pas de champ `author` (cf. modele) : sa modification reste donc
+# `helpdesk.change_hlpresponsetemplate` strict (admin/direction), un
+# gabarit etant une ressource PARTAGEE de l'equipe des sa creation (a la
+# difference d'un article KB qui porte la voix de son auteur).
+
+
+def _can_manage_kb_article(article: HlpKbArticle, user: Any) -> bool:
+    if user.has_perm("helpdesk.change_hlpkbarticle"):
+        return True
+    return article.author_id == user.id
+
+
+def _serialize_kb_category(category: HlpKbCategory) -> dict[str, Any]:
+    return {
+        "id": str(category.id),
+        "name": category.name,
+        "parent_id": str(category.parent_id) if category.parent_id else None,
+    }
+
+
+def _serialize_kb_article(article: HlpKbArticle) -> dict[str, Any]:
+    return {
+        "id": str(article.id),
+        "category_id": str(article.category_id) if article.category_id else None,
+        "title": article.title,
+        "body": article.body,
+        "is_published": article.is_published,
+        "author_id": str(article.author_id) if article.author_id else None,
+        "view_count": article.view_count,
+        "helpful_count": article.helpful_count,
+        "not_helpful_count": article.not_helpful_count,
+    }
+
+
+def _serialize_response_template(template: HlpResponseTemplate) -> dict[str, Any]:
+    return {
+        "id": str(template.id),
+        "name": template.name,
+        "category": template.category,
+        "body": template.body,
+    }
+
+
+@router.get("/helpdesk/kb/categories")
+@require_permission("helpdesk.view_hlpkbcategory")
+def list_kb_categories_endpoint(request: Any) -> dict[str, Any]:
+    categories = HlpKbCategory.objects.filter(is_active=True)
+    return {"results": [_serialize_kb_category(c) for c in categories]}
+
+
+@router.post("/helpdesk/kb/categories")
+@require_permission("helpdesk.add_hlpkbcategory")
+def create_kb_category_endpoint(request: Any, payload: KbCategoryIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    category = HlpKbCategory.objects.create(
+        tenant=tenant,
+        name=payload.name,
+        parent_id=payload.parent_id,
+        created_by=request.auth,
+    )
+    return _serialize_kb_category(category)
+
+
+@router.get("/helpdesk/kb/articles")
+@require_permission("helpdesk.view_hlpkbarticle")
+def list_kb_articles_endpoint(request: Any, q: str = "") -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    if q:
+        articles = kb.search_articles(tenant, q)
+    else:
+        articles = HlpKbArticle.objects.filter(tenant=tenant, is_active=True)
+    return {"results": [_serialize_kb_article(a) for a in articles]}
+
+
+@router.post("/helpdesk/kb/articles")
+@require_permission("helpdesk.add_hlpkbarticle")
+def create_kb_article_endpoint(request: Any, payload: KbArticleIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    category = None
+    if payload.category_id:
+        category = get_object_or_404(HlpKbCategory, id=payload.category_id)
+    article = kb.create_article(
+        tenant,
+        title=payload.title,
+        body=payload.body,
+        category=category,
+        author=request.auth,
+        is_published=payload.is_published,
+        created_by=request.auth,
+    )
+    return _serialize_kb_article(article)
+
+
+@router.get("/helpdesk/kb/articles/{article_id}")
+@require_permission("helpdesk.view_hlpkbarticle")
+def get_kb_article_endpoint(request: Any, article_id: str) -> dict[str, Any]:
+    article = get_object_or_404(HlpKbArticle, id=article_id)
+    article = kb.record_article_view(article)
+    return _serialize_kb_article(article)
+
+
+@router.patch("/helpdesk/kb/articles/{article_id}")
+@require_permission("helpdesk.view_hlpkbarticle")
+def update_kb_article_endpoint(request: Any, article_id: str, payload: KbArticleUpdateIn) -> Any:
+    article = get_object_or_404(HlpKbArticle, id=article_id)
+    if not _can_manage_kb_article(article, request.auth):
+        return _forbidden()
+    update_fields: list[str] = []
+    if payload.title is not None:
+        article.title = payload.title
+        update_fields.append("title")
+    if payload.body is not None:
+        article.body = payload.body
+        update_fields.append("body")
+    if payload.category_id is not None:
+        article.category_id = payload.category_id or None
+        update_fields.append("category_id")
+    if update_fields:
+        article.updated_by = request.auth
+        article.save(update_fields=[*update_fields, "updated_by"])
+    return _serialize_kb_article(article)
+
+
+@router.post("/helpdesk/kb/articles/{article_id}/publish")
+@require_permission("helpdesk.view_hlpkbarticle")
+def publish_kb_article_endpoint(request: Any, article_id: str) -> Any:
+    article = get_object_or_404(HlpKbArticle, id=article_id)
+    if not _can_manage_kb_article(article, request.auth):
+        return _forbidden()
+    return _serialize_kb_article(kb.publish_article(article))
+
+
+@router.post("/helpdesk/kb/articles/{article_id}/unpublish")
+@require_permission("helpdesk.view_hlpkbarticle")
+def unpublish_kb_article_endpoint(request: Any, article_id: str) -> Any:
+    article = get_object_or_404(HlpKbArticle, id=article_id)
+    if not _can_manage_kb_article(article, request.auth):
+        return _forbidden()
+    return _serialize_kb_article(kb.unpublish_article(article))
+
+
+@router.post("/helpdesk/kb/articles/{article_id}/feedback")
+@require_permission("helpdesk.view_hlpkbarticle")
+def kb_article_feedback_endpoint(request: Any, article_id: str, payload: KbFeedbackIn) -> Any:
+    article = get_object_or_404(HlpKbArticle, id=article_id)
+    return _serialize_kb_article(kb.record_article_feedback(article, helpful=payload.helpful))
+
+
+@router.get("/helpdesk/response-templates")
+@require_permission("helpdesk.view_hlpresponsetemplate")
+def list_response_templates_endpoint(request: Any) -> dict[str, Any]:
+    templates = HlpResponseTemplate.objects.filter(is_active=True)
+    return {"results": [_serialize_response_template(t) for t in templates]}
+
+
+@router.post("/helpdesk/response-templates")
+@require_permission("helpdesk.add_hlpresponsetemplate")
+def create_response_template_endpoint(request: Any, payload: ResponseTemplateIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    template = HlpResponseTemplate.objects.create(
+        tenant=tenant,
+        name=payload.name,
+        category=payload.category,
+        body=payload.body,
+        created_by=request.auth,
+    )
+    return _serialize_response_template(template)
+
+
+# --- Suggestion de reponse IA (HD3) --------------------------------------
+
+
+@router.post("/helpdesk/tickets/{ticket_id}/suggest-reply")
+@require_permission("helpdesk.view_hlpticket")
+def suggest_reply_endpoint(request: Any, ticket_id: str) -> dict[str, Any]:
+    """Ouvert a tout utilisateur ayant acces en lecture au module
+    `helpdesk` (meme posture que les autres endpoints GET de `HlpTicket` —
+    `helpdesk.view_hlpticket` est deja accorde a TOUS les roles, cf.
+    `rbac_policy.py` : « tout employe peut consulter les tickets »). Ne
+    renvoie JAMAIS d'erreur HTTP 500 : `suggest_reply()` degrade vers une
+    chaine vide en toute circonstance (cf. sa docstring)."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    ticket = get_object_or_404(HlpTicket, id=ticket_id)
+    suggestion = suggest_reply(ticket, tenant=tenant)
+    return {"suggestion": suggestion}
 
 
 # --- HlpSlaPolicy (HD2) -------------------------------------------------

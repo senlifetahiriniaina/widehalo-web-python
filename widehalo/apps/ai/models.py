@@ -64,6 +64,16 @@ class AiRequest(BaseModel):
     # renommage des valeurs existantes, deja utilisees par des lignes
     # `AiRequest` existantes en base).
     FEATURE_DATA_QUERY = "data_query"
+    # HD3 (chantier `helpdesk`) : `apps.helpdesk.services.ai_assist.
+    # suggest_reply` journalise elle aussi ses appels via `record_request`
+    # (meme discipline que GW4 ci-dessus) — nouvelle valeur ADDITIVE.
+    # `helpdesk` ne peut PAS importer ce module (`apps.ai.models`, regle de
+    # couplage n°1 : seul `apps.ai.services.public` est autorise) : cette
+    # chaine est donc dupliquee la-bas comme constante Python litterale
+    # (`ai_assist.FEATURE_HELPDESK_REPLY`), meme convention documentee que
+    # `apps.helpdesk.models.SECTOR_CHOICES` — garder les deux valeurs
+    # IDENTIQUES par convention si l'une des deux change un jour.
+    FEATURE_HELPDESK_REPLY = "helpdesk_reply"
     FEATURE_CHOICES = [
         (FEATURE_ASSIST, _("Assistant contextuel")),
         (FEATURE_ANOMALY_NARRATIVE, _("Narrative d'anomalie")),
@@ -71,6 +81,7 @@ class AiRequest(BaseModel):
         (FEATURE_INSIGHT, _("Insight proactif")),
         (FEATURE_RECOMMENDATION, _("Recommandation d'action")),
         (FEATURE_DATA_QUERY, _("Question-donnees IA")),
+        (FEATURE_HELPDESK_REPLY, _("Suggestion de reponse helpdesk")),
     ]
 
     feature = models.CharField(max_length=32, choices=FEATURE_CHOICES)
