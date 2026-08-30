@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Insights proactifs" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Insights proactifs" %}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Categorie" %}</th>
+        <th>{% trans "Titre" %}</th>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Modules source" %}</th>
+        <th>{% trans "Genere le" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for insight in insights %}
+        <tr>
+          <td>{{ insight.category }}</td>
+          <td>{{ insight.title }}</td>
+          <td>{{ insight.body }}</td>
+          <td>{{ insight.source_modules|join:", " }}</td>
+          <td>{{ insight.created_at }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun insight genere pour le moment." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

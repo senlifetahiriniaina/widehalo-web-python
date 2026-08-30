@@ -13,6 +13,7 @@ class SalesConfig(AppConfig):
         # `core.events` — jamais un import direct par `apps.reporting`.
         from apps.sales.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.sales.services.ai_context_registration import register_ai_context
+        from apps.sales.services.ai_insight_registration import register_ai_insight_sources
         from apps.sales.services.reports_registration import register_reports
 
         register_reports()
@@ -22,3 +23,6 @@ class SalesConfig(AppConfig):
         # AI3 (detection d'anomalies cross-modules) : meme patron, registre
         # partage `core.services.anomaly_registry`.
         register_ai_anomaly_checks()
+        # AI5 (insights proactifs automatises) : meme patron, registre
+        # partage `core.services.insight_source_registry`.
+        register_ai_insight_sources()

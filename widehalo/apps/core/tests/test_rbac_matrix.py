@@ -108,6 +108,13 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     # `global_search`, deja tenant-scope et deja filtre RBAC par resultat,
     # meme posture que `GET /search` ci-dessus).
     ("POST", "/ai/search"),
+    # AI5 (insights proactifs automatises) : meme posture ouverte — cf.
+    # docstring de tete de `apps/ai/api.py` (rbac_policy.py earmarque
+    # nommement les « insights » aux cotes de l'assistant contextuel/la
+    # recherche pour cette posture, contrairement aux anomalies AI3 dont
+    # la posture restreinte est un choix pragmatique ulterieur disclosed).
+    ("POST", "/ai/insights/generate"),
+    ("GET", "/ai/insights"),
 }
 
 

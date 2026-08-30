@@ -226,3 +226,55 @@ def test_rbac_deny_anomaly_endpoints_for_role_without_ai_access() -> None:
 
     assert client.post("/api/v1/ai/anomalies/detect", **headers).status_code == 403
     assert client.get("/api/v1/ai/anomalies", **headers).status_code == 403
+
+
+@pytest.fixture(autouse=True)
+def _isolated_insight_registry(monkeypatch):
+    """Meme raisonnement que `_isolated_anomaly_registry` ci-dessus, pour
+    `core.services.insight_source_registry._REGISTRY`."""
+    import apps.core.services.insight_source_registry as registry_module
+
+    monkeypatch.setattr(registry_module, "_REGISTRY", {})
+
+
+def test_generate_and_list_insights_endpoint_reachable_by_any_authenticated_role() -> None:
+    """AI5 : cadrage disclosed dans `apps/ai/api.py` — les insights suivent
+    la posture OUVERTE de `assist`/`search` (nommement earmarked par
+    `rbac_policy.py`), PAS la posture restreinte des anomalies (AI3)."""
+    from apps.core.services.insight_source_registry import InsightCandidate, register_insight_source
+
+    def _check(tenant_id: str) -> list:
+        return [
+            InsightCandidate(
+                category="ventes",
+                title="Insight de test API",
+                body="Corps de test API.",
+                source_modules=["sales"],
+            )
+        ]
+
+    register_insight_source("test.api_generate", module="test", label="API", function=_check)
+
+    tenant = Tenant.objects.create(code="AI-INSIGHT-API", name="AI Insight API Tenant")
+    user = User.objects.create_user(email="insight-api@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "resp_commercial")
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    generate_response = client.post("/api/v1/ai/insights/generate", **headers)
+    assert generate_response.status_code == 200
+    generated = generate_response.json()["results"]
+    assert len(generated) == 1
+    assert generated[0]["category"] == "ventes"
+    assert generated[0]["is_ai_generated"] is False
+
+    list_response = client.get("/api/v1/ai/insights", **headers)
+    assert list_response.status_code == 200
+    listed = list_response.json()["results"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == generated[0]["id"]
+
+    filtered_response = client.get("/api/v1/ai/insights", {"category": "rh"}, **headers)
+    assert filtered_response.json()["results"] == []

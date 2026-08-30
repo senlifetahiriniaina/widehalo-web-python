@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
-from apps.ai.models import AiAnomaly
+from apps.ai.models import AiAnomaly, AiInsight
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import current_month_token_usage, get_or_create_usage_limit
@@ -90,3 +90,14 @@ def anomalies_list(request: HttpRequest) -> HttpResponse:
     porte par l'API, jamais duplique cote ecran HTMX."""
     anomalies = AiAnomaly.objects.filter(is_active=True, status=AiAnomaly.STATUS_OPEN)
     return render(request, "ai/anomalies_list.html", {"anomalies": anomalies})
+
+
+@login_required
+def insights_list(request: HttpRequest) -> HttpResponse:
+    """AI5 — liste simple des insights proactifs du tenant courant. Meme
+    patron `@login_required` seul que le reste de cet ecran (cf. docstring
+    de tete de fichier) : posture RBAC deliberement OUVERTE (cf. docstring
+    de `apps/ai/api.py`), jamais de restriction de role supplementaire
+    cote ecran."""
+    insights = AiInsight.objects.filter(is_active=True)
+    return render(request, "ai/insights_list.html", {"insights": insights})

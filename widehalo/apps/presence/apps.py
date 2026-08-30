@@ -13,5 +13,9 @@ class PresenceConfig(AppConfig):
         # meme patron que tous les autres modules metier — jamais un import
         # direct par `apps.ai`.
         from apps.presence.services.ai_context_registration import register_ai_context
+        from apps.presence.services.ai_insight_registration import register_ai_insight_sources
 
         register_ai_context()
+        # AI5 (insights proactifs automatises) : meme patron, registre
+        # partage `core.services.insight_source_registry`.
+        register_ai_insight_sources()

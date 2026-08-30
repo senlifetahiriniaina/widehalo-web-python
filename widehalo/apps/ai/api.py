@@ -36,7 +36,23 @@ ecran filtre par role/domaine reste du perimetre futur, pas bloquant ici.
 `add_aianomaly` n'est JAMAIS accorde a un utilisateur en pratique : les
 `AiAnomaly` ne sont creees QUE par `services.anomaly_detection.
 run_all_checks` (endpoint de detection, jamais une creation manuelle
-directe d'anomalie exposee par ailleurs)."""
+directe d'anomalie exposee par ailleurs).
+
+`POST /ai/insights/generate` et `GET /ai/insights` (AI5, insights
+proactifs automatises) reviennent en revanche a la posture OUVERTE de
+`assist`/`search` ci-dessus, PAS a la posture restreinte des anomalies —
+choix disclosed qui merite d'etre explicite car il s'ecarte du precedent
+le plus recent (anomalies) : `rbac_policy.py` (`ROLE_APP_PERMISSIONS["
+admin"]["ai"]`, commentaire de tete de section) reserve explicitement et
+nommement les « insights » (avec l'assistant contextuel et la recherche)
+a une posture ouverte "sans permission de module dediee, meme posture que
+`chat`" — contrairement aux anomalies (non nommees dans ce commentaire),
+dont la posture restreinte est un choix pragmatique ulterieur et disclosed
+de AI3. Un insight proactif reste par ailleurs une information de
+pilotage utile a tout role en train de travailler sur son module
+(commercial, production, RH), pas seulement `admin`/`direction` — cf.
+`AiInsight.category` volontairement variee ("ventes"/"production"/"rh"/
+"synthese")."""
 
 from __future__ import annotations
 
@@ -44,8 +60,9 @@ from typing import Any
 
 from ninja import Router, Schema
 
-from apps.ai.models import AiAnomaly
+from apps.ai.models import AiAnomaly, AiInsight
 from apps.ai.services.anomaly_detection import run_all_checks
+from apps.ai.services.automated_insights import generate as generate_insights
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import (
@@ -221,3 +238,34 @@ def list_anomalies_endpoint(request: Any) -> dict[str, Any]:
     if severity_filter:
         anomalies = anomalies.filter(severity=severity_filter)
     return {"results": [_serialize_anomaly(anomaly) for anomaly in anomalies[:200]]}
+
+
+def _serialize_insight(insight: AiInsight) -> dict[str, Any]:
+    return {
+        "id": str(insight.id),
+        "category": insight.category,
+        "title": insight.title,
+        "body": insight.body,
+        "source_modules": insight.source_modules,
+        "is_ai_generated": insight.is_ai_generated,
+        "created_at": insight.created_at.isoformat(),
+    }
+
+
+@router.post("/ai/insights/generate")
+def generate_insights_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    created = generate_insights(tenant)
+    return {"results": [_serialize_insight(insight) for insight in created]}
+
+
+@router.get("/ai/insights")
+def list_insights_endpoint(request: Any) -> dict[str, Any]:
+    # `AiInsight.objects` (TenantManager) est deja scope au tenant courant
+    # — meme convention que `list_usage_requests_endpoint`/
+    # `list_anomalies_endpoint` ci-dessus.
+    insights = AiInsight.objects.filter(is_active=True)
+    category_filter = request.GET.get("category")
+    if category_filter:
+        insights = insights.filter(category=category_filter)
+    return {"results": [_serialize_insight(insight) for insight in insights[:200]]}

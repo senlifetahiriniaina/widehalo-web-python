@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import factory
 
-from apps.ai.models import AiAnomaly, AiRequest, AiUsageLimit
+from apps.ai.models import AiAnomaly, AiInsight, AiRequest, AiUsageLimit
 from apps.core.services.anomaly_registry import SEVERITY_LOW
 
 
@@ -43,3 +43,17 @@ class AiAnomalyFactory(factory.django.DjangoModelFactory):
     check_code = "test.factory_check"
     severity = SEVERITY_LOW
     description = "Anomalie de test (factory)."
+
+
+class AiInsightFactory(factory.django.DjangoModelFactory):
+    """AI5 — factory de test T1."""
+
+    class Meta:
+        model = AiInsight
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    category = "ventes"
+    title = "Insight de test (factory)."
+    body = "Corps de l'insight de test (factory)."
+    source_modules = factory.LazyFunction(lambda: ["sales"])
+    is_ai_generated = False

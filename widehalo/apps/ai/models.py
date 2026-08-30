@@ -157,3 +157,51 @@ class AiAnomaly(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.check_code} ({self.severity})"
+
+
+class AiInsight(BaseModel):
+    """AI5 (insights proactifs automatises) — persistance d'un
+    `InsightCandidate` (cf. `apps.core.services.insight_source_registry`)
+    DEJA calcule deterministiquement par un module metier a partir de
+    donnees deja existantes, jamais une observation inventee par un LLM.
+    Pas de `ReferenceMixin` : meme raisonnement exact que `AiRequest`/
+    `AiAnomaly` — un enregistrement d'audit/de suivi, pas un document
+    numerote que l'utilisateur cree lui-meme.
+
+    `category` est un texte libre (ex. "ventes"/"rh"/"tresorerie"/
+    "synthese"), volontairement PAS une liste `choices` figee : les
+    categories d'insight vont croitre organiquement au fil des modules qui
+    s'enregistrent (meme raisonnement que `check_code` sur `AiAnomaly` —
+    un code/une categorie orpheline reste lisible dans l'historique plutot
+    que de faire echouer une contrainte).
+
+    `title`/`body` : texte libre SANS `gettext_lazy`, meme raisonnement
+    exact que `AiAnomaly.description`/`ai_narrative` — un contenu
+    potentiellement genere (par un module metier en langue du tenant, ou
+    par un LLM pour l'insight de synthese) n'est jamais une chaine
+    d'interface a traduire au sens i18n de ce depot.
+
+    `source_modules` (`JSONField`, liste de labels d'app, ex.
+    `["sales", "presence"]`) : quel(s) module(s) metier ont fourni la
+    donnee source de cet insight — le plus souvent un seul, plus d'un
+    uniquement pour un insight de synthese cross-module (cf. `apps.ai.
+    services.automated_insights`).
+
+    `is_ai_generated` : `False` pour un insight purement deterministe issu
+    d'un adaptateur de module metier (le cas courant), `True` uniquement
+    pour l'insight de synthese cross-module optionnel enrichi par un LLM
+    — meme distinction exacte que `AiAnomaly.ai_narrative` (vide/rempli)
+    et `AssistResponse.is_ai_generated`."""
+
+    category = models.CharField(max_length=32)
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    source_modules = models.JSONField(default=list, blank=True)
+    is_ai_generated = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "ai_insight"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.category} — {self.title}"

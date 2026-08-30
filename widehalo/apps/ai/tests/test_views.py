@@ -59,3 +59,16 @@ def test_assist_fragment_returns_guidance(web_ai) -> None:
     response = client.post("/ai/assist/fragment/", {"module": "sales", "action": "consulter"})
     assert response.status_code == 200
     assert response.content.strip()
+
+
+def test_insights_list_screen_renders(web_ai) -> None:
+    tenant, user = web_ai
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/insights/")
+    assert response.status_code == 200
+    assert b"Insights proactifs" in response.content
