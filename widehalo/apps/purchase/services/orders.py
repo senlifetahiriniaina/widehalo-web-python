@@ -446,7 +446,31 @@ def open_order_dispute(order: PurOrder, user: User, *, reason: str) -> PurOrder:
     fichier qui ne contient pas la logique concernee — jamais une
     duplication via `PurCri` (deja verifie : `PurCri` cf.
     `apps.purchase.services.cri` reste un compte-rendu d'incident distinct,
-    pas la branche FSM "en litige")."""
+    pas la branche FSM "en litige").
+
+    INT3 (chantier interactivite native inter-modules) : signale AUSSI un
+    `RiskItem` generique (`core.services.risk.create_risk_item`,
+    `category="fournisseur"` — valeur `CATEGORY_SUPPLIER` deja existante
+    dans `RiskItem.CATEGORY_CHOICES`, aucun nouveau choix necessaire) DES
+    QU'UNE COMMANDE PASSE EN LITIGE — chaque litige est par nature un
+    evenement rare et deja significatif (contrairement a une transition de
+    routine comme `confirm_order`), donc AUCUN seuil de filtrage
+    supplementaire n'est applique ici : ouvrir un litige EST le seuil
+    (jamais de RiskItem sur les transitions normales de la FSM). Score
+    fixe assume `likelihood=4, impact=4` (=16, au-dessus de
+    `HIGH_SCORE_THRESHOLD=15`) : un litige avec un fournisseur est par
+    construction "probable de se reproduire avec ce partenaire"
+    (`likelihood` eleve, litige deja materialise) et "a impact fort sur la
+    chaine d'approvisionnement" (`impact` eleve, commande deja engagee) —
+    ce score fait donc systematiquement franchir le seuil qui publie
+    `risk.flagged`, remontant l'alerte au Studio d'automatisation (meme
+    reutilisation que PJ9/`projects.flag_project_risk`, jamais un nouveau
+    mecanisme de risque). `owner=user` (l'auteur de l'ouverture du litige,
+    seul utilisateur humain disponible ici — `PurOrder` ne porte aucun
+    champ "acheteur", contrairement a `PurCra.buyer`) ; `content_object=
+    order` (rattachement direct a la commande en litige, pas au
+    fournisseur — `partner_id` n'est qu'un UUID opaque, cf. regle de
+    couplage n1, jamais un objet resoluble ici sans importer `partners`)."""
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour ouvrir un litige."))
     attempt_transition(order, "open_dispute", user, comment=reason)
@@ -454,6 +478,8 @@ def open_order_dispute(order: PurOrder, user: User, *, reason: str) -> PurOrder:
     order.save(update_fields=["state", "dispute_reason"])
 
     from apps.core.events import publish_event
+    from apps.core.models.risk import CATEGORY_SUPPLIER
+    from apps.core.services.risk import create_risk_item
 
     publish_event(
         "purchase.dispute_opened",
@@ -464,6 +490,15 @@ def open_order_dispute(order: PurOrder, user: User, *, reason: str) -> PurOrder:
             "reason": reason,
         },
         tenant_id=str(order.tenant_id),
+    )
+    create_risk_item(
+        tenant=order.tenant,
+        category=CATEGORY_SUPPLIER,
+        likelihood=4,
+        impact=4,
+        owner=user,
+        mitigation_plan=reason,
+        content_object=order,
     )
     return order
 
