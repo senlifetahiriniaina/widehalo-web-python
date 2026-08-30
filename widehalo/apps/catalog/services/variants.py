@@ -31,7 +31,13 @@ def generate_variants(template: ProductTemplate) -> list[ProductVariant]:
     """Genere le produit cartesien des valeurs des attributs generateurs de
     variantes du template. Refuse au-dela de 50 combinaisons (seuil
     bloquant du cahier des charges) — AUCUNE variante n'est creee si le
-    total depasse le seuil (tout ou rien, comme l'import de donnees)."""
+    total depasse le seuil (tout ou rien, comme l'import de donnees).
+
+    **INT1 (chantier interactivite native inter-modules)** : publie
+    `catalog.variants_generated` apres creation reelle des variantes — rien
+    n'est publie si `combinations` est vide (aucune variante creee, jamais
+    un evenement vide) ni si le seuil est depasse (l'exception est levee
+    avant toute creation, cf. ci-dessus)."""
     from django.utils import timezone
 
     attributes = list(template.variant_attributes.all())
@@ -52,5 +58,19 @@ def generate_variants(template: ProductTemplate) -> list[ProductVariant]:
         )
         variant.attribute_values.set(combination)
         created.append(variant)
+
+    if created:
+        from apps.core.events import publish_event
+
+        publish_event(
+            "catalog.variants_generated",
+            {
+                "template_id": str(template.id),
+                "template_name": template.name,
+                "variant_ids": [str(variant.id) for variant in created],
+                "count": len(created),
+            },
+            tenant_id=str(template.tenant_id),
+        )
 
     return created
