@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Recherche en langage naturel" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Recherche en langage naturel" %}</h1>
+  <p>{% trans "Posez une question libre — la recherche s'appuie toujours sur le moteur de recherche globale, securise par tenant et par permission." %}</p>
+  <form method="get">
+    <label>{% trans "Question" %}
+      <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'ex. factures impayees de plus de 500000 pour le Senegal' %}">
+    </label>
+    <button type="submit">{% trans "Rechercher" %}</button>
+  </form>
+  {% if result %}
+    <div class="wh-nl-search-result">
+      <p><small>
+        {% if result.is_ai_enhanced %}{% trans "Filtres extraits par IA appliques en complement de la recherche." %}
+        {% else %}{% trans "Recherche brute (aucun filtre IA applique)." %}
+        {% endif %}
+      </small></p>
+      <ul>
+        {% for item in result.results %}
+          <li><a href="{{ item.url }}">{{ item.reference }}</a> — {{ item.text }}</li>
+        {% empty %}
+          <li>{% trans "Aucun resultat." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock %}

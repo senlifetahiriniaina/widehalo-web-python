@@ -103,6 +103,11 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     # direct, guidance utile a n'importe quel role en train de travailler).
     ("POST", "/ai/assist"),
     ("GET", "/ai/assist/modules"),
+    # AI4 (recherche en langage naturel) : meme posture ouverte, meme
+    # raisonnement — cf. docstring de tete de `apps/ai/api.py` (route vers
+    # `global_search`, deja tenant-scope et deja filtre RBAC par resultat,
+    # meme posture que `GET /search` ci-dessus).
+    ("POST", "/ai/search"),
 }
 
 

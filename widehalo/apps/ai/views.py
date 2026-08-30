@@ -12,6 +12,7 @@ from django.shortcuts import render
 
 from apps.ai.models import AiAnomaly
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
+from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import current_month_token_usage, get_or_create_usage_limit
 from apps.core.context import get_current_tenant_id
 from apps.core.models.tenant import Tenant
@@ -63,6 +64,22 @@ def assist_fragment(request: HttpRequest) -> HttpResponse:
         module, action, tenant=tenant, user=request.user, locale=request.user.preferred_language
     )
     return render(request, "ai/_assist_result.html", {"result": response})
+
+
+@login_required
+def search_widget(request: HttpRequest) -> HttpResponse:
+    """AI4 — page complete de l'ecran « Recherche en langage naturel » :
+    champ de question libre + zone de resultat rendue directement (pas de
+    fragment HTMX separe ici, `q` etant un parametre GET simple partageable
+    par URL, comme l'ecran de recherche globale existant)."""
+    query = request.GET.get("q", "").strip()
+    result = None
+    if query:
+        tenant = Tenant.objects.get(id=get_current_tenant_id())
+        result = run_nl_search(
+            query, tenant=tenant, user=request.user, locale=request.user.preferred_language
+        )
+    return render(request, "ai/search.html", {"query": query, "result": result})
 
 
 @login_required

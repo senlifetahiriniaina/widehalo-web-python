@@ -13,6 +13,16 @@ matrice de permissions). Seule l'authentification JWT par defaut
 (`config/api.py::NinjaAPI(auth=JWTAuth())`) s'applique, AUCUN
 `@require_permission(...)` sur ces deux endpoints.
 
+`POST /ai/search` (AI4, recherche en langage naturel) suit la MEME posture
+RBAC ouverte que `POST /ai/assist` ci-dessus — meme raisonnement : elle ne
+fait que router vers `apps.core.services.search.global_search`, deja
+tenant-scope et deja filtre par permission RBAC PAR RESULTAT (chaque
+document renvoye exige que l'utilisateur ait `view_<model>` sur son
+content-type reel), donc aucune restriction de role supplementaire au
+niveau de l'endpoint lui-meme n'apporterait de securite en plus — cf.
+`apps.core.api_search.search` (`GET /search`, la recherche globale
+existante) qui suit deja exactement cette meme posture ouverte.
+
 `POST /ai/anomalies/detect` et `GET /ai/anomalies` (AI3, detection
 d'anomalies cross-modules) reviennent en revanche a la posture RESTREINTE
 de AI1 (`ai.view_aianomaly`/`ai.add_aianomaly`, memes roles admin/
@@ -37,6 +47,7 @@ from ninja import Router, Schema
 from apps.ai.models import AiAnomaly
 from apps.ai.services.anomaly_detection import run_all_checks
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
+from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import (
     current_month_token_usage,
     get_or_create_usage_limit,
@@ -156,6 +167,19 @@ def list_assist_modules_endpoint(request: Any) -> dict[str, Any]:
             for ctx in list_registered_contexts()
         ]
     }
+
+
+class NlSearchIn(Schema):
+    query: str
+
+
+@router.post("/ai/search")
+def nl_search_endpoint(request: Any, payload: NlSearchIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    user = request.auth
+    locale = _resolve_locale(request)
+    response = run_nl_search(payload.query, tenant=tenant, user=user, locale=locale)
+    return dict(response)
 
 
 def _serialize_anomaly(anomaly: AiAnomaly) -> dict[str, Any]:
