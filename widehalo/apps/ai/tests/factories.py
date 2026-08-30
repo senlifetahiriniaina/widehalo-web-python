@@ -5,7 +5,14 @@ from __future__ import annotations
 
 import factory
 
-from apps.ai.models import AiAnomaly, AiInsight, AiRecommendation, AiRequest, AiUsageLimit
+from apps.ai.models import (
+    AiAnomaly,
+    AiDataQuery,
+    AiInsight,
+    AiRecommendation,
+    AiRequest,
+    AiUsageLimit,
+)
 from apps.core.services.anomaly_registry import SEVERITY_LOW
 
 
@@ -72,3 +79,17 @@ class AiRecommendationFactory(factory.django.DjangoModelFactory):
     label = "Recommandation de test (factory)."
     target_module = "purchase"
     target_action_code = ""
+
+
+class AiDataQueryFactory(factory.django.DjangoModelFactory):
+    """GW4 — factory de test T1."""
+
+    class Meta:
+        model = AiDataQuery
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    question = "Quel est le chiffre d'affaires du mois dernier ? (test factory)"
+    tools_called = factory.LazyFunction(lambda: [{"code": "sales.revenue_report", "args": {}}])
+    answer = "Reponse de test (factory)."
+    succeeded = True
+    provider_backend = "stub"

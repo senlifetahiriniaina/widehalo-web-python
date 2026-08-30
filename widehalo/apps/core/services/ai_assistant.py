@@ -29,7 +29,8 @@ jamais effectue par defaut, dans aucun environnement (dev/test/prod)."""
 from __future__ import annotations
 
 import logging
-from typing import Protocol
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from django.utils.translation import gettext as _
 
@@ -37,6 +38,43 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "gpt-3.5-turbo"
 _DEFAULT_TIMEOUT_SECONDS = 30
+
+
+@dataclass(frozen=True)
+class ToolDefinition:
+    """Description d'un tool exposable au LLM, format "tool calling"
+    standard compatible OpenAI (`type: "function"`) — cf. chantier
+    "passerelle IA locale d'analyse de donnees" (GW1). `parameters_schema`
+    est un JSON Schema strict (`{"type": "object", "properties": {...},
+    "required": [...]}`), jamais un dict libre non valide."""
+
+    name: str
+    description: str
+    parameters_schema: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """Un appel de tool DEJA decide par le LLM — `arguments` est deja
+    parse en dict (le connecteur reel deserialise le JSON texte renvoye par
+    le fournisseur avant de construire cet objet, cf.
+    `OpenAICompatibleAIProvider.complete_with_tools`)."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolCallResult:
+    """Resultat d'un tour de conversation avec tool-calling : soit du
+    texte final (`content`, `tool_calls` vide), soit une liste de tools que
+    le LLM souhaite invoquer (`content` peut alors etre `None`) — jamais les
+    deux formes melangees de facon ambigue, meme convention que le format
+    de reponse OpenAI standard."""
+
+    content: str | None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 class AIProviderError(Exception):
@@ -60,6 +98,22 @@ class AIProvider(Protocol):
         s'il capture ou laisse remonter."""
         ...
 
+    def complete_with_tools(
+        self, messages: list[dict[str, Any]], tools: list[ToolDefinition], *, max_tokens: int = 500
+    ) -> ToolCallResult:
+        """Extension ADDITIVE (GW1, passerelle IA locale d'analyse de
+        donnees) — jamais un remplacement de `complete()` ci-dessus, deja
+        consomme tel quel par AI2-AI7/`projects`. `messages` suit le format
+        standard de conversation OpenAI (liste de `{"role": ..., "content":
+        ...}`, roles `system`/`user`/`assistant`/`tool`) ; `tools` est DEJA
+        filtree par permission par l'appelant (`apps.ai.services.
+        data_query_gateway.ask`) AVANT d'arriver ici — ce Protocol ne fait
+        aucun filtrage lui-meme, il transmet fidelement ce qu'on lui donne.
+        Meme discipline d'erreurs que `complete()` : jamais d'exception pour
+        un cas "non configure", `AIProviderError` seulement sur echec
+        reseau/HTTP/reponse malformee d'un connecteur reel."""
+        ...
+
 
 class StubAIProvider:
     """Provider par defaut, actif tant qu'aucun connecteur reel n'est
@@ -76,6 +130,15 @@ class StubAIProvider:
                 "(base_url, api_key, model) pour activer un connecteur reel."
             )
         )
+
+    def complete_with_tools(
+        self, messages: list[dict[str, Any]], tools: list[ToolDefinition], *, max_tokens: int = 500
+    ) -> ToolCallResult:
+        """Meme message que `complete()`, `tool_calls` toujours vide —
+        RIGOUREUSEMENT AUCUN appel reseau (meme reserve de securite,
+        verifiee par le meme patron de test que `complete()` : patch de
+        `socket.socket` qui echoue le test si invoque)."""
+        return ToolCallResult(content=self.complete(""), tool_calls=[])
 
 
 class OpenAICompatibleAIProvider:
@@ -130,6 +193,74 @@ class OpenAICompatibleAIProvider:
             logger.warning("Echec reseau du connecteur IA (%s) : %s", self.base_url, exc)
             raise AIProviderError(str(exc)) from exc
         except (KeyError, IndexError, ValueError) as exc:
+            logger.warning("Reponse inattendue du connecteur IA (%s) : %s", self.base_url, exc)
+            raise AIProviderError(str(exc)) from exc
+
+    def complete_with_tools(
+        self, messages: list[dict[str, Any]], tools: list[ToolDefinition], *, max_tokens: int = 500
+    ) -> ToolCallResult:
+        """POST `{base_url}/chat/completions` avec le corps JSON standard
+        "tool calling" compatible OpenAI (`tools` en JSON Schema,
+        `tool_choice="auto"` — le modele decide lui-meme d'appeler ou non
+        un tool, jamais force) — deja supporte nativement par Ollama pour
+        les modeles compatibles (`qwen2.5:7b`, deja choisi par defaut en
+        AI8) ainsi que DeepSeek/Kimi cote cloud, meme connecteur reutilise
+        sans modification de ses parametres de configuration (cf. docstring
+        de module). `choices[0].message.tool_calls[].function.arguments`
+        est une chaine JSON (forme standard du protocole) explicitement
+        deserialisee ici en dict avant de construire chaque `ToolCall` —
+        meme discipline d'erreurs que `complete()` : reseau/HTTP/forme de
+        reponse inattendue -> `AIProviderError`, jamais une exception brute
+        `requests`/JSON/`json.JSONDecodeError` qui surprendrait l'appelant."""
+        import json
+
+        import requests
+
+        url = f"{self.base_url}/chat/completions"
+        try:
+            response = requests.post(
+                url,
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": tool.name,
+                                "description": tool.description,
+                                "parameters": tool.parameters_schema,
+                            },
+                        }
+                        for tool in tools
+                    ],
+                    "tool_choice": "auto",
+                },
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=_DEFAULT_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            message = payload["choices"][0]["message"]
+            content = message.get("content")
+            raw_tool_calls = message.get("tool_calls") or []
+            tool_calls = [
+                ToolCall(
+                    id=raw["id"],
+                    name=raw["function"]["name"],
+                    arguments=json.loads(raw["function"]["arguments"] or "{}"),
+                )
+                for raw in raw_tool_calls
+            ]
+            return ToolCallResult(content=content, tool_calls=tool_calls)
+        except requests.RequestException as exc:
+            logger.warning("Echec reseau du connecteur IA (%s) : %s", self.base_url, exc)
+            raise AIProviderError(str(exc)) from exc
+        except (KeyError, IndexError, ValueError, TypeError) as exc:
             logger.warning("Reponse inattendue du connecteur IA (%s) : %s", self.base_url, exc)
             raise AIProviderError(str(exc)) from exc
 

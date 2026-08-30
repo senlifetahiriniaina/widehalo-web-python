@@ -121,6 +121,13 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     # contrairement a AI5 qui avait du confirmer par lecture de code).
     ("POST", "/ai/recommendations"),
     ("GET", "/ai/recommendations"),
+    # GW4 (passerelle IA locale d'analyse de donnees) : meme posture ouverte
+    # que les endpoints AI2/AI4/AI5/AI7 ci-dessus — la vraie restriction de
+    # securite est DEPLACEE a l'interieur de `data_query_gateway.ask()` (un
+    # `required_permission` par tool, verifie AVANT que le tool soit meme
+    # propose au LLM), pas un `require_permission` global sur l'endpoint
+    # lui-meme (cf. docstring de tete de `apps/ai/api.py`).
+    ("POST", "/ai/data-query/ask"),
 }
 
 

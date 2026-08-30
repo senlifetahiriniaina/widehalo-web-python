@@ -12,4 +12,5 @@ urlpatterns = [
     path("anomalies/", views.anomalies_list, name="anomalies_list"),
     path("insights/", views.insights_list, name="insights_list"),
     path("recommendations/", views.recommendations_screen, name="recommendations_screen"),
+    path("data-query/", views.data_query_screen, name="data_query_screen"),
 ]

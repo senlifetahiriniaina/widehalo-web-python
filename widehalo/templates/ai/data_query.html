@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Questions-donnees IA" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Questions-donnees IA" %}</h1>
+  <p>{% trans "Posez une question en langage naturel sur vos donnees (chiffre d'affaires, marge, stock...) — l'IA ne peut choisir que des rapports deja construits et testes, jamais une requete inventee." %}</p>
+  <form method="get">
+    <label>{% trans "Question" %}
+      <textarea name="question" rows="3" placeholder="{% trans 'ex. quel est le chiffre d affaires du mois dernier par client ?' %}">{{ question }}</textarea>
+    </label>
+    <button type="submit">{% trans "Poser la question" %}</button>
+  </form>
+  {% if result %}
+    <div class="wh-data-query-result">
+      <p>{{ result.answer }}</p>
+      <p><small>
+        {% if result.succeeded %}{% trans "Analyse terminee." %}
+        {% else %}{% trans "Analyse incomplete (fournisseur IA non configure, budget epuise, ou erreur)." %}
+        {% endif %}
+      </small></p>
+      {% if result.tools_called %}
+        <p><small>{% trans "Rapports utilises :" %}</small></p>
+        <ul>
+          {% for tool_call in result.tools_called %}
+            <li>{{ tool_call.code }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

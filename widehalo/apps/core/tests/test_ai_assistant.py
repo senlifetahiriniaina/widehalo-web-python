@@ -20,6 +20,9 @@ from apps.core.services.ai_assistant import (
     AIProviderError,
     OpenAICompatibleAIProvider,
     StubAIProvider,
+    ToolCall,
+    ToolCallResult,
+    ToolDefinition,
     get_ai_provider,
 )
 
@@ -152,3 +155,141 @@ def test_openai_compatible_provider_raises_ai_provider_error_on_malformed_respon
     fake_response = _fake_http_response({"unexpected": "shape"})
     with patch("requests.post", return_value=fake_response), pytest.raises(AIProviderError):
         provider.complete("prompt")
+
+
+# ---------------------------------------------------------------------------
+# GW1 — complete_with_tools (passerelle IA locale d'analyse de donnees)
+# ---------------------------------------------------------------------------
+
+_A_TOOL = ToolDefinition(
+    name="sales.revenue_report",
+    description="Chiffre d'affaires par periode.",
+    parameters_schema={"type": "object", "properties": {}, "required": []},
+)
+
+
+def test_stub_provider_complete_with_tools_never_performs_any_network_call() -> None:
+    def _forbidden_socket(*args, **kwargs):
+        raise AssertionError(
+            "Un socket reseau a ete ouvert par le stub (complete_with_tools) — violation de "
+            "la reserve de securite."
+        )
+
+    original_socket = socket.socket
+    socket.socket = _forbidden_socket  # type: ignore[assignment]
+    try:
+        result = StubAIProvider().complete_with_tools([{"role": "user", "content": "?"}], [_A_TOOL])
+    finally:
+        socket.socket = original_socket  # type: ignore[assignment]
+
+    assert isinstance(result, ToolCallResult)
+    assert result.tool_calls == []
+    assert result.content is not None
+    assert "non configuree" in result.content.lower()
+
+
+def test_openai_compatible_provider_complete_with_tools_builds_request_and_parses_tool_calls() -> (
+    None
+):
+    provider = OpenAICompatibleAIProvider(
+        base_url="https://api.deepseek.com/v1", api_key="secret-key", model="deepseek-chat"
+    )
+    fake_response = _fake_http_response(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "sales.revenue_report",
+                                    "arguments": '{"date_from": "2026-01-01"}',
+                                },
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+    )
+
+    with patch("requests.post", return_value=fake_response) as mocked_post:
+        result = provider.complete_with_tools(
+            [{"role": "user", "content": "CA de janvier ?"}], [_A_TOOL]
+        )
+
+    assert result.content is None
+    assert len(result.tool_calls) == 1
+    call = result.tool_calls[0]
+    assert isinstance(call, ToolCall)
+    assert call.id == "call_1"
+    assert call.name == "sales.revenue_report"
+    assert call.arguments == {"date_from": "2026-01-01"}
+
+    _args, kwargs = mocked_post.call_args
+    assert kwargs["json"]["tool_choice"] == "auto"
+    assert kwargs["json"]["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "sales.revenue_report",
+                "description": "Chiffre d'affaires par periode.",
+                "parameters": {"type": "object", "properties": {}, "required": []},
+            },
+        }
+    ]
+
+
+def test_complete_with_tools_returns_plain_content_without_tool_calls() -> None:
+    provider = OpenAICompatibleAIProvider(
+        base_url="https://api.deepseek.com/v1", api_key="secret-key", model="deepseek-chat"
+    )
+    fake_response = _fake_http_response(
+        {"choices": [{"message": {"content": "Voici votre reponse.", "tool_calls": []}}]}
+    )
+    with patch("requests.post", return_value=fake_response):
+        result = provider.complete_with_tools([{"role": "user", "content": "?"}], [])
+
+    assert result.content == "Voici votre reponse."
+    assert result.tool_calls == []
+
+
+def test_openai_compatible_provider_complete_with_tools_raises_on_network_failure() -> None:
+    provider = OpenAICompatibleAIProvider(
+        base_url="https://api.deepseek.com/v1", api_key="secret-key", model="deepseek-chat"
+    )
+    with (
+        patch("requests.post", side_effect=requests.ConnectionError("connexion refusee")),
+        pytest.raises(AIProviderError),
+    ):
+        provider.complete_with_tools([{"role": "user", "content": "?"}], [_A_TOOL])
+
+
+def test_complete_with_tools_raises_on_malformed_tool_call_arguments() -> None:
+    provider = OpenAICompatibleAIProvider(
+        base_url="https://api.deepseek.com/v1", api_key="secret-key", model="deepseek-chat"
+    )
+    fake_response = _fake_http_response(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "sales.revenue_report",
+                                    "arguments": "not-json",
+                                },
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+    )
+    with patch("requests.post", return_value=fake_response), pytest.raises(AIProviderError):
+        provider.complete_with_tools([{"role": "user", "content": "?"}], [_A_TOOL])

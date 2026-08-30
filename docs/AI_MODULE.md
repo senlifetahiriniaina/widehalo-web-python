@@ -200,6 +200,44 @@ bord : `GET /ai/usage/`. Administration (`GET`/`POST /api/v1/ai/usage/budget`,
 `GET /api/v1/ai/usage`) réservée à `admin`/`direction` — pilotage de coût,
 pas une opération courante des autres rôles.
 
+## 5bis. Passerelle IA locale d'analyse de données conversationnelle (GW1-GW5)
+
+Extension du module `ai` distincte des fonctionnalités AI1-AI7 ci-dessus : au
+lieu d'une prose générée librement, `POST /api/v1/ai/data-query/ask`
+(`GET /ai/data-query/` côté écran) laisse un LLM répondre à une question en
+langage naturel sur les données du tenant (« quel est le CA du mois dernier
+par client ? ») en choisissant, via le protocole standard de "tool calling"
+compatible OpenAI, parmi une **liste blanche explicite et restreinte** de
+rapports déjà construits et testés — **jamais de génération de SQL, jamais
+d'accès direct à un modèle Django depuis le LLM**.
+
+**Décision architecturale** : code Django intégré à `apps.ai`, appelant en
+processus les fonctions déjà existantes de `services/reports.py` (zéro appel
+réseau supplémentaire, zéro nouveau service à déployer) — pas de microservice
+séparé. Le seul service Docker satellite reste le conteneur Ollama du § 2.3.
+
+**Catalogue de tools (`apps.core.services.data_query_tool_registry`)** :
+chaque tool (`sales.revenue_report`, `sales.margin_report`,
+`stocks.stock_state_rows` dans ce premier lot) porte un `required_permission`
+explicite. **Le catalogue est filtré aux tools que l'utilisateur authentifié
+peut réellement utiliser AVANT d'être présenté au LLM** — un tool hors
+permission n'est jamais même proposé comme option, pas seulement bloqué après
+coup (même philosophie deny-by-default que le reste du RBAC de ce dépôt).
+`sales.margin_report` illustre cette discipline : il transmet les rôles réels
+de l'utilisateur courant, respectant le même masquage par rôle
+(`margin_pct`/`cost_estimate_mga`, RG-SAL-5) que l'écran/l'export classiques.
+
+**Fonctionnement** : même discipline "fallback-first" que AI2-AI7
+(`get_budget_gated_provider`) — sans fournisseur réel configuré (ou budget
+épuisé), une réponse statique est renvoyée immédiatement, la boucle de
+tool-calling n'est jamais tentée. Avec un fournisseur réel, une boucle
+d'échanges question/tool-calls est bornée à 3 allers-retours maximum pour
+garantir sa terminaison, quel que soit le comportement du modèle. Fonctionne
+identiquement avec le Mode 2 (API hébergée) et le Mode 3 (Ollama local,
+`qwen2.5:7b` supportant déjà le tool-calling) — même connecteur
+`OpenAICompatibleAIProvider`, aucune adaptation par mode. Chaque session est
+journalisée dans `AiDataQuery` (question, tools réellement invoqués, réponse).
+
 ## 6. Recommandation opérationnelle
 
 Démarrer en mode 1 (stub, § 2.1) tant qu'aucune fonctionnalité générative

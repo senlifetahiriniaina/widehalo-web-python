@@ -58,12 +58,19 @@ class AiRequest(BaseModel):
     FEATURE_SEARCH = "search"
     FEATURE_INSIGHT = "insight"
     FEATURE_RECOMMENDATION = "recommendation"
+    # GW4 : la passerelle IA locale d'analyse de donnees journalise elle
+    # aussi ses appels via `record_request` (meme discipline que AI2-AI5),
+    # nouvelle valeur ajoutee de facon ADDITIVE (jamais un retrait/
+    # renommage des valeurs existantes, deja utilisees par des lignes
+    # `AiRequest` existantes en base).
+    FEATURE_DATA_QUERY = "data_query"
     FEATURE_CHOICES = [
         (FEATURE_ASSIST, _("Assistant contextuel")),
         (FEATURE_ANOMALY_NARRATIVE, _("Narrative d'anomalie")),
         (FEATURE_SEARCH, _("Recherche en langage naturel")),
         (FEATURE_INSIGHT, _("Insight proactif")),
         (FEATURE_RECOMMENDATION, _("Recommandation d'action")),
+        (FEATURE_DATA_QUERY, _("Question-donnees IA")),
     ]
 
     feature = models.CharField(max_length=32, choices=FEATURE_CHOICES)
@@ -267,3 +274,50 @@ class AiRecommendation(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.context_module}.{self.context_action} ({self.role_code}) — {self.label}"
+
+
+class AiDataQuery(BaseModel):
+    """GW4 (passerelle IA locale d'analyse de donnees) — audit d'UNE
+    session de question-donnees conversationnelle (`apps.ai.services.
+    data_query_gateway.ask`). Pas de `ReferenceMixin` : meme raisonnement
+    exact que `AiRequest`/`AiAnomaly`/`AiInsight`/`AiRecommendation` — un
+    enregistrement d'audit/de suivi, pas un document numerote que
+    l'utilisateur cree lui-meme.
+
+    **Forme DELIBEREMENT DISTINCTE de `AiRequest` (disclosed)** : `AiRequest`
+    audite un seul appel LLM prompt->completion, alors qu'une session de
+    question-donnees est une boucle multi-tours bornee (cf. `_MAX_TOOL_
+    ROUND_TRIPS` dans `data_query_gateway.py`) avec une liste ORDONNEE de
+    tools reellement invoques — une forme differente qui justifie un
+    modele dedie, meme raisonnement deja applique a `AiAnomaly`/`AiInsight`
+    face a `AiRequest`.
+
+    `question`/`answer` : texte libre, jamais `gettext` — meme raisonnement
+    exact que `AiAnomaly.description`/`AiInsight.body` (une question posee
+    par un utilisateur, ou une reponse en partie generee par un LLM,
+    n'est jamais une chaine d'interface a traduire au sens i18n de ce
+    depot).
+
+    `tools_called` (`JSONField`, liste ORDONNEE de `{"code": ..., "args":
+    {...}}`) : trace exacte, dans l'ordre d'invocation reel, de chaque tool
+    du registre `core.services.data_query_tool_registry` effectivement
+    appele pendant la boucle — jamais les tools simplement OFFERTS au LLM
+    (deja filtres par permission en amont), uniquement ceux reellement
+    executes. Un tool hallucine par le LLM (nom inconnu du registre filtre)
+    n'apparait jamais ici (ignore et journalise en warning, cf. gateway)."""
+
+    question = models.TextField()
+    tools_called = models.JSONField(default=list, blank=True)
+    answer = models.TextField()
+    succeeded = models.BooleanField(default=True)
+    provider_backend = models.CharField(max_length=32, default="stub")
+    created_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "ai_data_query"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.question[:50]} ({self.provider_backend})"

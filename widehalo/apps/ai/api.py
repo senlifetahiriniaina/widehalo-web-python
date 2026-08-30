@@ -59,7 +59,21 @@ la MEME posture OUVERTE — cf. commentaire de tete de `ROLE_APP_
 PERMISSIONS["admin"]["ai"]` dans `rbac_policy.py` qui earmarque NOMMEMENT
 "recommandations" (avec assistant/recherche/insights) pour cette posture
 ouverte des AI1, exactement comme AI5 ci-dessus : aucune deviation a
-disclosed ici, la decision etait deja actee au moment de AI1."""
+disclosed ici, la decision etait deja actee au moment de AI1.
+
+`POST /ai/data-query/ask` (GW4, passerelle IA locale d'analyse de donnees)
+suit la MEME posture OUVERTE que `assist`/`search`/`insights`/
+`recommendations` ci-dessus — AUCUN `@require_permission(...)` sur
+l'endpoint lui-meme. Contrairement a ces quatre endpoints cependant, la
+vraie restriction de securite n'est pas "aucune n'est necessaire" mais
+DEPLACEE a l'interieur de `apps.ai.services.data_query_gateway.ask()` :
+chaque tool du catalogue expose au LLM porte son propre `required_
+permission` (`core.services.data_query_tool_registry`), verifie AVANT
+meme que ce tool soit propose au LLM (cf. docstring de ce registre) — la
+granularite de securite reelle est donc PAR TOOL, plus fine qu'un simple
+`require_permission` global sur l'endpoint n'aurait pu l'exprimer (un
+utilisateur authentifie quelconque peut poser une question, mais ne
+recevra jamais de reponse s'appuyant sur un tool auquel il n'a pas droit)."""
 
 from __future__ import annotations
 
@@ -67,11 +81,12 @@ from typing import Any
 
 from ninja import Router, Schema
 
-from apps.ai.models import AiAnomaly, AiInsight, AiRecommendation
+from apps.ai.models import AiAnomaly, AiDataQuery, AiInsight, AiRecommendation
 from apps.ai.services.action_advisor import suggest as run_action_advisor
 from apps.ai.services.anomaly_detection import run_all_checks
 from apps.ai.services.automated_insights import generate as generate_insights
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
+from apps.ai.services.data_query_gateway import ask as run_data_query_ask
 from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import (
     current_month_token_usage,
@@ -336,3 +351,28 @@ def list_recommendations_endpoint(request: Any) -> dict[str, Any]:
     if module_filter:
         recommendations = recommendations.filter(context_module=module_filter)
     return {"results": [_serialize_recommendation(r) for r in recommendations[:200]]}
+
+
+class DataQueryAskIn(Schema):
+    question: str
+
+
+def _serialize_data_query(record: AiDataQuery) -> dict[str, Any]:
+    return {
+        "id": str(record.id),
+        "question": record.question,
+        "tools_called": record.tools_called,
+        "answer": record.answer,
+        "succeeded": record.succeeded,
+        "provider_backend": record.provider_backend,
+        "created_at": record.created_at.isoformat(),
+    }
+
+
+@router.post("/ai/data-query/ask")
+def data_query_ask_endpoint(request: Any, payload: DataQueryAskIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    user = request.auth
+    locale = _resolve_locale(request)
+    record = run_data_query_ask(payload.question, tenant=tenant, user=user, locale=locale)
+    return _serialize_data_query(record)

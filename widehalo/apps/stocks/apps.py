@@ -13,6 +13,7 @@ class StocksConfig(AppConfig):
         # `core.events` — jamais un import direct par `apps.reporting`.
         from apps.stocks.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.stocks.services.ai_context_registration import register_ai_context
+        from apps.stocks.services.ai_data_query_registration import register_ai_data_query_tools
         from apps.stocks.services.reports_registration import register_reports
 
         register_reports()
@@ -22,3 +23,6 @@ class StocksConfig(AppConfig):
         # AI3 (detection d'anomalies cross-modules) : meme patron, registre
         # partage `core.services.anomaly_registry`.
         register_ai_anomaly_checks()
+        # GW3 (passerelle IA locale d'analyse de donnees) : meme patron,
+        # registre partage `core.services.data_query_tool_registry`.
+        register_ai_data_query_tools()

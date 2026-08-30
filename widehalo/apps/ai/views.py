@@ -13,6 +13,7 @@ from django.shortcuts import render
 from apps.ai.models import AiAnomaly, AiInsight
 from apps.ai.services.action_advisor import suggest as run_action_advisor
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
+from apps.ai.services.data_query_gateway import ask as run_data_query_ask
 from apps.ai.services.natural_language_search import search as run_nl_search
 from apps.ai.services.usage_budget import current_month_token_usage, get_or_create_usage_limit
 from apps.core.context import get_current_tenant_id
@@ -131,3 +132,23 @@ def recommendations_screen(request: HttpRequest) -> HttpResponse:
             "recommendations": recommendations,
         },
     )
+
+
+@login_required
+def data_query_screen(request: HttpRequest) -> HttpResponse:
+    """GW4 — ecran minimal « Questions-donnees IA » : champ question libre
+    + reponse + liste des tools reellement utilises (parametre GET simple
+    partageable par URL, meme convention que `search_widget`/
+    `recommendations_screen` ci-dessus). Meme patron `@login_required` seul
+    (cf. docstring de tete de fichier) : posture RBAC deliberement OUVERTE
+    au niveau de l'ecran/l'API — la vraie restriction de securite est PAR
+    TOOL, a l'interieur de `data_query_gateway.ask()` (cf. docstring de
+    `apps/ai/api.py`)."""
+    question = request.GET.get("question", "").strip()
+    result = None
+    if question:
+        tenant = Tenant.objects.get(id=get_current_tenant_id())
+        result = run_data_query_ask(
+            question, tenant=tenant, user=request.user, locale=request.user.preferred_language
+        )
+    return render(request, "ai/data_query.html", {"question": question, "result": result})
