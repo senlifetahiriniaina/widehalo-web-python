@@ -57,6 +57,24 @@ PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
         # apps/helpdesk/services/escalation.py::run_escalation_checks
         # (automatique) — HD2, cf. plan section « SLA et escalade ».
         "helpdesk.ticket_escalated",
+        # INT1 (chantier interactivite native inter-modules, audit
+        # 18 modules metier) : evenements manquants publies module par
+        # module — cf. rapport de tache INT1 pour le detail complet.
+        "crm.opportunity_stage_changed",  # apps/crm/services/pipeline.py::move_lead_to_stage
+        "catalog.variants_generated",  # apps/catalog/services/variants.py::generate_variants
+        "partners.duplicate_alert_created",  # apps/partners/services/onboarding.py::create_partner
+        "patronage.pattern_version_changed",  # patronage/services/patterns.py::new_pattern_version
+        "feasibility.study_completed",  # apps/feasibility/services/simulation.py::complete_study
+        "purchase.order_confirmed",  # apps/purchase/services/orders.py::confirm_order
+        "purchase.dispute_opened",  # apps/purchase/services/orders.py::open_order_dispute
+        "purchase.reorder_triggered",  # apps/purchase/services/reordering.py::run_reordering
+        "sales.order_blocked",  # apps/sales/services/orders.py::confirm_order (blocage credit)
+        "accounting.invoice_validated",  # apps/accounting/services/invoices.py::validate_invoice
+        "accounting.invoice_cancelled",  # apps/accounting/services/invoices.py::cancel_invoice
+        "financing.credoc_state_changed",  # apps/financing/services/credoc.py — chaque transition
+        "payroll.period_validated",  # apps/payroll/services/periods.py::validate_period
+        "logistics.shipment_blocked",  # apps/logistics/services/shipments.py::block_shipment
+        "reporting.job_failed",  # apps/reporting/services/engine.py::_run_job_sync (branche echec)
     }
 )
 
