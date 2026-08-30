@@ -91,6 +91,14 @@ def validate_period(period: PayPeriod, user: User) -> PayPeriod:
         raise ValidationError(_("La periode doit etre verifiee avant validation."))
     attempt_transition(period, "validate", user)
     period.save(update_fields=["state"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "payroll.period_validated",
+        {"period_id": str(period.id), "code": period.code},
+        tenant_id=str(period.tenant_id),
+    )
     return period
 
 
