@@ -368,8 +368,25 @@ def send_order(order: PurOrder, user: User) -> PurOrder:
 
 
 def confirm_order(order: PurOrder, user: User) -> PurOrder:
+    """INT1 (chantier interactivite native inter-modules) : publie
+    `purchase.order_confirmed` apres transition effective — meme patron
+    que `helpdesk.services.tickets.escalate_ticket` (transition/`.save()`
+    d'abord, `publish_event` ensuite)."""
     attempt_transition(order, "confirm", user)
     order.save(update_fields=["state"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "purchase.order_confirmed",
+        {
+            "order_id": str(order.id),
+            "reference": order.reference,
+            "partner_id": str(order.partner_id),
+            "amount_total_mga": str(order.amount_total_mga),
+        },
+        tenant_id=str(order.tenant_id),
+    )
     return order
 
 
@@ -416,11 +433,38 @@ def cancel_order(order: PurOrder, user: User, *, reason: str) -> PurOrder:
 
 
 def open_order_dispute(order: PurOrder, user: User, *, reason: str) -> PurOrder:
+    """INT1 (chantier interactivite native inter-modules) : publie
+    `purchase.dispute_opened` apres transition effective. **Choix assume
+    et disclosed** : le CDC de ce chantier situe "ouverture d'un litige a
+    la reception" cote `apps.purchase.services.receiving` — verification
+    faite, ce fichier ne porte AUCUNE fonction d'ouverture de litige
+    (seulement `receive_order_line`/`order_reception_variance`) ; la
+    transition FSM `open_dispute` reelle de `PurOrder` vit ICI, dans
+    `services/orders.py` (branche "en litige" du diagramme §5.6.4, cf.
+    docstring `receiving.py` qui la distingue explicitement de `PurCri`).
+    L'evenement est donc cable sur cette fonction reelle plutot que sur un
+    fichier qui ne contient pas la logique concernee — jamais une
+    duplication via `PurCri` (deja verifie : `PurCri` cf.
+    `apps.purchase.services.cri` reste un compte-rendu d'incident distinct,
+    pas la branche FSM "en litige")."""
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour ouvrir un litige."))
     attempt_transition(order, "open_dispute", user, comment=reason)
     order.dispute_reason = reason
     order.save(update_fields=["state", "dispute_reason"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "purchase.dispute_opened",
+        {
+            "order_id": str(order.id),
+            "reference": order.reference,
+            "partner_id": str(order.partner_id),
+            "reason": reason,
+        },
+        tenant_id=str(order.tenant_id),
+    )
     return order
 
 

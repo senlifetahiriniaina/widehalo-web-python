@@ -144,4 +144,22 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
         )
         created.append(requisition)
 
+    if created:
+        from apps.core.events import publish_event
+
+        # INT1 (chantier interactivite native inter-modules) : UN evenement
+        # par execution de `run_reordering` (jamais un par regle) — memes
+        # observations que `create_bulk_orders_from_requisitions` sur le
+        # niveau de granularite pertinent pour un abonne du Studio de
+        # workflow visuel : "un reapprovisionnement automatique a ete
+        # declenche pour ce tenant", pas un flot d'un evenement par regle.
+        publish_event(
+            "purchase.reorder_triggered",
+            {
+                "requisition_ids": [str(requisition.id) for requisition in created],
+                "count": len(created),
+            },
+            tenant_id=str(tenant.id),
+        )
+
     return created
