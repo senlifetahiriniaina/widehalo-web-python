@@ -1,11 +1,12 @@
 from django.urls import path
 
-from apps.helpdesk import views, views_config
+from apps.helpdesk import views, views_config, views_reports
 
 app_name = "helpdesk"
 
 urlpatterns = [
     path("", views.ticket_list, name="list"),
+    path("reports/", views_reports.reports_index, name="reports"),
     path("new/", views.ticket_create, name="create"),
     path("kb/", views.kb_list, name="kb_list"),
     path("kb/create/", views.kb_create, name="kb_create"),

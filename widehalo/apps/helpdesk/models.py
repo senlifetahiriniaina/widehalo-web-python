@@ -18,6 +18,12 @@ chaque modele pour le detail.
 `HlpResponseTemplate` (gabarits de reponse) — aucun champ nouveau sur les
 modeles HD1/HD2 existants.
 
+**HD4** ajoute `HlpCsatResponse` (enquete CSAT post-resolution simple, cf.
+sa docstring) — aucun champ nouveau sur les modeles HD1-HD3 existants, et
+les rapports (CSAT/performance agents/benchmarking d'equipe/conformite
+SLA) sont des fonctions calculees a la volee (`services/reports.py`),
+JAMAIS de nouveau modele de reporting.
+
 **Simplifications actees et disclosed restant de HD1** :
 - Le rattachement generique de `HlpTicket` (`content_type`/`object_id`)
   peut etre pre-filtre par `HlpTicketTypeCatalog.related_content_type`
@@ -30,6 +36,7 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
@@ -643,3 +650,48 @@ class HlpEscalationEvent(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.ticket_id}: {'manuel' if self.rule_id is None else self.rule_id}"
+
+
+class HlpCsatResponse(BaseModel):
+    """Enquete de satisfaction post-resolution (HD4, cf. plan section
+    modeles). `BaseModel` sans `ReferenceMixin` — un evenement rattache a
+    un ticket deja sequence, meme categorie que `HlpTicketComment`/
+    `HlpSlaBreach`.
+
+    `ticket` : `OneToOneField` — AU PLUS une reponse CSAT par ticket, une
+    seule enquete post-resolution simple (pas une serie temporelle), meme
+    discipline d'economie que les compteurs agreges de `HlpKbArticle`
+    (cf. sa docstring). La contrainte d'unicite est garantie au niveau DB
+    par le `OneToOneField` lui-meme (`IntegrityError` sur un INSERT brut en
+    doublon) ; `services.csat.submit_csat_response` verifie neanmoins
+    explicitement `HlpCsatResponse.objects.filter(ticket=ticket).exists()`
+    EN AMONT pour renvoyer une `ValidationError` a message clair plutot que
+    de laisser remonter une erreur d'integrite brute a l'appelant — meme
+    patron exact que la garde anti-double-facturation de
+    `apps.projects.services.billing` (PJ5, `PrjInvoicingRecord`).
+
+    **Decision de perimetre actee au cadrage (n°2)** : JAMAIS de prediction
+    CSAT/NPS, JAMAIS de campagnes CSAT planifiees en V1 — une simple
+    enquete par ticket, rien de plus (cf. docstring de tete de module).
+
+    `score` : `PositiveSmallIntegerField` borne `[1, 5]` par des
+    `Validators` Django (`full_clean()`/formulaires) ; la borne METIER
+    reelle est cependant appliquee au niveau SERVICE
+    (`services.csat.submit_csat_response`, `1 <= score <= 5`) car les
+    endpoints API/ecran de ce depot n'appellent jamais `full_clean()`
+    (meme discipline que tout le reste du depot — la validation vit dans
+    les fonctions de service, pas dans les validateurs de champ, qui ne
+    servent ici que de documentation/garde-fou pour l'admin Django)."""
+
+    ticket = models.OneToOneField(HlpTicket, on_delete=models.CASCADE, related_name="csat_response")
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "hlp_csat_response"
+
+    def __str__(self) -> str:
+        return f"{self.ticket_id}: {self.score}/5"

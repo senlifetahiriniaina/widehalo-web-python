@@ -57,6 +57,27 @@
     {% endfor %}
   </ul>
 
+  {% if csat_response %}
+    <h2>{% trans "Enquete de satisfaction" %}</h2>
+    <p>{% trans "Note" %}: {{ csat_response.score }}/5
+       {% if csat_response.comment %}— {{ csat_response.comment }}{% endif %}</p>
+  {% elif can_submit_csat %}
+    <h2>{% trans "Enquete de satisfaction" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="csat">
+      <div class="form-field">
+        <label for="score">{% trans "Note (1 a 5)" %}</label>
+        <input id="score" type="number" name="score" min="1" max="5" required>
+      </div>
+      <div class="form-field">
+        <label for="comment">{% trans "Commentaire (optionnel)" %}</label>
+        <textarea id="comment" name="comment"></textarea>
+      </div>
+      <button type="submit">{% trans "Envoyer" %}</button>
+    </form>
+  {% endif %}
+
   {% if can_manage %}
     <h3>{% trans "Ajouter un commentaire" %}</h3>
     <form method="post">

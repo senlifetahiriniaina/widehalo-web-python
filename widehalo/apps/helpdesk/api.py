@@ -35,6 +35,8 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
+from django.utils.translation import gettext_lazy as _
 from ninja import Router, Schema
 
 from apps.core.models.tenant import Tenant
@@ -42,6 +44,7 @@ from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
 from apps.helpdesk.models import (
+    HlpCsatResponse,
     HlpEscalationEvent,
     HlpEscalationRule,
     HlpKbArticle,
@@ -53,8 +56,9 @@ from apps.helpdesk.models import (
     HlpTicketComment,
     HlpTicketTypeCatalog,
 )
-from apps.helpdesk.services import escalation, kb, sla
+from apps.helpdesk.services import escalation, kb, reports, sla
 from apps.helpdesk.services.ai_assist import suggest_reply
+from apps.helpdesk.services.csat import submit_csat_response
 from apps.helpdesk.services.tickets import (
     add_comment,
     assign_ticket,
@@ -166,6 +170,11 @@ class ResponseTemplateIn(Schema):
     name: str
     category: str = ""
     body: str = ""
+
+
+class CsatResponseIn(Schema):
+    score: int
+    comment: str = ""
 
 
 def _serialize_team(team: HlpTeam) -> dict[str, Any]:
@@ -487,6 +496,106 @@ def ticket_escalation_history_endpoint(request: Any, ticket_id: str) -> dict[str
     return {"results": [_serialize_escalation_event(e) for e in events]}
 
 
+# --- HlpCsatResponse (HD4) ----------------------------------------------
+#
+# **RBAC (decision disclosed)** : contrairement a `user_can_manage_ticket`
+# (`requester` OU `assignee`), la SOUMISSION d'une reponse CSAT est
+# restreinte au `requester` UNIQUEMENT (ou `admin`/`direction` via
+# `helpdesk.change_hlpticket`, pour saisir une reponse recueillie hors
+# ligne) — un `assignee` notant sa PROPRE resolution viderait l'enquete de
+# son sens (elle mesure la satisfaction du DEMANDEUR, pas de l'agent). La
+# LECTURE reste ouverte a tout role ayant acces en lecture au module (meme
+# posture que les commentaires/l'historique d'escalade ci-dessus).
+
+
+def _can_submit_csat(ticket: HlpTicket, user: Any) -> bool:
+    if user.has_perm("helpdesk.change_hlpticket"):
+        return True
+    return ticket.requester_id == user.id
+
+
+@router.get("/helpdesk/tickets/{ticket_id}/csat")
+@require_permission("helpdesk.view_hlpticket")
+def get_csat_response_endpoint(request: Any, ticket_id: str) -> Any:
+    ticket = get_object_or_404(HlpTicket, id=ticket_id)
+    response = getattr(ticket, "csat_response", None)
+    if response is None:
+        return JsonResponse({"detail": str(_("aucune reponse CSAT pour ce ticket"))}, status=404)
+    return _serialize_csat_response(response)
+
+
+@router.post("/helpdesk/tickets/{ticket_id}/csat")
+@require_permission("helpdesk.view_hlpticket")
+def submit_csat_response_endpoint(request: Any, ticket_id: str, payload: CsatResponseIn) -> Any:
+    ticket = get_object_or_404(HlpTicket, id=ticket_id)
+    if not _can_submit_csat(ticket, request.auth):
+        return _forbidden()
+    try:
+        response = submit_csat_response(ticket, score=payload.score, comment=payload.comment)
+    except ValidationError as exc:
+        return _error_response(exc)
+    return _serialize_csat_response(response)
+
+
+# --- Rapports (HD4) ------------------------------------------------------
+#
+# UN SEUL ecran consolide `/helpdesk/reports/` (cf. `views_reports.py`,
+# meme patron U5 « un ecran de rapports par module, pas un par
+# indicateur ») s'appuie sur QUATRE endpoints distincts — les endpoints
+# restent bon marche par rapport au budget d'ecrans (cf. plan, garde de
+# tete de chantier) : consolider l'API en un seul endpoint aurait rendu le
+# payload/la pagination inutilement confus pour un gain de budget nul.
+#
+# **RBAC** : `helpdesk.view_hlpticket`, deja accorde a TOUS les 9 roles non
+# admin/direction par la matrice app-level (cf. `rbac_policy.py`) — poste
+# coherente avec l'objectif de transparence interne du module (« tout
+# employe peut consulter les tickets ») et la plus simple : la performance
+# agent/l'equipe reste une donnee interne agregee, pas une donnee
+# personnelle sensible au sens RGPD, et aucun role de ce depot n'a de
+# raison metier d'en etre exclu.
+
+
+def _dates_from_request(request: Any) -> tuple[Any, Any]:
+    date_from_raw = request.GET.get("date_from")
+    date_to_raw = request.GET.get("date_to")
+    date_from = parse_date(date_from_raw) if date_from_raw else None
+    date_to = parse_date(date_to_raw) if date_to_raw else None
+    return date_from, date_to
+
+
+@router.get("/helpdesk/reports/csat")
+@require_permission("helpdesk.view_hlpticket")
+def csat_report_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    date_from, date_to = _dates_from_request(request)
+    return reports.csat_summary(tenant, date_from=date_from, date_to=date_to)
+
+
+@router.get("/helpdesk/reports/agent-performance")
+@require_permission("helpdesk.view_hlpticket")
+def agent_performance_report_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    date_from, date_to = _dates_from_request(request)
+    rows = reports.agent_performance_report(tenant, date_from=date_from, date_to=date_to)
+    return {"results": rows}
+
+
+@router.get("/helpdesk/reports/team-benchmark")
+@require_permission("helpdesk.view_hlpticket")
+def team_benchmark_report_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    date_from, date_to = _dates_from_request(request)
+    return {"results": reports.team_benchmark_report(tenant, date_from=date_from, date_to=date_to)}
+
+
+@router.get("/helpdesk/reports/sla-compliance")
+@require_permission("helpdesk.view_hlpticket")
+def sla_compliance_report_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    date_from, date_to = _dates_from_request(request)
+    return reports.sla_compliance_report(tenant, date_from=date_from, date_to=date_to)
+
+
 # --- HlpKbCategory/HlpKbArticle/HlpResponseTemplate (HD3) ---------------
 #
 # **RBAC (decision disclosed)** : contrairement a `HlpSlaPolicy`/
@@ -548,6 +657,16 @@ def _serialize_response_template(template: HlpResponseTemplate) -> dict[str, Any
         "name": template.name,
         "category": template.category,
         "body": template.body,
+    }
+
+
+def _serialize_csat_response(response: HlpCsatResponse) -> dict[str, Any]:
+    return {
+        "id": str(response.id),
+        "ticket_id": str(response.ticket_id),
+        "score": response.score,
+        "comment": response.comment,
+        "submitted_at": response.submitted_at,
     }
 
 
