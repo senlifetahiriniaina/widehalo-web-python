@@ -11,7 +11,22 @@ TOUT role en train de travailler, meme discipline que `chat`
 (`apps.core.services.rbac_policy` exclut deliberement `chat` de sa
 matrice de permissions). Seule l'authentification JWT par defaut
 (`config/api.py::NinjaAPI(auth=JWTAuth())`) s'applique, AUCUN
-`@require_permission(...)` sur ces deux endpoints."""
+`@require_permission(...)` sur ces deux endpoints.
+
+`POST /ai/anomalies/detect` et `GET /ai/anomalies` (AI3, detection
+d'anomalies cross-modules) reviennent en revanche a la posture RESTREINTE
+de AI1 (`ai.view_aianomaly`/`ai.add_aianomaly`, memes roles admin/
+direction que `AiUsageLimit`/`AiRequest`, cf. `ROLE_APP_PERMISSIONS["ai"]`)
+— disclosed comme le choix pragmatique le plus simple compte tenu de la
+granularite RBAC de ce depot (par APP, pas par modele, cf. docstring
+`rbac_policy.py`) : une anomalie peut provenir d'`accounting`/`stocks`/
+`projects`/`sales`, un decoupage fin par role-et-par-domaine-source
+demanderait une granularite N2 par modele qui n'existe pas encore. Un
+ecran filtre par role/domaine reste du perimetre futur, pas bloquant ici.
+`add_aianomaly` n'est JAMAIS accorde a un utilisateur en pratique : les
+`AiAnomaly` ne sont creees QUE par `services.anomaly_detection.
+run_all_checks` (endpoint de detection, jamais une creation manuelle
+directe d'anomalie exposee par ailleurs)."""
 
 from __future__ import annotations
 
@@ -19,6 +34,8 @@ from typing import Any
 
 from ninja import Router, Schema
 
+from apps.ai.models import AiAnomaly
+from apps.ai.services.anomaly_detection import run_all_checks
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.usage_budget import (
     current_month_token_usage,
@@ -139,3 +156,44 @@ def list_assist_modules_endpoint(request: Any) -> dict[str, Any]:
             for ctx in list_registered_contexts()
         ]
     }
+
+
+def _serialize_anomaly(anomaly: AiAnomaly) -> dict[str, Any]:
+    content_type = anomaly.content_type
+    content_type_label = (
+        f"{content_type.app_label}.{content_type.model}" if content_type is not None else None
+    )
+    return {
+        "id": str(anomaly.id),
+        "check_code": anomaly.check_code,
+        "severity": anomaly.severity,
+        "description": anomaly.description,
+        "ai_narrative": anomaly.ai_narrative,
+        "status": anomaly.status,
+        "content_type_label": content_type_label,
+        "object_id": anomaly.object_id,
+        "created_at": anomaly.created_at.isoformat(),
+    }
+
+
+@router.post("/ai/anomalies/detect")
+@require_permission("ai.add_aianomaly")
+def detect_anomalies_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    created = run_all_checks(tenant)
+    return {"results": [_serialize_anomaly(anomaly) for anomaly in created]}
+
+
+@router.get("/ai/anomalies")
+@require_permission("ai.view_aianomaly")
+def list_anomalies_endpoint(request: Any) -> dict[str, Any]:
+    # `AiAnomaly.objects` (TenantManager) est deja scope au tenant courant
+    # — meme convention que `list_usage_requests_endpoint` ci-dessus.
+    anomalies = AiAnomaly.objects.filter(is_active=True)
+    status_filter = request.GET.get("status")
+    if status_filter:
+        anomalies = anomalies.filter(status=status_filter)
+    severity_filter = request.GET.get("severity")
+    if severity_filter:
+        anomalies = anomalies.filter(severity=severity_filter)
+    return {"results": [_serialize_anomaly(anomaly) for anomaly in anomalies[:200]]}

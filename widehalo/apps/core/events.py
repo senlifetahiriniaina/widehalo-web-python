@@ -52,6 +52,7 @@ PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
         "notification.created",  # apps/core/services/notifications.py
         "chat.message_created",  # apps/chat/services/messaging.py
         "risk.flagged",  # apps/core/services/risk.py — RiskItem de score eleve (RSK1-2)
+        "ai.anomaly_detected",  # apps/ai/services/anomaly_detection.py — anomalie haute (AI3)
     }
 )
 

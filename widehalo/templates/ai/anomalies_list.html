@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Anomalies detectees" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Anomalies detectees (ouvertes)" %}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Verification" %}</th>
+        <th>{% trans "Severite" %}</th>
+        <th>{% trans "Description" %}</th>
+        <th>{% trans "Resume IA" %}</th>
+        <th>{% trans "Detectee le" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for anomaly in anomalies %}
+        <tr>
+          <td>{{ anomaly.check_code }}</td>
+          <td>{{ anomaly.get_severity_display }}</td>
+          <td>{{ anomaly.description }}</td>
+          <td>{{ anomaly.ai_narrative|default:"—" }}</td>
+          <td>{{ anomaly.created_at }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune anomalie ouverte." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

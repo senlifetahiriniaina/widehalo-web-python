@@ -14,6 +14,7 @@ class ProjectsConfig(AppConfig):
     # le registre partage `core.services.reports_registry` — cf.
     # `apps.projects.services.reports_registration` pour le detail.
     def ready(self) -> None:
+        from apps.projects.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.projects.services.ai_context_registration import register_ai_context
         from apps.projects.services.automation_registration import register_actions
         from apps.projects.services.reports_registration import register_reports
@@ -23,3 +24,6 @@ class ProjectsConfig(AppConfig):
         # AI2 (assistant contextuel par page/action) : meme patron, registre
         # partage `core.services.ai_context_registry`.
         register_ai_context()
+        # AI3 (detection d'anomalies cross-modules) : meme patron, registre
+        # partage `core.services.anomaly_registry`.
+        register_ai_anomaly_checks()

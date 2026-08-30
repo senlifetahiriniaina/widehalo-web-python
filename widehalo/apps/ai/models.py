@@ -7,10 +7,13 @@ raisonnement que `PrjTaskDependency`/`PrjBudgetLine` du chantier
 
 from __future__ import annotations
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.base import BaseModel
+from apps.core.services.anomaly_registry import SEVERITY_HIGH, SEVERITY_LOW, SEVERITY_MEDIUM
 
 DEFAULT_MONTHLY_TOKEN_BUDGET = 100_000
 DEFAULT_ALERT_THRESHOLD_PCT = 80
@@ -87,3 +90,70 @@ class AiRequest(BaseModel):
     @property
     def total_tokens_estimate(self) -> int:
         return self.prompt_tokens_estimate + self.completion_tokens_estimate
+
+
+class AiAnomaly(BaseModel):
+    """AI3 (detection d'anomalies cross-modules) — persistance d'un
+    `AnomalyCandidate` (cf. `apps.core.services.anomaly_registry`) DEJA
+    detecte deterministiquement par un module metier, jamais un objet cree
+    ou evalue par un LLM. Pas de `ReferenceMixin` : c'est un enregistrement
+    d'audit/de suivi (comme `AiRequest`), pas un document numerote que
+    l'utilisateur cree lui-meme.
+
+    **Rattachement generique** (`content_type`/`object_id`/
+    `content_object`) : meme patron exact que `apps.core.models.risk.
+    RiskItem` — une anomalie peut concerner N'IMPORTE QUELLE entite de
+    N'IMPORTE QUEL module (`AccBudgetLine`, `StkQuant`, `PrjTask`,
+    `SalesForecast`...) sans que `apps.ai` ait jamais besoin d'importer le
+    modele concret d'un autre module (regle de couplage n5 : seul
+    `content_type_label`, une chaine "app_label.modelname", traverse la
+    frontiere, cf. `apps.ai.services.anomaly_detection`). Nullable pour la
+    meme raison que `RiskItem` : un futur check purement agrege/tenant-wide
+    sans entite precise a designer ne doit pas etre exclu par une
+    contrainte NOT NULL non demandee ici.
+
+    `check_code` est un texte libre (ex. "accounting.budget_variance"),
+    PAS une cle etrangere vers le registre : celui-ci est un dict en
+    memoire (`anomaly_registry._REGISTRY`), jamais une table — un code
+    orphelin (module ayant retire son check) reste lisible dans
+    l'historique plutot que de faire echouer une contrainte FK."""
+
+    STATUS_OPEN = "ouverte"
+    STATUS_HANDLED = "traitee"
+    STATUS_IGNORED = "ignoree"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, _("Ouverte")),
+        (STATUS_HANDLED, _("Traitee")),
+        (STATUS_IGNORED, _("Ignoree")),
+    ]
+
+    SEVERITY_CHOICES = [
+        (SEVERITY_LOW, _("Faible")),
+        (SEVERITY_MEDIUM, _("Moyenne")),
+        (SEVERITY_HIGH, _("Haute")),
+    ]
+
+    content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL)
+    object_id = models.CharField(max_length=64, blank=True)
+    content_object = GenericForeignKey("content_type", "object_id")
+
+    check_code = models.CharField(max_length=64)
+    severity = models.CharField(max_length=8, choices=SEVERITY_CHOICES)
+    # Description DETERMINISTE fournie par la fonction de verification du
+    # module metier — jamais generee par un LLM (cf. docstring de module
+    # `anomaly_registry`).
+    description = models.TextField()
+    # Narrative optionnelle en prose (resume humain-lisible), generee par
+    # IA UNIQUEMENT si un fournisseur reel est configure et disponible —
+    # vide sinon, jamais un texte de substitution invente ici (cf.
+    # `apps.ai.services.anomaly_detection`).
+    ai_narrative = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN)
+
+    class Meta:
+        db_table = "ai_anomaly"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["content_type", "object_id"])]
+
+    def __str__(self) -> str:
+        return f"{self.check_code} ({self.severity})"

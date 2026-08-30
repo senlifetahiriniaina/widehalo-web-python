@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
+from apps.ai.models import AiAnomaly
 from apps.ai.services.contextual_assistant import assist as run_contextual_assist
 from apps.ai.services.usage_budget import current_month_token_usage, get_or_create_usage_limit
 from apps.core.context import get_current_tenant_id
@@ -62,3 +63,13 @@ def assist_fragment(request: HttpRequest) -> HttpResponse:
         module, action, tenant=tenant, user=request.user, locale=request.user.preferred_language
     )
     return render(request, "ai/_assist_result.html", {"result": response})
+
+
+@login_required
+def anomalies_list(request: HttpRequest) -> HttpResponse:
+    """AI3 — liste simple des anomalies OUVERTES du tenant courant. Meme
+    patron `@login_required` seul que le reste de cet ecran (cf. docstring
+    de tete de fichier) : le controle RBAC fin (`ai.view_aianomaly`) reste
+    porte par l'API, jamais duplique cote ecran HTMX."""
+    anomalies = AiAnomaly.objects.filter(is_active=True, status=AiAnomaly.STATUS_OPEN)
+    return render(request, "ai/anomalies_list.html", {"anomalies": anomalies})

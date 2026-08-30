@@ -43,6 +43,8 @@ def api_ai():
                 "add_aiusagelimit",
                 "change_aiusagelimit",
                 "view_airequest",
+                "view_aianomaly",
+                "add_aianomaly",
             ],
         )
     )
@@ -155,3 +157,72 @@ def test_assist_endpoint_never_errors_for_an_unregistered_module() -> None:
     )
     assert response.status_code == 200
     assert response.json()["is_ai_generated"] is False
+
+
+@pytest.fixture(autouse=True)
+def _isolated_anomaly_registry(monkeypatch):
+    """Meme raisonnement que `apps.ai.tests.test_anomaly_detection` : le
+    registre `core.services.anomaly_registry._REGISTRY` est un dict global
+    au processus, jamais nettoye entre tests — isole ici pour que
+    `POST /ai/anomalies/detect` ne remonte QUE les checks enregistres par
+    CE test (les vrais checks metier accounting/stocks/projects/sales
+    resteraient inoffensifs sur un tenant frais sans donnees, mais
+    l'isolation reste la garantie la plus explicite)."""
+    import apps.core.services.anomaly_registry as registry_module
+
+    monkeypatch.setattr(registry_module, "_REGISTRY", {})
+
+
+def test_detect_and_list_anomalies_via_api(api_ai) -> None:
+    from apps.core.services.anomaly_registry import (
+        SEVERITY_HIGH,
+        AnomalyCandidate,
+        register_anomaly_check,
+    )
+
+    tenant, user = api_ai
+
+    def _check(tenant_id: str) -> list:
+        return [
+            AnomalyCandidate(
+                content_type_label="core.tenant",
+                object_id=tenant_id,
+                severity=SEVERITY_HIGH,
+                description="Anomalie de test API.",
+            )
+        ]
+
+    register_anomaly_check("test.api_detect", module="test", label="API", function=_check)
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    detect_response = client.post("/api/v1/ai/anomalies/detect", **headers)
+    assert detect_response.status_code == 200
+    detected = detect_response.json()["results"]
+    assert len(detected) == 1
+    assert detected[0]["check_code"] == "test.api_detect"
+    assert detected[0]["severity"] == SEVERITY_HIGH
+
+    list_response = client.get("/api/v1/ai/anomalies", **headers)
+    assert list_response.status_code == 200
+    listed = list_response.json()["results"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == detected[0]["id"]
+
+    filtered_response = client.get("/api/v1/ai/anomalies", {"severity": "faible"}, **headers)
+    assert filtered_response.json()["results"] == []
+
+
+def test_rbac_deny_anomaly_endpoints_for_role_without_ai_access() -> None:
+    tenant = Tenant.objects.create(code="AI-ANOM-DENY", name="AI Anomaly Deny Tenant")
+    user = User.objects.create_user(email="ai-anom-deny@example.com", password="Str0ngPassw0rd!23")
+    grant_role(user, "resp_commercial")
+
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    assert client.post("/api/v1/ai/anomalies/detect", **headers).status_code == 403
+    assert client.get("/api/v1/ai/anomalies", **headers).status_code == 403
