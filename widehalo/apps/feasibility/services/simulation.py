@@ -162,6 +162,33 @@ def compute_margin_pct(*, total_revenue_mga: Decimal, total_cost_mga: Decimal) -
     )
 
 
+def complete_study(study: FeaStudy) -> FeaStudy:
+    """INT1 (chantier interactivite native inter-modules) : passe l'etude en
+    `STATUS_COMPLETED` et publie `feasibility.study_completed`. Aucune
+    fonction de transition de statut n'existait encore pour `FeaStudy`
+    (contrairement a `PatPattern.state`/`SalesOrder.state`, `status` reste
+    un simple `CharField` sans machine a etats `django-fsm-2` — cf.
+    `models.py`) : cette fonction est le point d'entree MINIMAL manquant
+    pour cabler la publication, jamais une machine a etats complete
+    (hors-perimetre de ce chantier de cablage pur)."""
+    study.status = FeaStudy.STATUS_COMPLETED
+    study.save(update_fields=["status"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "feasibility.study_completed",
+        {
+            "study_id": str(study.id),
+            "reference": study.reference,
+            "name": study.name,
+            "owner_id": str(study.owner_id) if study.owner_id else None,
+        },
+        tenant_id=str(study.tenant_id),
+    )
+    return study
+
+
 def simulate_study_line(
     line: FeaStudyLine,
     *,
