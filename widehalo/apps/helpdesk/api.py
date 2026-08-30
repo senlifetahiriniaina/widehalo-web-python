@@ -1,7 +1,13 @@
-"""API django-ninja du module `helpdesk` (HD1). CRUD `HlpTeam`/
+"""API django-ninja du module `helpdesk` (HD1+HD2). CRUD `HlpTeam`/
 `HlpTicketTypeCatalog` (admin/direction uniquement pour la creation/edition
 du catalogue, lecture ouverte a tout role ayant acces au module), CRUD
 `HlpTicket` + endpoints de transition FSM, creation de commentaires.
+
+**HD2** : CRUD `HlpSlaPolicy`/`HlpEscalationRule` (permissions
+PERSONNALISEES `helpdesk.manage_hlpslapolicy`/`manage_hlpescalationrule`,
+admin/direction UNIQUEMENT — cf. section dediee plus bas), declenchement
+manuel `/helpdesk/checks/run` (`helpdesk.run_helpdesk_checks`, memes
+roles), historique d'escalade d'un ticket.
 
 NOTE ordre des decorateurs (cf. `apps.core.services.permissions.
 require_permission`) : `@router.xxx` DOIT rester le decorateur EXTERNE et
@@ -29,7 +35,16 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
-from apps.helpdesk.models import HlpTeam, HlpTicket, HlpTicketComment, HlpTicketTypeCatalog
+from apps.helpdesk.models import (
+    HlpEscalationEvent,
+    HlpEscalationRule,
+    HlpSlaPolicy,
+    HlpTeam,
+    HlpTicket,
+    HlpTicketComment,
+    HlpTicketTypeCatalog,
+)
+from apps.helpdesk.services import escalation, sla
 from apps.helpdesk.services.tickets import (
     add_comment,
     assign_ticket,
@@ -90,7 +105,24 @@ class TicketIn(Schema):
     priority: str = ""
     assignee_id: str | None = None
     team_id: str | None = None
+    sla_policy_id: str | None = None
     blocks_operations: bool = False
+
+
+class SlaPolicyIn(Schema):
+    name: str
+    priority: str
+    first_response_minutes: int
+    resolution_minutes: int
+
+
+class EscalationRuleIn(Schema):
+    name: str
+    condition_type: str
+    threshold_minutes: int | None = None
+    min_priority: str = ""
+    escalate_to_team_id: str | None = None
+    escalate_to_user_id: str | None = None
 
 
 class CommentIn(Schema):
@@ -139,6 +171,9 @@ def _serialize_ticket(ticket: HlpTicket) -> dict[str, Any]:
         "content_type_id": ticket.content_type_id,
         "object_id": ticket.object_id,
         "blocks_operations": ticket.blocks_operations,
+        "sla_policy_id": str(ticket.sla_policy_id) if ticket.sla_policy_id else None,
+        "first_response_due_at": ticket.first_response_due_at,
+        "resolution_due_at": ticket.resolution_due_at,
         "first_responded_at": ticket.first_responded_at,
         "resolved_at": ticket.resolved_at,
         "closed_at": ticket.closed_at,
@@ -266,6 +301,9 @@ def create_ticket_endpoint(request: Any, payload: TicketIn) -> dict[str, Any]:
     team = None
     if payload.team_id:
         team = get_object_or_404(HlpTeam, id=payload.team_id)
+    sla_policy = None
+    if payload.sla_policy_id:
+        sla_policy = get_object_or_404(HlpSlaPolicy, id=payload.sla_policy_id)
     ticket = create_ticket(
         tenant,
         subject=payload.subject,
@@ -276,6 +314,7 @@ def create_ticket_endpoint(request: Any, payload: TicketIn) -> dict[str, Any]:
         requester=request.auth,
         assignee=assignee,
         team=team,
+        sla_policy=sla_policy,
         blocks_operations=payload.blocks_operations,
         created_by=request.auth,
     )
@@ -400,3 +439,129 @@ def create_comment_endpoint(request: Any, ticket_id: str, payload: CommentIn) ->
         is_internal_note=payload.is_internal_note,
     )
     return _serialize_comment(comment)
+
+
+@router.get("/helpdesk/tickets/{ticket_id}/escalation-history")
+@require_permission("helpdesk.view_hlpticket")
+def ticket_escalation_history_endpoint(request: Any, ticket_id: str) -> dict[str, Any]:
+    ticket = get_object_or_404(HlpTicket, id=ticket_id)
+    events = ticket.escalation_events.all()
+    return {"results": [_serialize_escalation_event(e) for e in events]}
+
+
+# --- HlpSlaPolicy (HD2) -------------------------------------------------
+#
+# `helpdesk.manage_hlpslapolicy` (permission PERSONNALISEE, cf. `Meta.
+# permissions` de `HlpSlaPolicy`) gate ICI lecture ET ecriture — cf.
+# `apps.core.services.rbac_policy.CUSTOM_PERMISSIONS_MANAGE_HLP_ROLES`
+# (admin/direction uniquement, meme discipline que `projects.
+# manage_prjcustomfielddefinition`, PJ7). Les permissions auto-generees
+# `helpdesk.view/add_hlpslapolicy` restent techniquement accordees plus
+# largement par `ROLE_APP_PERMISSIONS["helpdesk"]` mais ne sont JAMAIS
+# verifiees par ces endpoints.
+
+
+def _serialize_sla_policy(policy: HlpSlaPolicy) -> dict[str, Any]:
+    return {
+        "id": str(policy.id),
+        "name": policy.name,
+        "priority": policy.priority,
+        "first_response_minutes": policy.first_response_minutes,
+        "resolution_minutes": policy.resolution_minutes,
+    }
+
+
+@router.get("/helpdesk/sla-policies")
+@require_permission("helpdesk.manage_hlpslapolicy")
+def list_sla_policies_endpoint(request: Any) -> dict[str, Any]:
+    policies = HlpSlaPolicy.objects.filter(is_active=True)
+    return {"results": [_serialize_sla_policy(p) for p in policies]}
+
+
+@router.post("/helpdesk/sla-policies")
+@require_permission("helpdesk.manage_hlpslapolicy")
+def create_sla_policy_endpoint(request: Any, payload: SlaPolicyIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    policy = HlpSlaPolicy.objects.create(
+        tenant=tenant,
+        name=payload.name,
+        priority=payload.priority,
+        first_response_minutes=payload.first_response_minutes,
+        resolution_minutes=payload.resolution_minutes,
+        created_by=request.auth,
+    )
+    return _serialize_sla_policy(policy)
+
+
+# --- HlpEscalationRule (HD2) --------------------------------------------
+#
+# Meme discipline RBAC que `HlpSlaPolicy` ci-dessus (`helpdesk.
+# manage_hlpescalationrule`).
+
+
+def _serialize_escalation_rule(rule: HlpEscalationRule) -> dict[str, Any]:
+    return {
+        "id": str(rule.id),
+        "name": rule.name,
+        "condition_type": rule.condition_type,
+        "threshold_minutes": rule.threshold_minutes,
+        "min_priority": rule.min_priority,
+        "escalate_to_team_id": str(rule.escalate_to_team_id) if rule.escalate_to_team_id else None,
+        "escalate_to_user_id": str(rule.escalate_to_user_id) if rule.escalate_to_user_id else None,
+        "is_active": rule.is_active,
+    }
+
+
+def _serialize_escalation_event(event: HlpEscalationEvent) -> dict[str, Any]:
+    return {
+        "id": str(event.id),
+        "ticket_id": str(event.ticket_id),
+        "rule_id": str(event.rule_id) if event.rule_id else None,
+        "escalated_by_id": str(event.escalated_by_id) if event.escalated_by_id else None,
+        "reason": event.reason,
+        "created_at": event.created_at,
+    }
+
+
+@router.get("/helpdesk/escalation-rules")
+@require_permission("helpdesk.manage_hlpescalationrule")
+def list_escalation_rules_endpoint(request: Any) -> dict[str, Any]:
+    rules = HlpEscalationRule.objects.filter(is_active=True)
+    return {"results": [_serialize_escalation_rule(r) for r in rules]}
+
+
+@router.post("/helpdesk/escalation-rules")
+@require_permission("helpdesk.manage_hlpescalationrule")
+def create_escalation_rule_endpoint(request: Any, payload: EscalationRuleIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    rule = HlpEscalationRule.objects.create(
+        tenant=tenant,
+        name=payload.name,
+        condition_type=payload.condition_type,
+        threshold_minutes=payload.threshold_minutes,
+        min_priority=payload.min_priority,
+        escalate_to_team_id=payload.escalate_to_team_id,
+        escalate_to_user_id=payload.escalate_to_user_id,
+        created_by=request.auth,
+    )
+    return _serialize_escalation_rule(rule)
+
+
+# --- Declenchement manuel des verifications SLA/escalade (HD2) ----------
+
+
+@router.post("/helpdesk/checks/run")
+@require_permission("helpdesk.run_helpdesk_checks")
+def run_helpdesk_checks_endpoint(request: Any) -> dict[str, Any]:
+    """Declenche `sla.check_breaches`/`escalation.run_escalation_checks`
+    pour le tenant COURANT (utile pour tester/operer sans attendre le
+    prochain passage de la commande de management `run_helpdesk_sla_checks`,
+    cf. plan) — `admin`/`direction` uniquement (meme permission
+    personnalisee que la configuration SLA/escalade)."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    breaches = sla.check_breaches(tenant)
+    events = escalation.run_escalation_checks(tenant)
+    return {
+        "breaches_created": len(breaches),
+        "escalations_created": len(events),
+    }

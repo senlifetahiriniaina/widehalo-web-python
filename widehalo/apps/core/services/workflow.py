@@ -1,7 +1,18 @@
 """Point d'entree unique pour declencher une transition de machine a etat
 en respectant la garde par permission — ne JAMAIS appeler directement la
 methode decoree par `@transition` depuis un module metier, toujours passer
-par `attempt_transition()` pour que le controle RBAC soit effectif."""
+par `attempt_transition()` pour que le controle RBAC soit effectif.
+
+`user` accepte `User | None` (HD2, chantier `helpdesk`, cf.
+`apps.helpdesk.services.escalation.run_escalation_checks`) : `None` ne
+represente PAS un contournement du controle RBAC — `has_transition_perm`
+consulte `Transition.has_perm`, qui retourne `True` sans jamais toucher a
+`user` quand la transition ne declare AUCUN `permission=` (cf.
+`django_fsm.Transition.has_perm`) ; `None` n'est donc exploitable en
+pratique que pour un declenchement AUTOMATIQUE d'une transition SANS garde
+de permission declaree (le seul cas ou aucun controle n'est de toute facon
+contourne). Une transition qui declare `permission=` refusera `None`
+normalement des que `user.has_perm(...)` serait appele sur lui."""
 
 from __future__ import annotations
 
@@ -21,14 +32,18 @@ class TransitionPermissionError(Exception):
 def attempt_transition(
     instance: Any,
     method_name: str,
-    user: User,
+    user: User | None,
     *args: Any,
     comment: str = "",
     **kwargs: Any,
 ) -> Any:
     bound_method = getattr(instance, method_name)
 
-    if not has_transition_perm(bound_method, user):
+    # `has_transition_perm` est type par `django-fsm-2` pour un utilisateur
+    # reel (jamais `None`) — cf. docstring de tete de module pour la preuve
+    # que `None` reste sans danger tant qu'aucune transition ne declare
+    # `permission=`.
+    if not has_transition_perm(bound_method, user):  # type: ignore[arg-type]
         _log_refusal(instance, method_name, user, comment)
         raise TransitionPermissionError(
             f"{user} n'a pas la permission d'exécuter la transition '{method_name}'."
@@ -43,7 +58,7 @@ def attempt_transition(
         raise
 
 
-def _log_refusal(instance: Any, method_name: str, user: User, comment: str) -> None:
+def _log_refusal(instance: Any, method_name: str, user: User | None, comment: str) -> None:
     bound_method = getattr(instance, method_name)
     field_name = bound_method._django_fsm.field.name  # noqa: SLF001
     current_state = getattr(instance, field_name, "?")

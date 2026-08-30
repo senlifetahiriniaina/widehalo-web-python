@@ -1,15 +1,23 @@
-"""Services metier `helpdesk` (HD1) : creation de ticket, transitions FSM
-(chacune appelle `attempt_transition()` PUIS `instance.save(update_fields=
-[...])` explicitement — garde-fou AST `tests/architecture/
-test_attempt_transition_saves_state.py`), commentaires."""
+"""Services metier `helpdesk` (HD1+HD2) : creation de ticket, transitions
+FSM (chacune appelle `attempt_transition()` PUIS `instance.save(
+update_fields=[...])` explicitement — garde-fou AST `tests/architecture/
+test_attempt_transition_saves_state.py`), commentaires.
+
+**HD2** : `create_ticket` resout desormais aussi `sla_policy` (meme chaine
+de resolution exacte que `priority`/`team`, cf. sa docstring) et calcule
+`first_response_due_at`/`resolution_due_at` quand une politique est
+resolue ; `escalate_ticket` persiste desormais un `HlpEscalationEvent`
+manuel et publie `"helpdesk.ticket_escalated"`."""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
+from apps.core.events import publish_event
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
@@ -17,6 +25,8 @@ from apps.core.services.workflow import attempt_transition
 from apps.helpdesk.models import (
     KIND_DEMANDE,
     PRIORITY_NORMAL,
+    HlpEscalationEvent,
+    HlpSlaPolicy,
     HlpTeam,
     HlpTicket,
     HlpTicketComment,
@@ -35,25 +45,48 @@ def create_ticket(
     priority: str = "",
     assignee: User | None = None,
     team: HlpTeam | None = None,
+    sla_policy: HlpSlaPolicy | None = None,
     content_object: Any | None = None,
     blocks_operations: bool = False,
     created_by: User | None = None,
 ) -> HlpTicket:
-    """Cree un ticket. `priority`/`team` sont pre-remplis depuis
-    `ticket_type.default_priority`/`default_team` quand le type de ticket en
-    porte un et qu'aucune valeur explicite n'est fournie par l'appelant —
-    l'appelant garde toujours le dernier mot."""
+    """Cree un ticket. `priority`/`team`/`sla_policy` sont pre-remplis
+    depuis `ticket_type.default_priority`/`default_team`/`default_sla_policy`
+    quand le type de ticket en porte un et qu'aucune valeur explicite n'est
+    fournie par l'appelant — l'appelant garde toujours le dernier mot.
+
+    **HD2** : si aucune `sla_policy` n'est resolue par les deux moyens
+    ci-dessus, une DERNIERE tentative de resolution par correspondance sur
+    la priorite finale du ticket (`HlpSlaPolicy.priority == resolved_
+    priority`) est effectuee — au plus une politique par priorite est
+    attendue en usage normal (aucune contrainte d'unicite DB ne l'impose
+    cependant, cf. docstring `HlpSlaPolicy` : rien n'empeche un tenant de
+    creer plusieurs politiques pour la meme priorite, auquel cas la
+    premiere trouvee est utilisee — un affinage possible si un besoin reel
+    de plusieurs politiques concurrentes par priorite se precise). Quand
+    une politique est resolue, `first_response_due_at`/`resolution_due_at`
+    sont calcules a la creation (`created_at` n'existe pas encore avant
+    `.save()`, donc `timezone.now()` sert de reference — meme instant a la
+    milliseconde pres)."""
     resolved_priority = priority
     resolved_team = team
+    resolved_sla_policy = sla_policy
     if ticket_type is not None:
         if not resolved_priority and ticket_type.default_priority:
             resolved_priority = ticket_type.default_priority
         if resolved_team is None and ticket_type.default_team_id:
             resolved_team = ticket_type.default_team
+        if resolved_sla_policy is None and ticket_type.default_sla_policy_id:
+            resolved_sla_policy = ticket_type.default_sla_policy
     if not resolved_priority:
         resolved_priority = PRIORITY_NORMAL
+    if resolved_sla_policy is None:
+        resolved_sla_policy = HlpSlaPolicy.objects.filter(
+            tenant=tenant, priority=resolved_priority
+        ).first()
 
     reference = next_reference(tenant, HlpTicket.SEQUENCE_CODE, timezone.now().year)
+    now = timezone.now()
 
     ticket = HlpTicket(
         tenant=tenant,
@@ -66,9 +99,15 @@ def create_ticket(
         requester=requester,
         assignee=assignee,
         team=resolved_team,
+        sla_policy=resolved_sla_policy,
         blocks_operations=blocks_operations,
         created_by=created_by,
     )
+    if resolved_sla_policy is not None:
+        ticket.first_response_due_at = now + timedelta(
+            minutes=resolved_sla_policy.first_response_minutes
+        )
+        ticket.resolution_due_at = now + timedelta(minutes=resolved_sla_policy.resolution_minutes)
     if content_object is not None:
         ticket.content_type = ContentType.objects.get_for_model(content_object.__class__)
         ticket.object_id = str(content_object.pk)
@@ -124,14 +163,44 @@ def close_ticket(ticket: HlpTicket, user: User) -> HlpTicket:
     return ticket
 
 
-def escalate_ticket(ticket: HlpTicket, user: User, *, reason: str = "") -> HlpTicket:
-    """Escalade manuelle (HD1) — l'integration automatique avec
-    `HlpEscalationRule`/le calcul de `risk_score` arrive en HD2 (cf.
-    docstring de `models.py`). `reason` n'est pas encore persiste (pas de
-    `HlpEscalationEvent` avant HD2) : parametre deja present dans la
-    signature pour que l'API HD1 n'ait pas a changer de forme en HD2."""
+def escalate_ticket(ticket: HlpTicket, user: User | None, *, reason: str = "") -> HlpTicket:
+    """Escalade un ticket et persiste la trace correspondante
+    (`HlpEscalationEvent`).
+
+    **HD1 -> HD2** : `reason` etait deja present dans la signature en HD1
+    mais non persiste (`HlpEscalationEvent` n'existait pas encore) — HD2
+    l'exploite desormais pleinement.
+
+    `user` accepte deliberement `None` : c'est le chemin emprunte par
+    l'escalade AUTOMATIQUE (`escalation.run_escalation_checks`, cf. sa
+    docstring pour la justification complete) — aucune des transitions
+    `@transition` de `HlpTicket` ne declare de `permission=` (cf.
+    `models.py`), donc `attempt_transition()`/`has_transition_perm()`
+    n'exigent pas d'utilisateur reel pour que la transition reussisse
+    (verifie directement dans `django_fsm.Transition.has_perm` : sans
+    `permission` declare, retourne `True` sans jamais toucher `user`).
+    Un appel MANUEL (API/ecran) continue de passer l'utilisateur reel
+    (`escalated_by` renseigne sur l'evenement cree) ; l'appel AUTOMATIQUE
+    passe `None` (`escalated_by=None` sur l'evenement, `rule` renseigne)."""
     attempt_transition(ticket, "escalate", user)
     ticket.save(update_fields=["state"])
+    HlpEscalationEvent.objects.create(
+        tenant=ticket.tenant,
+        ticket=ticket,
+        rule=None,
+        escalated_by=user,
+        reason=reason,
+    )
+    publish_event(
+        "helpdesk.ticket_escalated",
+        {
+            "ticket_id": str(ticket.id),
+            "reference": ticket.reference,
+            "rule_id": None,
+            "escalated_by_id": str(user.id) if user is not None else None,
+        },
+        tenant_id=str(ticket.tenant_id),
+    )
     return ticket
 
 

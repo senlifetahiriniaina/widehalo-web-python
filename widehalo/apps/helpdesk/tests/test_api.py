@@ -10,11 +10,14 @@ memoire — lecon documentee du chantier `mrp` (cf. consigne de la tache)."""
 from __future__ import annotations
 
 import pytest
+from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
+from apps.core.models.event import EventLog
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import grant_role
+from apps.core.tests.utils import grant_role, use_tenant
+from apps.helpdesk.models import HlpEscalationEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -210,3 +213,123 @@ def test_n3_scoping_own_ticket_vs_third_party(api_helpdesk) -> None:
 
     get_response = client.get(f"/api/v1/helpdesk/tickets/{ticket_id}", **owner_headers)
     assert get_response.json()["state"] == "in_progress"
+
+
+def test_manual_escalation_creates_event_and_publishes_event(api_helpdesk) -> None:
+    """HD2 : `escalate_ticket` (chemin manuel, API) cree EXACTEMENT un
+    `HlpEscalationEvent` (`rule=None`/`escalated_by=<utilisateur appelant>`)
+    et publie `"helpdesk.ticket_escalated"` — verifie par un rechargement
+    SEPARE (nouvelle requete GET), jamais en reutilisant le meme objet
+    Python en memoire (lecon documentee du chantier `mrp`)."""
+    tenant, user = api_helpdesk
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/helpdesk/tickets",
+        {"subject": "A escalader", "kind": "incident"},
+        content_type="application/json",
+        **headers,
+    )
+    ticket_id = create_response.json()["id"]
+
+    escalate_response = client.post(f"/api/v1/helpdesk/tickets/{ticket_id}/escalate", **headers)
+    assert escalate_response.status_code == 200, escalate_response.json()
+    assert escalate_response.json()["state"] == "escalated"
+
+    history_response = client.get(
+        f"/api/v1/helpdesk/tickets/{ticket_id}/escalation-history", **headers
+    )
+    assert history_response.status_code == 200
+    results = history_response.json()["results"]
+    assert len(results) == 1
+    assert results[0]["rule_id"] is None
+    assert results[0]["escalated_by_id"] == str(user.id)
+
+    # `HlpEscalationEvent.objects` (TenantManager) filtre sur le tenant
+    # COURANT du contexte applicatif, absent ici (test hors requete HTTP,
+    # le middleware qui active le tenant ne vit que le temps d'une requete
+    # `Client.post`/`.get`) — `use_tenant()` explicite, meme discipline que
+    # toute assertion de niveau modele apres un appel API dans ce depot.
+    with use_tenant(tenant.id):
+        assert HlpEscalationEvent.objects.filter(ticket_id=ticket_id).count() == 1
+    assert EventLog.objects.filter(
+        event_type="helpdesk.ticket_escalated", payload__ticket_id=ticket_id
+    ).exists()
+
+
+def test_sla_and_escalation_config_endpoints_require_admin_or_direction(api_helpdesk) -> None:
+    """RBAC (cf. plan) : `helpdesk.manage_hlpslapolicy`/
+    `manage_hlpescalationrule`/`run_helpdesk_checks` sont des permissions
+    PERSONNALISEES accordees uniquement a `admin`/`direction` — un role
+    "domaine cible" comme `commercial` (qui a pourtant {view, add} au
+    niveau app sur `helpdesk`, cf. `ROLE_APP_PERMISSIONS`) n'y a PAS acces."""
+    tenant, commercial_user = api_helpdesk
+    client = Client()
+    token = _access_token(client, commercial_user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    sla_response = client.post(
+        "/api/v1/helpdesk/sla-policies",
+        {
+            "name": "Standard",
+            "priority": "normal",
+            "first_response_minutes": 60,
+            "resolution_minutes": 480,
+        },
+        content_type="application/json",
+        **headers,
+    )
+    assert sla_response.status_code == 403
+
+    rule_response = client.post(
+        "/api/v1/helpdesk/escalation-rules",
+        {"name": "Regle", "condition_type": "time_since_created", "threshold_minutes": 60},
+        content_type="application/json",
+        **headers,
+    )
+    assert rule_response.status_code == 403
+
+    run_response = client.post("/api/v1/helpdesk/checks/run", **headers)
+    assert run_response.status_code == 403
+
+    # `admin`/`direction` sont dans `CORE_MFA_REQUIRED_ROLES`, ce qui
+    # bloquerait la connexion JWT de ce test tant qu'un device TOTP n'est
+    # pas enrole (meme constat/meme contournement que `apps.automation.
+    # tests.test_api`/`apps.financing.tests.test_api`) : groupe ad hoc
+    # portant EXACTEMENT les 3 permissions personnalisees exercees, plutot
+    # que `grant_role("admin")`.
+    admin_user = User.objects.create_user(
+        email="admin-helpdesk@example.com", password="Str0ngPassw0rd!23"
+    )
+    group, _ = Group.objects.get_or_create(name="helpdesk-config-api-test")
+    group.permissions.set(
+        Permission.objects.filter(
+            content_type__app_label="helpdesk",
+            codename__in=[
+                "manage_hlpslapolicy",
+                "manage_hlpescalationrule",
+                "run_helpdesk_checks",
+            ],
+        )
+    )
+    admin_user.groups.add(group)
+    admin_token = _access_token(client, admin_user.email, "Str0ngPassw0rd!23")
+    admin_headers = _headers(admin_token, str(tenant.id))
+
+    admin_sla_response = client.post(
+        "/api/v1/helpdesk/sla-policies",
+        {
+            "name": "Standard",
+            "priority": "normal",
+            "first_response_minutes": 60,
+            "resolution_minutes": 480,
+        },
+        content_type="application/json",
+        **admin_headers,
+    )
+    assert admin_sla_response.status_code == 200, admin_sla_response.json()
+
+    admin_run_response = client.post("/api/v1/helpdesk/checks/run", **admin_headers)
+    assert admin_run_response.status_code == 200

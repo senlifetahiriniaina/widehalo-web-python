@@ -8,9 +8,15 @@ convention que tous les autres modules)."""
 from __future__ import annotations
 
 import factory
+from django.utils import timezone
 
 from apps.helpdesk.models import (
     KIND_DEMANDE,
+    PRIORITY_NORMAL,
+    HlpEscalationEvent,
+    HlpEscalationRule,
+    HlpSlaBreach,
+    HlpSlaPolicy,
     HlpTeam,
     HlpTicket,
     HlpTicketComment,
@@ -55,3 +61,44 @@ class HlpTicketCommentFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     ticket = factory.SubFactory(HlpTicketFactory, tenant=factory.SelfAttribute("..tenant"))
     body = "Commentaire de test"
+
+
+class HlpSlaPolicyFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpSlaPolicy
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Politique SLA de test {n}")
+    priority = PRIORITY_NORMAL
+    first_response_minutes = 60
+    resolution_minutes = 480
+
+
+class HlpSlaBreachFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpSlaBreach
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    ticket = factory.SubFactory(HlpTicketFactory, tenant=factory.SelfAttribute("..tenant"))
+    breach_type = HlpSlaBreach.BREACH_FIRST_RESPONSE
+    breached_at = factory.LazyFunction(timezone.now)
+    minutes_over = 15
+
+
+class HlpEscalationRuleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpEscalationRule
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Regle d'escalade de test {n}")
+    condition_type = HlpEscalationRule.CONDITION_TIME_SINCE_CREATED
+    threshold_minutes = 120
+
+
+class HlpEscalationEventFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpEscalationEvent
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    ticket = factory.SubFactory(HlpTicketFactory, tenant=factory.SelfAttribute("..tenant"))
+    reason = "Escalade de test"

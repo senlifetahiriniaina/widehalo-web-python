@@ -76,8 +76,13 @@ def test_ticket_escalation_manual(tenant_and_agent) -> None:
         ticket = create_ticket(tenant, subject="Test", requester=agent, kind=KIND_INCIDENT)
         escalate_ticket(ticket, agent)
         assert ticket.state == HlpTicket.STATE_ESCALATED
-        # `risk_score` reste a 0 en HD1 (calcul deterministe differe a HD2).
+        # `escalate_ticket()` ne recalcule PAS `risk_score` lui-meme (HD2) :
+        # seuls `sla.check_breaches`/`escalation.run_escalation_checks` le
+        # font, cf. leurs docstrings respectives.
         assert ticket.risk_score == 0
+        event = ticket.escalation_events.get()
+        assert event.rule_id is None
+        assert event.escalated_by_id == agent.id
 
 
 def test_ticket_reference_refetch_persists(tenant_and_agent) -> None:

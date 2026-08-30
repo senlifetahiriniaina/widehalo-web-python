@@ -424,6 +424,18 @@ CUSTOM_PERMISSIONS_TRACK_PRJ_TIME_ENTRY_ROLES = (
     "collaborateur",
 )
 
+# HD2 (chantier `helpdesk`, cf. plan section RBAC) : `helpdesk.
+# manage_hlpslapolicy`/`manage_hlpescalationrule`/`run_helpdesk_checks`
+# (declarees en `Meta.permissions` de `HlpSlaPolicy`/`HlpEscalationRule`)
+# contournent, dans le MEME sens que `manage_prjcustomfielddefinition`
+# ci-dessus, la granularite app-level de `ROLE_APP_PERMISSIONS["helpdesk"]`
+# (qui accorderait sinon add/view sur CES modeles a TOUS les 9 roles non
+# admin/direction, cf. sa docstring de module) — le plan exige que la
+# configuration SLA/escalade et le declenchement manuel des verifications
+# restent `admin`/`direction` UNIQUEMENT, un PARAMETRAGE/pilotage
+# transverse, pas une operation courante de suivi de ticket.
+CUSTOM_PERMISSIONS_MANAGE_HLP_ROLES = ("admin", "direction")
+
 # RSK1-2 (chantier risques operationnels) : `RiskItem` vit dans `core`
 # (rattachable a n'importe quel module via content_type/object_id, cf.
 # `apps.core.models.risk`) — `core` n'apparait PAS dans
@@ -526,6 +538,14 @@ for _role in CUSTOM_PERMISSIONS_MANAGE_PRJ_CUSTOM_FIELD_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.manage_prjcustomfielddefinition")
 for _role in CUSTOM_PERMISSIONS_TRACK_PRJ_TIME_ENTRY_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("projects.track_prjtimeentry")
+for _role in CUSTOM_PERMISSIONS_MANAGE_HLP_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
+        {
+            "helpdesk.manage_hlpslapolicy",
+            "helpdesk.manage_hlpescalationrule",
+            "helpdesk.run_helpdesk_checks",
+        }
+    )
 for _role in _QLT_FULL_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).update(
         {

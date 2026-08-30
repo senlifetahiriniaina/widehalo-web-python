@@ -53,6 +53,10 @@ PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
         "chat.message_created",  # apps/chat/services/messaging.py
         "risk.flagged",  # apps/core/services/risk.py — RiskItem de score eleve (RSK1-2)
         "ai.anomaly_detected",  # apps/ai/services/anomaly_detection.py — anomalie haute (AI3)
+        # apps/helpdesk/services/tickets.py::escalate_ticket (manuel) et
+        # apps/helpdesk/services/escalation.py::run_escalation_checks
+        # (automatique) — HD2, cf. plan section « SLA et escalade ».
+        "helpdesk.ticket_escalated",
     }
 )
 
