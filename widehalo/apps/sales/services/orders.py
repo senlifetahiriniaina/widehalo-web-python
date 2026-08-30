@@ -246,6 +246,35 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
         attempt_transition(order, "block_for_credit", user, comment=reason)
         order.blocked_reason = reason
         order.save(update_fields=["state", "blocked_reason"])
+
+        # INT1 (chantier interactivite native inter-modules) : gap de
+        # notification identifie par lecture directe — `blocked` etait deja
+        # un etat FSM reel (RG-SAL-4) mais SANS aucune notification/
+        # evenement, contrairement a `confirm_order`/`mark_delivered`
+        # ci-dessous (SAL-NOTIF1, S7). Meme discipline "notifier le
+        # commercial de la commande" que `_notify_salesperson`, PLUS
+        # `publish_event` pour le Studio de workflow visuel.
+        _notify_salesperson(
+            order,
+            "sales.order_blocked",
+            str(
+                _("La commande %(reference)s a ete bloquee pour depassement de credit.")
+                % {"reference": order.reference}
+            ),
+        )
+        from apps.core.events import publish_event
+
+        publish_event(
+            "sales.order_blocked",
+            {
+                "order_id": str(order.id),
+                "reference": order.reference,
+                "partner_id": str(order.partner_id),
+                "reason": str(reason),
+                "outstanding_amount_mga": str(outstanding_amount_mga),
+            },
+            tenant_id=str(order.tenant_id),
+        )
         return order
 
     attempt_transition(order, "confirm", user)
