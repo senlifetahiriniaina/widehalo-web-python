@@ -24,11 +24,12 @@ forme serait speculatif a ce stade ; `suggested_next_actions` reste present
 dans le type de retour (toujours vide pour l'instant) pour ne pas fermer la
 porte a un futur enrichissement sans casser le contrat.
 
-**Cache** (Redis via `django.core.cache.cache`, meme idiome que
-`apps.core.throttling`) : cle `ai_assist:{module}:{action}:{locale}:
-{role_code}:{context_hash}`, TTL 300s. Un hit renvoie la reponse en cache
-SANS jamais retoucher le registre, le budget ni le provider — donc sans
-generer de second appel LLM ni de second enregistrement `AiRequest`.
+**Cache** (formalise en AI6 dans `apps.ai.services.prompt_cache`, Redis via
+`django.core.cache.cache`, meme idiome que `apps.core.throttling`) : cle
+`ai_assist:{module}:{action}:{locale}:{role_code}:{context_hash}`, TTL 300s.
+Un hit renvoie la reponse en cache SANS jamais retoucher le registre, le
+budget ni le provider — donc sans generer de second appel LLM ni de second
+enregistrement `AiRequest`.
 
 **Journalisation (`AiRequest`, decision disclosed)** : seule une reponse
 issue d'un VRAI appel LLM (succes ou `AIProviderError`) est journalisee via
@@ -41,21 +42,17 @@ sans aucun signal utile derriere. Documente ici plutot que suppose."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 from typing import TypedDict, cast
 
-from django.core.cache import cache
-
 from apps.ai.models import AiRequest
+from apps.ai.services.prompt_cache import build_cache_key, get_cached, hash_payload, set_cached
 from apps.ai.services.usage_budget import estimate_tokens, get_budget_gated_provider, record_request
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.ai_assistant import AIProviderError, StubAIProvider
 from apps.core.services.ai_context_registry import RegisteredContext, get_context
 from apps.core.services.permissions import user_role_codes
-
-_CACHE_TTL_SECONDS = 300
 
 _FALLBACK_GUIDANCE_FR = (
     "Aucune guidance n'est encore enregistree pour ce module — revenez "
@@ -91,8 +88,7 @@ def _role_code(user: User) -> str:
 def _context_hash(context_data: dict[str, object] | None) -> str:
     if context_data is None:
         return "none"
-    payload = json.dumps(context_data, sort_keys=True, default=str)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    return hash_payload(context_data)
 
 
 def _build_prompt(static_guidance: str, action: str, context_data: dict[str, object]) -> str:
@@ -118,10 +114,10 @@ def assist(module: str, action: str, *, tenant: Tenant, user: User, locale: str)
     if registered.context_builder is not None:
         context_data = registered.context_builder(str(tenant.id))
 
-    cache_key = (
-        f"ai_assist:{module}:{action}:{locale}:{_role_code(user)}:{_context_hash(context_data)}"
+    cache_key = build_cache_key(
+        "ai_assist", module, action, locale, _role_code(user), _context_hash(context_data)
     )
-    cached = cache.get(cache_key)
+    cached = get_cached(cache_key)
     if cached is not None:
         # `cache.get()` renvoie `Any` (dict serialise par `cache.set()`
         # ci-dessous, forme garantie par construction) — cast plutot qu'un
@@ -140,7 +136,7 @@ def assist(module: str, action: str, *, tenant: Tenant, user: User, locale: str)
             is_ai_generated=False,
             suggested_next_actions=[],
         )
-        cache.set(cache_key, dict(response), timeout=_CACHE_TTL_SECONDS)
+        set_cached(cache_key, dict(response))
         return response
 
     prompt = _build_prompt(static_guidance, action, context_data)
@@ -163,7 +159,7 @@ def assist(module: str, action: str, *, tenant: Tenant, user: User, locale: str)
             is_ai_generated=False,
             suggested_next_actions=[],
         )
-        cache.set(cache_key, dict(response), timeout=_CACHE_TTL_SECONDS)
+        set_cached(cache_key, dict(response))
         return response
 
     record_request(
@@ -182,7 +178,7 @@ def assist(module: str, action: str, *, tenant: Tenant, user: User, locale: str)
         is_ai_generated=True,
         suggested_next_actions=[],
     )
-    cache.set(cache_key, dict(response), timeout=_CACHE_TTL_SECONDS)
+    set_cached(cache_key, dict(response))
     return response
 
 
