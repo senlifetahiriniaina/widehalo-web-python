@@ -298,9 +298,20 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # (meme precedent que les deux relevements precedents ci-dessus) : relever
 # BUDGET_MAX_MODELS a 250, marge de 20 au-dela des besoins de ce chantier
 # pour la suite du Lot 2 Madagascar et le demarrage du pays #2.
-BUDGET_MAX_MODELS = 250
+# Le plafond de 250 modeles n'avait plus que 13 de marge (237/250) et celui
+# de 200 ecrans seulement 10 (190/200) au moment d'attaquer le module
+# `helpdesk` (suivi des demandes/incidents operationnels, porte depuis
+# l'ancienne version WideHalo, perimetre reduit au strict interne — pas de
+# portail client/chat visiteur/forum, decision actee explicitement avec
+# l'utilisateur). Le perimetre retenu (11 nouveaux modeles economises,
+# ~10 ecrans) rentrait tout juste dans cette marge mais l'aurait epuisee
+# integralement — **Decision explicite actee avec l'utilisateur** (meme
+# precedent que les relevements precedents ci-dessus, HD0) : relever
+# BUDGET_MAX_MODELS a 265 et BUDGET_MAX_SCREENS a 215, marge modeste pour
+# la suite du Lot 2 Madagascar et le demarrage du pays #2.
+BUDGET_MAX_MODELS = 265
 BUDGET_MAX_ENDPOINTS = 600
-BUDGET_MAX_SCREENS = 200
+BUDGET_MAX_SCREENS = 215
 
 # Chantier `projects` : configuration du connecteur IA generique
 # (`apps.core.services.ai_assistant`). Dictionnaire VIDE par defaut — le
