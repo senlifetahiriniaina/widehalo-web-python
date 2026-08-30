@@ -94,7 +94,9 @@ def test_well_formed_extraction_is_validated_and_surfaced(
 
     class _ExtractingProvider:
         def complete(self, prompt: str, *, max_tokens: int = 500) -> str:
-            return '{"module": "accounting", "date_from": "2026-01-01", "amount_threshold": "500000"}'
+            return (
+                '{"module": "accounting", "date_from": "2026-01-01", "amount_threshold": "500000"}'
+            )
 
     monkeypatch.setattr(
         "apps.ai.services.natural_language_search.get_budget_gated_provider",
@@ -103,7 +105,9 @@ def test_well_formed_extraction_is_validated_and_surfaced(
 
     with use_tenant(tenant.id):
         response = search("DEV-2026-0777", tenant=tenant, user=user, locale="fr")
-        assert AiRequest.objects.filter(tenant=tenant, feature=AiRequest.FEATURE_SEARCH).count() == 1
+        assert (
+            AiRequest.objects.filter(tenant=tenant, feature=AiRequest.FEATURE_SEARCH).count() == 1
+        )
 
     assert response["is_ai_enhanced"] is True
     assert response["extracted_filters"] == {
