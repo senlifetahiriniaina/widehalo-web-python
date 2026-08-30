@@ -71,7 +71,7 @@ AI_PROVIDER_CONFIG = {
     "backend": "local-ollama",
     "base_url": "http://ai-runtime:11434/v1",
     "api_key": "ollama",  # valeur factice non vérifiée par Ollama, mais
-                          # requise NON VIDE par OpenAICompatibleAIProvider
+    # requise NON VIDE par OpenAICompatibleAIProvider
     "model": "qwen2.5:7b",
 }
 ```

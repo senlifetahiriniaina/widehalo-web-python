@@ -1,6 +1,13 @@
 -r base.txt
 pdfplumber>=0.11
-ruff>=0.7
+# Epingle exactement (pas ">=") : ruff a rendu stable son formatage des
+# blocs de code Python dans les fichiers Markdown entre deux versions
+# mineures (0.15.x -> 0.16.x), ce qui a casse silencieusement le job CI
+# "lint" sur docs/AI_MODULE.md sans aucun changement de code applicatif.
+# Reevaluer/mettre a jour cette epingle deliberement (jamais par derive
+# d'une resolution ">=") avant d'introduire un nouveau bloc de code dans
+# un fichier docs/*.md.
+ruff==0.16.5
 mypy>=1.13
 django-stubs[compatible-mypy]>=5.1
 types-python-dateutil>=2.9

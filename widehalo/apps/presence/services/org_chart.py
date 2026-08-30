@@ -7,8 +7,8 @@ graphes cote client)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from html import escape
 from typing import TYPE_CHECKING
-from xml.sax.saxutils import escape
 
 from apps.presence.models import PrsEmployee
 

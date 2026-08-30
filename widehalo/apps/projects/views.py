@@ -270,8 +270,10 @@ def project_gantt(request: HttpRequest, project_id: str) -> HttpResponse:
             # `render_gantt_svg` echappe (`html.escape`) chaque fragment
             # texte interpole (reference/nom de tache) avant assemblage —
             # `mark_safe` est donc sur une chaine deja assainie, pas sur
-            # une entree utilisateur brute.
-            "gantt_svg": mark_safe(gantt_svg),  # noqa: S308
+            # une entree utilisateur brute. Suppression necessaire cote
+            # ruff (S308) ET cote bandit (B308/B703, syntaxe distincte) —
+            # les deux outils flaggent le meme faux positif ici.
+            "gantt_svg": mark_safe(gantt_svg),  # noqa: S308 # nosec
             "error": error,
         },
     )
