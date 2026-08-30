@@ -11,6 +11,7 @@ class PatronageConfig(AppConfig):
         # §5.11 reporting (REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.
+        from apps.patronage.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.patronage.services.ai_context_registration import register_ai_context
         from apps.patronage.services.automation_registration import (
             register_actions as register_automation_actions,
@@ -24,3 +25,6 @@ class PatronageConfig(AppConfig):
         # INT1 (chantier interactivite native inter-modules) : meme patron,
         # registre partage `core.services.automation_registry`.
         register_automation_actions()
+        # INT2 (participation aux registres IA generiques) : anomalies,
+        # meme patron que `helpdesk`/`stocks`.
+        register_ai_anomaly_checks()
