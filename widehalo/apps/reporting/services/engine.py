@@ -150,6 +150,25 @@ def _run_job_sync(job_id: str) -> None:
         job.error_message = str(exc)
         job.finished_at = timezone.now()
         job.save(update_fields=["state", "error_message", "finished_at"])
+
+        # INT1 (chantier interactivite native inter-modules) : gap de
+        # notification identifie par lecture directe — l'echec etait deja
+        # trace sur `RptJob` mais SANS aucun evenement, contrairement au
+        # succes (`reporting.job_done`, notification directe ci-dessous en
+        # cas de reussite). `RptJob.state` (pas `status`, cf. verification
+        # du modele reel) est le champ effectivement mute ci-dessus.
+        if job.tenant_id:
+            from apps.core.events import publish_event
+
+            publish_event(
+                "reporting.job_failed",
+                {
+                    "job_id": str(job.id),
+                    "report_code": job.report_code,
+                    "error_message": job.error_message,
+                },
+                tenant_id=str(job.tenant_id),
+            )
         return
 
     job.file.save(f"{job.report_code}-{job.id}.{job.format}", ContentFile(data), save=False)
