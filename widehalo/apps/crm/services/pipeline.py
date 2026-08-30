@@ -3,7 +3,18 @@
 PARAMETRABLES par pipeline (`CrmStage.sequence`/`probability`/`is_won`/
 `is_lost`) — il n'y a donc pas de machine a etats a enum fixe ici : la
 "transition" est un simple changement de `CrmLead.stage`, avec les regles
-de gestion appliquees en service (RG-CRM-6)."""
+de gestion appliquees en service (RG-CRM-6).
+
+**INT1 (chantier interactivite native inter-modules)** : `move_lead_to_stage`
+publie desormais `crm.opportunity_stage_changed` a CHAQUE changement
+d'etape (y compris gagnee/perdue, distinguables via `payload["is_won"]`/
+`payload["is_lost"]`) — meme patron que `helpdesk.services.tickets.
+escalate_ticket`/`core.services.risk._maybe_publish_flagged` (persistance
+metier d'abord, `publish_event` ensuite, meme transaction que l'appelant).
+Un seul evenement suffit pour couvrir "change d'etape" ET "perdue/gagnee"
+(RG-CDC de ce chantier) : un abonne du Studio de workflow visuel filtre sur
+`payload.is_won`/`payload.is_lost` selon son besoin exact, comme
+`workflow.transitioned` est deja filtre par `payload.target`."""
 
 from __future__ import annotations
 
@@ -40,5 +51,21 @@ def move_lead_to_stage(
     lead.probability = stage.probability
     lead.save(
         update_fields=["stage", "probability", "lost_reason", "lost_comment", "lost_at", "won_at"]
+    )
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "crm.opportunity_stage_changed",
+        {
+            "lead_id": str(lead.id),
+            "reference": lead.reference,
+            "stage_id": str(stage.id),
+            "stage_name": stage.name,
+            "is_won": stage.is_won,
+            "is_lost": stage.is_lost,
+            "salesperson_id": str(lead.salesperson_id) if lead.salesperson_id else None,
+        },
+        tenant_id=str(lead.tenant_id),
     )
     return lead
