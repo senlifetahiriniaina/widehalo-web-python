@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rapports Support" %} — WideHalo{% endblock %}
+{% block content %}
+  <h1>{% trans "Rapports Support" %}</h1>
+
+  <form method="get">
+    <div class="form-field">
+      <label for="date_from">{% trans "Du" %}</label>
+      <input id="date_from" type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}">
+    </div>
+    <div class="form-field">
+      <label for="date_to">{% trans "Au" %}</label>
+      <input id="date_to" type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
+    </div>
+    <button type="submit">{% trans "Filtrer" %}</button>
+  </form>
+
+  <h2>{% trans "Satisfaction client (CSAT)" %}</h2>
+  <p>
+    {% trans "Note moyenne" %} :
+    {% if csat.average_score %}{{ csat.average_score|floatformat:2 }}/5{% else %}—{% endif %}
+    &mdash; {% trans "Reponses" %} : {{ csat.response_count }}
+    ({{ csat.resolved_or_closed_count }} {% trans "tickets resolus/clotures sur la periode" %})
+    &mdash; {% trans "Taux de reponse" %} : {{ csat.response_rate|floatformat:1 }}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Note" %}</th>
+        <th>{% trans "Nombre" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for score, count in csat.score_distribution.items %}
+        <tr>
+          <td>{{ score }}</td>
+          <td>{{ count }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Performance par agent" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Agent" %}</th>
+        <th>{% trans "Tickets" %}</th>
+        <th>{% trans "Taux de resolution" %}</th>
+        <th>{% trans "1re reponse (min, moy.)" %}</th>
+        <th>{% trans "Resolution (min, moy.)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in agents %}
+        <tr>
+          <td>{{ row.assignee_label }}</td>
+          <td>{{ row.ticket_count }}</td>
+          <td>{{ row.resolution_rate|floatformat:2 }}</td>
+          <td>{{ row.avg_first_response_minutes|default:"—" }}</td>
+          <td>{{ row.avg_resolution_minutes|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune donnee sur la periode." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Benchmarking d'equipe" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Equipe" %}</th>
+        <th>{% trans "Tickets" %}</th>
+        <th>{% trans "Taux de resolution" %}</th>
+        <th>{% trans "1re reponse (min, moy.)" %}</th>
+        <th>{% trans "Resolution (min, moy.)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in teams %}
+        <tr>
+          <td>{{ row.team_label }}</td>
+          <td>{{ row.ticket_count }}</td>
+          <td>{{ row.resolution_rate|floatformat:2 }}</td>
+          <td>{{ row.avg_first_response_minutes|default:"—" }}</td>
+          <td>{{ row.avg_resolution_minutes|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune donnee sur la periode." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Conformite SLA" %}</h2>
+  <p>
+    {% trans "Tickets avec politique SLA" %} : {{ sla.total_tickets_with_sla }}
+    &mdash; {% trans "Breches" %} : {{ sla.breach_count }}
+    &mdash; {% trans "Taux de conformite" %} :
+    {% if sla.compliance_rate != None %}{{ sla.compliance_rate|floatformat:2 }}{% else %}—{% endif %}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Type de breche" %}</th>
+        <th>{% trans "Nombre" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for breach_type, count in sla.breaches_by_type.items %}
+        <tr>
+          <td>{{ breach_type }}</td>
+          <td>{{ count }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

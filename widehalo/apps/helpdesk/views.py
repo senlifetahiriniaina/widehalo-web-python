@@ -61,6 +61,7 @@ from apps.helpdesk.models import (
 )
 from apps.helpdesk.services import kb
 from apps.helpdesk.services.ai_assist import suggest_reply
+from apps.helpdesk.services.csat import submit_csat_response
 from apps.helpdesk.services.tickets import (
     add_comment,
     assign_ticket,
@@ -153,20 +154,35 @@ def ticket_detail(request: HttpRequest, ticket_id: str) -> HttpResponse:
     if request.method == "POST":
         action = request.POST.get("action")
         try:
-            if not user_can_manage_ticket(ticket, user):
-                raise PermissionDenied(
-                    "Vous ne pouvez agir que sur vos propres tickets (demandeur ou assigne)."
-                )
-            if action == "comment":
-                add_comment(
+            if action == "csat":
+                # Scope DISTINCT de `user_can_manage_ticket` (cf.
+                # `_can_submit_csat` ci-dessous) : le gestionnaire n'est PAS
+                # forcement le demandeur, la garde generale ci-dessus ne
+                # s'applique donc pas a cette action.
+                if not _can_submit_csat(ticket, user):
+                    raise PermissionDenied(
+                        "Seul le demandeur (ou un gestionnaire) peut repondre a l'enquete."
+                    )
+                submit_csat_response(
                     ticket,
-                    author=user,
-                    body=request.POST.get("body", ""),
-                    is_internal_note=bool(request.POST.get("is_internal_note")),
+                    score=int(request.POST.get("score") or 0),
+                    comment=request.POST.get("comment", ""),
                 )
-            elif action in _TRANSITIONS:
-                _TRANSITIONS[action](ticket, user)
-        except (ValidationError, TransitionPermissionError, PermissionDenied) as exc:
+            else:
+                if not user_can_manage_ticket(ticket, user):
+                    raise PermissionDenied(
+                        "Vous ne pouvez agir que sur vos propres tickets (demandeur ou assigne)."
+                    )
+                if action == "comment":
+                    add_comment(
+                        ticket,
+                        author=user,
+                        body=request.POST.get("body", ""),
+                        is_internal_note=bool(request.POST.get("is_internal_note")),
+                    )
+                elif action in _TRANSITIONS:
+                    _TRANSITIONS[action](ticket, user)
+        except (ValidationError, TransitionPermissionError, PermissionDenied, ValueError) as exc:
             error = str(exc)
 
     related_object = None
@@ -202,8 +218,26 @@ def ticket_detail(request: HttpRequest, ticket_id: str) -> HttpResponse:
             "related_object": related_object,
             "related_model_label": related_model_label,
             "chat_channel_id": chat_channel_id,
+            "csat_response": getattr(ticket, "csat_response", None),
+            "can_submit_csat": (
+                ticket.state in (HlpTicket.STATE_RESOLVED, HlpTicket.STATE_CLOSED)
+                and _can_submit_csat(ticket, user)
+            ),
         },
     )
+
+
+def _can_submit_csat(ticket: HlpTicket, user: User) -> bool:
+    """Scope DEDIE a la soumission CSAT (cf. `apps.helpdesk.api`, meme
+    duplication VOLONTAIRE et disclosed que `_can_manage_kb_article`
+    ci-dessous — les ecrans HTMX reappliquent localement les gardes N3
+    pertinentes, cf. docstring de tete de module) : le DEMANDEUR
+    uniquement (ou un gestionnaire `helpdesk.change_hlpticket`), JAMAIS
+    l'assigne seul — noter sa propre resolution viderait l'enquete de son
+    sens."""
+    if user.has_perm("helpdesk.change_hlpticket"):
+        return True
+    return ticket.requester_id == user.id
 
 
 @login_required

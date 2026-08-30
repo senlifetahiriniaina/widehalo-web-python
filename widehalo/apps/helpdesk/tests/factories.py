@@ -13,6 +13,7 @@ from django.utils import timezone
 from apps.helpdesk.models import (
     KIND_DEMANDE,
     PRIORITY_NORMAL,
+    HlpCsatResponse,
     HlpEscalationEvent,
     HlpEscalationRule,
     HlpKbArticle,
@@ -131,3 +132,17 @@ class HlpResponseTemplateFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     name = factory.Sequence(lambda n: f"Gabarit de test {n}")
     body = "Bonjour, ..."
+
+
+class HlpCsatResponseFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = HlpCsatResponse
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    ticket = factory.SubFactory(
+        HlpTicketFactory,
+        tenant=factory.SelfAttribute("..tenant"),
+        state=HlpTicket.STATE_RESOLVED,
+    )
+    score = 5
+    comment = "Tres satisfait."
