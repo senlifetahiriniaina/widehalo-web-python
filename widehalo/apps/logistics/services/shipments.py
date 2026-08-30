@@ -127,6 +127,18 @@ def block_shipment(shipment: LogShipment, user: User, *, reason: str) -> LogShip
     attempt_transition(shipment, "block", user, comment=reason)
     shipment.block_reason = reason
     shipment.save(update_fields=["state", "block_reason"])
+
+    from apps.core.events import publish_event
+
+    publish_event(
+        "logistics.shipment_blocked",
+        {
+            "shipment_id": str(shipment.id),
+            "reference": shipment.reference,
+            "reason": reason,
+        },
+        tenant_id=str(shipment.tenant_id),
+    )
     return shipment
 
 
