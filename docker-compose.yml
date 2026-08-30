@@ -73,5 +73,36 @@ services:
       redis:
         condition: service_healthy
 
+  # Module `ai`, AI8 (cf. plan) : conteneur Ollama auto-heberge, DERRIERE UN
+  # PROFIL DOCKER COMPOSE OPTIONNEL — premiere utilisation de la fonctionnalite
+  # "profiles" dans ce depot. `docker compose up` (sans argument) ne demarre
+  # JAMAIS ce service ; seul `docker compose --profile local-ai up` l'active.
+  # Coherent avec la decision actee au cadrage du chantier `ai` : l'API
+  # hebergee low-cost (DeepSeek/Kimi) reste le mode recommande par defaut
+  # (cf. docs/AI_MODULE.md), ce conteneur est une option pour qui dispose du
+  # materiel (RAM/CPU, voire GPU) et veut une independance totale vis-a-vis
+  # de tout fournisseur externe — pas une infra ajoutee au cout mensuel
+  # ≤60€ deja acte au Lot 1.
+  ai-runtime:
+    image: ollama/ollama
+    profiles: ["local-ai"]
+    # OLLAMA_MODEL n'est PAS lu par l'image `ollama/ollama` elle-meme (elle
+    # ne demarre aucun modele automatiquement) — variable purement
+    # documentaire ici, reprise par `AI_PROVIDER_CONFIG["model"]` cote
+    # application et par la commande manuelle `ollama pull "$OLLAMA_MODEL"`
+    # documentee dans docs/AI_MODULE.md pour le premier demarrage. Defaut
+    # disclosed : `qwen2.5:7b` (modele ouvert, raisonnablement exploitable
+    # sur un CPU modeste sans GPU dedie ; `deepseek-r1:7b` est une
+    # alternative plus lourde a essayer si le materiel le permet).
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    volumes:
+      # Poids de modele telecharges = plusieurs Go — volume nomme pour ne
+      # JAMAIS les re-telecharger a chaque redemarrage du conteneur.
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
 volumes:
   db_data:
+  ollama_data:

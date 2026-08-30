@@ -317,6 +317,13 @@ BUDGET_MAX_SCREENS = 200
 # peupler `AiRequest.provider_backend` a des fins de diagnostic/cout —
 # `get_ai_provider()` lui-meme continue de l'ignorer, elle ne pilote jamais
 # quel connecteur est instancie (seuls `base_url`/`api_key` le font).
+# AI8 : pour pointer vers le conteneur Ollama auto-heberge optionnel
+# (`docker compose --profile local-ai up`, cf. docs/AI_MODULE.md) :
+# {"backend": "local-ollama", "base_url": "http://ai-runtime:11434/v1",
+# "api_key": "ollama", "model": "qwen2.5:7b"} — `api_key` est une valeur
+# factice non verifiee par Ollama (son endpoint compatible OpenAI ignore
+# l'en-tete Authorization), mais requise non-vide par
+# `OpenAICompatibleAIProvider`/`get_ai_provider()` ci-dessus.
 AI_PROVIDER_CONFIG: dict[str, str] = {}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
