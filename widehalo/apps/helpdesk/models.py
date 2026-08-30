@@ -238,7 +238,10 @@ class HlpTicket(BaseModel, ReferenceMixin):
     Cycle : `new -> in_progress -> pending <-> in_progress -> resolved ->
     closed`, branches `escalated`/`cancelled` accessibles depuis
     `new`/`in_progress`/`pending`, et `reopen` ramene un ticket
-    `resolved`/`closed` a `in_progress`.
+    `resolved`/`closed` a `in_progress`. **`escalated` -> `resolved` ajoute
+    au HD6** (bug reel trouve et corrige a l'audit de cloture, cf.
+    docstring de `resolve()` ci-dessous) : sans cette source, un ticket
+    escalade n'avait plus aucun chemin FSM vers la resolution.
 
     **`escalate()` en HD1** : la transition et sa garde d'usage
     (declenchement manuel par un utilisateur) sont pleinement operantes des
@@ -360,7 +363,23 @@ class HlpTicket(BaseModel, ReferenceMixin):
     def resume(self) -> None:
         pass
 
-    @transition(field=state, source=[STATE_IN_PROGRESS, STATE_PENDING], target=STATE_RESOLVED)
+    # `STATE_ESCALATED` ajoute au HD6 (audit de cloture) : **bug reel
+    # trouve et corrige a cette etape** — sans cette source, un ticket
+    # escalade (`escalate()`, branche accessible depuis `new`/
+    # `in_progress`/`pending`) n'avait plus AUCUN chemin FSM vers
+    # `resolved`/`closed` (`resume` ne part que de `pending`, `reopen` ne
+    # part que de `resolved`/`closed`) — un ticket escalade restait donc
+    # bloque indefiniment dans cet etat, ce qui contredit directement le
+    # scenario de fin de chantier du plan (« voir l'escalade automatique
+    # se declencher... resoudre et cloturer le ticket ») : revele par le
+    # test d'integration bout-en-bout `tests/test_end_to_end.py` ecrit a
+    # cette meme etape, jamais par un test unitaire isole (qui ne teste
+    # jamais l'enchainement complet escalade -> resolution).
+    @transition(
+        field=state,
+        source=[STATE_IN_PROGRESS, STATE_PENDING, STATE_ESCALATED],
+        target=STATE_RESOLVED,
+    )
     def resolve(self) -> None:
         pass
 
