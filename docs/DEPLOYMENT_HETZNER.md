@@ -399,9 +399,18 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
   variable, Compose l'interprète à tort comme une référence non définie
   et la remplace silencieusement par une chaîne vide — la valeur
   réellement utilisée diffère alors de la valeur voulue, tronquée à cet
-  endroit. Corriger en régénérant la valeur sans `$`, ou en l'échappant
-  en `$$` dans `.env` ; vérifier ensuite qu'aucune valeur sensible n'a
-  été silencieusement tronquée (comparer la longueur/le contenu attendu).
+  endroit. Le message n'indique jamais quelle ligne de `.env` est en
+  cause ; localiser la ou les valeurs suspectes avec :
+  ```bash
+  grep -n '\$' .env
+  ```
+  Corriger en régénérant la valeur repérée sans `$` (cf. `.env.example`
+  pour une commande de génération dont l'alphabet exclut `$`), ou en
+  l'échappant en `$$` dans `.env` ; vérifier ensuite qu'aucune valeur
+  sensible n'a été silencieusement tronquée (comparer la longueur/le
+  contenu attendu) avant de relancer
+  `docker compose -f docker-compose.prod.yml up -d` (pas de `--build`
+  nécessaire pour un simple changement de `.env`).
 - **Pages sans mise en forme** (texte brut, aucune image/logo/icône, champs
   de formulaire visuellement absents) : le CSS ne charge pas — vérifier
   dans cet ordre.
