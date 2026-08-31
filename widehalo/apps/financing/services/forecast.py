@@ -41,7 +41,7 @@ def create_scenario(
     notes: str = "",
 ) -> FinForecastScenario:
     if period_end < period_start:
-        raise ValidationError(_("La fin de periode doit etre posterieure au debut."))
+        raise ValidationError(_("La fin de période doit être postérieure au début."))
     reference = next_reference(tenant, "FINFCST", period_start.year)
     return FinForecastScenario.objects.create(
         tenant=tenant,
@@ -65,7 +65,7 @@ def add_scenario_line(
 ) -> FinForecastScenarioLine:
     valid_statement_types = {choice[0] for choice in FinForecastScenario.STATEMENT_CHOICES}
     if statement_type not in valid_statement_types:
-        raise ValidationError(_("Type d'etat financier previsionnel invalide."))
+        raise ValidationError(_("Type d'état financier prévisionnel invalide."))
     return FinForecastScenarioLine.objects.create(
         tenant=scenario.tenant,
         scenario=scenario,
@@ -99,7 +99,7 @@ def populate_income_statement_from_payroll_projection(
             add_scenario_line(
                 scenario,
                 statement_type=FinForecastScenario.STATEMENT_INCOME,
-                label=str(_("Charges de personnel previsionnelles")),
+                label=str(_("Charges de personnel prévisionnelles")),
                 period=period,
                 amount_mga=-total_charge,
                 source=FinForecastScenarioLine.SOURCE_PAYROLL_PROJECTION,

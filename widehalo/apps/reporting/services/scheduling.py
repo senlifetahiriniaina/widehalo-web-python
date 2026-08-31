@@ -33,7 +33,7 @@ def compute_next_run_at(frequency: str, *, after: dt.datetime | None = None) -> 
         return reference + dt.timedelta(weeks=1)
     if frequency == RptSchedule.FREQUENCY_MONTHLY:
         return reference + dt.timedelta(days=30)
-    raise ValueError(_("frequence de planification inconnue : %(freq)s") % {"freq": frequency})
+    raise ValueError(_("fréquence de planification inconnue : %(freq)s") % {"freq": frequency})
 
 
 def _send_schedule_email(schedule: RptSchedule, data: bytes) -> None:

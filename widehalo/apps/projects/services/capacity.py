@@ -70,15 +70,15 @@ def add_team_member(
     `archived_at=None`) plutot que d'en creer une seconde, qui violerait la
     contrainte DB."""
     if not (0 <= allocation_pct <= 100):
-        raise ValidationError(_("L'allocation doit etre comprise entre 0 et 100%."))
+        raise ValidationError(_("L'allocation doit être comprise entre 0 et 100%."))
     existing = PrjTeamMember.objects.filter(project=project, user=user).first()
     if existing is not None and existing.is_active:
-        raise ValidationError(_("Cet utilisateur est deja membre de ce projet."))
+        raise ValidationError(_("Cet utilisateur est déjà membre de ce projet."))
     current_total = _total_allocation_pct(user)
     if current_total + allocation_pct > 100:
         raise ValidationError(
             _(
-                "Sur-allocation refusee : %(user)s a deja %(current)s%% alloues sur "
+                "Sur-allocation refusée : %(user)s a déjà %(current)s%% alloues sur "
                 "d'autres projets actifs, +%(added)s%% depasserait 100%%."
             )
             % {"user": user, "current": current_total, "added": allocation_pct}

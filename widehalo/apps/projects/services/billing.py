@@ -115,7 +115,7 @@ def _create_invoice_and_record(
     if invoice_id is None:
         raise ValidationError(
             _(
-                "Configuration comptable du tenant incomplete "
+                "Configuration comptable du tenant incomplète "
                 "(journal de vente/periode ouverte/compte client ou "
                 "produit manquant) : aucune facture n'a ete generee."
             )
@@ -138,18 +138,18 @@ def bill_by_milestone(project: PrjProject, task: PrjTask, user: User) -> UUID:
     if task.project_id != project.id:
         raise ValidationError(_("La tache ne fait pas partie de ce projet."))
     if task.task_type != PrjTask.TYPE_MILESTONE:
-        raise ValidationError(_("Seul un jalon peut etre facture par ce mode."))
+        raise ValidationError(_("Seul un jalon peut être facture par ce mode."))
     if task.state != PrjTask.STATE_DONE:
-        raise ValidationError(_("Le jalon doit etre termine avant de pouvoir etre facture."))
+        raise ValidationError(_("Le jalon doit être termine avant de pouvoir être facture."))
     if task.budgeted_amount is None:
         raise ValidationError(
-            _("Ce jalon n'a pas de montant budgetise renseigne (PrjTask.budgeted_amount).")
+            _("Ce jalon n'a pas de montant budgétisé renseigne (PrjTask.budgeted_amount).")
         )
     already_billed = PrjInvoicingRecord.objects.filter(
         task=task, mode=PrjInvoicingRecord.MODE_MILESTONE, is_active=True
     ).exists()
     if already_billed:
-        raise ValidationError(_("Ce jalon a deja ete facture."))
+        raise ValidationError(_("Ce jalon a déjà été facture."))
     label = _("Facturation du jalon %(reference)s") % {"reference": task.reference or task.id}
     return _create_invoice_and_record(
         project,
@@ -184,7 +184,7 @@ def bill_by_percentage(project: PrjProject, user: User) -> UUID:
                 "progresse depuis la derniere facturation par avancement."
             )
         )
-    label = _("Facturation a l'avancement (%(pct)s de BAC deja facture cumule)") % {
+    label = _("Facturation a l'avancement (%(pct)s de BAC déjà facture cumule)") % {
         "pct": snapshot.ev
     }
     return _create_invoice_and_record(
@@ -201,14 +201,14 @@ def bill_time_and_material(project: PrjProject, user: User, *, hourly_rate: Deci
     tracking.py::get_unbilled_billable_hours` (aucune reimplementation de
     l'agregation du temps ici)."""
     if hourly_rate <= 0:
-        raise ValidationError(_("Le taux horaire doit etre strictement positif."))
+        raise ValidationError(_("Le taux horaire doit être strictement positif."))
     unbilled_hours = get_unbilled_billable_hours(project)
     if unbilled_hours <= 0:
         raise ValidationError(
-            _("Rien a facturer : aucune heure facturable non encore facturee sur ce projet.")
+            _("Rien a facturer : aucune heure facturable non encore facturée sur ce projet.")
         )
     amount = (unbilled_hours * hourly_rate).quantize(_MONEY_QUANT)
-    label = _("Facturation en regie (%(hours)s heures x %(rate)s)") % {
+    label = _("Facturation en régie (%(hours)s heures x %(rate)s)") % {
         "hours": unbilled_hours,
         "rate": hourly_rate,
     }
@@ -239,12 +239,12 @@ def bill_time_and_material(project: PrjProject, user: User, *, hourly_rate: Deci
 def bill_fixed(project: PrjProject, user: User, *, amount: Decimal) -> UUID:
     """Cf. docstring de module, point 4."""
     if amount <= 0:
-        raise ValidationError(_("Le montant forfaitaire doit etre strictement positif."))
+        raise ValidationError(_("Le montant forfaitaire doit être strictement positif."))
     already_billed = PrjInvoicingRecord.objects.filter(
         project=project, mode=PrjInvoicingRecord.MODE_FIXED, is_active=True
     ).exists()
     if already_billed:
-        raise ValidationError(_("Ce projet a deja fait l'objet d'une facturation forfaitaire."))
+        raise ValidationError(_("Ce projet a déjà fait l'objet d'une facturation forfaitaire."))
     label = _("Facturation forfaitaire du projet %(reference)s") % {
         "reference": project.reference or project.id
     }

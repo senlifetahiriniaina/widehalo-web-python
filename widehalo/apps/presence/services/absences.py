@@ -199,7 +199,7 @@ def decide_absence(
         _apply_validated_balance(absence)
         return absence
 
-    raise ValidationError(_("Aucune decision possible dans l'etat courant de cette absence."))
+    raise ValidationError(_("Aucune décision possible dans l'état courant de cette absence."))
 
 
 def decide_pending_absence_request(

@@ -36,7 +36,7 @@ SECTOR_CHOICES = [
     (SECTOR_TEXTILE, _("Textile")),
     (SECTOR_LEATHER, _("Cuir et maroquinerie")),
     (SECTOR_AGRIFOOD, _("Agroalimentaire")),
-    (SECTOR_IMPORT_EXPORT, _("Import-export generaliste")),
+    (SECTOR_IMPORT_EXPORT, _("Import-export généraliste")),
     (SECTOR_CRAFT, _("Artisanat")),
 ]
 
@@ -47,7 +47,7 @@ class StgObjective(BaseModel, ReferenceMixin):
     LEVEL_INDIVIDUAL = "individual"
     LEVEL_CHOICES = [
         (LEVEL_COMPANY, _("Entreprise")),
-        (LEVEL_DEPARTMENT, _("Departement")),
+        (LEVEL_DEPARTMENT, _("Département")),
         (LEVEL_INDIVIDUAL, _("Individuel")),
     ]
     # Ordre de la cascade OKR — un objectif ne peut avoir pour parent qu'un

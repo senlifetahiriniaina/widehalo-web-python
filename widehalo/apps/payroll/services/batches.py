@@ -70,7 +70,7 @@ def validate_and_post_batch(
     anomalies = detect_batch_anomalies(batch)
     if anomalies and not force_despite_anomalies:
         raise ValidationError(
-            _("%(count)d anomalie(s) detectee(s) (PAY-CTRL1) — validation refusee.")
+            _("%(count)d anomalie(s) détectée(s) (PAY-CTRL1) — validation refusée.")
             % {"count": len(anomalies)}
         )
 

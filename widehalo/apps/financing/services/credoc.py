@@ -39,7 +39,7 @@ def create_credoc(
     loan_application: FinLoanApplication | None = None,
 ) -> FinCredoc:
     if amount_mga <= 0:
-        raise ValidationError(_("Le montant du credit documentaire doit etre strictement positif."))
+        raise ValidationError(_("Le montant du crédit documentaire doit être strictement positif."))
     reference = next_reference(tenant, "FINCREDOC", validity_date.year)
     return FinCredoc.objects.create(
         tenant=tenant,

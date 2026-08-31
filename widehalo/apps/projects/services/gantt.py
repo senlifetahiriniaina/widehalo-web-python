@@ -88,7 +88,7 @@ def _topological_order(task_ids: list[UUID], predecessors: dict[UUID, list[UUID]
                 queue.append(succ)
     if len(order) != len(task_ids):
         raise ValidationError(
-            _("Cycle detecte dans le graphe de dependances du projet — calcul CPM impossible.")
+            _("Cycle détecté dans le graphe de dépendances du projet — calcul CPM impossible.")
         )
     return order
 

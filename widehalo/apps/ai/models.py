@@ -81,7 +81,7 @@ class AiRequest(BaseModel):
         (FEATURE_INSIGHT, _("Insight proactif")),
         (FEATURE_RECOMMENDATION, _("Recommandation d'action")),
         (FEATURE_DATA_QUERY, _("Question-donnees IA")),
-        (FEATURE_HELPDESK_REPLY, _("Suggestion de reponse helpdesk")),
+        (FEATURE_HELPDESK_REPLY, _("Suggestion de réponse helpdesk")),
     ]
 
     feature = models.CharField(max_length=32, choices=FEATURE_CHOICES)
@@ -141,8 +141,8 @@ class AiAnomaly(BaseModel):
     STATUS_IGNORED = "ignoree"
     STATUS_CHOICES = [
         (STATUS_OPEN, _("Ouverte")),
-        (STATUS_HANDLED, _("Traitee")),
-        (STATUS_IGNORED, _("Ignoree")),
+        (STATUS_HANDLED, _("Traitée")),
+        (STATUS_IGNORED, _("Ignorée")),
     ]
 
     SEVERITY_CHOICES = [

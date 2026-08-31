@@ -30,13 +30,13 @@ def submit_csat_response(ticket: HlpTicket, *, score: int, comment: str = "") ->
       anti-double-facturation de `PrjInvoicingRecord` (PJ5, cf. docstring
       `HlpCsatResponse`)."""
     if not (1 <= score <= 5):
-        raise ValidationError(_("La note CSAT doit etre comprise entre 1 et 5."))
+        raise ValidationError(_("La note CSAT doit être comprise entre 1 et 5."))
     if ticket.state not in _SURVEYABLE_STATES:
         raise ValidationError(
-            _("L'enquete de satisfaction n'est disponible qu'une fois le ticket resolu ou cloture.")
+            _("L'enquête de satisfaction n'est disponible qu'une fois le ticket résolu ou cloture.")
         )
     if HlpCsatResponse.objects.filter(ticket=ticket).exists():
-        raise ValidationError(_("Ce ticket a deja recu une reponse CSAT."))
+        raise ValidationError(_("Ce ticket a déjà reçu une réponse CSAT."))
 
     return HlpCsatResponse.objects.create(
         tenant=ticket.tenant,

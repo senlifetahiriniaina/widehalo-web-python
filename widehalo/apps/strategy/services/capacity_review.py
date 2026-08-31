@@ -179,7 +179,7 @@ def _notify_overload(
         "overloaded_week_starts": [week.isoformat() for week in overloaded_week_starts],
         "overload_threshold_pct": str(overload_threshold_pct),
         "message": _(
-            "Charge de production planifiee superieure au seuil sur %(count)s semaine(s) "
+            "Charge de production planifiée supérieure au seuil sur %(count)s semaine(s) "
             "de l'horizon 90 jours."
         )
         % {"count": len(overloaded_week_starts)},

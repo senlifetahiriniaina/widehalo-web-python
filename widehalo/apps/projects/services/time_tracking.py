@@ -40,7 +40,7 @@ _MINUTES_PER_HOUR = Decimal(60)
 def _duration_minutes(started_at: dt.datetime, stopped_at: dt.datetime) -> int:
     if stopped_at <= started_at:
         raise ValidationError(
-            _("La date/heure de fin doit etre strictement posterieure a la date/heure de debut.")
+            _("La date/heure de fin doit être strictement postérieure a la date/heure de début.")
         )
     delta = stopped_at - started_at
     return max(1, round(delta.total_seconds() / 60))
@@ -54,7 +54,7 @@ def start_timer(task: PrjTask, user: User) -> PrjTimeEntry:
     if already_running:
         raise ValidationError(
             _(
-                "Un chrono est deja en cours pour cet utilisateur : "
+                "Un chrono est déjà en cours pour cet utilisateur : "
                 "arretez-le avant d'en demarrer un autre."
             )
         )
@@ -72,9 +72,9 @@ def stop_timer(time_entry: PrjTimeEntry, user: User) -> PrjTimeEntry:
     si deja arrete ou si `user` n'est pas le proprietaire du chrono, cf.
     docstring de module."""
     if time_entry.user_id != user.id:
-        raise ValidationError(_("Vous ne pouvez arreter que votre propre chrono."))
+        raise ValidationError(_("Vous ne pouvez arrêter que votre propre chrono."))
     if time_entry.stopped_at is not None:
-        raise ValidationError(_("Ce chrono est deja arrete."))
+        raise ValidationError(_("Ce chrono est déjà arrêté."))
     stopped_at = timezone.now()
     time_entry.stopped_at = stopped_at
     time_entry.duration_minutes = _duration_minutes(time_entry.started_at, stopped_at)

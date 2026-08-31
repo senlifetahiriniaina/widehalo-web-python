@@ -77,7 +77,7 @@ def _create_step_from_node(flow: AutoFlow, node: dict[str, Any]) -> AutoStep | N
         action_code = data.get("action_code", "")
         if get_registered_action(action_code) is None:
             raise ValidationError(
-                _("Action '%(code)s' non enregistree dans le catalogue d'automatisation.")
+                _("Action '%(code)s' non enregistrée dans le catalogue d'automatisation.")
                 % {"code": action_code}
             )
         return AutoStep.objects.create(

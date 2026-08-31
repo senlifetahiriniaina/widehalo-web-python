@@ -180,7 +180,7 @@ def create_schedule_endpoint(request, payload: ScheduleIn):
     if not request.auth.has_perm(report.permission):
         return JsonResponse({"detail": _("permission refusée")}, status=403)
     if payload.frequency not in dict(RptSchedule.FREQUENCY_CHOICES):
-        return JsonResponse({"detail": _("frequence de planification inconnue")}, status=400)
+        return JsonResponse({"detail": _("fréquence de planification inconnue")}, status=400)
 
     tenant_id = request.headers.get("X-Tenant-Id")
     schedule = RptSchedule.objects.create(

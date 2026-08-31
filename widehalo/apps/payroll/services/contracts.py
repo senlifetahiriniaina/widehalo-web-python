@@ -36,7 +36,7 @@ def create_contract(
     parent_contract: PayContract | None = None,
 ) -> PayContract:
     if date_end and date_end < date_start:
-        raise ValidationError(_("La date de fin ne peut pas precéder la date de debut."))
+        raise ValidationError(_("La date de fin ne peut pas precéder la date de début."))
     return PayContract.objects.create(
         tenant=tenant,
         employee_id=employee_id,

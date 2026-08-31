@@ -360,7 +360,7 @@ def project_billing(request: HttpRequest, project_id: str) -> HttpResponse:
                 error = str(_("Mode de facturation inconnu."))
                 invoice_id = None
             if invoice_id is not None:
-                success = _("Facture creee (brouillon, a valider dans le module Comptabilite).")
+                success = _("Facture créée (brouillon, a valider dans le module Comptabilité).")
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = str(exc)
 
@@ -612,7 +612,7 @@ def project_risk_create(request: HttpRequest, project_id: str) -> HttpResponse:
             if not (1 <= likelihood <= 5) or not (1 <= impact <= 5):
                 raise ValueError
         except ValueError:
-            error = _("Probabilite et impact doivent etre des entiers entre 1 et 5.")
+            error = _("Probabilité et impact doivent être des entiers entre 1 et 5.")
         else:
             create_risk_item(
                 tenant=project.tenant,

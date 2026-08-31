@@ -56,7 +56,7 @@ def test_estimate_task_duration_returns_labeled_stub_response_without_config(ctx
         task = create_task(tenant, project=project)
         result = estimate_task_duration(task)
     assert result.is_ai_generated is False
-    assert "non configuree" in result.estimate_text.lower()
+    assert "non configurée" in result.estimate_text.lower()
     assert result.similar_tasks_sample_size == 0
 
 
@@ -82,7 +82,7 @@ def test_identify_risks_returns_labeled_stub_response_with_real_signal(ctx) -> N
         )
         assert overdue.end_date < dt.date.today()
         text = identify_risks(project)
-    assert "non configuree" in text.lower()
+    assert "non configurée" in text.lower()
     assert "1" in text  # nombre de taches en retard
 
 
@@ -91,7 +91,7 @@ def test_generate_status_report_returns_labeled_stub_response(ctx) -> None:
     with use_tenant(tenant.id):
         create_task(tenant, project=project)
         text = generate_status_report(project)
-    assert "non configuree" in text.lower()
+    assert "non configurée" in text.lower()
     assert project.name not in text  # le stub ne redige pas de prose nominative
 
 
@@ -112,8 +112,8 @@ def test_suggest_prioritization_returns_labeled_stub_response_with_real_signal(c
         task_b = create_task(tenant, project=project, end_date=dt.date(2026, 3, 1))
         add_dependency(task_a, task_b)
         text = suggest_prioritization(project)
-    assert "non configuree" in text.lower()
-    assert "Dependances declarees sur le projet : 1" in text
+    assert "non configurée" in text.lower()
+    assert "Dépendances déclarées sur le projet : 1" in text
 
 
 # ---------------------------------------------------------------------------

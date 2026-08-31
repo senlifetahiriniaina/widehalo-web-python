@@ -36,7 +36,7 @@ def create_wiki_page(
 ) -> PrjWikiPage:
     if parent is not None and parent.project_id != project.id:
         raise ValidationError(
-            _("Une page parente doit appartenir au meme projet que la page creee.")
+            _("Une page parente doit appartenir au même projet que la page créée.")
         )
     return PrjWikiPage.objects.create(
         tenant=project.tenant,

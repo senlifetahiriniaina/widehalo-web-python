@@ -520,7 +520,7 @@ def get_csat_response_endpoint(request: Any, ticket_id: str) -> Any:
     ticket = get_object_or_404(HlpTicket, id=ticket_id)
     response = getattr(ticket, "csat_response", None)
     if response is None:
-        return JsonResponse({"detail": str(_("aucune reponse CSAT pour ce ticket"))}, status=404)
+        return JsonResponse({"detail": str(_("aucune réponse CSAT pour ce ticket"))}, status=404)
     return _serialize_csat_response(response)
 
 

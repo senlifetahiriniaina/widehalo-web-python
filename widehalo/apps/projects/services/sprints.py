@@ -56,7 +56,7 @@ def create_sprint(
 ) -> PrjSprint:
     if end_date < start_date:
         raise ValidationError(
-            _("La date de fin du sprint doit etre posterieure a la date de debut.")
+            _("La date de fin du sprint doit être postérieure a la date de début.")
         )
     return PrjSprint.objects.create(
         tenant=project.tenant,
@@ -82,7 +82,7 @@ def start_sprint(sprint: PrjSprint) -> PrjSprint:
     if already_active is not None:
         raise ValidationError(
             _(
-                "Le sprint « %(name)s » est deja actif sur ce projet — "
+                "Le sprint « %(name)s » est déjà actif sur ce projet — "
                 "un seul sprint actif a la fois."
             )
             % {"name": already_active.name}

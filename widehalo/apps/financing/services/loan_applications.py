@@ -34,9 +34,9 @@ def create_loan_application(
     own_contribution_pct: Decimal = Decimal(30),
 ) -> FinLoanApplication:
     if amount_requested_mga <= 0:
-        raise ValidationError(_("Le montant demande doit etre strictement positif."))
+        raise ValidationError(_("Le montant demande doit être strictement positif."))
     if duration_months <= 0:
-        raise ValidationError(_("La duree doit etre strictement positive."))
+        raise ValidationError(_("La durée doit être strictement positive."))
 
     reference = next_reference(tenant, "FINLOAN", timezone.now().year)
     return FinLoanApplication.objects.create(
@@ -62,10 +62,10 @@ def add_financing_plan_line(
     NOUVEAU dossier, jamais une modification retroactive silencieuse."""
     if application.state != FinLoanApplication.STATE_DRAFT:
         raise ValidationError(
-            _("Impossible de modifier le plan de financement d'un dossier deja soumis.")
+            _("Impossible de modifier le plan de financement d'un dossier déjà soumis.")
         )
     if amount_mga <= 0:
-        raise ValidationError(_("Le montant de la ligne doit etre strictement positif."))
+        raise ValidationError(_("Le montant de la ligne doit être strictement positif."))
     return FinFinancingPlanLine.objects.create(
         tenant=application.tenant,
         loan_application=application,
@@ -97,7 +97,7 @@ def submit_application(
     application: FinLoanApplication, *, submission_date: dt.date | None = None
 ) -> None:
     if application.state != FinLoanApplication.STATE_DRAFT:
-        raise ValidationError(_("Seul un dossier en brouillon peut etre soumis."))
+        raise ValidationError(_("Seul un dossier en brouillon peut être soumis."))
     application.state = FinLoanApplication.STATE_SUBMITTED
     application.submission_date = submission_date or timezone.now().date()
     application.save(update_fields=["state", "submission_date"])
@@ -112,7 +112,7 @@ def decide_application(
     rejection_reason: str = "",
 ) -> None:
     if application.state != FinLoanApplication.STATE_SUBMITTED:
-        raise ValidationError(_("Seul un dossier soumis peut recevoir une decision."))
+        raise ValidationError(_("Seul un dossier soumis peut recevoir une décision."))
     application.state = (
         FinLoanApplication.STATE_ACCEPTED if accepted else FinLoanApplication.STATE_REJECTED
     )

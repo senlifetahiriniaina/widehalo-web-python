@@ -238,9 +238,9 @@ def add_budget_line(
     de ce projet."""
     valid_categories = {choice[0] for choice in PrjBudgetLine.CATEGORY_CHOICES}
     if category not in valid_categories:
-        raise ValidationError(_("Categorie de ligne budgetaire inconnue."))
+        raise ValidationError(_("Catégorie de ligne budgétaire inconnue."))
     if planned_amount < 0:
-        raise ValidationError(_("Le montant planifie ne peut pas etre negatif."))
+        raise ValidationError(_("Le montant planifie ne peut pas être négatif."))
     return PrjBudgetLine.objects.create(
         tenant=project.tenant,
         project=project,

@@ -172,7 +172,7 @@ def _create_ticket_from_event(tenant_id: str, params: dict[str, Any]) -> str:
             "impossible de resoudre un demandeur pour la creation automatique de ticket."
         )
 
-    subject = params.get("subject") or str(_("Incident detecte automatiquement"))
+    subject = params.get("subject") or str(_("Incident détecté automatiquement"))
     description = params.get("description", "")
 
     content_object, content_type = _resolve_content_object(params)

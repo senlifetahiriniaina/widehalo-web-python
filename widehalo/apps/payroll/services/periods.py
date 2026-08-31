@@ -88,7 +88,7 @@ def validate_period(period: PayPeriod, user: User) -> PayPeriod:
     `services.batches.control_and_validate_batch`, qui appelle cette
     fonction apres les 7 controles PAY-CTRL1."""
     if period.state != PayPeriod.STATE_VERIFIED:
-        raise ValidationError(_("La periode doit etre verifiee avant validation."))
+        raise ValidationError(_("La période doit être vérifiée avant validation."))
     attempt_transition(period, "validate", user)
     period.save(update_fields=["state"])
 
@@ -126,6 +126,6 @@ def ensure_active_contract_for_recompute(contract: PayContract, period: PayPerio
     au-dela) — une correction doit passer par un bulletin RECTIFICATIF."""
     if period.state in (PayPeriod.STATE_VALIDATED, PayPeriod.STATE_PAID, PayPeriod.STATE_CLOSED):
         raise ValidationError(
-            _("Periode %(code)s deja validee : recalcul en place interdit (RG-PAY-10).")
+            _("Période %(code)s déjà validée : recalcul en place interdit (RG-PAY-10).")
             % {"code": period.code}
         )

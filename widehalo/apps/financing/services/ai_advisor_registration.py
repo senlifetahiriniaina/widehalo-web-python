@@ -44,7 +44,7 @@ def _advise_on_financing(
         candidates.append(
             RecommendationCandidate(
                 label=gettext(
-                    "Dossier %(reference)s : couverture des suretes insuffisante "
+                    "Dossier %(reference)s : couverture des sûretés insuffisante "
                     "(%(ratio)s%% du credit demande) — completer les garanties"
                 )
                 % {"reference": application.reference, "ratio": f"{ratio_pct:.0f}"},

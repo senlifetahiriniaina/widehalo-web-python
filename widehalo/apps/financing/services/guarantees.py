@@ -33,7 +33,7 @@ def add_guarantee(
     asset_description: str = "",
 ) -> FinGuarantee:
     if estimated_value_mga <= 0:
-        raise ValidationError(_("La valeur estimee d'une surete doit etre strictement positive."))
+        raise ValidationError(_("La valeur estimée d'une sûreté doit être strictement positive."))
     reference = next_reference(application.tenant, "FINGUAR", timezone.now().year)
     return FinGuarantee.objects.create(
         tenant=application.tenant,

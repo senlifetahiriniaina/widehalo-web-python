@@ -58,7 +58,7 @@ SECTOR_CHOICES = [
     (SECTOR_TEXTILE, _("Textile")),
     (SECTOR_LEATHER, _("Cuir et maroquinerie")),
     (SECTOR_AGRIFOOD, _("Agroalimentaire")),
-    (SECTOR_IMPORT_EXPORT, _("Import-export generaliste")),
+    (SECTOR_IMPORT_EXPORT, _("Import-export généraliste")),
     (SECTOR_CRAFT, _("Artisanat")),
 ]
 
@@ -275,8 +275,8 @@ class HlpTicket(BaseModel, ReferenceMixin):
         (STATE_NEW, _("Nouveau")),
         (STATE_IN_PROGRESS, _("En cours")),
         (STATE_PENDING, _("En attente")),
-        (STATE_RESOLVED, _("Resolu")),
-        (STATE_CLOSED, _("Cloture")),
+        (STATE_RESOLVED, _("Résolu")),
+        (STATE_CLOSED, _("Clôturé")),
         (STATE_ESCALATED, _("Escalade")),
         (STATE_CANCELLED, _("Annule")),
     ]
@@ -451,8 +451,8 @@ class HlpSlaBreach(BaseModel):
     BREACH_FIRST_RESPONSE = "first_response"
     BREACH_RESOLUTION = "resolution"
     BREACH_TYPE_CHOICES = [
-        (BREACH_FIRST_RESPONSE, _("Premiere reponse")),
-        (BREACH_RESOLUTION, _("Resolution")),
+        (BREACH_FIRST_RESPONSE, _("Première réponse")),
+        (BREACH_RESOLUTION, _("Résolution")),
     ]
 
     ticket = models.ForeignKey(HlpTicket, on_delete=models.CASCADE, related_name="sla_breaches")
@@ -510,10 +510,10 @@ class HlpEscalationRule(BaseModel):
     CONDITION_SLA_BREACH = "sla_breach"
     CONDITION_MIN_PRIORITY = "min_priority"
     CONDITION_TYPE_CHOICES = [
-        (CONDITION_TIME_SINCE_CREATED, _("Temps depuis creation")),
-        (CONDITION_TIME_SINCE_LAST_ACTIVITY, _("Temps depuis derniere activite")),
-        (CONDITION_SLA_BREACH, _("Breche de SLA")),
-        (CONDITION_MIN_PRIORITY, _("Priorite minimale")),
+        (CONDITION_TIME_SINCE_CREATED, _("Temps depuis création")),
+        (CONDITION_TIME_SINCE_LAST_ACTIVITY, _("Temps depuis dernière activité")),
+        (CONDITION_SLA_BREACH, _("Brèche de SLA")),
+        (CONDITION_MIN_PRIORITY, _("Priorité minimale")),
     ]
 
     name = models.CharField(max_length=200)

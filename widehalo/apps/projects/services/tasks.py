@@ -38,7 +38,7 @@ def create_task(
 ) -> PrjTask:
     if parent is not None and parent.project_id != project.id:
         raise ValidationError(
-            _("Une tache parente doit appartenir au meme projet que la tache creee.")
+            _("Une tache parente doit appartenir au même projet que la tache créée.")
         )
     validate_custom_fields(tenant, PrjCustomFieldDefinition.ENTITY_TASK, custom_fields)
     reference = next_reference(tenant, "PRJ-TACHE", timezone.now().year)

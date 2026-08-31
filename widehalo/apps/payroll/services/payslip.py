@@ -91,7 +91,7 @@ def compute_payslip(
     tenant = payslip.tenant
 
     if contract.employee_id != payslip.employee_id:
-        raise ValidationError(_("Le contrat ne correspond pas a l'employe du bulletin."))
+        raise ValidationError(_("Le contrat ne correspond pas a l'employé du bulletin."))
 
     absence_summary = presence_public.get_period_absence_summary(
         tenant, payslip.employee_id, date_from=payslip.date_from, date_to=payslip.date_to

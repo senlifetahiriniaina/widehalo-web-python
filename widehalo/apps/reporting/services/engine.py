@@ -208,7 +208,7 @@ def generate_report(
 
     definition = RptDefinition.objects.filter(tenant_id=tenant_id, code=code).first()
     if definition is not None and not definition.is_enabled:
-        raise UnknownReportError(_("rapport desactive pour ce tenant : %(code)s") % {"code": code})
+        raise UnknownReportError(_("rapport désactivé pour ce tenant : %(code)s") % {"code": code})
 
     job = RptJob.objects.create(
         tenant_id=tenant_id,

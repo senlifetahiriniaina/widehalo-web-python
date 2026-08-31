@@ -37,8 +37,8 @@ RUN_STATUS_FAILED = "failed"
 RUN_STATUS_PARTIAL = "partial"
 RUN_STATUS_CHOICES = [
     (RUN_STATUS_RUNNING, _("En cours")),
-    (RUN_STATUS_SUCCESS, _("Succes")),
-    (RUN_STATUS_FAILED, _("Echec")),
+    (RUN_STATUS_SUCCESS, _("Succès")),
+    (RUN_STATUS_FAILED, _("Échec")),
     (RUN_STATUS_PARTIAL, _("Partiel")),
 ]
 
@@ -47,8 +47,8 @@ RUN_STEP_STATUS_SUCCESS = "success"
 RUN_STEP_STATUS_FAILED = "failed"
 RUN_STEP_STATUS_CHOICES = [
     (RUN_STEP_STATUS_PENDING, _("En attente")),
-    (RUN_STEP_STATUS_SUCCESS, _("Succes")),
-    (RUN_STEP_STATUS_FAILED, _("Echec")),
+    (RUN_STEP_STATUS_SUCCESS, _("Succès")),
+    (RUN_STEP_STATUS_FAILED, _("Échec")),
 ]
 
 

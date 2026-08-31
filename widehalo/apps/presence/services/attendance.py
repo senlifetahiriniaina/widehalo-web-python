@@ -75,7 +75,7 @@ def check_in(
     within_perimeter = None
     if latitude is not None and longitude is not None and radius_meters is not None:
         if site_latitude is None or site_longitude is None:
-            raise ValidationError(_("Perimetre du site non configure pour ce pointage."))
+            raise ValidationError(_("Périmètre du site non configure pour ce pointage."))
         within_perimeter = _within_perimeter(
             latitude=latitude,
             longitude=longitude,
@@ -97,7 +97,7 @@ def check_in(
         },
     )
     if not created and attendance.check_in is not None:
-        raise ValidationError(_("Un pointage d'entree existe deja pour ce jour et ce mode."))
+        raise ValidationError(_("Un pointage d'entrée existe déjà pour ce jour et ce mode."))
 
     attendance.check_in = moment
     attendance.location = location
@@ -122,10 +122,10 @@ def check_out(
     longitude: Decimal | None = None,
 ) -> PrsAttendance:
     if attendance.check_in is None:
-        raise ValidationError(_("Impossible de pointer une sortie sans entree prealable."))
+        raise ValidationError(_("Impossible de pointer une sortie sans entrée préalable."))
     moment = at or timezone.now()
     if moment <= attendance.check_in:
-        raise ValidationError(_("L'heure de sortie doit etre posterieure a l'heure d'entree."))
+        raise ValidationError(_("L'heure de sortie doit être postérieure a l'heure d'entrée."))
 
     attendance.check_out = moment
     if latitude is not None:
@@ -198,7 +198,7 @@ def manual_entry(
     """RG-PRS-1 mode "manuel" : toujours motive et journalise
     obligatoirement — `reason` est requis (jamais vide)."""
     if not reason.strip():
-        raise ValidationError(_("Une saisie manuelle de pointage doit toujours etre motivee."))
+        raise ValidationError(_("Une saisie manuelle de pointage doit toujours être motivée."))
 
     attendance = PrsAttendance(
         tenant=employee.tenant,

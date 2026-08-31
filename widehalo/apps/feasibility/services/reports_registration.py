@@ -27,7 +27,7 @@ def _adapter_feasibility_study_pdf(params: dict[str, Any], actor: User | None) -
 
     study_id = params.get("study_id")
     if not study_id:
-        raise ValueError(_("FEA-STUDY necessite le parametre 'study_id'"))
+        raise ValueError(_("FEA-STUDY nécessite le paramètre 'study_id'"))
     study = get_object_or_404(FeaStudy, id=study_id)
     return generate_feasibility_study_pdf(study)
 

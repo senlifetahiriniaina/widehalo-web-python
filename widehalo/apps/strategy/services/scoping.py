@@ -74,16 +74,16 @@ def assert_can_manage_level(
         return
 
     if level == StgObjective.LEVEL_COMPANY:
-        raise PermissionDenied(_("Seuls direction/admin peuvent creer un objectif d'entreprise."))
+        raise PermissionDenied(_("Seuls direction/admin peuvent créer un objectif d'entreprise."))
 
     if level == StgObjective.LEVEL_DEPARTMENT:
         if not role_codes & DEPARTMENT_HEAD_ROLES:
             raise PermissionDenied(
-                _("Seul un responsable de departement peut creer un objectif departement.")
+                _("Seul un responsable de département peut créer un objectif département.")
             )
         managed_ids = set(get_department_ids_managed_by(tenant, user))
         if department_id is not None and department_id not in managed_ids:
-            raise PermissionDenied(_("Vous ne gerez pas ce departement."))
+            raise PermissionDenied(_("Vous ne gérez pas ce département."))
         return
 
     # LEVEL_INDIVIDUAL : tout role authentifie peut creer son propre

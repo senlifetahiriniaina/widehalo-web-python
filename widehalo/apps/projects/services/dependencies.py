@@ -59,18 +59,18 @@ def add_dependency(
     `ValidationError` si la dependance est invalide : auto-dependance,
     taches de projets differents, doublon, ou cycle (direct/indirect)."""
     if from_task.id == to_task.id:
-        raise ValidationError(_("Une tache ne peut pas dependre d'elle-meme."))
+        raise ValidationError(_("Une tache ne peut pas dépendre d'elle-meme."))
     if from_task.project_id != to_task.project_id:
         raise ValidationError(
-            _("Les deux taches d'une dependance doivent appartenir au meme projet.")
+            _("Les deux taches d'une dépendance doivent appartenir au même projet.")
         )
     if PrjTaskDependency.objects.filter(
         from_task=from_task, to_task=to_task, is_active=True
     ).exists():
-        raise ValidationError(_("Cette dependance existe deja."))
+        raise ValidationError(_("Cette dépendance existe déjà."))
     if _creates_cycle(from_task.id, to_task.id):
         raise ValidationError(
-            _("Cette dependance introduirait un cycle dans le graphe de dependances du projet.")
+            _("Cette dépendance introduirait un cycle dans le graphe de dépendances du projet.")
         )
     return PrjTaskDependency.objects.create(
         tenant=from_task.tenant,

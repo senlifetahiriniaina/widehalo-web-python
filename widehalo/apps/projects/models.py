@@ -175,9 +175,9 @@ class PrjTask(BaseModel, ReferenceMixin):
     STATE_CHOICES = [
         (STATE_TODO, _("A faire")),
         (STATE_IN_PROGRESS, _("En cours")),
-        (STATE_BLOCKED, _("Bloquee")),
-        (STATE_DONE, _("Terminee")),
-        (STATE_CANCELLED, _("Annulee")),
+        (STATE_BLOCKED, _("Bloquée")),
+        (STATE_DONE, _("Terminée")),
+        (STATE_CANCELLED, _("Annulée")),
     ]
 
     task_type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_TASK)
@@ -299,10 +299,10 @@ class PrjTaskDependency(BaseModel):
     TYPE_FINISH_TO_FINISH = "finish_to_finish"
     TYPE_START_TO_FINISH = "start_to_finish"
     TYPE_CHOICES = [
-        (TYPE_FINISH_TO_START, _("Fin -> Debut")),
-        (TYPE_START_TO_START, _("Debut -> Debut")),
+        (TYPE_FINISH_TO_START, _("Fin -> Début")),
+        (TYPE_START_TO_START, _("Début -> Début")),
         (TYPE_FINISH_TO_FINISH, _("Fin -> Fin")),
-        (TYPE_START_TO_FINISH, _("Debut -> Fin")),
+        (TYPE_START_TO_FINISH, _("Début -> Fin")),
     ]
 
     from_task = models.ForeignKey(
@@ -409,7 +409,7 @@ class PrjInvoicingRecord(BaseModel):
     MODE_CHOICES = [
         (MODE_MILESTONE, _("Jalon")),
         (MODE_PERCENTAGE, _("Pourcentage d'avancement")),
-        (MODE_TIME_AND_MATERIAL, _("Regie temps & materiel")),
+        (MODE_TIME_AND_MATERIAL, _("Régie temps & matériel")),
         (MODE_FIXED, _("Forfait")),
     ]
 
@@ -607,7 +607,7 @@ class PrjCustomFieldDefinition(BaseModel):
         (FIELD_TYPE_TEXT, _("Texte")),
         (FIELD_TYPE_NUMBER, _("Nombre")),
         (FIELD_TYPE_DATE, _("Date")),
-        (FIELD_TYPE_BOOLEAN, _("Booleen")),
+        (FIELD_TYPE_BOOLEAN, _("Booléen")),
         (FIELD_TYPE_CHOICE, _("Choix")),
     ]
 

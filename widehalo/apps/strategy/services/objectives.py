@@ -178,7 +178,7 @@ def refresh_key_result_from_source(tenant: Tenant, key_result: StgKeyResult) -> 
     fonction, signature differente) leve une `ValidationError` explicite,
     jamais un echec silencieux."""
     if not key_result.kpi_source_module or not key_result.kpi_source_function:
-        raise ValidationError(_("Aucune source KPI configuree pour cet indicateur."))
+        raise ValidationError(_("Aucune source KPI configurée pour cet indicateur."))
     try:
         module = importlib.import_module(f"apps.{key_result.kpi_source_module}.services.public")
     except ImportError as exc:

@@ -50,7 +50,7 @@ class FinLoanApplication(BaseModel, ReferenceMixin):
         (STATE_DRAFT, _("Demande (brouillon)")),
         (STATE_SUBMITTED, _("Soumis a la banque")),
         (STATE_ACCEPTED, _("Accepte")),
-        (STATE_REJECTED, _("Rejete")),
+        (STATE_REJECTED, _("Rejeté")),
     ]
 
     LOAN_TYPE_INVESTMENT_ST_MT = "investissement_ct_mt"
@@ -61,7 +61,7 @@ class FinLoanApplication(BaseModel, ReferenceMixin):
         (LOAN_TYPE_INVESTMENT_ST_MT, _("Investissement court/moyen terme")),
         (LOAN_TYPE_INVESTMENT_LT, _("Investissement long terme")),
         (LOAN_TYPE_OPERATING, _("Fonctionnement")),
-        (LOAN_TYPE_CREDOC, _("Credit documentaire (CREDOC)")),
+        (LOAN_TYPE_CREDOC, _("Crédit documentaire (CREDOC)")),
     ]
 
     type = models.CharField(max_length=32, choices=LOAN_TYPE_CHOICES)  # noqa: A003
@@ -153,9 +153,9 @@ class FinForecastScenario(BaseModel, ReferenceMixin):
     STATEMENT_BALANCE_SHEET = "balance_sheet"
     STATEMENT_CASH_FLOW = "cash_flow"
     STATEMENT_CHOICES = [
-        (STATEMENT_INCOME, _("Compte de resultat previsionnel")),
-        (STATEMENT_BALANCE_SHEET, _("Bilan previsionnel")),
-        (STATEMENT_CASH_FLOW, _("Tresorerie previsionnelle")),
+        (STATEMENT_INCOME, _("Compte de résultat prévisionnel")),
+        (STATEMENT_BALANCE_SHEET, _("Bilan prévisionnel")),
+        (STATEMENT_CASH_FLOW, _("Trésorerie prévisionnelle")),
     ]
 
     loan_application = models.ForeignKey(
@@ -205,7 +205,7 @@ class FinForecastScenarioLine(BaseModel):
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, _("Saisie manuelle")),
         (SOURCE_PAYROLL_PROJECTION, _("Projection masse salariale (payroll)")),
-        (SOURCE_TREASURY_FORECAST, _("Tresorerie previsionnelle (accounting)")),
+        (SOURCE_TREASURY_FORECAST, _("Trésorerie prévisionnelle (accounting)")),
     ]
 
     scenario = models.ForeignKey(
@@ -245,7 +245,7 @@ class FinGuarantee(BaseModel, ReferenceMixin):
     FORMALIZATION_CHOICES = [
         (FORMALIZATION_PENDING, _("A formaliser")),
         (FORMALIZATION_IN_PROGRESS, _("En cours de formalisation")),
-        (FORMALIZATION_DONE, _("Formalisee")),
+        (FORMALIZATION_DONE, _("Formalisée")),
     ]
 
     GUARANTEE_TYPE_MORTGAGE = "hypotheque"
@@ -255,12 +255,12 @@ class FinGuarantee(BaseModel, ReferenceMixin):
     GUARANTEE_TYPE_LIEN = "gage"
     GUARANTEE_TYPE_OTHER = "autre"
     GUARANTEE_TYPE_CHOICES = [
-        (GUARANTEE_TYPE_MORTGAGE, _("Hypotheque")),
+        (GUARANTEE_TYPE_MORTGAGE, _("Hypothèque")),
         (GUARANTEE_TYPE_PLEDGE, _("Nantissement")),
         (GUARANTEE_TYPE_PERSONAL_SURETY, _("Caution personnelle")),
         (GUARANTEE_TYPE_BANK_GUARANTEE, _("Caution bancaire")),
         (GUARANTEE_TYPE_LIEN, _("Gage")),
-        (GUARANTEE_TYPE_OTHER, _("Autre surete")),
+        (GUARANTEE_TYPE_OTHER, _("Autre sûreté")),
     ]
 
     loan_application = models.ForeignKey(
@@ -313,7 +313,7 @@ class FinCredoc(BaseModel, ReferenceMixin):
     STATE_CHOICES = [
         (STATE_REQUESTED, _("Demande")),
         (STATE_OPENED, _("Ouvert")),
-        (STATE_DOCUMENTS_RECEIVED, _("Documents recus")),
+        (STATE_DOCUMENTS_RECEIVED, _("Documents reçus")),
         (STATE_PAID, _("Paye")),
         (STATE_CLOSED, _("Clos")),
     ]
@@ -329,7 +329,7 @@ class FinCredoc(BaseModel, ReferenceMixin):
     INCOTERM_CHOICES = [
         (INCOTERM_EXW, _("EXW — A l'usine")),
         (INCOTERM_FOB, _("FOB — Franco a bord")),
-        (INCOTERM_CIF, _("CIF — Cout, assurance et fret")),
+        (INCOTERM_CIF, _("CIF — Coût, assurance et fret")),
         (INCOTERM_DAP, _("DAP — Rendu au lieu de destination")),
         (INCOTERM_DDP, _("DDP — Rendu droits acquittes")),
     ]

@@ -36,7 +36,7 @@ def create_flow(
     if trigger_event_type not in PUBLISHED_EVENT_TYPES:
         raise ValidationError(
             _(
-                "'%(event_type)s' ne correspond a aucun evenement reellement "
+                "'%(event_type)s' ne correspond a aucun événement réellement "
                 "publie (cf. core.events.PUBLISHED_EVENT_TYPES)."
             )
             % {"event_type": trigger_event_type}
@@ -79,7 +79,7 @@ def add_action_step(
 ) -> AutoStep:
     if get_registered_action(action_code) is None:
         raise ValidationError(
-            _("Action '%(code)s' non enregistree dans le catalogue d'automatisation.")
+            _("Action '%(code)s' non enregistrée dans le catalogue d'automatisation.")
             % {"code": action_code}
         )
     return AutoStep.objects.create(

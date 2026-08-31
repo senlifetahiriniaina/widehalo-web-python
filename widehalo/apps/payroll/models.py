@@ -102,7 +102,7 @@ class PaySalaryRule(BaseModel):
         (CATEGORY_GROSS, _("Brut")),
         (CATEGORY_EMPLOYEE_CONTRIBUTION, _("Cotisation salariale")),
         (CATEGORY_EMPLOYER_CONTRIBUTION, _("Cotisation patronale")),
-        (CATEGORY_TAX, _("Impot")),
+        (CATEGORY_TAX, _("Impôt")),
         (CATEGORY_DEDUCTION, _("Retenue")),
         (CATEGORY_TAXABLE_NET, _("Net imposable")),
         (CATEGORY_NET_TO_PAY, _("Net a payer")),
@@ -189,7 +189,7 @@ class PayContract(BaseModel, ReferenceMixin):
         (WAGE_MONTHLY, _("Mensuel")),
         (WAGE_HOURLY, _("Horaire")),
         (WAGE_DAILY, _("Journalier")),
-        (WAGE_PIECE, _("Aux pieces")),
+        (WAGE_PIECE, _("Aux pièces")),
     ]
 
     # Couplage n1 : UUID simple vers `presence.PrsEmployee` (jamais de FK).
@@ -251,12 +251,12 @@ class PayContractBenefit(BaseModel):
     TYPE_BENEFIT_IN_KIND = "avantage_nature"
     TYPE_CHOICES = [
         (TYPE_TRANSPORT, _("Prime de transport")),
-        (TYPE_SENIORITY, _("Prime d'anciennete")),
+        (TYPE_SENIORITY, _("Prime d'ancienneté")),
         (TYPE_PERFORMANCE, _("Prime de rendement")),
-        (TYPE_HOUSING, _("Indemnite de logement")),
-        (TYPE_MEAL, _("Indemnite de repas")),
-        (TYPE_PHONE, _("Telephone")),
-        (TYPE_HEALTH_INSURANCE, _("Assurance sante")),
+        (TYPE_HOUSING, _("Indemnité de logement")),
+        (TYPE_MEAL, _("Indemnité de repas")),
+        (TYPE_PHONE, _("Téléphone")),
+        (TYPE_HEALTH_INSURANCE, _("Assurance santé")),
         (TYPE_BENEFIT_IN_KIND, _("Avantage en nature")),
     ]
 
@@ -312,10 +312,10 @@ class PayPeriod(BaseModel):
     STATE_CHOICES = [
         (STATE_OPEN, _("Ouverte")),
         (STATE_COMPUTING, _("En calcul")),
-        (STATE_VERIFIED, _("Verifiee")),
-        (STATE_VALIDATED, _("Validee")),
-        (STATE_PAID, _("Payee")),
-        (STATE_CLOSED, _("Cloturee")),
+        (STATE_VERIFIED, _("Vérifiée")),
+        (STATE_VALIDATED, _("Validée")),
+        (STATE_PAID, _("Payée")),
+        (STATE_CLOSED, _("Clôturée")),
     ]
 
     code = models.CharField(max_length=32)
@@ -380,7 +380,7 @@ class PayPayslip(BaseModel, ReferenceMixin):
     PAYMENT_CHOICES = [
         (PAYMENT_BANK, _("Virement bancaire")),
         (PAYMENT_MOBILE_MONEY, _("Mobile money")),
-        (PAYMENT_CASH, _("Especes")),
+        (PAYMENT_CASH, _("Espèces")),
     ]
 
     employee_id = models.UUIDField()
@@ -552,11 +552,11 @@ class PayAdvance(BaseModel, ReferenceMixin):
     STATE_SETTLED = "settled"
     STATE_REJECTED = "rejected"
     STATE_CHOICES = [
-        (STATE_REQUESTED, _("Demandee")),
-        (STATE_APPROVED, _("Approuvee")),
+        (STATE_REQUESTED, _("Demandée")),
+        (STATE_APPROVED, _("Approuvée")),
         (STATE_REPAYING, _("En remboursement")),
-        (STATE_SETTLED, _("Soldee")),
-        (STATE_REJECTED, _("Refusee")),
+        (STATE_SETTLED, _("Soldée")),
+        (STATE_REJECTED, _("Refusée")),
     ]
 
     employee_id = models.UUIDField()

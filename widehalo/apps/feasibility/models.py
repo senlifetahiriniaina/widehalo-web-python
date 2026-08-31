@@ -46,7 +46,7 @@ SECTOR_CHOICES = [
     (SECTOR_TEXTILE, _("Textile")),
     (SECTOR_LEATHER, _("Cuir et maroquinerie")),
     (SECTOR_AGRIFOOD, _("Agroalimentaire")),
-    (SECTOR_IMPORT_EXPORT, _("Import-export generaliste")),
+    (SECTOR_IMPORT_EXPORT, _("Import-export généraliste")),
     (SECTOR_CRAFT, _("Artisanat")),
 ]
 
@@ -64,8 +64,8 @@ class FeaStudy(BaseModel, ReferenceMixin):
     STATUS_ARCHIVED = "archived"
     STATUS_CHOICES = [
         (STATUS_DRAFT, _("Brouillon")),
-        (STATUS_COMPLETED, _("Terminee")),
-        (STATUS_ARCHIVED, _("Archivee")),
+        (STATUS_COMPLETED, _("Terminée")),
+        (STATUS_ARCHIVED, _("Archivée")),
     ]
 
     name = models.CharField(max_length=200)

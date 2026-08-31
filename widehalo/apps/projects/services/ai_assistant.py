@@ -45,7 +45,7 @@ from apps.projects.models import PrjProject, PrjTask, PrjTaskDependency
 from apps.projects.services.evm import compute_evm_snapshot
 
 _AI_NOT_CONFIGURED_LABEL = _(
-    "[Assistance IA non configuree] Analyse indicative basee uniquement sur "
+    "[Assistance IA non configurée] Analyse indicative basée uniquement sur "
     "les donnees calculees ci-dessous — configurer settings.AI_PROVIDER_CONFIG "
     "pour une synthese redigee."
 )
@@ -63,7 +63,7 @@ def _safe_complete(prompt: str, *, max_tokens: int = 500) -> str:
         return provider.complete(prompt, max_tokens=max_tokens)
     except AIProviderError as exc:
         return str(
-            _("[Connecteur IA indisponible : %(error)s] Reponse non generee.") % {"error": str(exc)}
+            _("[Connecteur IA indisponible : %(error)s] Réponse non générée.") % {"error": str(exc)}
         )
 
 
@@ -101,12 +101,12 @@ def estimate_task_duration(task: PrjTask) -> TaskDurationEstimate:
     projet."""
     similar = _similar_completed_tasks(task)
     if not similar:
-        similar_summary = str(_("Aucune tache similaire terminee dans ce projet."))
+        similar_summary = str(_("Aucune tache similaire terminée dans ce projet."))
     else:
         durations = ", ".join(str(t.duration_days) for t in similar)
         similar_summary = str(
             _(
-                "Durees reelles (jours) de %(count)d taches similaires "
+                "Durées réelles (jours) de %(count)d taches similaires "
                 "deja terminees : %(durations)s."
             )
             % {"count": len(similar), "durations": durations}
@@ -116,11 +116,11 @@ def estimate_task_duration(task: PrjTask) -> TaskDurationEstimate:
     # seuls `reference`/`task_type`/`custom_fields`/`story_points` sont
     # disponibles comme signal descriptif, jamais un champ invente.
     instruction = _(
-        "Estime la duree necessaire (en jours) pour la tache suivante et justifie brievement."
+        "Estime la durée nécessaire (en jours) pour la tache suivante et justifie brièvement."
     )
     prompt = (
         f"{instruction}\n"
-        f"{_('Reference')}: {task.reference or task.id}\n"
+        f"{_('Référence')}: {task.reference or task.id}\n"
         f"{_('Type')}: {task.get_task_type_display()}\n"
         f"{_('Champs personnalises')}: {task.custom_fields or '-'}\n"
         f"{_('Points d effort (story points)')}: {task.story_points or '-'}\n"
@@ -180,7 +180,7 @@ def _evm_health_summary(project: PrjProject) -> str:
     if snapshot.spi is None or snapshot.cpi is None:
         return str(_("EVM non calculable (dates de projet ou taches actives insuffisantes)."))
     return str(
-        _("SPI=%(spi)s CPI=%(cpi)s (< 0.95 = signal de derive planning/budget).")
+        _("SPI=%(spi)s CPI=%(cpi)s (< 0.95 = signal de dérive planning/budget).")
         % {"spi": snapshot.spi, "cpi": snapshot.cpi}
     )
 
@@ -209,7 +209,7 @@ def identify_risks(project: PrjProject) -> str:
     signal_summary = " ".join(signal_lines)
 
     instruction = _(
-        "A partir des signaux suivants, redige une synthese des risques du "
+        "A partir des signaux suivants, rédige une synthèse des risques du "
         "projet et des actions recommandees."
     )
     prompt = f"{instruction}\n{signal_summary}"
@@ -234,7 +234,7 @@ def generate_status_report(project: PrjProject) -> str:
 
     signal_summary = str(
         _(
-            "Taches : %(done)d/%(total)d terminees, %(blocked)d bloquees, "
+            "Taches : %(done)d/%(total)d terminées, %(blocked)d bloquées, "
             "%(overdue)d en retard. %(evm)s"
         )
         % {
@@ -247,7 +247,7 @@ def generate_status_report(project: PrjProject) -> str:
     )
 
     instruction = _(
-        "Redige un rapport d etat de projet concis (progression, sante "
+        "Rédige un rapport d état de projet concis (progression, santé "
         "budgetaire, blocages) a partir de ces donnees."
     )
     prompt = f"{instruction}\n{_('Projet')}: {project.name}\n{signal_summary}"
@@ -274,10 +274,10 @@ def generate_tasks_from_spec(project: PrjProject, spec_text: str) -> list[dict[s
         return []
 
     instruction = _(
-        "Decompose la specification suivante en taches. Reponds en JSON : "
+        "Décompose la spécification suivante en taches. Réponds en JSON : "
         "une liste d objets avec les cles title, description, story_points (entier)."
     )
-    prompt = f"{instruction}\n{_('Projet')}: {project.name}\n{_('Specification')}: {spec_text}"
+    prompt = f"{instruction}\n{_('Projet')}: {project.name}\n{_('Spécification')}: {spec_text}"
     raw = _safe_complete(prompt, max_tokens=1500)
     try:
         parsed = json.loads(raw)
@@ -318,12 +318,12 @@ def suggest_prioritization(project: PrjProject) -> str:
     lines = [
         str(_("Taches ouvertes : %(count)d.") % {"count": len(open_tasks)}),
         str(_("Sur le chemin critique : %(count)d.") % {"count": critical_count}),
-        str(_("Dependances declarees sur le projet : %(count)d.") % {"count": dependency_count}),
+        str(_("Dépendances déclarées sur le projet : %(count)d.") % {"count": dependency_count}),
     ]
     for task in open_tasks[:20]:
         lines.append(
             str(
-                _("- %(reference)s (echeance %(due)s, critique=%(critical)s)")
+                _("- %(reference)s (échéance %(due)s, critique=%(critical)s)")
                 % {
                     "reference": task.reference or str(task.id),
                     "due": task.end_date or "-",
@@ -334,7 +334,7 @@ def suggest_prioritization(project: PrjProject) -> str:
     signal_summary = "\n".join(lines)
 
     instruction = _(
-        "Propose un ordre de priorite pour ces taches ouvertes, avec "
+        "Propose un ordre de priorité pour ces taches ouvertes, avec "
         "justification, en tenant compte des echeances/dependances/criticite."
     )
     prompt = f"{instruction}\n{signal_summary}"

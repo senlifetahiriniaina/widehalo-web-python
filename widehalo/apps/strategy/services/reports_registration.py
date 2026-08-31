@@ -33,7 +33,7 @@ def _adapter_business_plan_pdf(params: dict[str, Any], actor: User | None) -> by
     tenant_id = get_current_tenant_id()
     if tenant_id is None:
         raise ValueError(
-            _("aucun tenant actif : STRATEGY-BP ne peut pas etre genere hors contexte tenant")
+            _("aucun tenant actif : STRATEGY-BP ne peut pas être genere hors contexte tenant")
         )
     tenant = Tenant.objects.get(id=tenant_id)
     return generate_business_plan_pdf(tenant, params["period"], params.get("lang", "fr"))
@@ -52,7 +52,7 @@ def _adapter_capacity_outlook_rows(
     tenant_id = get_current_tenant_id()
     if tenant_id is None:
         raise ValueError(
-            _("aucun tenant actif : CAP-90J ne peut pas etre genere hors contexte tenant")
+            _("aucun tenant actif : CAP-90J ne peut pas être genere hors contexte tenant")
         )
     tenant = Tenant.objects.get(id=tenant_id)
     horizon_days = int(params.get("horizon_days", DEFAULT_HORIZON_DAYS))

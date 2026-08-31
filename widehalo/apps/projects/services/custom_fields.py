@@ -37,12 +37,12 @@ def _validate_one_field(definition: PrjCustomFieldDefinition, values: dict[str, 
     if field_type == PrjCustomFieldDefinition.FIELD_TYPE_TEXT:
         if not isinstance(value, str):
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre du texte.") % {"key": key}
+                _("Champ personnalise '%(key)s' doit être du texte.") % {"key": key}
             )
     elif field_type == PrjCustomFieldDefinition.FIELD_TYPE_BOOLEAN:
         if not isinstance(value, bool):
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre un booleen.") % {"key": key}
+                _("Champ personnalise '%(key)s' doit être un booléen.") % {"key": key}
             )
     elif field_type == PrjCustomFieldDefinition.FIELD_TYPE_DATE:
         if isinstance(value, dt.date):
@@ -52,28 +52,28 @@ def _validate_one_field(definition: PrjCustomFieldDefinition, values: dict[str, 
                 dt.date.fromisoformat(value)
             except ValueError as exc:
                 raise ValidationError(
-                    _("Champ personnalise '%(key)s' doit etre une date ISO (AAAA-MM-JJ).")
+                    _("Champ personnalise '%(key)s' doit être une date ISO (AAAA-MM-JJ).")
                     % {"key": key}
                 ) from exc
         else:
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre une date.") % {"key": key}
+                _("Champ personnalise '%(key)s' doit être une date.") % {"key": key}
             )
     elif field_type == PrjCustomFieldDefinition.FIELD_TYPE_NUMBER:
         if isinstance(value, bool) or not isinstance(value, _NUMBER_TYPES):
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre un nombre.") % {"key": key}
+                _("Champ personnalise '%(key)s' doit être un nombre.") % {"key": key}
             )
         minimum = rule.get("min")
         maximum = rule.get("max")
         if minimum is not None and value < minimum:
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre >= %(min)s.")
+                _("Champ personnalise '%(key)s' doit être >= %(min)s.")
                 % {"key": key, "min": minimum}
             )
         if maximum is not None and value > maximum:
             raise ValidationError(
-                _("Champ personnalise '%(key)s' doit etre <= %(max)s.")
+                _("Champ personnalise '%(key)s' doit être <= %(max)s.")
                 % {"key": key, "max": maximum}
             )
     elif field_type == PrjCustomFieldDefinition.FIELD_TYPE_CHOICE:
