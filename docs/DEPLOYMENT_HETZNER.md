@@ -325,6 +325,32 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
   (étape 5), et que le port 80 est ouvert depuis Internet (pas seulement en
   local) — `curl -I http://<sous-domaine>` depuis une machine externe doit
   répondre, pas timeout.
+- **`authz_status: valid` puis `HTTP 403 unauthorized - authorizations for
+  these identifiers not valid` à la finalisation de la commande** (le défi
+  HTTP-01 réussit, mais l'émission échoue juste après) : Let's Encrypt/
+  ZeroSSL revérifient certaines conditions (dont le CAA) juste avant
+  l'émission, pas seulement à l'autorisation — un échec à ce stade précis
+  n'est donc pas forcément lié au port 80/DNS (déjà validés à ce moment-là).
+  Causes les plus fréquentes, à vérifier dans cet ordre :
+  1. **Tentatives concurrentes/répétées sur le même nom** : plusieurs
+     `docker compose up`/redémarrages de `caddy` rapprochés créent des
+     commandes ACME concurrentes pour le même domaine, qui peuvent
+     s'invalider mutuellement — arrêter de relancer en boucle (chaque échec
+     compte dans la limite Let's Encrypt de 5 validations échouées par
+     compte/nom d'hôte/heure, cf. entrée 429 ci-dessous), attendre
+     quelques minutes, puis un seul essai propre :
+     `docker compose -f docker-compose.prod.yml down && docker compose
+     -f docker-compose.prod.yml up -d`.
+  2. **Enregistrement CAA bloquant** : `dig CAA <sous-domaine> +short` et
+     `dig CAA <domaine racine> +short` — l'absence de résultat est normale
+     (aucune restriction) ; un enregistrement présent qui ne liste pas
+     `letsencrypt.org` (et `sectigo.com`/`ssl.com` pour ZeroSSL) bloque
+     l'émission malgré un défi HTTP-01 réussi.
+  3. Si l'échec bascule ensuite sur ZeroSSL et que celui-ci échoue en
+     timeout (`context deadline exceeded`) plutôt qu'en erreur applicative :
+     problème réseau sortant du VM vers `acme.zerossl.com`, pas un problème
+     de configuration — vérifier avec `curl -v
+     https://acme.zerossl.com/v2/DV90/directory` depuis le VM.
 - **`CSRF verification failed` sur un formulaire** : `DJANGO_CSRF_TRUSTED_ORIGINS`
   dans `.env` ne correspond pas exactement au sous-domaine servi (schéma
   `https://` obligatoire, cf. section 6) — vérifier puis redémarrer `web`.
