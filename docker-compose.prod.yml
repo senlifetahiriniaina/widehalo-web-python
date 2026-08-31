@@ -55,6 +55,16 @@ services:
       - static_data:/app/staticfiles
       - media_data:/app/widehalo/data/media
     env_file: .env
+    # Force les reglages prod quoi que contienne .env (une variable
+    # `environment:` de Compose prime toujours sur `env_file:`) — evite
+    # qu'un `.env` cree a partir de `.env.example` sans avoir change sa
+    # toute premiere ligne (DJANGO_SETTINGS_MODULE=config.settings.dev par
+    # defaut) ne fasse tourner la prod avec DEBUG=True + debug_toolbar
+    # actif (deja rencontre reellement sur un deploiement). config.settings.
+    # dev/test restent les seuls modules autorises a etre selectionnes
+    # via .env, jamais ce fichier de production.
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
     depends_on:
       db:
         condition: service_healthy
@@ -90,6 +100,8 @@ services:
     restart: unless-stopped
     command: python manage.py qcluster
     env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
     depends_on:
       db:
         condition: service_healthy
