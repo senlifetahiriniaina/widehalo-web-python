@@ -28,7 +28,7 @@ def _default_pipeline(tenant: Tenant) -> CrmPipeline:
 def _first_stage(pipeline: CrmPipeline) -> CrmStage:
     stage = pipeline.stages.order_by("sequence").first()
     if stage is None:
-        raise ValueError(_("Le pipeline ne comporte aucune etape."))
+        raise ValueError(_("Le pipeline ne comporte aucune étape."))
     return stage
 
 

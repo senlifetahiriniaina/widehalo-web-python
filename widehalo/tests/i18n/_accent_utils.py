@@ -48,6 +48,23 @@ _GETTEXT_CALL_RE = re.compile(
 _CHOICES_BLOCK_RE = re.compile(r"_CHOICES(?::\s*[\w\[\], \.\"']+)?\s*=\s*\[(.*?)\n\]", re.S)
 _QUOTED_STRING_RE = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
 
+# Nom de cle d'un placeholder de formatage %-style (`%(role)s`, `%(count)d`,
+# ...) - JAMAIS un mot de prose : c'est une cle de dict Python litterale
+# utilisee cote appelant (`% {"role": ...}`), jamais accentuee par ce
+# chantier (qui ne touche jamais le code Python hors chaines gettext) —
+# masque avant extraction des mots candidats, sinon `role`/`debit`/`credit`
+# resteraient signales indefiniment par le garde-fou ACC5 sans jamais
+# pouvoir etre corriges (la substitution elle-meme les protege deja, cf.
+# `apply_python.py` du chantier ACC3).
+_FORMAT_PLACEHOLDER_RE = re.compile(r"%\([A-Za-z_][A-Za-z0-9_]*\)[sdifr]")
+
+# Identifiant Python/JSON litteral cite entre backticks dans un message
+# d'erreur (`` `epaisseur_mm` ``, `` `allergenes` ``...) - meme raisonnement
+# que `_FORMAT_PLACEHOLDER_RE` ci-dessus (trouvaille reelle du chantier ACC3,
+# `apps/catalog/services/sector_specs.py`) : masque avant extraction, sinon
+# resterait signale indefiniment par le garde-fou ACC5.
+_BACKTICK_IDENTIFIER_RE = re.compile(r"`[a-z_][a-z0-9_]*`")
+
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:'[A-Za-zÀ-ÖØ-öø-ÿ]+)?")
 
 # Caracteres qui, immediatement accoles a un mot, en font un fragment de
@@ -93,7 +110,8 @@ def extract_python_strings(path: Path) -> list[str]:
     for block in _CHOICES_BLOCK_RE.findall(content):
         for qmatch in _QUOTED_STRING_RE.finditer(block):
             strings.append(qmatch.group(1) if qmatch.group(1) is not None else qmatch.group(2))
-    return strings
+    strings = [_FORMAT_PLACEHOLDER_RE.sub(" ", s) for s in strings]
+    return [_BACKTICK_IDENTIFIER_RE.sub(" ", s) for s in strings]
 
 
 def extract_fixture_strings(path: Path, fields: tuple[str, ...]) -> list[str]:

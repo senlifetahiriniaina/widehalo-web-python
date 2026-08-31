@@ -39,18 +39,18 @@ def _validate_cuir(attributes: dict[str, Any]) -> None:
     if not attributes.get("type_peau"):
         raise ValidationError(_("Cuir : le type de peau (`type_peau`) est obligatoire."))
     if attributes.get("tannage") not in (_TANNAGE_VEGETAL, _TANNAGE_CHROME):
-        raise ValidationError(_("Cuir : le tannage (`tannage`) doit valoir 'vegetal' ou 'chrome'."))
+        raise ValidationError(_("Cuir : le tannage (`tannage`) doit valoir 'végétal' ou 'chrome'."))
     epaisseur_mm = attributes.get("epaisseur_mm")
     if epaisseur_mm is not None:
         try:
             valeur = float(epaisseur_mm)
         except (TypeError, ValueError) as exc:
             raise ValidationError(
-                _("Cuir : l'epaisseur (`epaisseur_mm`) doit etre un nombre.")
+                _("Cuir : l'épaisseur (`epaisseur_mm`) doit être un nombre.")
             ) from exc
         if valeur <= 0:
             raise ValidationError(
-                _("Cuir : l'epaisseur (`epaisseur_mm`) doit etre strictement positive.")
+                _("Cuir : l'épaisseur (`epaisseur_mm`) doit être strictement positive.")
             )
 
 
@@ -70,14 +70,14 @@ def _validate_agroalimentaire(attributes: dict[str, Any]) -> None:
         )
     allergenes = attributes.get("allergenes", [])
     if not isinstance(allergenes, list):
-        raise ValidationError(_("Agroalimentaire : `allergenes` doit etre une liste."))
+        raise ValidationError(_("Agroalimentaire : `allergenes` doit être une liste."))
     composition = attributes.get("composition", {})
     if not isinstance(composition, dict):
-        raise ValidationError(_("Agroalimentaire : `composition` doit etre un objet JSON."))
+        raise ValidationError(_("Agroalimentaire : `composition` doit être un objet JSON."))
     information_nutritionnelle = attributes.get("information_nutritionnelle", {})
     if not isinstance(information_nutritionnelle, dict):
         raise ValidationError(
-            _("Agroalimentaire : `information_nutritionnelle` doit etre un objet JSON.")
+            _("Agroalimentaire : `information_nutritionnelle` doit être un objet JSON.")
         )
 
 
@@ -87,7 +87,7 @@ def _validate_artisanat(attributes: dict[str, Any]) -> None:
     cf. plan)."""
     if not attributes.get("matiere_premiere"):
         raise ValidationError(
-            _("Artisanat : la matiere premiere (`matiere_premiere`) est obligatoire.")
+            _("Artisanat : la matière première (`matiere_premiere`) est obligatoire.")
         )
     if not attributes.get("technique"):
         raise ValidationError(_("Artisanat : la technique (`technique`) est obligatoire."))

@@ -126,7 +126,7 @@ def inspection_create(request: HttpRequest) -> HttpResponse:
             for code, status, comment in zip(codes, statuses, comments, strict=False)
         ]
         if not results:
-            error = _("Au moins un critere doit etre renseigne.")
+            error = _("Au moins un critère doit être renseigne.")
         else:
             inspection = create_inspection(
                 tenant=_resolve_tenant(request),

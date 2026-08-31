@@ -22,8 +22,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     orders_pending_confirmation = count_orders_pending_confirmation()
 
     kpis = [
-        {"label": _("Factures clients non soldees"), "value": unpaid_invoices},
-        {"label": _("Opportunites CRM ouvertes"), "value": open_opportunities},
+        {"label": _("Factures clients non soldées"), "value": unpaid_invoices},
+        {"label": _("Opportunités CRM ouvertes"), "value": open_opportunities},
         {"label": _("Commandes en attente de confirmation"), "value": orders_pending_confirmation},
     ]
     return render(request, "dashboard.html", {"kpis": kpis})

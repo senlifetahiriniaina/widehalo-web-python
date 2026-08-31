@@ -105,7 +105,7 @@ def profile_view(request: HttpRequest) -> HttpResponse:
         phone = request.POST.get("phone", "").strip()
         preferred_language = request.POST.get("preferred_language", "").strip() or "fr"
         if len(preferred_language) > 5:
-            errors.append(_("La langue preferee ne doit pas depasser 5 caracteres."))
+            errors.append(_("La langue préférée ne doit pas dépasser 5 caractères."))
         if not errors:
             user.first_name = first_name
             user.last_name = last_name

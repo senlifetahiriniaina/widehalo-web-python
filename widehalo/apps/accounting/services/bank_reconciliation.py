@@ -214,7 +214,7 @@ def confirm_reconciliation(
     elif statement_line.state != AccBankStatementLine.STATE_RULE_SUGGESTED:
         raise ValidationError(
             _(
-                "Cette ligne n'a pas de suggestion de regle a confirmer "
+                "Cette ligne n'a pas de suggestion de règle a confirmer "
                 "(fournir `move_line` pour un rapprochement manuel direct)."
             )
         )

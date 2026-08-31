@@ -33,9 +33,9 @@ def move_lead_to_stage(
     comment: str = "",
 ) -> CrmLead:
     if lead.stage.is_won or lead.stage.is_lost:
-        raise ValidationError(_("Une opportunite gagnee ou perdue ne peut plus changer d'etape."))
+        raise ValidationError(_("Une opportunité gagnée ou perdue ne peut plus changer d'étape."))
     if stage.pipeline_id != lead.pipeline_id:
-        raise ValidationError(_("L'etape cible n'appartient pas au pipeline de l'opportunite."))
+        raise ValidationError(_("L'étape cible n'appartient pas au pipeline de l'opportunité."))
 
     # RG-CRM-6 : motif + commentaire obligatoires pour passer en etape "perdue".
     if stage.is_lost or stage.requires_reason:

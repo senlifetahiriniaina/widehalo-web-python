@@ -74,7 +74,7 @@ def add_budget_line(
     if budget.state != AccBudget.STATE_DRAFT:
         raise ValidationError(
             _(
-                "Impossible d'ajouter une ligne a un budget deja approuve : "
+                "Impossible d'ajouter une ligne a un budget déjà approuve : "
                 "creer un nouveau budget pour toute revision."
             )
         )
@@ -91,7 +91,7 @@ def add_budget_line(
 def approve_budget(budget: AccBudget) -> AccBudget:
     """Transition `draft -> approved`. Refuse une double approbation."""
     if budget.state != AccBudget.STATE_DRAFT:
-        raise ValidationError(_("Ce budget est deja approuve."))
+        raise ValidationError(_("Ce budget est déjà approuve."))
     budget.state = AccBudget.STATE_APPROVED
     budget.save(update_fields=["state"])
     return budget

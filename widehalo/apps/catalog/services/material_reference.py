@@ -47,7 +47,7 @@ def validate_hex_approximation(hex_approximation: str) -> None:
     forme — cette valeur est une approximation saisie manuellement par
     l'utilisateur, jamais une valeur sourcee du nuancier Pantone."""
     if hex_approximation and not _HEX_PATTERN.match(hex_approximation):
-        raise ValidationError(_("L'approximation hexadecimale doit respecter le format '#RRGGBB'."))
+        raise ValidationError(_("L'approximation hexadécimale doit respecter le format '#RRGGBB'."))
 
 
 def set_attribute_value_color_reference(

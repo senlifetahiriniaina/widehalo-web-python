@@ -31,7 +31,7 @@ def _advise_on_crm(tenant_id: str, action: str, role_code: str) -> list[Recommen
 
     return [
         RecommendationCandidate(
-            label=gettext("%(count)s opportunite(s) sans activite recente — envisagez une relance")
+            label=gettext("%(count)s opportunité(s) sans activité récente — envisagez une relance")
             % {"count": len(stagnant)},
             target_module="crm",
             target_action_code="crm.notify_role_of_opportunity",

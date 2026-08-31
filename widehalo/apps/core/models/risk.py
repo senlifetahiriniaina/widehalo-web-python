@@ -57,7 +57,7 @@ CATEGORY_CHOICES = [
     (CATEGORY_PRODUCTION, _("Production")),
     (CATEGORY_LOGISTICS, _("Logistique")),
     (CATEGORY_FINANCIAL, _("Financier")),
-    (CATEGORY_QUALITY, _("Qualite")),
+    (CATEGORY_QUALITY, _("Qualité")),
     (CATEGORY_HR, _("Ressources humaines")),
     (CATEGORY_PROJECT, _("Projet")),
     (CATEGORY_OTHER, _("Autre")),
@@ -68,8 +68,8 @@ STATUS_MITIGATING = "mitigating"
 STATUS_CLOSED = "closed"
 STATUS_CHOICES = [
     (STATUS_OPEN, _("Ouvert")),
-    (STATUS_MITIGATING, _("En attenuation")),
-    (STATUS_CLOSED, _("Cloture")),
+    (STATUS_MITIGATING, _("En atténuation")),
+    (STATUS_CLOSED, _("Clôturé")),
 ]
 
 # Seuil de publication de l'evenement `risk.flagged` (score >= seuil). Sur

@@ -81,7 +81,7 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
                     .first()
                 )
                 if period is None:
-                    raise ValidationError(_("Aucune periode ouverte pour cet exercice."))
+                    raise ValidationError(_("Aucune période ouverte pour cet exercice."))
                 payment_journal = get_object_or_404(
                     AccJournal, id=request.POST.get("payment_journal_id")
                 )
@@ -183,7 +183,7 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
                 .first()
             )
             if period is None:
-                raise ValidationError(_("Aucune periode ouverte pour cet exercice."))
+                raise ValidationError(_("Aucune période ouverte pour cet exercice."))
             receivable_account = get_object_or_404(
                 AccAccount, id=request.POST.get("receivable_account_id")
             )

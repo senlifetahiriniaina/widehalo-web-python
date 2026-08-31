@@ -95,7 +95,7 @@ def add_landed_cost_line(
     `batch.total_purchase_value_mga` (somme des `purchase_value_mga` de
     toutes les lignes du lot)."""
     if batch.state != AccLandedCostBatch.STATE_DRAFT:
-        raise ValidationError(_("Impossible d'ajouter une ligne a un lot deja finalise."))
+        raise ValidationError(_("Impossible d'ajouter une ligne a un lot déjà finalisé."))
     line = AccLandedCostLine.objects.create(
         tenant=batch.tenant,
         batch=batch,
@@ -120,7 +120,7 @@ def add_cost_component(
     (`ValidationError`) si `batch.state != "draft"`."""
     if batch.state != AccLandedCostBatch.STATE_DRAFT:
         raise ValidationError(
-            _("Impossible d'ajouter un composant de cout a un lot deja finalise.")
+            _("Impossible d'ajouter un composant de coût a un lot déjà finalisé.")
         )
     return AccLandedCostComponent.objects.create(
         tenant=batch.tenant,
@@ -148,7 +148,7 @@ def finalize_batch(batch: AccLandedCostBatch) -> AccLandedCostBatch:
     geree en amont par `landed_cost_report`, cf. sa docstring), n'a
     simplement rien a revaloriser cote stock — jamais une erreur."""
     if batch.state != AccLandedCostBatch.STATE_DRAFT:
-        raise ValidationError(_("Ce lot est deja finalise."))
+        raise ValidationError(_("Ce lot est déjà finalisé."))
     batch.state = AccLandedCostBatch.STATE_FINALIZED
     batch.save(update_fields=["state"])
 
@@ -209,7 +209,7 @@ def landed_cost_report(batch: AccLandedCostBatch) -> list[dict[str, Any]]:
         if missing:
             raise ValidationError(
                 _(
-                    "Repartition par poids impossible : %(count)s ligne(s) du lot "
+                    "Répartition par poids impossible : %(count)s ligne(s) du lot "
                     "n'ont pas de poids (weight_kg) renseigne."
                 )
                 % {"count": len(missing)}

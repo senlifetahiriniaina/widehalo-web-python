@@ -112,7 +112,7 @@ def config_journals(request: HttpRequest) -> HttpResponse:
                 currency=request.POST.get("currency") or "MGA",
             )
         except AccAccount.DoesNotExist:
-            error = _("Compte par defaut introuvable.")
+            error = _("Compte par défaut introuvable.")
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 

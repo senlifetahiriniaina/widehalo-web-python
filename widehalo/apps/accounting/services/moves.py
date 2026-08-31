@@ -62,7 +62,7 @@ def add_line(
     currency: str = "MGA",
 ) -> AccMoveLine:
     if move.state != AccMove.STATE_DRAFT:
-        raise ValidationError(_("Impossible d'ajouter une ligne a une ecriture non brouillon."))
+        raise ValidationError(_("Impossible d'ajouter une ligne a une écriture non brouillon."))
     enforce_and_validate(account, analytic_distribution or {})
     return AccMoveLine.objects.create(
         tenant=move.tenant,
@@ -86,16 +86,16 @@ def post_move(move: AccMove) -> AccMove:
     reference n'est attribuee qu'ici, jamais au brouillon. RG-ACC-4 : refuse
     la publication dans une periode close."""
     if move.state != AccMove.STATE_DRAFT:
-        raise ValidationError(_("Seule une ecriture en brouillon peut etre publiee."))
+        raise ValidationError(_("Seule une écriture en brouillon peut être publiée."))
     if move.period.state == AccPeriod.STATE_CLOSED:
-        raise ValidationError(_("Periode close : publication refusee."))
+        raise ValidationError(_("Période close : publication refusée."))
 
     totals = move.lines.aggregate(debit=Sum("debit"), credit=Sum("credit"))
     total_debit = totals["debit"] or Decimal(0)
     total_credit = totals["credit"] or Decimal(0)
     if total_debit != total_credit:
         raise ValidationError(
-            _("Ecriture desequilibree : total debit (%(debit)s) != total credit (%(credit)s).")
+            _("Écriture déséquilibrée : total débit (%(debit)s) != total crédit (%(credit)s).")
             % {"debit": total_debit, "credit": total_credit}
         )
 
@@ -117,9 +117,9 @@ def reverse_move(move: AccMove, *, motif: str) -> AccMove:
     publie immediatement — `move` elle-meme n'est jamais modifiee (immuable,
     RG-ACC-2)."""
     if move.state != AccMove.STATE_POSTED:
-        raise ValidationError(_("Seule une ecriture publiee peut etre extournee."))
+        raise ValidationError(_("Seule une écriture publiée peut être extournee."))
     if not motif:
-        raise ValidationError(_("Un motif est obligatoire pour extourner une ecriture."))
+        raise ValidationError(_("Un motif est obligatoire pour extourner une écriture."))
 
     reversal = create_draft_move(
         tenant=move.tenant,

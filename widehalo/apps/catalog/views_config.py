@@ -55,7 +55,7 @@ def config_categories(request: HttpRequest) -> HttpResponse:
                 parent=parent,
             )
         except Category.DoesNotExist:
-            error = _("Categorie parente introuvable.")
+            error = _("Catégorie parente introuvable.")
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 
@@ -137,7 +137,7 @@ def config_uom(request: HttpRequest) -> HttpResponse:
                     is_base=bool(request.POST.get("is_base")),
                 )
         except UnitOfMeasure.DoesNotExist:
-            error = _("Unite introuvable.")
+            error = _("Unité introuvable.")
         except (ValidationError, ValueError, InvalidOperation, IntegrityError) as exc:
             error = str(exc)
 
@@ -241,7 +241,7 @@ def config_packaging(request: HttpRequest) -> HttpResponse:
                 barcode=request.POST.get("barcode", ""),
             )
         except (ProductVariant.DoesNotExist, UnitOfMeasure.DoesNotExist):
-            error = _("Variante ou unite introuvable.")
+            error = _("Variante ou unité introuvable.")
         except (ValidationError, ValueError, IntegrityError) as exc:
             error = str(exc)
 

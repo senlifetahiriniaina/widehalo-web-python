@@ -126,7 +126,7 @@ class StubAIProvider:
     def complete(self, prompt: str, *, max_tokens: int = 500) -> str:
         return str(
             _(
-                "Assistance IA non configuree — renseigner settings.AI_PROVIDER_CONFIG "
+                "Assistance IA non configurée — renseigner settings.AI_PROVIDER_CONFIG "
                 "(base_url, api_key, model) pour activer un connecteur reel."
             )
         )

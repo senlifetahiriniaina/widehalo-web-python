@@ -325,10 +325,10 @@ class CatalogCertification(BaseModel):
     STATUS_OBTAINED = "obtenue"
     STATUS_EXPIRED = "expiree"
     STATUS_CHOICES = [
-        (STATUS_TARGETED, _("Visee")),
+        (STATUS_TARGETED, _("Visée")),
         (STATUS_IN_PROGRESS, _("En cours")),
         (STATUS_OBTAINED, _("Obtenue")),
-        (STATUS_EXPIRED, _("Expiree")),
+        (STATUS_EXPIRED, _("Expirée")),
     ]
 
     variant = models.ForeignKey(

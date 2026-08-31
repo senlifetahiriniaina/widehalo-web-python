@@ -154,7 +154,7 @@ def import_tenant_archive(archive_bytes: bytes, *, target_tenant: Tenant) -> dic
             if len(still_pending) == len(pending):
                 raise ValueError(
                     _(
-                        "Impossible d'importer l'archive : dependances entre objets "
+                        "Impossible d'importer l'archive : dépendances entre objets "
                         "non resolvables (reference manquante ou cycle)."
                     )
                 )

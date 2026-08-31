@@ -126,7 +126,7 @@ def clone_tenant_to_sandbox(source: Tenant, expires_in_days: int = DEFAULT_EXPIR
             if len(still_pending) == len(pending):
                 raise ValueError(
                     _(
-                        "Impossible de cloner le tenant en bac a sable : dependances "
+                        "Impossible de cloner le tenant en bac a sable : dépendances "
                         "entre objets non resolvables (reference manquante ou cycle)."
                     )
                 )

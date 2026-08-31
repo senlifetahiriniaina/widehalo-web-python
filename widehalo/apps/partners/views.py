@@ -104,7 +104,7 @@ def partner_edit(request: HttpRequest, partner_id: str) -> HttpResponse:
         try:
             partner.credit_limit_mga = Decimal(request.POST.get("credit_limit_mga") or "0")
         except InvalidOperation:
-            error = _("Plafond credit invalide.")
+            error = _("Plafond crédit invalide.")
         else:
             try:
                 partner.full_clean()
@@ -152,9 +152,9 @@ def partner_merge(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         try:
             if not primary_id or not duplicate_id:
-                raise ValidationError(_("Selectionnez les deux partenaires a fusionner."))
+                raise ValidationError(_("Sélectionnez les deux partenaires a fusionner."))
             if primary_id == duplicate_id:
-                raise ValidationError(_("Le partenaire primaire et le doublon doivent differer."))
+                raise ValidationError(_("Le partenaire primaire et le doublon doivent différer."))
             primary = get_object_or_404(Partner, id=primary_id)
             duplicate = get_object_or_404(Partner, id=duplicate_id)
             merge_partners(primary=primary, duplicate=duplicate)

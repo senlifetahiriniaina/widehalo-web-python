@@ -32,7 +32,7 @@ def post_message(
     attachment = None
     if attachment_file is not None:
         if (attachment_file.size or 0) > MAX_ATTACHMENT_SIZE:
-            raise ValidationError(_("Piece jointe trop volumineuse (25 Mo maximum)."))
+            raise ValidationError(_("Pièce jointe trop volumineuse (25 Mo maximum)."))
         attachment = store_document(
             tenant=channel.tenant,
             uploaded_file=attachment_file,

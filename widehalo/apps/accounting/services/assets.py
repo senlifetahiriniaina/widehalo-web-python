@@ -68,13 +68,13 @@ def register_asset(
     if depreciation_method == AccAsset.METHOD_DEGRESSIF:
         raise ValidationError(
             _(
-                "Methode d'amortissement degressive non implementee en V1 : "
+                "Méthode d'amortissement dégressive non implémentée en V1 : "
                 "seule la methode lineaire est disponible."
             )
         )
     if depreciation_method != AccAsset.METHOD_LINEAIRE:
         raise ValidationError(
-            _("Methode d'amortissement inconnue : %(m)s") % {"m": depreciation_method}
+            _("Méthode d'amortissement inconnue : %(m)s") % {"m": depreciation_method}
         )
 
     reference = next_reference(tenant, "IMMO", acquisition_date.year)
@@ -107,7 +107,7 @@ def dispose_asset(asset: AccAsset, *, disposal_date: Any, disposal_value_mga: De
     cession (`ValidationError`) — pas de FSM pour 2 etats sans autre garde,
     verifiee ici directement plutot que via `django-fsm`."""
     if asset.state == AccAsset.STATE_DISPOSED:
-        raise ValidationError(_("Cette immobilisation est deja cedee/mise au rebut."))
+        raise ValidationError(_("Cette immobilisation est déjà cédée/mise au rebut."))
 
     asset.disposal_date = disposal_date
     asset.disposal_value_mga = disposal_value_mga

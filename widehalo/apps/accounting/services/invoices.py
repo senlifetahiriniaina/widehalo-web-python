@@ -232,7 +232,7 @@ def validate_invoice(move: AccMove, user: User, *, comment: str = "") -> AccMove
             )
         if existing.status == ApprovalRequest.STATUS_REJECTED:
             raise ValidationError(
-                _("Validation rejetee par %(role)s.") % {"role": rule.approver_role}
+                _("Validation rejetée par %(role)s.") % {"role": rule.approver_role}
             )
 
     if move.invoice_state == AccMove.INVOICE_STATE_DRAFT:
@@ -266,7 +266,7 @@ def cancel_invoice(move: AccMove, user: User, *, motif: str) -> AccMove:
         raise ValidationError(_("Un motif est obligatoire pour annuler une facture."))
     if move.state == AccMove.STATE_POSTED:
         raise ValidationError(
-            _("Facture deja publiee : utiliser une extourne (avoir), pas une annulation directe.")
+            _("Facture déjà publiée : utiliser une extourne (avoir), pas une annulation directe.")
         )
 
     attempt_transition(move, "cancel", user, comment=motif)

@@ -46,7 +46,7 @@ def list_messages(request, channel_id: str, since: str = ""):
     deja affiche)."""
     channel = get_object_or_404(ChatChannel, id=channel_id)
     if not is_channel_member(channel, request.auth):
-        return JsonResponse({"detail": _("Vous n'etes pas membre de ce canal.")}, status=403)
+        return JsonResponse({"detail": _("Vous n'êtes pas membre de ce canal.")}, status=403)
 
     messages = channel.messages.all()
     if since:
@@ -66,7 +66,7 @@ def create_message(
 ):
     channel = get_object_or_404(ChatChannel, id=channel_id)
     if not is_channel_member(channel, request.auth):
-        return JsonResponse({"detail": _("Vous n'etes pas membre de ce canal.")}, status=403)
+        return JsonResponse({"detail": _("Vous n'êtes pas membre de ce canal.")}, status=403)
 
     try:
         message = post_message(

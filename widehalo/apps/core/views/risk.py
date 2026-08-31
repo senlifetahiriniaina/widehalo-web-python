@@ -73,7 +73,7 @@ def risk_create(request: HttpRequest) -> HttpResponse:
             if not (1 <= likelihood <= 5) or not (1 <= impact <= 5):
                 raise ValueError
         except ValueError:
-            error = _("Probabilite et impact doivent etre des entiers entre 1 et 5.")
+            error = _("Probabilité et impact doivent être des entiers entre 1 et 5.")
         else:
             risk_item = create_risk_item(
                 tenant=_resolve_tenant(request),

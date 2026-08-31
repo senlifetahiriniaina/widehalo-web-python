@@ -38,14 +38,14 @@ _DEFAULT_LEVELS: tuple[tuple[int, str, int, str], ...] = (
         1,
         "Rappel amical",
         15,
-        _("Nous constatons que votre facture demeure impayee. Merci de regulariser."),
+        _("Nous constatons que votre facture demeure impayée. Merci de régulariser."),
     ),
     (
         2,
         "Mise en demeure",
         30,
         _(
-            "Mise en demeure de payer sous 8 jours, a defaut de quoi des poursuites "
+            "Mise en demeure de payer sous 8 jours, a défaut de quoi des poursuites "
             "seront engagees."
         ),
     ),

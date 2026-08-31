@@ -94,7 +94,7 @@ def test_stub_provider_never_performs_any_network_call() -> None:
     finally:
         socket.socket = original_socket  # type: ignore[assignment]
 
-    assert "non configuree" in result.lower()
+    assert "non configurée" in result.lower()
 
 
 def test_stub_provider_message_is_translatable_not_an_exception() -> None:
@@ -185,7 +185,7 @@ def test_stub_provider_complete_with_tools_never_performs_any_network_call() -> 
     assert isinstance(result, ToolCallResult)
     assert result.tool_calls == []
     assert result.content is not None
-    assert "non configuree" in result.content.lower()
+    assert "non configurée" in result.content.lower()
 
 
 def test_openai_compatible_provider_complete_with_tools_builds_request_and_parses_tool_calls() -> (

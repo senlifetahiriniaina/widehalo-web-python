@@ -54,9 +54,9 @@ def record_cash_movement(
     ACC-SMT (`services/reports.py`) de retrouver ces mouvements sans table
     dediee supplementaire."""
     if amount <= 0:
-        raise ValidationError(_("Le montant d'un mouvement de caisse doit etre positif."))
+        raise ValidationError(_("Le montant d'un mouvement de caisse doit être positif."))
     if cash_or_bank_account.type not in (AccAccount.TYPE_CASH, AccAccount.TYPE_BANK):
-        raise ValidationError(_("Le compte de tresorerie doit etre de type caisse ou banque."))
+        raise ValidationError(_("Le compte de trésorerie doit être de type caisse ou banque."))
 
     move = create_draft_move(
         tenant=tenant,

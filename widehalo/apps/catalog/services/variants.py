@@ -21,7 +21,7 @@ def set_variant_attributes(template: ProductTemplate, attribute_ids: list[Any]) 
     recommandation)."""
     if len(attribute_ids) > MAX_VARIANT_GENERATING_ATTRIBUTES:
         raise ValidationError(
-            _("Au maximum %(max)d attributs generateurs de variantes par gamme.")
+            _("Au maximum %(max)d attributs générateurs de variantes par gamme.")
             % {"max": MAX_VARIANT_GENERATING_ATTRIBUTES}
         )
     template.variant_attributes.set(attribute_ids)
@@ -46,7 +46,7 @@ def generate_variants(template: ProductTemplate) -> list[ProductVariant]:
 
     if len(combinations) > MAX_VARIANTS_PER_TEMPLATE:
         raise ValidationError(
-            _("%(count)d combinaisons depassent le seuil maximal de %(max)d variantes.")
+            _("%(count)d combinaisons dépassent le seuil maximal de %(max)d variantes.")
             % {"count": len(combinations), "max": MAX_VARIANTS_PER_TEMPLATE}
         )
 

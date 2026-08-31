@@ -88,7 +88,7 @@ def reconcile_mobile_money_line(
     virement/cheque n'a pas sa place dans ce rapprochement dedie)."""
     if payment.method != AccPayment.METHOD_MOBILE_MONEY:
         raise ValidationError(
-            _("Seul un paiement de methode mobile money peut etre rapproche ici.")
+            _("Seul un paiement de méthode mobile money peut être rapproche ici.")
         )
     statement_line.matched_payment = payment
     statement_line.state = AccMobileMoneyStatementLine.STATE_MATCHED

@@ -30,7 +30,7 @@ from apps.accounting.services.moves import add_line, create_draft_move, post_mov
 def _receivable_line(invoice: AccMove) -> AccMoveLine:
     line = invoice.lines.filter(debit__gt=0).order_by("-debit").first()
     if line is None:
-        raise ValidationError(_("Cette ecriture n'a pas de ligne creance a lettrer."))
+        raise ValidationError(_("Cette écriture n'a pas de ligne créance a lettrer."))
     return line
 
 
@@ -60,12 +60,12 @@ def register_payment(
     (`invoice.currency`) — pour une facture MGA (cas courant), c'est un
     montant MGA simple, sans conversion."""
     if invoice.state != AccMove.STATE_POSTED or invoice.move_type != AccMove.TYPE_CUSTOMER_INVOICE:
-        raise ValidationError(_("Seule une facture client publiee peut recevoir un paiement."))
+        raise ValidationError(_("Seule une facture client publiée peut recevoir un paiement."))
 
     receivable_line = _receivable_line(invoice)
     total_currency_due = receivable_line.amount_currency or receivable_line.debit
     if amount <= 0:
-        raise ValidationError(_("Le montant du paiement doit etre positif."))
+        raise ValidationError(_("Le montant du paiement doit être positif."))
 
     amount_mga = convert_to_mga(amount, invoice.currency, date, tenant=invoice.tenant)
     proportion = amount / total_currency_due
