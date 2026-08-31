@@ -60,6 +60,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Sans ce healthcheck, `caddy` (depends_on: web, condition:
+    # service_healthy ci-dessous) demarrerait des que le PROCESSUS web
+    # demarre, pas quand daphne ecoute reellement sur :8000 — la sequence
+    # complete (compilemessages/migrate deja faits par l'entrypoint, puis
+    # collectstatic + bootstrap_admin + bind daphne) peut prendre plusieurs
+    # dizaines de secondes, causant des 502 "connection refused" cote
+    # Caddy pendant toute cette fenetre. python (deja dans l'image, aucune
+    # dependance supplementaire) suffit, /api/v1/health/live ne verifie
+    # meme pas la DB/Redis (deja garantis par les conditions ci-dessus) —
+    # juste que daphne repond.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   worker:
     build:
@@ -90,7 +112,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
+      web:
+        condition: service_healthy
 
 volumes:
   db_data:
