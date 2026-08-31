@@ -42,7 +42,7 @@ _BLOCKTRANS_RE = re.compile(r"{%\s*blocktrans[^%]*%}(.*?){%\s*endblocktrans\s*%}
 _TEMPLATE_VAR_RE = re.compile(r"{{.*?}}")
 
 _GETTEXT_CALL_RE = re.compile(
-    r'\b(?:_|gettext|gettext_lazy|pgettext|pgettext_lazy|ngettext|ngettext_lazy)\('
+    r"\b(?:_|gettext|gettext_lazy|pgettext|pgettext_lazy|ngettext|ngettext_lazy)\("
     r'\s*(?:"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\')'
 )
 _CHOICES_BLOCK_RE = re.compile(r"_CHOICES(?::\s*[\w\[\], \.\"']+)?\s*=\s*\[(.*?)\n\]", re.S)
@@ -129,8 +129,11 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
     if not words:
         return {}, {}
     input_text = "\n".join(sorted(words))
+    # `aspell` resolu via PATH : deja le choix assume par ce depot pour cet
+    # outil (installe explicitement par la CI et l'environnement de dev,
+    # jamais un binaire fourni par l'utilisateur).
     proc = subprocess.run(
-        ["aspell", "-l", "fr", "-a"],
+        ["aspell", "-l", "fr", "-a"],  # noqa: S607
         input=input_text,
         capture_output=True,
         text=True,
@@ -161,10 +164,132 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
 # d'etre ajoutee ici, jamais une supposition. Applique APRES `auto_fix`,
 # jamais a la place (les deux dictionnaires restent disjoints par
 # construction : un mot ambigu n'est jamais dans `auto_fix`).
+#
+# Revue manuelle menee lors du chantier ACC1 sur les 80 mots ambigus reels
+# du depot (union templates+python+fixtures) : chaque entree ci-dessous n'a
+# ete ajoutee qu'apres verification que TOUTES ses occurrences en zone de
+# texte utilisateur partagent le meme role grammatical (ex. "Cloture" == un
+# statut/participe "Cloture" dans risk.py/helpdesk/models.py/purchase/
+# reports.html : les 5 occurrences designent toutes un etat "ferme" ->
+# "Cloture" (nom capitalise, statut ferme) ; utiliser un participe adjectif
+# aurait ete grammaticalement correct mais la forme choisie ci-dessous a ete
+# verifiee occurrence par occurrence).
+#
+# **8 mots delibermment LAISSES NON RESOLUS** (limitation assumee et
+# documentee, jamais une supposition) car leurs occurrences en zone de texte
+# utilisateur melangent reellement plusieurs roles grammaticaux
+# incompatibles (nom vs participe/verbe) — verifie au cas par cas :
+# - `AGE` : aucune occurrence en zone de texte utilisateur (seulement dans
+#   des codes metier proteges par `word_substitution_pattern`, ex.
+#   `ACC-AGE-C`) — rien a corriger, mais reste hors `auto_fix`/overrides.
+# - `Controle`/`controle` (majuscule) : `payroll/models.py` l'utilise comme
+#   participe d'etat (`STATE_CONTROLLED` -> "Controle" = "Controle"/etat
+#   controle) alors que les autres occurrences (MRP, boutons "Controle
+#   qualite") sont un nom ("le controle qualite") — role incompatible entre
+#   occurrences, jamais resolu automatiquement.
+# - `reference` (minuscule) : trace tres majoritairement un nom ("la
+#   reference", 18 occurrences) mais UNE occurrence
+#   (`templates/mrp/config_boms.html`, "Le produit est reference par son
+#   UUID") est un participe ("est reference par" = "est referencE par") —
+#   conflit reel, laisse tel quel.
+# - `Reserve` (majuscule) : melange un participe/adjectif d'etat
+#   (`templates/stocks/index.html`, colonne "Reserve" a cote de
+#   "Disponible" = quantite reservee), un nom-avertissement repete dans les
+#   fixtures ("Reserve non-experte.") et une locution figee ("Sous
+#   reserve") — trois roles incompatibles, laisse tel quel.
+# - `genere` (minuscule) : verbe present 3e personne dans plusieurs regles
+#   metier ("Chaque regle declenchee genere une demande d'achat...") mais
+#   participe ailleurs ("insight(s) proactif(s) genere(s)", "ne peut pas
+#   etre genere hors contexte tenant") — conflit reel, laisse tel quel
+#   (la forme majuscule `Genere`, elle, n'a que des occurrences participe et
+#   a ete resolue ci-dessous).
+# - `depasse` : verbe present ("l'ecart de consommation depasse le seuil
+#   autorise") vs participe/adjectif d'etat ("Plafond de credit depasse")
+#   — conflit reel, laisse tel quel.
+# - `securise` : aucune des deux suggestions aspell (`securise` verbe,
+#   `securise` participe masculin) ne s'accorde correctement avec son
+#   unique occurrence reelle ("la recherche... securise par tenant", sujet
+#   feminin `la recherche` -> forme correcte `securisee`, hors du jeu de
+#   suggestions propose) — laisse tel quel plutot que d'appliquer une forme
+#   grammaticalement fausse.
+# - `cloture` (minuscule) : 3 occurrences participe ("ticket resolu ou
+#   cloture", "avant d'etre cloture", "CRI est deja cloture") mais 1
+#   occurrence nom ("a saisir avant la cloture", `logistics/trips.py`) —
+#   conflit reel, laisse tel quel (la forme majuscule `Cloture`, elle, n'a
+#   que des occurrences participe/statut et a ete resolue ci-dessous).
 MANUAL_OVERRIDES: dict[str, str] = {
     "meme": "même",
     "Meme": "Même",
     "Precedent": "Précédent",
+    "apres": "après",
+    "arrete": "arrêté",
+    "budgetise": "budgétisé",
+    "chaine": "chaîne",
+    "Cloture": "Clôturé",
+    "clotures": "clôturés",
+    "completes": "complétés",
+    "controle": "contrôle",
+    "cree": "créé",
+    "Declare": "Déclaré",
+    "declare": "déclaré",
+    "Decompose": "Décompose",
+    "Decompte": "Décompte",
+    "Decoupe": "Découpe",
+    "Dedouane": "Dédouané",
+    "dedouane": "dédouané",
+    "degrade": "dégradé",
+    "Demarre": "Démarré",
+    "demarre": "démarré",
+    "derive": "dérive",
+    "desactive": "désactivé",
+    "Detecte": "Détecté",
+    "detecte": "détecté",
+    "Enquete": "Enquête",
+    "epuise": "épuisé",
+    "Equipe": "Équipe",
+    "equipe": "équipe",
+    "Equipes": "Équipes",
+    "equipes": "équipes",
+    "evalue": "évalué",
+    "evenement": "événement",
+    "Execute": "Exécuté",
+    "Genere": "Généré",
+    "Hypotheque": "Hypothèque",
+    "Melange": "Mélange",
+    "melange": "mélange",
+    "necessite": "nécessite",
+    "parametre": "paramètre",
+    "Parametres": "Paramètres",
+    "prefere": "préféré",
+    "Prefixe": "Préfixe",
+    "presente": "présente",
+    "presume": "présumé",
+    "procede": "procédé",
+    "Redige": "Rédige",
+    "redige": "rédige",
+    "Reference": "Référence",
+    "Regle": "Règle",
+    "regle": "règle",
+    "Regles": "Règles",
+    "Releve": "Relevé",
+    "releve": "relevé",
+    "Requete": "Requête",
+    "requete": "requête",
+    "reserve": "réserve",
+    "Reserves": "Réserves",
+    "Resultat": "Résultat",
+    "resultat": "résultat",
+    "Resume": "Résumé",
+    "Revoque": "Révoqué",
+    "serie": "série",
+    "specifie": "spécifié",
+    "Telephone": "Téléphone",
+    "tete": "tête",
+    "Unites": "Unités",
+    "Vehicule": "Véhicule",
+    "vehicule": "véhicule",
+    "Vehicules": "Véhicules",
+    "vehicules": "véhicules",
 }
 
 
