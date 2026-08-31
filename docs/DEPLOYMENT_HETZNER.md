@@ -365,3 +365,16 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
   utiliser leur [environnement de staging](https://letsencrypt.org/docs/staging-environment/)
   pour tester la configuration Caddy sans consommer le quota réel si besoin
   de multiples essais.
+- **HTTP 400 nu dans le navigateur** (TLS fonctionne, pas d'erreur de
+  certificat — donc le problème est côté Django, pas côté Caddy/ACME) :
+  presque toujours `DisallowedHost` — l'en-tête `Host:` de la requête
+  n'est pas dans `DJANGO_ALLOWED_HOSTS`. Vérifier dans `.env` sur le VM :
+  ```bash
+  grep -E "DJANGO_ALLOWED_HOSTS|WIDEHALO_DOMAIN" .env
+  ```
+  Les deux doivent contenir le **nom de domaine réel** servi (le nom seul,
+  sans `https://`), jamais l'exemple générique `app.widehalo.cloud` de
+  `.env.example` laissé tel quel ni la valeur par défaut
+  `localhost,127.0.0.1`. Après correction, un simple redémarrage suffit
+  (pas de `--build`, c'est un changement de `.env`, pas de code) :
+  `docker compose -f docker-compose.prod.yml up -d`.
