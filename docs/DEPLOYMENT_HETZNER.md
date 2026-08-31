@@ -402,3 +402,25 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
   endroit. Corriger en régénérant la valeur sans `$`, ou en l'échappant
   en `$$` dans `.env` ; vérifier ensuite qu'aucune valeur sensible n'a
   été silencieusement tronquée (comparer la longueur/le contenu attendu).
+- **Pages sans mise en forme** (texte brut, aucune image/logo/icône, champs
+  de formulaire visuellement absents) : le CSS ne charge pas — vérifier
+  dans cet ordre.
+  1. **Image pas reconstruite depuis le dernier `git pull`** (cause la
+     plus fréquente) : un simple `up -d` sans `--build` réutilise
+     l'ancienne image, qui peut ne pas contenir les fichiers statiques
+     ajoutés depuis (`widehalo/static/css`, `fonts`, `icons`, `img`, `js`).
+     Relancer avec
+     `docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d --build`.
+  2. Vérifier que le volume `static_data` est bien peuplé côté `caddy` :
+     `docker compose -f docker-compose.prod.yml exec caddy ls -la /srv/static`
+     doit lister `css/`, `fonts/`, `icons/`, `img/`, `js/`. S'il est vide
+     ou absent, `collectstatic` n'a jamais tourné avec succès — regarder
+     `docker compose -f docker-compose.prod.yml logs web | grep -i collectstatic`.
+  3. Comparer le `docker/Caddyfile` et le `docker-compose.prod.yml`
+     réellement déployés sur le VM à ceux du dépôt (`git diff`/`git log`
+     sur le VM) — un fichier périmé sur le serveur, non mis à jour par un
+     `git pull` antérieur, peut manquer le bloc
+     `handle_path /static/* { file_server }`.
+  4. Vérifier que `WIDEHALO_DOMAIN` dans `.env` correspond bien au domaine
+     réellement visité (cf. l'entrée HTTP 400 ci-dessus pour la même
+     classe de piège).

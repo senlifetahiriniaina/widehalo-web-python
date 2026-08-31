@@ -53,7 +53,13 @@ services:
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     volumes:
       - static_data:/app/staticfiles
-      - media_data:/app/widehalo/data/media
+      # MEDIA_ROOT (config/settings/base.py) resout a REPO_ROOT/data/media,
+      # soit /app/data/media (REPO_ROOT = /app, un niveau au-dessus de
+      # widehalo/) — jamais /app/widehalo/data/media. Un mauvais chemin ici
+      # ecrirait les medias uploades hors du volume partage avec caddy
+      # (:/srv/media), les rendant invisibles/perdus a la recreation du
+      # conteneur.
+      - media_data:/app/data/media
     env_file: .env
     # Force les reglages prod quoi que contienne .env (une variable
     # `environment:` de Compose prime toujours sur `env_file:`) — evite
