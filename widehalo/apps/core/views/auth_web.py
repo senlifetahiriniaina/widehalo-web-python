@@ -15,6 +15,7 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.management import call_command
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
@@ -155,6 +156,13 @@ def setup_company_view(request: HttpRequest) -> HttpResponse:
         else:
             tenant = Tenant.objects.create(code=code, name=name, nif=nif, country_code=country_code)
             apply_country_defaults(tenant, country_code)
+            # Catalogue de types de tickets helpdesk (54 entrees) — jamais
+            # vide pour un nouveau tenant, y compris (surtout) via ce
+            # parcours web reel, cf. plan section "catalogue de tickets
+            # helpdesk vide par defaut". Meme mecanisme `call_command` que
+            # `create_tenant.py`/`seed_core.py` (aucune dependance Python
+            # declaree vers `helpdesk`).
+            call_command("load_ticket_type_catalog", tenant=tenant.code)
             UserTenantMembership.objects.create(user=request.user, tenant=tenant, is_default=True)
             request.session["tenant_id"] = str(tenant.id)
             return redirect("dashboard")

@@ -29,4 +29,9 @@ urlpatterns = [
         views_config.config_response_templates,
         name="config_response_templates",
     ),
+    path(
+        "config/ticket-types/",
+        views_config.config_ticket_types,
+        name="config_ticket_types",
+    ),
 ]

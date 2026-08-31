@@ -4,6 +4,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.core.models.tenant import Tenant
+from apps.core.tests.utils import use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -17,6 +18,21 @@ def test_create_tenant_command_applies_madagascar_smart_defaults() -> None:
     assert tenant.timezone == "Indian/Antananarivo"
     assert tenant.retention_policy["country_defaults"]["vat_rate"] == "20.00"
     assert "mvola" in tenant.retention_policy["country_defaults"]["payment_methods"]
+
+
+def test_create_tenant_command_preloads_helpdesk_ticket_type_catalog() -> None:
+    """Le catalogue de types de tickets helpdesk ne doit plus jamais etre
+    vide pour un nouveau tenant (signalement utilisateur — cf. plan section
+    "catalogue de tickets helpdesk vide par defaut")."""
+    from apps.helpdesk.models import HlpTicketTypeCatalog
+
+    call_command(
+        "create_tenant", "--code", "MG-DEMO-HLP", "--name", "Demo Helpdesk", "--country", "MG"
+    )
+
+    tenant = Tenant.objects.get(code="MG-DEMO-HLP")
+    with use_tenant(tenant.id):
+        assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
 
 
 def test_unknown_country_leaves_tenant_defaults_unchanged() -> None:

@@ -196,6 +196,16 @@ def test_setup_company_creates_tenant_and_attaches_current_user() -> None:
     assert tenant.base_currency == "MGA"  # SmartDefaults Madagascar appliqué
     assert UserTenantMembership.objects.filter(user=user, tenant=tenant, is_default=True).exists()
 
+    # Le catalogue de types de tickets helpdesk ne doit plus jamais etre
+    # vide pour un tenant cree via ce parcours web reel (signalement
+    # utilisateur — cf. plan section "catalogue de tickets helpdesk vide
+    # par defaut").
+    from apps.core.tests.utils import use_tenant
+    from apps.helpdesk.models import HlpTicketTypeCatalog
+
+    with use_tenant(tenant.id):
+        assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
+
     # L'amorçage d'instance est termine (plus de redirection vers /setup/) —
     # seul l'enrolement MFA (deja exige du role "admin" avant ce lot, cf.
     # etape 4, sans lien avec cette fonctionnalite) reste a faire ensuite.

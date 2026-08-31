@@ -69,6 +69,10 @@ class Command(BaseCommand):
         # Idempotent (`retention_policy.setdefault`) : sans danger de
         # rappeler a chaque execution, y compris si le tenant preexistait.
         apply_country_defaults(tenant, "MG")
+        # Catalogue de types de tickets helpdesk (54 entrees, idempotent par
+        # tenant+code) — utile aux futures campagnes Schemathesis/demo qui
+        # exerceraient les endpoints helpdesk.
+        call_command("load_ticket_type_catalog", tenant=tenant_code)
 
         call_command("load_roles")
 

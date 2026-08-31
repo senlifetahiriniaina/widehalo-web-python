@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n static core_extras %}
+{% block title %}{% trans "Catalogue de types de tickets" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Catalogue de types de tickets" %}</h1>
+</div>
+  <p>{% blocktrans %}Catalogue de depart editable, charge automatiquement a la creation du tenant — pas une taxonomie sectorielle validee par un expert metier.{% endblocktrans %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Libelle" %}</th>
+        <th>{% trans "Type" %}</th>
+        <th>{% trans "Secteur" %}</th>
+        <th>{% trans "Type parent" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+        <tr>
+          <td>{{ entry.code }}</td>
+          <td>{{ entry.label }}</td>
+          <td><span class="badge {{ entry.kind|state_badge_class }}">{{ entry.get_kind_display }}</span></td>
+          <td>{{ entry.get_sector_code_display|default:"—" }}</td>
+          <td>{{ entry.parent.label|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune entree." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Nouvelle entree" %}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="code">{% trans "Code" %}</label>
+      <input id="code" type="text" name="code" required>
+    </div>
+    <div class="form-field">
+      <label for="label">{% trans "Libelle" %}</label>
+      <input id="label" type="text" name="label" required>
+    </div>
+    <div class="form-field">
+      <label for="kind">{% trans "Type" %}</label>
+      <select id="kind" name="kind" required>
+        {% for value, label in kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="sector_code">{% trans "Secteur (optionnel)" %}</label>
+      <select id="sector_code" name="sector_code">
+        <option value="">{% trans "Generique (tout secteur)" %}</option>
+        {% for value, label in sectors %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="parent_id">{% trans "Type parent (optionnel)" %}</label>
+      <select id="parent_id" name="parent_id">
+        <option value="">{% trans "Aucun (type de tete)" %}</option>
+        {% for entry in entries %}
+          {% if not entry.parent %}<option value="{{ entry.id }}">{{ entry.label }}</option>{% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="related_module">{% trans "Module lie (optionnel, purement indicatif)" %}</label>
+      <input id="related_module" type="text" name="related_module">
+    </div>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+  </form>
+{% endblock %}

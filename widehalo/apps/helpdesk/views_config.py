@@ -27,11 +27,14 @@ from django.shortcuts import render
 
 from apps.core.views.tenant_web import resolve_tenant
 from apps.helpdesk.models import (
+    KIND_CHOICES,
     PRIORITY_CHOICES,
+    SECTOR_CHOICES,
     HlpEscalationRule,
     HlpResponseTemplate,
     HlpSlaPolicy,
     HlpTeam,
+    HlpTicketTypeCatalog,
 )
 
 
@@ -123,4 +126,48 @@ def config_response_templates(request: HttpRequest) -> HttpResponse:
         request,
         "helpdesk/config_response_templates.html",
         {"templates": templates, "error": error},
+    )
+
+
+@login_required
+def config_ticket_types(request: HttpRequest) -> HttpResponse:
+    """Ecran de consultation/creation du catalogue de types de tickets
+    (`HlpTicketTypeCatalog`) — chargement initial reserve a `call_command
+    ("load_ticket_type_catalog", ...)` (auto-invoque a la creation du
+    tenant, cf. plan section "catalogue de tickets helpdesk vide par
+    defaut"), cet ecran permet seulement de consulter/completer
+    manuellement le catalogue au-dela. RBAC : permissions app-level
+    standard (pas de permission personnalisee), meme traitement que
+    `HlpResponseTemplate`."""
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        try:
+            parent_id = request.POST.get("parent_id") or None
+            HlpTicketTypeCatalog.objects.create(
+                tenant=tenant,
+                kind=request.POST.get("kind", ""),
+                code=request.POST.get("code", ""),
+                label=request.POST.get("label", ""),
+                sector_code=request.POST.get("sector_code", ""),
+                related_module=request.POST.get("related_module", ""),
+                parent_id=parent_id,
+                created_by=request.user,
+            )
+        except ValidationError as exc:
+            error = str(exc)
+
+    entries = HlpTicketTypeCatalog.objects.filter(tenant=tenant, is_active=True).order_by(
+        "kind", "code"
+    )
+    return render(
+        request,
+        "helpdesk/config_ticket_types.html",
+        {
+            "entries": entries,
+            "kinds": KIND_CHOICES,
+            "sectors": SECTOR_CHOICES,
+            "error": error,
+        },
     )

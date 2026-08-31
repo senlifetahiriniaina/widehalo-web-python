@@ -22,12 +22,22 @@
     </div>
     <div class="form-field">
       <label for="ticket_type_id">{% trans "Type de ticket (catalogue)" %}</label>
-      <select id="ticket_type_id" name="ticket_type_id">
-        <option value="">{% trans "Non specifie" %}</option>
-        {% for entry in ticket_types %}
-          <option value="{{ entry.id }}">{{ entry.label }}</option>
-        {% endfor %}
-      </select>
+      {% if ticket_types %}
+        <select id="ticket_type_id" name="ticket_type_id">
+          <option value="">{% trans "Non specifie" %}</option>
+          {% for entry in ticket_types %}
+            <option value="{{ entry.id }}">{{ entry.label }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <select id="ticket_type_id" name="ticket_type_id" disabled>
+          <option value="">{% trans "Non specifie" %}</option>
+        </select>
+        <p class="form-error">
+          {% trans "Aucun type de ticket configure." %}
+          <a href="{% url 'helpdesk:config_ticket_types' %}">{% trans "Configurez-en un ici." %}</a>
+        </p>
+      {% endif %}
     </div>
     <div class="form-field">
       <label for="priority">{% trans "Priorite" %}</label>

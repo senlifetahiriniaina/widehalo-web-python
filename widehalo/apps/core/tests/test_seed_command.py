@@ -37,3 +37,14 @@ def test_seed_core_is_idempotent() -> None:
 
     assert Tenant.objects.filter(code="SEEDCORE2").count() == 1
     assert User.objects.filter(email="demo.production@seedcore2.widehalo.local").count() == 1
+
+
+def test_seed_core_preloads_helpdesk_ticket_type_catalog() -> None:
+    from apps.core.tests.utils import use_tenant
+    from apps.helpdesk.models import HlpTicketTypeCatalog
+
+    call_command("seed_core", "--tenant-code=SEEDCORE3")
+
+    tenant = Tenant.objects.get(code="SEEDCORE3")
+    with use_tenant(tenant.id):
+        assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
