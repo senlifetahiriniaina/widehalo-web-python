@@ -4,48 +4,48 @@
     "name": "Broderie",
     "technique": "broderie",
     "compatible_material_codes": ["COTON", "POLYCOTON", "LAINE", "DENIM", "MOLLETON"],
-    "notes": "Technique mecanique (fil pique), adaptee aux tissus tenaces d'epaisseur suffisante pour supporter le passage de l'aiguille. Deconseillee sur des mailles tres fines ou tres extensibles (risque de fronçage). Reserve non-experte, non validee par un brodeur professionnel."
+    "notes": "Technique mécanique (fil pique), adaptée aux tissus tenaces d'épaisseur suffisante pour supporter le passage de l'aiguille. Déconseillée sur des mailles très fines ou très extensibles (risque de fronçage). Reserve non-experte, non validée par un brodeur professionnel."
   },
   {
     "code": "SERIGRAPHIE",
-    "name": "Serigraphie",
+    "name": "Sérigraphie",
     "technique": "serigraphie",
     "compatible_material_codes": ["COTON", "POLYCOTON", "PES", "MESH"],
-    "notes": "Impression par pochoir/encre, adaptee aux surfaces planes non trop extensibles. Rendu variable selon la porosite de la fibre. Reserve non-experte."
+    "notes": "Impression par pochoir/encre, adaptée aux surfaces planes non trop extensibles. Rendu variable selon la porosité de la fibre. Reserve non-experte."
   },
   {
     "code": "SUBLIMATION",
     "name": "Sublimation",
     "technique": "sublimation",
     "compatible_material_codes": ["PES"],
-    "notes": "Ideale sur ~100% polyester (PES) uniquement — le colorant se sublime dans la fibre synthetique. Rendu degrade/craquele voire absent sur fibres naturelles (coton, laine, soie, lin) : technique INCOMPATIBLE avec ces dernieres, cf. document source LIFE MDG."
+    "notes": "Idéale sur ~100% polyester (PES) uniquement — le colorant se sublime dans la fibre synthétique. Rendu dégradé/craquelé voire absent sur fibres naturelles (coton, laine, soie, lin) : technique INCOMPATIBLE avec ces dernières, cf. document source LIFE MDG."
   },
   {
     "code": "TRANSFERT_THERMOCOLLANT",
     "name": "Transfert thermocollant",
     "technique": "transfert_thermocollant",
     "compatible_material_codes": ["COTON", "POLYCOTON", "PES", "DENIM"],
-    "notes": "Motif pre-imprime colle a chaud (presse thermique). Sensible a la temperature de fusion de la fibre — a proscrire sur des matieres thermosensibles (ex. certains synthetiques a bas point de fusion). Reserve non-experte."
+    "notes": "Motif pre-imprime colle a chaud (presse thermique). Sensible a la température de fusion de la fibre — a proscrire sur des matières thermosensibles (ex. certains synthétiques a bas point de fusion). Reserve non-experte."
   },
   {
     "code": "FLOQUAGE",
     "name": "Floquage",
     "technique": "floquage",
     "compatible_material_codes": ["COTON", "POLYCOTON", "PES", "DENIM", "MOLLETON"],
-    "notes": "Decoupe de flock colle a chaud, effet velours en relief. Meme sensibilite thermique que le transfert thermocollant. Reserve non-experte."
+    "notes": "Découpe de flock colle a chaud, effet velours en relief. Même sensibilité thermique que le transfert thermocollant. Reserve non-experte."
   },
   {
     "code": "GRAVURE",
     "name": "Gravure",
     "technique": "gravure",
     "compatible_material_codes": [],
-    "notes": "S'applique au cuir et au metal (boucles, plaques, badges rigides), PAS au textile — aucune matiere du referentiel `CatalogMaterialReference` (fibres/tissus uniquement) n'est listee comme compatible ici par construction. Les specifications cuir relevent de `CatalogSectorSpec` (secteur cuir), pas de ce referentiel textile."
+    "notes": "S'applique au cuir et au métal (boucles, plaques, badges rigides), PAS au textile — aucune matière du référentiel `CatalogMaterialReference` (fibres/tissus uniquement) n'est listée comme compatible ici par construction. Les spécifications cuir relèvent de `CatalogSectorSpec` (secteur cuir), pas de ce référentiel textile."
   },
   {
     "code": "BADGE",
     "name": "Badge (velcro/couture/clip)",
     "technique": "badge",
     "compatible_material_codes": ["COTON", "POLYCOTON", "PES", "DENIM", "MOLLETON"],
-    "notes": "Element rapporte (velcro, couture ou clip plastique) plutot qu'une impression sur la matiere elle-meme — compatible avec la plupart des tissus supports suffisamment epais pour la couture/le velcro. Reserve non-experte."
+    "notes": "Élément rapporte (velcro, couture ou clip plastique) plutôt qu'une impression sur la matière elle-meme — compatible avec la plupart des tissus supports suffisamment épais pour la couture/le velcro. Reserve non-experte."
   }
 ]

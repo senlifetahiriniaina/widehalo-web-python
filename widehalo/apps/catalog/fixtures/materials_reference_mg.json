@@ -14,7 +14,7 @@
     "nature": "synthetique_hydrophobe",
     "typical_gsm_min": "120",
     "typical_gsm_max": "300",
-    "usage_notes": "Fibre synthetique hydrophobe, sechage rapide, resistante a l'abrasion. Jersey football/sport ~120-180 g/m2. Support ideal pour sublimation (100% PES requis pour eviter la craquelure). Fourchette indicative.",
+    "usage_notes": "Fibre synthétique hydrophobe, séchage rapide, résistante a l'abrasion. Jersey football/sport ~120-180 g/m2. Support idéal pour sublimation (100% PES requis pour éviter la craquelure). Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -23,7 +23,7 @@
     "nature": "melange",
     "typical_gsm_min": "150",
     "typical_gsm_max": "280",
-    "usage_notes": "Melange coton/PES (proportions variables, ex. 65/35 ou 50/50), compromis confort/tenue et cout. Fourchette indicative.",
+    "usage_notes": "Mélange coton/PES (proportions variables, ex. 65/35 ou 50/50), compromis confort/tenue et coût. Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -32,7 +32,7 @@
     "nature": "synthetique_fr",
     "typical_gsm_min": "180",
     "typical_gsm_max": "320",
-    "usage_notes": "Fibre synthetique ignifuge (Flame Resistant) utilisee en melange pour vetements de protection thermique (souvent associee au coton ou au Nomex). Fourchette indicative.",
+    "usage_notes": "Fibre synthétique ignifuge (Flame Résistant) utilisée en mélange pour vêtements de protection thermique (souvent associée au coton ou au Nomex). Fourchette indicative.",
     "supplier_reference": "DuPont / Kaneka (references industrielles generiques, documentaires)"
   },
   {
@@ -41,7 +41,7 @@
     "nature": "synthetique_fr",
     "typical_gsm_min": "150",
     "typical_gsm_max": "260",
-    "usage_notes": "Meta-aramide ignifuge, souvent en melange Nomex/Kevlar/fibre antistatique (ex. proportions indicatives 93/5/2). Vetements de protection anti-feu (EN ISO 11612). Fourchette indicative.",
+    "usage_notes": "Meta-aramide ignifuge, souvent en mélange Nomex/Kevlar/fibre antistatique (ex. proportions indicatives 93/5/2). Vêtements de protection anti-feu (EN ISO 11612). Fourchette indicative.",
     "supplier_reference": "DuPont (reference industrielle generique, documentaire)"
   },
   {
@@ -50,7 +50,7 @@
     "nature": "synthetique_fr",
     "typical_gsm_min": "150",
     "typical_gsm_max": "400",
-    "usage_notes": "Para-aramide haute resistance mecanique (coupe, dechirure, perforation) — gants EN 388, vetements anti-coupure. Souvent en melange avec Nomex. Fourchette indicative.",
+    "usage_notes": "Para-aramide haute résistance mécanique (coupe, déchirure, perforation) — gants EN 388, vêtements anti-coupure. Souvent en mélange avec Nomex. Fourchette indicative.",
     "supplier_reference": "DuPont (reference industrielle generique, documentaire)"
   },
   {
@@ -59,7 +59,7 @@
     "nature": "naturelle_proteique",
     "typical_gsm_min": "180",
     "typical_gsm_max": "500",
-    "usage_notes": "Fibre naturelle proteique, thermoregulatrice, resiliente au froissement. Grammage tres variable selon le tissage (tricot leger a manteau lourd). Fourchette indicative.",
+    "usage_notes": "Fibre naturelle protéique, thermorégulatrice, resiliente au froissement. Grammage très variable selon le tissage (tricot léger a manteau lourd). Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -68,7 +68,7 @@
     "nature": "naturelle_proteique",
     "typical_gsm_min": "40",
     "typical_gsm_max": "150",
-    "usage_notes": "Fibre naturelle proteique fine et resistante, tres presente dans les lamba malgaches (lambamena, lamba akotofahana, Jabo-Landy — cf. produits demonstratifs REF3). Fourchette indicative.",
+    "usage_notes": "Fibre naturelle protéique fine et résistante, très présente dans les lamba malgaches (lambamena, lamba akotofahana, Jabo-Landy — cf. produits démonstratifs REF3). Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -77,7 +77,7 @@
     "nature": "naturelle_cellulosique",
     "typical_gsm_min": "120",
     "typical_gsm_max": "300",
-    "usage_notes": "Fibre naturelle cellulosique, tres respirante, tenue thermoregulatrice en climat chaud. Fourchette indicative.",
+    "usage_notes": "Fibre naturelle cellulosique, très respirante, tenue thermorégulatrice en climat chaud. Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -86,7 +86,7 @@
     "nature": "caoutchouc",
     "typical_gsm_min": "400",
     "typical_gsm_max": "900",
-    "usage_notes": "Caoutchouc synthetique (chloroprene) isolant thermique, utilise en combinaisons de plongee/nautisme. Grammage indicatif exprime en equivalent surfacique, epaisseur reelle en mm plus pertinente en pratique.",
+    "usage_notes": "Caoutchouc synthétique (chloroprene) isolant thermique, utilise en combinaisons de plongée/nautisme. Grammage indicatif exprime en équivalent surfacique, épaisseur réelle en mm plus pertinente en pratique.",
     "supplier_reference": ""
   },
   {
@@ -95,7 +95,7 @@
     "nature": "membrane",
     "typical_gsm_min": "80",
     "typical_gsm_max": "200",
-    "usage_notes": "Membrane technique ePTFE impermeable et respirante (colonne d'eau/RET), laminee sur un support textile pour vetements de pluie/montagne (EN 343). Fourchette indicative de la membrane seule.",
+    "usage_notes": "Membrane technique ePTFE imperméable et respirante (colonne d'eau/RET), laminée sur un support textile pour vêtements de pluie/montagne (EN 343). Fourchette indicative de la membrane seule.",
     "supplier_reference": "W.L. Gore & Associates (reference industrielle generique, documentaire)"
   },
   {
@@ -104,7 +104,7 @@
     "nature": "synthetique_hydrophobe",
     "typical_gsm_min": "80",
     "typical_gsm_max": "180",
-    "usage_notes": "Tissu synthetique a structure aeree (mailles ajourees), ventilation renforcee — zones d'aisselles/dos des vetements techniques et de sport. Fourchette indicative.",
+    "usage_notes": "Tissu synthétique a structure aérée (mailles ajourées), ventilation renforcée — zones d'aisselles/dos des vêtements techniques et de sport. Fourchette indicative.",
     "supplier_reference": ""
   },
   {
@@ -113,7 +113,7 @@
     "nature": "melange",
     "typical_gsm_min": "280",
     "typical_gsm_max": "450",
-    "usage_notes": "Tricot gratte epais (coton ou polycoton), utilise pour sweats/pulls molletonnes. Grammage indicatif tableau C du document source (280-450 g/m2), non absolu.",
+    "usage_notes": "Tricot gratte épais (coton ou polycoton), utilise pour sweats/pulls molletonnes. Grammage indicatif tableau C du document source (280-450 g/m2), non absolu.",
     "supplier_reference": ""
   },
   {
@@ -122,7 +122,7 @@
     "nature": "naturelle_cellulosique",
     "typical_gsm_min": "340",
     "typical_gsm_max": "470",
-    "usage_notes": "Armure sergee coton (ou coton/elasthanne), grammage indicatif tableau C du document source (340-470 g/m2), non absolu — varie fortement selon le fabricant/finition (delavage, stretch).",
+    "usage_notes": "Armure sergee coton (ou coton/elasthanne), grammage indicatif tableau C du document source (340-470 g/m2), non absolu — varie fortement selon le fabricant/finition (délavage, stretch).",
     "supplier_reference": ""
   }
 ]

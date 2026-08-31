@@ -1,73 +1,73 @@
 [
-  {"code": "qualite", "kind": "incident", "label": "Qualite / non-conformite produit", "related_module": "catalog"},
-  {"code": "qualite.non_conformite_reception", "kind": "incident", "label": "Non-conformite au controle reception", "parent_code": "qualite", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
-  {"code": "qualite.defaut_production", "kind": "incident", "label": "Defaut detecte en production", "parent_code": "qualite", "related_module": "mrp", "related_app_label": "mrp", "related_model": "mrporder"},
-  {"code": "qualite.retour_client_defaut", "kind": "incident", "label": "Retour client pour defaut", "parent_code": "qualite", "related_module": "sales", "related_app_label": "sales", "related_model": "salesorder"},
+  {"code": "qualite", "kind": "incident", "label": "Qualité / non-conformite produit", "related_module": "catalog"},
+  {"code": "qualite.non_conformite_reception", "kind": "incident", "label": "Non-conformite au contrôle réception", "parent_code": "qualite", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
+  {"code": "qualite.defaut_production", "kind": "incident", "label": "Défaut détecté en production", "parent_code": "qualite", "related_module": "mrp", "related_app_label": "mrp", "related_model": "mrporder"},
+  {"code": "qualite.retour_client_defaut", "kind": "incident", "label": "Retour client pour défaut", "parent_code": "qualite", "related_module": "sales", "related_app_label": "sales", "related_model": "salesorder"},
 
   {"code": "stock", "kind": "incident", "label": "Rupture / anomalie de stock", "related_module": "stocks"},
-  {"code": "stock.rupture_mp", "kind": "incident", "label": "Rupture de stock matiere premiere", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
-  {"code": "stock.ecart_inventaire", "kind": "incident", "label": "Ecart d'inventaire", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
-  {"code": "stock.stock_negatif", "kind": "incident", "label": "Stock negatif detecte", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
+  {"code": "stock.rupture_mp", "kind": "incident", "label": "Rupture de stock matière première", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
+  {"code": "stock.ecart_inventaire", "kind": "incident", "label": "Écart d'inventaire", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
+  {"code": "stock.stock_negatif", "kind": "incident", "label": "Stock négatif détecté", "parent_code": "stock", "related_module": "stocks", "related_app_label": "stocks", "related_model": "stkquant"},
 
-  {"code": "production", "kind": "incident", "label": "Panne / arret de production", "related_module": "mrp"},
+  {"code": "production", "kind": "incident", "label": "Panne / arrêt de production", "related_module": "mrp"},
   {"code": "production.panne_machine", "kind": "incident", "label": "Panne machine / poste de charge", "parent_code": "production", "related_module": "mrp", "related_app_label": "mrp", "related_model": "mrpworkcenter"},
-  {"code": "production.arret_ligne", "kind": "incident", "label": "Arret de ligne non planifie", "parent_code": "production", "related_module": "mrp", "related_app_label": "mrp", "related_model": "mrporder"},
+  {"code": "production.arret_ligne", "kind": "incident", "label": "Arrêt de ligne non planifie", "parent_code": "production", "related_module": "mrp", "related_app_label": "mrp", "related_model": "mrporder"},
 
   {"code": "logistique", "kind": "incident", "label": "Retard fournisseur / logistique", "related_module": "logistics"},
   {"code": "logistique.retard_livraison", "kind": "incident", "label": "Retard de livraison fournisseur", "parent_code": "logistique", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
-  {"code": "logistique.retard_expedition", "kind": "incident", "label": "Retard d'expedition", "parent_code": "logistique", "related_module": "logistics", "related_app_label": "logistics", "related_model": "logshipment"},
-  {"code": "logistique.blocage_douane", "kind": "incident", "label": "Blocage dedouanement", "parent_code": "logistique", "related_module": "logistics", "related_app_label": "logistics", "related_model": "logcustomsfile"},
+  {"code": "logistique.retard_expedition", "kind": "incident", "label": "Retard d'expédition", "parent_code": "logistique", "related_module": "logistics", "related_app_label": "logistics", "related_model": "logshipment"},
+  {"code": "logistique.blocage_douane", "kind": "incident", "label": "Blocage dédouanement", "parent_code": "logistique", "related_module": "logistics", "related_app_label": "logistics", "related_model": "logcustomsfile"},
 
-  {"code": "finance", "kind": "incident", "label": "Ecart financier / facturation", "related_module": "accounting"},
-  {"code": "finance.ecart_facture_fournisseur", "kind": "incident", "label": "Ecart facture fournisseur", "parent_code": "finance", "related_module": "accounting", "related_app_label": "accounting", "related_model": "accmove"},
-  {"code": "finance.facture_client_contestee", "kind": "incident", "label": "Facture client contestee", "parent_code": "finance", "related_module": "accounting", "related_app_label": "accounting", "related_model": "accmove"},
+  {"code": "finance", "kind": "incident", "label": "Écart financier / facturation", "related_module": "accounting"},
+  {"code": "finance.ecart_facture_fournisseur", "kind": "incident", "label": "Écart facture fournisseur", "parent_code": "finance", "related_module": "accounting", "related_app_label": "accounting", "related_model": "accmove"},
+  {"code": "finance.facture_client_contestee", "kind": "incident", "label": "Facture client contestée", "parent_code": "finance", "related_module": "accounting", "related_app_label": "accounting", "related_model": "accmove"},
   {"code": "finance.anomalie_rapprochement", "kind": "incident", "label": "Anomalie de rapprochement bancaire", "parent_code": "finance", "related_module": "accounting"},
 
   {"code": "rh_incident", "kind": "incident", "label": "Anomalie paie / RH", "related_module": "payroll"},
   {"code": "rh_incident.erreur_bulletin", "kind": "incident", "label": "Erreur de bulletin de paie", "parent_code": "rh_incident", "related_module": "payroll", "related_app_label": "payroll", "related_model": "paypayslip"},
-  {"code": "rh_incident.anomalie_presence", "kind": "incident", "label": "Anomalie de presence", "parent_code": "rh_incident", "related_module": "presence"},
+  {"code": "rh_incident.anomalie_presence", "kind": "incident", "label": "Anomalie de présence", "parent_code": "rh_incident", "related_module": "presence"},
 
   {"code": "informatique", "kind": "incident", "label": "Incident informatique / ERP", "related_module": "core"},
   {"code": "informatique.panne_applicative", "kind": "incident", "label": "Panne applicative", "parent_code": "informatique", "related_module": "core"},
-  {"code": "informatique.acces_bloque", "kind": "incident", "label": "Acces bloque", "parent_code": "informatique", "related_module": "core"},
+  {"code": "informatique.acces_bloque", "kind": "incident", "label": "Accès bloque", "parent_code": "informatique", "related_module": "core"},
 
   {"code": "achat", "kind": "demande", "label": "Achat / approvisionnement", "related_module": "purchase"},
   {"code": "achat.hors_circuit", "kind": "demande", "label": "Achat hors circuit standard", "parent_code": "achat", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
-  {"code": "achat.reappro_urgent", "kind": "demande", "label": "Reapprovisionnement urgent", "parent_code": "achat", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
+  {"code": "achat.reappro_urgent", "kind": "demande", "label": "Réapprovisionnement urgent", "parent_code": "achat", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
 
   {"code": "catalogue", "kind": "demande", "label": "Catalogue / produit", "related_module": "catalog"},
-  {"code": "catalogue.creation_fiche", "kind": "demande", "label": "Creation / modification fiche produit", "parent_code": "catalogue", "related_module": "catalog"},
-  {"code": "catalogue.nouvelle_spec_sectorielle", "kind": "demande", "label": "Nouvelle specification sectorielle", "parent_code": "catalogue", "related_module": "catalog"},
+  {"code": "catalogue.creation_fiche", "kind": "demande", "label": "Création / modification fiche produit", "parent_code": "catalogue", "related_module": "catalog"},
+  {"code": "catalogue.nouvelle_spec_sectorielle", "kind": "demande", "label": "Nouvelle spécification sectorielle", "parent_code": "catalogue", "related_module": "catalog"},
 
   {"code": "rh_demande", "kind": "demande", "label": "Demande RH", "related_module": "presence"},
-  {"code": "rh_demande.conge", "kind": "demande", "label": "Conge", "parent_code": "rh_demande", "related_module": "presence"},
-  {"code": "rh_demande.materiel", "kind": "demande", "label": "Materiel / equipement", "parent_code": "rh_demande", "related_module": "presence"},
+  {"code": "rh_demande.conge", "kind": "demande", "label": "Congé", "parent_code": "rh_demande", "related_module": "presence"},
+  {"code": "rh_demande.materiel", "kind": "demande", "label": "Matériel / équipement", "parent_code": "rh_demande", "related_module": "presence"},
 
   {"code": "commerciale", "kind": "demande", "label": "Demande commerciale", "related_module": "sales"},
   {"code": "commerciale.modif_commande", "kind": "demande", "label": "Devis / modification commande", "parent_code": "commerciale", "related_module": "sales", "related_app_label": "sales", "related_model": "salesorder"},
-  {"code": "commerciale.delai_paiement", "kind": "demande", "label": "Delai de paiement", "parent_code": "commerciale", "related_module": "sales"},
+  {"code": "commerciale.delai_paiement", "kind": "demande", "label": "Délai de paiement", "parent_code": "commerciale", "related_module": "sales"},
 
   {"code": "projet", "kind": "demande", "label": "Demande projet", "related_module": "projects"},
   {"code": "projet.nouvelle_tache", "kind": "demande", "label": "Nouvelle tache / ressource", "parent_code": "projet", "related_module": "projects", "related_app_label": "projects", "related_model": "prjtask"},
 
   {"code": "informatique_demande", "kind": "demande", "label": "Demande informatique", "related_module": "core"},
-  {"code": "informatique_demande.nouvel_acces", "kind": "demande", "label": "Nouvel acces", "parent_code": "informatique_demande", "related_module": "core"},
-  {"code": "informatique_demande.evolution_fonctionnelle", "kind": "demande", "label": "Evolution fonctionnelle", "parent_code": "informatique_demande", "related_module": "core"},
+  {"code": "informatique_demande.nouvel_acces", "kind": "demande", "label": "Nouvel accès", "parent_code": "informatique_demande", "related_module": "core"},
+  {"code": "informatique_demande.evolution_fonctionnelle", "kind": "demande", "label": "Évolution fonctionnelle", "parent_code": "informatique_demande", "related_module": "core"},
 
-  {"code": "sectoriel.textile", "kind": "incident", "label": "Defaut de teinture / coloris", "sector_code": "textile", "related_module": "catalog"},
-  {"code": "sectoriel.textile.grammage", "kind": "incident", "label": "Ecart de grammage", "parent_code": "sectoriel.textile", "sector_code": "textile", "related_module": "catalog"},
+  {"code": "sectoriel.textile", "kind": "incident", "label": "Défaut de teinture / coloris", "sector_code": "textile", "related_module": "catalog"},
+  {"code": "sectoriel.textile.grammage", "kind": "incident", "label": "Écart de grammage", "parent_code": "sectoriel.textile", "sector_code": "textile", "related_module": "catalog"},
   {"code": "sectoriel.textile.patron", "kind": "incident", "label": "Rupture patron / gradation", "sector_code": "textile", "related_module": "patronage"},
 
-  {"code": "sectoriel.cuir", "kind": "incident", "label": "Defaut de tannage", "sector_code": "cuir", "related_module": "catalog"},
-  {"code": "sectoriel.cuir.non_conformite_peau", "kind": "incident", "label": "Non-conformite peau receptionnee", "parent_code": "sectoriel.cuir", "sector_code": "cuir", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
+  {"code": "sectoriel.cuir", "kind": "incident", "label": "Défaut de tannage", "sector_code": "cuir", "related_module": "catalog"},
+  {"code": "sectoriel.cuir.non_conformite_peau", "kind": "incident", "label": "Non-conformite peau réceptionnée", "parent_code": "sectoriel.cuir", "sector_code": "cuir", "related_module": "purchase", "related_app_label": "purchase", "related_model": "purorder"},
 
-  {"code": "sectoriel.agroalimentaire", "kind": "incident", "label": "Rupture chaine du froid", "sector_code": "agroalimentaire", "related_module": "stocks"},
+  {"code": "sectoriel.agroalimentaire", "kind": "incident", "label": "Rupture chaîne du froid", "sector_code": "agroalimentaire", "related_module": "stocks"},
   {"code": "sectoriel.agroalimentaire.haccp", "kind": "incident", "label": "Non-conformite HACCP", "parent_code": "sectoriel.agroalimentaire", "sector_code": "agroalimentaire", "related_module": "catalog"},
-  {"code": "sectoriel.agroalimentaire.dlc", "kind": "incident", "label": "Peremption / DLC depassee", "parent_code": "sectoriel.agroalimentaire", "sector_code": "agroalimentaire", "related_module": "stocks"},
+  {"code": "sectoriel.agroalimentaire.dlc", "kind": "incident", "label": "Péremption / DLC dépassée", "parent_code": "sectoriel.agroalimentaire", "sector_code": "agroalimentaire", "related_module": "stocks"},
 
   {"code": "sectoriel.import_export", "kind": "incident", "label": "Documents d'importation manquants", "sector_code": "import_export", "related_module": "logistics"},
   {"code": "sectoriel.import_export.blocage_douanier", "kind": "incident", "label": "Blocage douanier", "parent_code": "sectoriel.import_export", "sector_code": "import_export", "related_module": "logistics", "related_app_label": "logistics", "related_model": "logcustomsfile"},
 
-  {"code": "sectoriel.artisanat", "kind": "incident", "label": "Rupture matiere premiere rare", "sector_code": "artisanat", "related_module": "stocks"},
-  {"code": "sectoriel.artisanat.finition", "kind": "incident", "label": "Defaut de finition manuelle", "parent_code": "sectoriel.artisanat", "sector_code": "artisanat", "related_module": "mrp"}
+  {"code": "sectoriel.artisanat", "kind": "incident", "label": "Rupture matière première rare", "sector_code": "artisanat", "related_module": "stocks"},
+  {"code": "sectoriel.artisanat.finition", "kind": "incident", "label": "Défaut de finition manuelle", "parent_code": "sectoriel.artisanat", "sector_code": "artisanat", "related_module": "mrp"}
 ]

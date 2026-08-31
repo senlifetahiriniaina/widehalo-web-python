@@ -2,21 +2,21 @@
   {
     "category": "Composants",
     "code": "TRIM-ZIP-COIL",
-    "name": "Fermeture eclair YKK Coil (spirale) — exemple",
+    "name": "Fermeture éclair YKK Coil (spirale) — exemple",
     "base_price_mga": "800",
     "notes": "Trim (composant semi-fini) de demonstration. Dents en spirale polyester, souple, resistante a la corrosion. \"YKK\" est une reference industrielle documentaire (texte libre) — aucune relation commerciale reelle avec YKK n'est impliquee."
   },
   {
     "category": "Composants",
     "code": "TRIM-ZIP-METAL",
-    "name": "Fermeture eclair YKK Metal — exemple",
+    "name": "Fermeture éclair YKK Métal — exemple",
     "base_price_mga": "1200",
     "notes": "Trim de demonstration. Dents metalliques, usage denim/vetements robustes. Reference industrielle documentaire, cf. TRIM-ZIP-COIL."
   },
   {
     "category": "Composants",
     "code": "TRIM-ZIP-VISLON",
-    "name": "Fermeture eclair YKK Vislon — exemple",
+    "name": "Fermeture éclair YKK Vislon — exemple",
     "base_price_mga": "1000",
     "notes": "Trim de demonstration. Dents plastique moulees, usage vetements exterieurs/EPI. Reference industrielle documentaire, cf. TRIM-ZIP-COIL."
   },
@@ -30,7 +30,7 @@
   {
     "category": "Composants",
     "code": "TRIM-PRESSION",
-    "name": "Bouton pression metal — exemple",
+    "name": "Bouton pression métal — exemple",
     "base_price_mga": "120",
     "notes": "Trim de demonstration."
   },
@@ -70,7 +70,7 @@
   {
     "category": "Haut du corps",
     "code": "GARM-VESTE-HIVIS",
-    "name": "Veste haute visibilite (exemple)",
+    "name": "Veste haute visibilité (exemple)",
     "base_price_mga": "45000",
     "material_code": "PES",
     "weight_gsm": "180",
@@ -118,7 +118,7 @@
   {
     "category": "Chaussures",
     "code": "GARM-CHAUSSURE-SECURITE",
-    "name": "Chaussure de securite (exemple)",
+    "name": "Chaussure de sécurité (exemple)",
     "base_price_mga": "55000",
     "standard_codes": ["EN-ISO-20345"],
     "notes": "Produit de demonstration/reference (cuir/caoutchouc, hors referentiel textile CatalogMaterialReference — pas de material_code, cf. CatalogSectorSpec pour une fiche cuir detaillee)."
@@ -136,7 +136,7 @@
   {
     "category": "Lambas (patrimoine culturel malgache)",
     "code": "LAMBA-LAMBAMENA",
-    "name": "Lambamena (linceul funeraire, soie)",
+    "name": "Lambamena (linceul funéraire, soie)",
     "base_price_mga": "0",
     "material_code": "SOIE",
     "standard_codes": [],
@@ -154,7 +154,7 @@
   {
     "category": "Lambas (patrimoine culturel malgache)",
     "code": "LAMBA-AKOTOFAHANA",
-    "name": "Lamba akotofahana (soie, motifs geometriques nobles)",
+    "name": "Lamba akotofahana (soie, motifs géométriques nobles)",
     "base_price_mga": "0",
     "material_code": "SOIE",
     "standard_codes": [],
@@ -163,7 +163,7 @@
   {
     "category": "Lambas (patrimoine culturel malgache)",
     "code": "LAMBA-JABOLANDY",
-    "name": "Jabo-Landy (melange soie et coton)",
+    "name": "Jabo-Landy (mélange soie et coton)",
     "base_price_mga": "6000",
     "material_code": "SOIE",
     "standard_codes": [],

@@ -1,7 +1,7 @@
 [
   {"kpi_code": "marge_brute_pct", "kpi_label": "Marge brute", "target_min": "25", "target_max": "40", "unit": "%"},
-  {"kpi_code": "delai_livraison_jours", "kpi_label": "Delai de livraison client", "target_min": "15", "target_max": "45", "unit": "jours"},
+  {"kpi_code": "delai_livraison_jours", "kpi_label": "Délai de livraison client", "target_min": "15", "target_max": "45", "unit": "jours"},
   {"kpi_code": "taux_rebut_pct", "kpi_label": "Taux de rebut production", "target_min": "1", "target_max": "5", "unit": "%"},
   {"kpi_code": "rotation_stock_jours", "kpi_label": "Rotation des stocks", "target_min": "30", "target_max": "90", "unit": "jours"},
-  {"kpi_code": "productivite_piece_heure", "kpi_label": "Productivite (pieces/heure/atelier)", "target_min": "8", "target_max": "20", "unit": "pieces/h"}
+  {"kpi_code": "productivite_piece_heure", "kpi_label": "Productivité (pièces/heure/atelier)", "target_min": "8", "target_max": "20", "unit": "pieces/h"}
 ]

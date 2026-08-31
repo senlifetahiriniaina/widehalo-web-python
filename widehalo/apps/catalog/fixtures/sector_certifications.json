@@ -14,13 +14,13 @@
   {
     "sector_code": "agroalimentaire",
     "code": "BIO-MG",
-    "name": "Agriculture biologique (referentiel indicatif Madagascar)",
+    "name": "Agriculture biologique (référentiel indicatif Madagascar)",
     "description": "Referentiel indicatif d'agriculture biologique, non rattache a un organisme certificateur precis. Reserve non-experte, a remplacer par le referentiel officiel retenu par le tenant."
   },
   {
     "sector_code": "artisanat",
     "code": "LABEL-ARTISANAT-MG",
-    "name": "Label artisanat malgache (reserve indicative)",
+    "name": "Label artisanat malgache (réserve indicative)",
     "description": "Label indicatif de valorisation de l'artisanat local, non officiel. Reserve non-experte, a remplacer par un label reconnu si le tenant en utilise un."
   }
 ]

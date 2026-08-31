@@ -78,7 +78,12 @@ _ADJACENCY_GUARD_CHARS = frozenset("-0123456789")
 
 FIXTURE_FILES_AND_FIELDS: dict[str, tuple[str, ...]] = {
     "apps/helpdesk/fixtures/ticket_type_catalog.json": ("label",),
-    "apps/accounting/fixtures/pcg2005_mg.json": ("name", "name_en"),
+    # `name_en` est le libelle ANGLAIS (traduction) — jamais du texte
+    # francais, donc jamais dans le perimetre de ce chantier. Bug reel
+    # trouve pendant ACC4 : y appliquer le dictionnaire francais aurait
+    # corrompu du texte anglais correct ("Net income for the year" ->
+    # "Net income for thé year", "VAT deductible" -> "VAT déductible").
+    "apps/accounting/fixtures/pcg2005_mg.json": ("name",),
     "apps/catalog/fixtures/materials_reference_mg.json": ("name", "usage_notes"),
     "apps/catalog/fixtures/customization_options.json": ("name", "notes"),
     "apps/catalog/fixtures/epi_standards.json": ("name", "description"),
