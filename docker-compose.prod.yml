@@ -80,13 +80,21 @@ services:
     # dependance supplementaire) suffit, /api/v1/health/live ne verifie
     # meme pas la DB/Redis (deja garantis par les conditions ci-dessus) —
     # juste que daphne repond.
+    # X-Forwarded-Proto: https est indispensable ici : config/settings/prod.py
+    # active SECURE_SSL_REDIRECT, et ce healthcheck interroge web directement
+    # sur le reseau Docker interne, sans passer par Caddy (qui pose cet
+    # en-tete en conditions reelles) — sans lui, Django repond 301 (jamais
+    # 200), urllib suit la redirection vers https://localhost:8000/... qui
+    # echoue immediatement (daphne ne parle pas TLS sur ce port), et web
+    # reste marque unhealthy indefiniment meme quand l'application tourne
+    # normalement (bug reellement rencontre en production).
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live', timeout=3)",
+          "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/api/v1/health/live', headers={'X-Forwarded-Proto': 'https'}), timeout=3)",
         ]
       interval: 5s
       timeout: 5s
