@@ -50,6 +50,15 @@ _QUOTED_STRING_RE = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
 
 _WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:'[A-Za-zÀ-ÖØ-öø-ÿ]+)?")
 
+# Caracteres qui, immediatement accoles a un mot, en font un fragment de
+# code metier (`REF3`, `STK-ETAT`, `Gore-Tex`) plutot qu'une vraie prose
+# isolee — utilise a la fois par `words_from_strings` (n'extrait meme pas un
+# tel mot comme candidat) et par `word_substitution_pattern` (ne le
+# substitue jamais). Un ensemble de caracteres, jamais une chaine vide
+# testee via `in` (piege reel rencontre : `"" in "-0123456789"` vaut `True`
+# en Python, ce qui excluait a tort tout mot en debut/fin de chaine).
+_ADJACENCY_GUARD_CHARS = frozenset("-0123456789")
+
 FIXTURE_FILES_AND_FIELDS: dict[str, tuple[str, ...]] = {
     "apps/helpdesk/fixtures/ticket_type_catalog.json": ("label",),
     "apps/accounting/fixtures/pcg2005_mg.json": ("name", "name_en"),
@@ -99,11 +108,25 @@ def extract_fixture_strings(path: Path, fields: tuple[str, ...]) -> list[str]:
 
 
 def words_from_strings(strings: list[str]) -> set[str]:
+    """Extrait les mots candidats — exclut par construction tout mot
+    directement accole a un tiret OU a un chiffre (meme garde que
+    `word_substitution_pattern`, cf. sa docstring pour `REF3`/`STK-ETAT`/
+    `Gore-Tex`) : un tel mot n'est PAS une vraie prose isolee, donc jamais
+    un candidat legitime — sinon il resterait indefiniment signale par
+    `compute_auto_fix_dictionary` (garde-fou ACC5 y compris) sans jamais
+    pouvoir etre corrige en toute securite (la substitution elle-meme
+    l'exclurait de toute facon)."""
     words: set[str] = set()
     for s in strings:
-        for word in _WORD_RE.findall(s):
-            if len(word) >= 3:
-                words.add(word)
+        for match in _WORD_RE.finditer(s):
+            word = match.group(0)
+            if len(word) < 3:
+                continue
+            before = s[match.start() - 1] if match.start() > 0 else None
+            after = s[match.end()] if match.end() < len(s) else None
+            if before in _ADJACENCY_GUARD_CHARS or after in _ADJACENCY_GUARD_CHARS:
+                continue
+            words.add(word)
     return words
 
 
@@ -175,13 +198,13 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
 # aurait ete grammaticalement correct mais la forme choisie ci-dessous a ete
 # verifiee occurrence par occurrence).
 #
-# **8 mots delibermment LAISSES NON RESOLUS** (limitation assumee et
+# **7 mots delibermment LAISSES NON RESOLUS** (limitation assumee et
 # documentee, jamais une supposition) car leurs occurrences en zone de texte
 # utilisateur melangent reellement plusieurs roles grammaticaux
-# incompatibles (nom vs participe/verbe) — verifie au cas par cas :
-# - `AGE` : aucune occurrence en zone de texte utilisateur (seulement dans
-#   des codes metier proteges par `word_substitution_pattern`, ex.
-#   `ACC-AGE-C`) — rien a corriger, mais reste hors `auto_fix`/overrides.
+# incompatibles (nom vs participe/verbe) — verifie au cas par cas (NB : un
+# 8e cas, `AGE`, n'existe plus depuis que `words_from_strings` exclut par
+# construction tout mot accole a un tiret ou un chiffre — `ACC-AGE-C` ne
+# produit meme plus `AGE` comme mot candidat, cf. sa docstring) :
 # - `Controle`/`controle` (majuscule) : `payroll/models.py` l'utilise comme
 #   participe d'etat (`STATE_CONTROLLED` -> "Controle" = "Controle"/etat
 #   controle) alors que les autres occurrences (MRP, boutons "Controle
@@ -295,8 +318,13 @@ MANUAL_OVERRIDES: dict[str, str] = {
 
 def word_substitution_pattern(word: str) -> re.Pattern[str]:
     """Regex de substitution sure : limites de mot habituelles PLUS un
-    lookaround negatif sur le tiret des deux cotes — exclut tout mot
-    directement accole a un tiret (protege un code metier compose du type
-    `ACC-AGE-C`, cf. trouvaille reelle documentee dans le plan), tout en
+    lookaround negatif sur le tiret ET sur le chiffre des deux cotes — exclut
+    tout mot directement accole a un tiret (protege un code metier compose du
+    type `ACC-AGE-C`, cf. trouvaille reelle documentee dans le plan) OU a un
+    chiffre (protege un code/tag du type `REF3`, `STK-ETAT` -> `ETAT`
+    apparait aussi directement dans `(STK-ETAT)` donc deja couvert par le
+    tiret, mais `REF3` — trouvaille reelle du chantier ACC1, `apps/catalog/
+    fixtures/materials_reference_mg.json` : "cf. produits demonstratifs
+    REF3" — n'a PAS de tiret, seul le garde-chiffre l'exclut), tout en
     corrigeant le meme mot quand il apparait comme une vraie prose isolee."""
-    return re.compile(rf"(?<![A-Za-zÀ-ÖØ-öø-ÿ-]){re.escape(word)}(?![A-Za-zÀ-ÖØ-öø-ÿ-])")
+    return re.compile(rf"(?<![A-Za-zÀ-ÖØ-öø-ÿ0-9-]){re.escape(word)}(?![A-Za-zÀ-ÖØ-öø-ÿ0-9-])")
