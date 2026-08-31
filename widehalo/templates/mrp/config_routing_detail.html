@@ -21,6 +21,18 @@
   </table>
 
   <h2>{% trans "Ajouter une etape" %}</h2>
+  {% if not operations or not workcenters %}
+    <p class="form-error">
+      {% if not operations %}
+        {% trans "Aucune operation configuree." %}
+        <a href="{% url 'mrp:config_operations' %}">{% trans "Configurer une operation" %}</a>
+      {% endif %}
+      {% if not workcenters %}
+        {% trans "Aucun poste de charge configure." %}
+        <a href="{% url 'mrp:config_workcenters' %}">{% trans "Configurer un poste de charge" %}</a>
+      {% endif %}
+    </p>
+  {% else %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -31,7 +43,7 @@
       <label for="operation_id">{% trans "Operation" %}</label>
       <select id="operation_id" name="operation_id" required>
         {% for operation in operations %}
-          <option value="{{ operation.id }}">{{ operation.code }} — {{ operation.name }}</option>
+          <option value="{{ operation.id }}" {% if operation.id == default_operation_id %}selected{% endif %}>{{ operation.code }} — {{ operation.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -39,7 +51,7 @@
       <label for="workcenter_id">{% trans "Poste de charge" %}</label>
       <select id="workcenter_id" name="workcenter_id" required>
         {% for workcenter in workcenters %}
-          <option value="{{ workcenter.id }}">{{ workcenter }}</option>
+          <option value="{{ workcenter.id }}" {% if workcenter.id == default_workcenter_id %}selected{% endif %}>{{ workcenter }}</option>
         {% endfor %}
       </select>
     </div>
@@ -49,4 +61,5 @@
     </div>
     <button type="submit">{% trans "Ajouter l etape" %}</button>
   </form>
+  {% endif %}
 {% endblock %}

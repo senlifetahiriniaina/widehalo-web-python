@@ -143,8 +143,12 @@ def config_grading_rules(request: HttpRequest) -> HttpResponse:
             return redirect("patronage:config_grading_rules")
 
     grading_rules = PatGradingRule.objects.filter(tenant=tenant, is_active=True)
-    size_charts = PatSizeChart.objects.filter(tenant=tenant, is_active=True)
-    measurement_points = PatMeasurementPoint.objects.filter(tenant=tenant, is_active=True)
+    size_charts = PatSizeChart.objects.filter(tenant=tenant, is_active=True).order_by("name")
+    measurement_points = PatMeasurementPoint.objects.filter(tenant=tenant, is_active=True).order_by(
+        "code"
+    )
+    default_size_chart = size_charts.first()
+    default_measurement_point = measurement_points.first()
     return render(
         request,
         "patronage/config_grading_rules.html",
@@ -152,6 +156,10 @@ def config_grading_rules(request: HttpRequest) -> HttpResponse:
             "grading_rules": grading_rules,
             "size_charts": size_charts,
             "measurement_points": measurement_points,
+            "default_size_chart_id": default_size_chart.id if default_size_chart else None,
+            "default_measurement_point_id": (
+                default_measurement_point.id if default_measurement_point else None
+            ),
             "error": error,
         },
     )

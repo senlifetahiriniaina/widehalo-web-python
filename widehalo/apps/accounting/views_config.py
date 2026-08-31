@@ -79,10 +79,16 @@ def config_periods(request: HttpRequest) -> HttpResponse:
             error = str(exc)
 
     periods = AccPeriod.objects.filter(tenant=tenant).order_by("-date_start")
+    default_fiscal_year = fiscal_years.first()
     return render(
         request,
         "accounting/config_periods.html",
-        {"periods": periods, "fiscal_years": fiscal_years, "error": error},
+        {
+            "periods": periods,
+            "fiscal_years": fiscal_years,
+            "default_fiscal_year_id": default_fiscal_year.id if default_fiscal_year else None,
+            "error": error,
+        },
     )
 
 

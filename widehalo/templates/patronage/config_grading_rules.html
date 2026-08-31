@@ -28,6 +28,18 @@
   </table>
 
   <h2>{% trans "Nouvelle regle de gradation" %}</h2>
+  {% if not size_charts or not measurement_points %}
+    <p class="form-error">
+      {% if not size_charts %}
+        {% trans "Aucun tableau de mesures configure." %}
+        <a href="{% url 'patronage:config_size_charts' %}">{% trans "Configurer un tableau de mesures" %}</a>
+      {% endif %}
+      {% if not measurement_points %}
+        {% trans "Aucun point de mesure configure. Ajoutez-en un depuis le detail d'un tableau de mesures." %}
+        <a href="{% url 'patronage:config_size_charts' %}">{% trans "Voir les tableaux de mesures" %}</a>
+      {% endif %}
+    </p>
+  {% else %}
   <p class="hint">
     {% trans "Formulaire simplifie (U3) : un seul formulaire generique pour les 4 modes. 'Valeur' porte l'increment/le pourcentage (increment fixe/progressif/pourcentage) ; 'Formule' ne sert qu'au mode formule (expression sur d'autres points de mesure de la meme taille)." %}
   </p>
@@ -37,7 +49,7 @@
       <label for="size_chart_id">{% trans "Tableau de mesures" %}</label>
       <select id="size_chart_id" name="size_chart_id" required>
         {% for size_chart in size_charts %}
-          <option value="{{ size_chart.id }}">{{ size_chart.code }} — {{ size_chart.name }}</option>
+          <option value="{{ size_chart.id }}" {% if size_chart.id == default_size_chart_id %}selected{% endif %}>{{ size_chart.code }} — {{ size_chart.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -45,7 +57,7 @@
       <label for="measurement_point_id">{% trans "Point de mesure" %}</label>
       <select id="measurement_point_id" name="measurement_point_id" required>
         {% for point in measurement_points %}
-          <option value="{{ point.id }}">{{ point.code }} — {{ point.name }}</option>
+          <option value="{{ point.id }}" {% if point.id == default_measurement_point_id %}selected{% endif %}>{{ point.code }} — {{ point.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -76,4 +88,5 @@
     </div>
     <button type="submit">{% trans "Creer" %}</button>
   </form>
+  {% endif %}
 {% endblock %}

@@ -33,13 +33,19 @@
   </table>
 
   <h2>{% trans "Nouvelle periode" %}</h2>
+  {% if not fiscal_years %}
+    <p class="form-error">
+      {% trans "Aucun exercice comptable configure." %}
+      <a href="{% url 'accounting:config_fiscal_years' %}">{% trans "Configurer un exercice" %}</a>
+    </p>
+  {% else %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
       <label for="fiscal_year_id">{% trans "Exercice" %}</label>
       <select id="fiscal_year_id" name="fiscal_year_id" required>
         {% for fiscal_year in fiscal_years %}
-          <option value="{{ fiscal_year.id }}">{{ fiscal_year.code }}</option>
+          <option value="{{ fiscal_year.id }}" {% if fiscal_year.id == default_fiscal_year_id %}selected{% endif %}>{{ fiscal_year.code }}</option>
         {% endfor %}
       </select>
     </div>
@@ -57,4 +63,5 @@
     </div>
     <button type="submit">{% trans "Creer" %}</button>
   </form>
+  {% endif %}
 {% endblock %}

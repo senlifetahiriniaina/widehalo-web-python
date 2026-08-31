@@ -20,13 +20,19 @@
   </table>
 
   <h2>{% trans "Nouveau poste de charge" %}</h2>
+  {% if not workshops %}
+    <p class="form-error">
+      {% trans "Aucun atelier configure." %}
+      <a href="{% url 'mrp:config_workshops' %}">{% trans "Configurer un atelier" %}</a>
+    </p>
+  {% else %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
       <label for="workshop_id">{% trans "Atelier" %}</label>
       <select id="workshop_id" name="workshop_id" required>
         {% for workshop in workshops %}
-          <option value="{{ workshop.id }}">{{ workshop.code }} — {{ workshop.name }}</option>
+          <option value="{{ workshop.id }}" {% if workshop.id == default_workshop_id %}selected{% endif %}>{{ workshop.code }} — {{ workshop.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -60,4 +66,5 @@
     </div>
     <button type="submit">{% trans "Creer" %}</button>
   </form>
+  {% endif %}
 {% endblock %}

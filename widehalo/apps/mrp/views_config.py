@@ -83,11 +83,17 @@ def config_workcenters(request: HttpRequest) -> HttpResponse:
             return redirect("mrp:config_workcenters")
 
     workcenters = MrpWorkcenter.objects.filter(tenant=tenant, is_active=True)
-    workshops = MrpWorkshop.objects.filter(tenant=tenant, is_active=True)
+    workshops = MrpWorkshop.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    default_workshop = workshops.first()
     return render(
         request,
         "mrp/config_workcenters.html",
-        {"workcenters": workcenters, "workshops": workshops, "error": error},
+        {
+            "workcenters": workcenters,
+            "workshops": workshops,
+            "default_workshop_id": default_workshop.id if default_workshop else None,
+            "error": error,
+        },
     )
 
 
@@ -165,8 +171,10 @@ def config_routing_detail(request: HttpRequest, routing_id: str) -> HttpResponse
         else:
             return redirect("mrp:config_routing_detail", routing_id=routing.id)
 
-    operations = MrpOperation.objects.filter(tenant=tenant, is_active=True)
-    workcenters = MrpWorkcenter.objects.filter(tenant=tenant, is_active=True)
+    operations = MrpOperation.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    workcenters = MrpWorkcenter.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    default_operation = operations.first()
+    default_workcenter = workcenters.first()
     return render(
         request,
         "mrp/config_routing_detail.html",
@@ -175,6 +183,8 @@ def config_routing_detail(request: HttpRequest, routing_id: str) -> HttpResponse
             "steps": routing.steps.all(),
             "operations": operations,
             "workcenters": workcenters,
+            "default_operation_id": default_operation.id if default_operation else None,
+            "default_workcenter_id": default_workcenter.id if default_workcenter else None,
             "error": error,
         },
     )
