@@ -111,7 +111,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements/dev.txt
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
+      # aspell/aspell-fr : garde-fou tests/i18n/test_no_missing_accents.py (ACC5).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext aspell aspell-fr
       # Meme script que docker-compose.yml (docker/init-db/001-init-app-role.sh),
       # execute ici explicitement car les conteneurs de service GitHub Actions
       # demarrent avant le checkout et ne peuvent donc pas le monter automatiquement.
