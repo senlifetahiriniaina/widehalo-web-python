@@ -3,7 +3,7 @@
 {% block title %}{{ lead.name }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Etape" %}:</strong> {{ lead.stage.name }}
+    <strong>{% trans "Étape" %}:</strong> {{ lead.stage.name }}
     <strong>{% trans "Score" %}:</strong> {{ score }}
     {% if whatsapp_link %}<a href="{{ whatsapp_link }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
@@ -23,7 +23,7 @@
       </select>
       <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}"
              aria-label="{% trans 'Commentaire' %}">
-      <button type="submit">{% trans "Changer d etape" %}</button>
+      <button type="submit">{% trans "Changer d étape" %}</button>
     </form>
   </div>
 
@@ -32,15 +32,15 @@
       <div class="page-head">
         <h1>{{ lead.name }}</h1>
       </div>
-      <p>{% trans "Reference" %}: {{ lead.reference }}</p>
+      <p>{% trans "Référence" %}: {{ lead.reference }}</p>
       <p>{% trans "Montant attendu" %}: {{ lead.expected_revenue_mga }} MGA</p>
-      <p>{% trans "Probabilite" %}: {{ lead.probability }}%</p>
+      <p>{% trans "Probabilité" %}: {{ lead.probability }}%</p>
 
       <h2>{% trans "Lignes" %}</h2>
       <table class="smart-table">
         <thead>
           <tr>
-            <th>{% trans "Designation" %}</th>
+            <th>{% trans "Désignation" %}</th>
             <th>{% trans "Qte" %}</th>
             <th>{% trans "Prix unitaire" %}</th>
             <th>{% trans "Remise %" %}</th>
@@ -78,12 +78,12 @@
         <button type="submit">{% trans "Ajouter la ligne" %}</button>
       </form>
 
-      <h2>{% trans "Chronologie des activites" %}</h2>
+      <h2>{% trans "Chronologie des activités" %}</h2>
       <ul>
         {% for activity in activities %}
           <li>{{ activity.get_activity_type_display }} — {{ activity.subject }} ({{ activity.created_at }})</li>
         {% empty %}
-          <li>{% trans "Aucune activite." %}</li>
+          <li>{% trans "Aucune activité." %}</li>
         {% endfor %}
       </ul>
       <form method="post">
@@ -92,7 +92,7 @@
         <select name="activity_type" aria-label="{% trans 'Type d activite' %}">
           <option value="call">{% trans "Appel" %}</option>
           <option value="visit">{% trans "Visite" %}</option>
-          <option value="email">{% trans "Email" %}</option>
+          <option value="email">{% trans "Émail" %}</option>
         </select>
         <input type="text" name="subject" placeholder="{% trans 'Objet' %}" required
                aria-label="{% trans 'Objet' %}">

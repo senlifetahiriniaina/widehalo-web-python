@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Codes du systeme harmonise" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Codes du système harmonise" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Codes du systeme harmonise (RG-LOG-6)" %}</h1>
+  <h1>{% trans "Codes du système harmonise (RG-LOG-6)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
@@ -35,6 +35,6 @@
     <input type="number" name="duty_rate_pct" step="0.001" placeholder="{% trans 'Taux de droits (%)' %}" required>
     <input type="date" name="valid_from">
     <input type="date" name="valid_to">
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

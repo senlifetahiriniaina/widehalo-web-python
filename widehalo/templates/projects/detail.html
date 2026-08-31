@@ -6,7 +6,7 @@
   <h1>{% trans "Projet" %} {{ project.reference }} — {{ project.name }}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Methodologie" %} : <span class="badge {{ project.methodology|state_badge_class }}">{{ project.get_methodology_display }}</span></p>
+  <p>{% trans "Méthodologie" %} : <span class="badge {{ project.methodology|state_badge_class }}">{{ project.get_methodology_display }}</span></p>
   <p>{% trans "Statut" %} : <span class="badge {{ project.status|state_badge_class }}">{{ project.get_status_display }}</span></p>
   <p>{{ project.description }}</p>
   <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
@@ -25,7 +25,7 @@
     · <a href="{% url 'projects:guest_links' project.id %}">{% trans "Portail invite" %}</a>
   </p>
 
-  <h2>{% trans "Liaison KPI / Strategie" %}</h2>
+  <h2>{% trans "Liaison KPI / Stratégie" %}</h2>
   {% if linked_objective %}
     <p>
       {% trans "Objectif lie" %} : <strong>{{ linked_objective.title }}</strong>
@@ -49,14 +49,14 @@
             <td>{{ kr.progress_pct }}%</td>
           </tr>
         {% empty %}
-          <tr><td colspan="4">{% trans "Aucun indicateur cle." %}</td></tr>
+          <tr><td colspan="4">{% trans "Aucun indicateur clé." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
   {% elif project.linked_objective_id %}
-    <p>{% trans "Objectif lie introuvable (reference perimee)." %}</p>
+    <p>{% trans "Objectif lie introuvable (reference périmée)." %}</p>
   {% else %}
-    <p>{% trans "Aucun objectif strategique lie a ce projet." %}</p>
+    <p>{% trans "Aucun objectif stratégique lie a ce projet." %}</p>
   {% endif %}
   <p>
     {% trans "SPI" %} : {{ evm_snapshot.spi|default:"—" }}
@@ -66,14 +66,14 @@
     <input type="hidden" name="action" value="link_objective">
     <input type="text" name="objective_id" placeholder="{% trans 'UUID objectif' %}"
            value="{{ project.linked_objective_id|default:'' }}">
-    <button type="submit">{% trans "Lier / Delier l'objectif" %}</button>
+    <button type="submit">{% trans "Lier / Délier l'objectif" %}</button>
   </form>
 
   <h2>{% trans "Taches" %}</h2>
   <table>
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th>{% trans "Type" %}</th>
         <th>{% trans "Statut" %}</th>
         <th>{% trans "Avancement" %}</th>
@@ -92,7 +92,7 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="start">
-                <button type="submit">{% trans "Demarrer" %}</button>
+                <button type="submit">{% trans "Démarrer" %}</button>
               </form>
             {% elif task.state == "in_progress" %}
               <form method="post" style="display:inline">{% csrf_token %}
@@ -109,7 +109,7 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="unblock">
-                <button type="submit">{% trans "Debloquer" %}</button>
+                <button type="submit">{% trans "Débloquer" %}</button>
               </form>
             {% endif %}
             {% if task.state == "todo" or task.state == "in_progress" or task.state == "blocked" %}
@@ -123,13 +123,13 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="stop_timer">
-                <button type="submit">{% trans "Arreter le chrono" %}</button>
+                <button type="submit">{% trans "Arrêter le chrono" %}</button>
               </form>
             {% else %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="start_timer">
-                <button type="submit">{% trans "Demarrer le chrono" %}</button>
+                <button type="submit">{% trans "Démarrer le chrono" %}</button>
               </form>
             {% endif %}
           </td>

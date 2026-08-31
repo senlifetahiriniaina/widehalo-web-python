@@ -19,7 +19,7 @@
   <h1>{{ requisition.reference|default:"(brouillon)" }}</h1>
 </div>
   <p>{% trans "Demandeur" %}: {{ requisition.requester }}</p>
-  <p>{% trans "Departement" %}: {{ requisition.department|default:"-" }}</p>
+  <p>{% trans "Département" %}: {{ requisition.department|default:"-" }}</p>
   <p>{% trans "Besoin le" %}: {{ requisition.date_needed }}</p>
 
   <h2>{% trans "Lignes" %}</h2>
@@ -28,9 +28,9 @@
       <tr>
         <th>{% trans "Article (UUID)" %}</th>
         <th>{% trans "Description" %}</th>
-        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Quantité" %}</th>
         <th>{% trans "Prix estime (MGA)" %}</th>
-        <th>{% trans "Fournisseur prefere" %}</th>
+        <th>{% trans "Fournisseur préféré" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -62,11 +62,11 @@
         <input id="description" type="text" name="description" required>
       </div>
       <div class="form-field">
-        <label for="qty">{% trans "Quantite" %}</label>
+        <label for="qty">{% trans "Quantité" %}</label>
         <input id="qty" type="number" name="qty" step="0.0001" value="1">
       </div>
       <div class="form-field">
-        <label for="uom">{% trans "Unite" %}</label>
+        <label for="uom">{% trans "Unité" %}</label>
         <input id="uom" type="text" name="uom">
       </div>
       <button type="submit">{% trans "Ajouter" %}</button>
@@ -74,7 +74,7 @@
   {% endif %}
 
   {% if requisition.state == "approved" %}
-    <h3>{% trans "Creer une commande d'achat (RG-PUR-1)" %}</h3>
+    <h3>{% trans "Créer une commande d'achat (RG-PUR-1)" %}</h3>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="create_order">
@@ -82,7 +82,7 @@
         <label for="partner_id">{% trans "Fournisseur (UUID)" %}</label>
         <input id="partner_id" type="text" name="partner_id" required>
       </div>
-      <button type="submit">{% trans "Creer la commande" %}</button>
+      <button type="submit">{% trans "Créer la commande" %}</button>
     </form>
   {% endif %}
 {% endblock %}

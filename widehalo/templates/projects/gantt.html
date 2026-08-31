@@ -7,7 +7,7 @@
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p class="hint">
-    {% trans "Rendu SVG cote serveur, echelle fixe en jours (V1) : le glisser-deposer visuel n'est pas encore construit ici — modifiez les dates via le formulaire ci-dessous, qui recalcule automatiquement le chemin critique (barres orange)." %}
+    {% trans "Rendu SVG cote serveur, échelle fixe en jours (V1) : le glisser-deposer visuel n'est pas encore construit ici — modifiez les dates via le formulaire ci-dessous, qui recalcule automatiquement le chemin critique (barres orange)." %}
   </p>
 
   <div class="gantt-container" style="overflow-x:auto">
@@ -25,9 +25,9 @@
         </option>
       {% endfor %}
     </select>
-    <label>{% trans "Debut" %} <input type="date" name="start_date"></label>
+    <label>{% trans "Début" %} <input type="date" name="start_date"></label>
     <label>{% trans "Fin" %} <input type="date" name="end_date"></label>
-    <label>{% trans "Duree (jours)" %} <input type="number" name="duration_days" min="0"></label>
+    <label>{% trans "Durée (jours)" %} <input type="number" name="duration_days" min="0"></label>
     <button type="submit">{% trans "Mettre a jour" %}</button>
   </form>
 

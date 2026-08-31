@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Regles d'escalade" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Règles d'escalade" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Regles d'escalade" %}</h1>
+  <h1>{% trans "Règles d'escalade" %}</h1>
 </div>
-  <p>{% blocktrans %}Evaluees periodiquement par la commande "run_helpdesk_sla_checks", ou manuellement via /helpdesk/checks/run.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Évaluées périodiquement par la commande "run_helpdesk_sla_checks", ou manuellement via /helpdesk/checks/run.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Condition" %}</th><th>{% trans "Seuil (min)" %}</th><th>{% trans "Priorite min" %}</th><th>{% trans "Actif" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Condition" %}</th><th>{% trans "Seuil (min)" %}</th><th>{% trans "Priorité min" %}</th><th>{% trans "Actif" %}</th></tr></thead>
     <tbody>
       {% for rule in rules %}
         <tr><td>{{ rule.name }}</td><td><span class="badge {{ rule.condition_type|state_badge_class }}">{{ rule.get_condition_type_display }}</span></td><td>{{ rule.threshold_minutes|default:"—" }}</td><td>{{ rule.get_min_priority_display|default:"—" }}</td><td>{{ rule.is_active }}</td></tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune regle." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune règle." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle regle" %}</h2>
+  <h2>{% trans "Nouvelle règle" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field"><label>{% trans "Nom" %}</label><input type="text" name="name" required></div>
@@ -31,19 +31,19 @@
     </div>
     <div class="form-field"><label>{% trans "Seuil (minutes, si applicable)" %}</label><input type="number" name="threshold_minutes" min="0"></div>
     <div class="form-field">
-      <label>{% trans "Priorite minimale (optionnel)" %}</label>
+      <label>{% trans "Priorité minimale (optionnel)" %}</label>
       <select name="min_priority">
         <option value="">—</option>
         {% for value, label in priorities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="form-field">
-      <label>{% trans "Equipe cible (optionnel)" %}</label>
+      <label>{% trans "Équipe cible (optionnel)" %}</label>
       <select name="escalate_to_team_id">
         <option value="">—</option>
         {% for team in teams %}<option value="{{ team.id }}">{{ team.name }}</option>{% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

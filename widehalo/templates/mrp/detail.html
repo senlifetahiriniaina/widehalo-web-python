@@ -12,13 +12,13 @@
       <input type="number" name="qty_produced" placeholder="{% trans 'Quantite produite' %}" step="0.0001"
              aria-label="{% trans 'Quantite produite' %}">
       {% if order.state == "draft" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
-      {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Reserver" %}</button>{% endif %}
-      {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Demarrer" %}</button>{% endif %}
+      {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Réserver" %}</button>{% endif %}
+      {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Démarrer" %}</button>{% endif %}
       {% if order.state == "in_production" %}<button type="submit" name="action" value="suspend">{% trans "Suspendre" %}</button>{% endif %}
       {% if order.state == "suspended" %}<button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>{% endif %}
-      {% if order.state == "in_production" %}<button type="submit" name="action" value="send_to_quality_control">{% trans "Controle qualite" %}</button>{% endif %}
+      {% if order.state == "in_production" %}<button type="submit" name="action" value="send_to_quality_control">{% trans "Controle qualité" %}</button>{% endif %}
       {% if order.state == "quality_control" %}<button type="submit" name="action" value="finish">{% trans "Terminer" %}</button>{% endif %}
-      {% if order.state == "done" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if order.state == "done" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
       {% if order.state != "closed" and order.state != "cancelled" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
     </form>
   </div>
@@ -26,19 +26,19 @@
 <div class="page-head">
   <h1>{{ order.reference|default:"(brouillon)" }}</h1>
 </div>
-  <p>{% trans "Quantite" %}: {{ order.qty }} {{ order.uom_code }}</p>
-  <p>{% trans "Quantite produite" %}: {{ order.qty_produced }}</p>
+  <p>{% trans "Quantité" %}: {{ order.qty }} {{ order.uom_code }}</p>
+  <p>{% trans "Quantité produite" %}: {{ order.qty_produced }}</p>
 
   <h2>{% trans "Rapports" %}</h2>
   <ul>
     <li><a href="{% url 'mrp:report_order_pdf' order_id=order.id %}">{% trans "Ordre de fabrication (PDF)" %}</a></li>
-    <li><a href="{% url 'mrp:report_cost' order_id=order.id %}">{% trans "Rapport de cout" %}</a></li>
+    <li><a href="{% url 'mrp:report_cost' order_id=order.id %}">{% trans "Rapport de coût" %}</a></li>
   </ul>
   <p><a href="{% url 'mrp:reports_index' %}">{% trans "Voir les rapports de l'atelier" %}</a></p>
 
   <h2>{% trans "Composants planifies" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte consommee" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Approvisionnement" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Variante" %}</th><th>{% trans "Qte planifiée" %}</th><th>{% trans "Qte consommée" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Approvisionnement" %}</th><th></th></tr></thead>
     <tbody>
       {% for component in components %}
         {% with proc_state=component.procurement_state %}
@@ -53,19 +53,19 @@
               {% csrf_token %}
               <input type="hidden" name="component_id" value="{{ component.id }}">
               {% if not proc_state or proc_state.state == "a_commander" %}
-                <button type="submit" name="action" value="request_sample">{% trans "Demander echantillon" %}</button>
+                <button type="submit" name="action" value="request_sample">{% trans "Demander échantillon" %}</button>
                 <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
               {% elif proc_state.state == "echantillon_demande" %}
-                <button type="submit" name="action" value="evaluate_sample">{% trans "Evaluer echantillon" %}</button>
+                <button type="submit" name="action" value="evaluate_sample">{% trans "Évaluer échantillon" %}</button>
               {% elif proc_state.state == "echantillon_evalue" %}
                 <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
               {% elif proc_state.state == "fournisseur_valide" %}
                 <button type="submit" name="action" value="place_order">{% trans "Commander" %}</button>
               {% elif proc_state.state == "commande" %}
-                <button type="submit" name="action" value="receive_component">{% trans "Receptionner" %}</button>
-                <button type="submit" name="action" value="declare_shortage">{% trans "Declarer rupture" %}</button>
+                <button type="submit" name="action" value="receive_component">{% trans "Réceptionner" %}</button>
+                <button type="submit" name="action" value="declare_shortage">{% trans "Déclarer rupture" %}</button>
               {% elif proc_state.state == "recue" %}
-                <button type="submit" name="action" value="quality_control_component">{% trans "Controle qualite" %}</button>
+                <button type="submit" name="action" value="quality_control_component">{% trans "Controle qualité" %}</button>
               {% elif proc_state.state == "controle_qualite" %}
                 <button type="submit" name="action" value="approve_component">{% trans "Approuver" %}</button>
                 <button type="submit" name="action" value="reject_component">{% trans "Rejeter" %}</button>
@@ -86,7 +86,7 @@
 
   <h2>{% trans "Ordres de travail" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Sequence" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Qte planifiee" %}</th><th>{% trans "Qte faite" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Séquence" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Qte planifiée" %}</th><th>{% trans "Qte faite" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
     <tbody>
       {% for wo in work_orders %}
         <tr>
@@ -100,7 +100,7 @@
               {% csrf_token %}
               <input type="hidden" name="work_order_id" value="{{ wo.id }}">
               {% if wo.state == "pending" or wo.state == "paused" %}
-                <button type="submit" name="action" value="start_work_order">{% trans "Demarrer" %}</button>
+                <button type="submit" name="action" value="start_work_order">{% trans "Démarrer" %}</button>
               {% endif %}
               {% if wo.state == "in_progress" %}
                 <button type="submit" name="action" value="pause_work_order">{% trans "Pause" %}</button>
@@ -119,7 +119,7 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Creer un ordre de travail" %}</h3>
+  <h3>{% trans "Créer un ordre de travail" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create_work_order">
@@ -130,23 +130,23 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="wo_sequence">{% trans "Sequence" %}</label>
+      <label for="wo_sequence">{% trans "Séquence" %}</label>
       <input id="wo_sequence" type="number" name="wo_sequence" value="0">
     </div>
     <div class="form-field">
-      <label for="wo_qty_planned">{% trans "Quantite planifiee" %}</label>
+      <label for="wo_qty_planned">{% trans "Quantité planifiée" %}</label>
       <input id="wo_qty_planned" type="number" name="wo_qty_planned" step="0.0001" value="0">
     </div>
     <div class="form-field">
-      <label for="wo_duration_planned_min">{% trans "Duree planifiee (min)" %}</label>
+      <label for="wo_duration_planned_min">{% trans "Durée planifiée (min)" %}</label>
       <input id="wo_duration_planned_min" type="number" name="wo_duration_planned_min" value="0">
     </div>
-    <button type="submit">{% trans "Creer l'ordre de travail" %}</button>
+    <button type="submit">{% trans "Créer l'ordre de travail" %}</button>
   </form>
 
   <h2>{% trans "Sous-traitance" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Partenaire (UUID)" %}</th><th>{% trans "Qte envoyee" %}</th><th>{% trans "Qte recue" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Partenaire (UUID)" %}</th><th>{% trans "Qte envoyée" %}</th><th>{% trans "Qte reçue" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
     <tbody>
       {% for sub in subcontract_orders %}
         <tr>
@@ -163,7 +163,7 @@
                      aria-label="{% trans 'Qte recue' %}">
               <input type="number" name="sub_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;"
                      aria-label="{% trans 'Qte rejetee' %}">
-              <button type="submit" name="action" value="receive_subcontract">{% trans "Receptionner" %}</button>
+              <button type="submit" name="action" value="receive_subcontract">{% trans "Réceptionner" %}</button>
             </form>
             {% endif %}
           </td>
@@ -183,7 +183,7 @@
       <input id="partner_id" type="text" name="partner_id" required>
     </div>
     <div class="form-field">
-      <label for="sub_qty">{% trans "Quantite" %}</label>
+      <label for="sub_qty">{% trans "Quantité" %}</label>
       <input id="sub_qty" type="number" name="sub_qty" step="0.0001" value="0">
     </div>
     <div class="form-field">
@@ -193,9 +193,9 @@
     <button type="submit">{% trans "Envoyer" %}</button>
   </form>
 
-  <h2>{% trans "Comptes rendus d'activite (CRA)" %}</h2>
+  <h2>{% trans "Comptes rendus d'activité (CRA)" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Employe" %}</th><th>{% trans "Date" %}</th><th>{% trans "Heures" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Employé" %}</th><th>{% trans "Date" %}</th><th>{% trans "Heures" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
     <tbody>
       {% for cra in cra_entries %}
         <tr>
@@ -222,7 +222,7 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Declarer un CRA" %}</h3>
+  <h3>{% trans "Déclarer un CRA" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create_cra">
@@ -241,19 +241,19 @@
       <input id="cra_hours" type="number" name="cra_hours" step="0.01" value="0">
     </div>
     <div class="form-field">
-      <label for="cra_qty_done">{% trans "Quantite faite" %}</label>
+      <label for="cra_qty_done">{% trans "Quantité faite" %}</label>
       <input id="cra_qty_done" type="number" name="cra_qty_done" step="0.0001" value="0">
     </div>
     <div class="form-field">
-      <label for="cra_activity_type">{% trans "Type d'activite" %}</label>
+      <label for="cra_activity_type">{% trans "Type d'activité" %}</label>
       <input id="cra_activity_type" type="text" name="cra_activity_type">
     </div>
-    <button type="submit">{% trans "Declarer" %}</button>
+    <button type="submit">{% trans "Déclarer" %}</button>
   </form>
 
   <h2>{% trans "Comptes rendus d'intervention (CRI)" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Date" %}</th><th>{% trans "Duree (min)" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Date" %}</th><th>{% trans "Durée (min)" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
     <tbody>
       {% for cri in cri_entries %}
         <tr>
@@ -266,7 +266,7 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="cri_id" value="{{ cri.id }}">
-              <button type="submit" name="action" value="close_cri">{% trans "Cloturer" %}</button>
+              <button type="submit" name="action" value="close_cri">{% trans "Clôturer" %}</button>
             </form>
             {% endif %}
           </td>
@@ -277,7 +277,7 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Declarer un CRI" %}</h3>
+  <h3>{% trans "Déclarer un CRI" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create_cri">
@@ -291,8 +291,8 @@
       <label for="cri_type">{% trans "Type" %}</label>
       <select id="cri_type" name="cri_type">
         <option value="panne">{% trans "Panne" %}</option>
-        <option value="reglage">{% trans "Reglage" %}</option>
-        <option value="incident_qualite">{% trans "Incident qualite" %}</option>
+        <option value="reglage">{% trans "Réglage" %}</option>
+        <option value="incident_qualite">{% trans "Incident qualité" %}</option>
         <option value="formation">{% trans "Formation" %}</option>
         <option value="audit">{% trans "Audit" %}</option>
         <option value="maintenance">{% trans "Maintenance" %}</option>
@@ -303,23 +303,23 @@
       <input id="cri_date" type="date" name="cri_date">
     </div>
     <div class="form-field">
-      <label for="cri_duration_min">{% trans "Duree (min)" %}</label>
+      <label for="cri_duration_min">{% trans "Durée (min)" %}</label>
       <input id="cri_duration_min" type="number" name="cri_duration_min" value="0">
     </div>
     <div class="form-field">
-      <label for="cri_downtime_min">{% trans "Duree d'arret (min)" %}</label>
+      <label for="cri_downtime_min">{% trans "Durée d'arrêt (min)" %}</label>
       <input id="cri_downtime_min" type="number" name="cri_downtime_min" value="0">
     </div>
     <div class="form-field">
       <label for="cri_description">{% trans "Description" %}</label>
       <input id="cri_description" type="text" name="cri_description">
     </div>
-    <button type="submit">{% trans "Declarer" %}</button>
+    <button type="submit">{% trans "Déclarer" %}</button>
   </form>
 
   <h2>{% trans "Rebuts" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Quantite" %}</th><th>{% trans "Motif" %}</th><th>{% trans "Date" %}</th><th>{% trans "Declare par" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Quantité" %}</th><th>{% trans "Motif" %}</th><th>{% trans "Date" %}</th><th>{% trans "Déclaré par" %}</th></tr></thead>
     <tbody>
       {% for scrap in scraps %}
         <tr><td>{{ scrap.qty }}</td><td>{{ scrap.reason }}</td><td>{{ scrap.date }}</td><td>{{ scrap.declared_by }}</td></tr>
@@ -329,18 +329,18 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Declarer un rebut" %}</h3>
+  <h3>{% trans "Déclarer un rebut" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create_scrap">
     <div class="form-field">
-      <label for="scrap_qty">{% trans "Quantite" %}</label>
+      <label for="scrap_qty">{% trans "Quantité" %}</label>
       <input id="scrap_qty" type="number" name="scrap_qty" step="0.0001" value="0">
     </div>
     <div class="form-field">
       <label for="scrap_reason">{% trans "Motif" %}</label>
       <input id="scrap_reason" type="text" name="scrap_reason" required>
     </div>
-    <button type="submit">{% trans "Declarer" %}</button>
+    <button type="submit">{% trans "Déclarer" %}</button>
   </form>
 {% endblock %}

@@ -5,9 +5,9 @@
 <div class="page-head">
   <h1>{% trans "Rapports Achats (§5.6.5)" %}</h1>
 </div>
-  <p>{% blocktrans %}Le bon de commande (PUR-BC), l'appel d'offres (PUR-RFQ), le tableau comparatif (PUR-COMP) et le bon de reception (PUR-REC) se telechargent depuis leur fiche respective (demande d'achat, appel d'offres ou commande).{% endblocktrans %}</p>
+  <p>{% blocktrans %}Le bon de commande (PUR-BC), l'appel d'offres (PUR-RFQ), le tableau comparatif (PUR-COMP) et le bon de réception (PUR-REC) se telechargent depuis leur fiche respective (demande d'achat, appel d'offres ou commande).{% endblocktrans %}</p>
 
-  <h2>{% trans "Engagements et echeancier fournisseurs (PUR-ENG)" %}</h2>
+  <h2>{% trans "Engagements et échéancier fournisseurs (PUR-ENG)" %}</h2>
   <form method="get" action="{% url 'purchase:report_engagements' %}">
     <div class="form-field">
       <label for="eng_format">{% trans "Format" %}</label>
@@ -20,7 +20,7 @@
     <button type="submit">{% trans "Telecharger" %}</button>
   </form>
 
-  <h2>{% trans "Evaluation fournisseurs (PUR-EVAL)" %}</h2>
+  <h2>{% trans "Évaluation fournisseurs (PUR-EVAL)" %}</h2>
   <form method="get" action="{% url 'purchase:report_supplier_evaluations' %}">
     <div class="form-field">
       <label for="eval_partner_id">{% trans "Fournisseur (UUID)" %}</label>
@@ -57,7 +57,7 @@
       <select id="cri_state" name="state">
         <option value="">{% trans "Tous" %}</option>
         <option value="draft">{% trans "Ouvert" %}</option>
-        <option value="closed">{% trans "Cloture" %}</option>
+        <option value="closed">{% trans "Clôturé" %}</option>
       </select>
     </div>
     <div class="form-field">
@@ -65,7 +65,7 @@
       <select id="cri_type" name="type">
         <option value="">{% trans "Tous" %}</option>
         <option value="retard">{% trans "Retard" %}</option>
-        <option value="non_conformite">{% trans "Non conformite" %}</option>
+        <option value="non_conformite">{% trans "Non conformité" %}</option>
         <option value="litige">{% trans "Litige" %}</option>
         <option value="rupture">{% trans "Rupture" %}</option>
         <option value="incident_douane">{% trans "Incident douanier" %}</option>

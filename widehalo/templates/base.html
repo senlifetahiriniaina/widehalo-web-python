@@ -69,7 +69,7 @@
           <li>
             <span class="nav-section-title">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layers"></use></svg>
-              {% trans "Modules metier" %}
+              {% trans "Modules métier" %}
             </span>
             <ul class="app-menu-groups">
               <li class="app-menu-group" x-data="menuGroup('pour-tous')">
@@ -80,8 +80,8 @@
                 </a>
                 <ul class="app-menu-dropdown" x-show="open" x-cloak>
                   <li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>
-                  <li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Strategie et pilotage" %}</a></li>
-                  <li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi operationnel" %}</a></li>
+                  <li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Stratégie et pilotage" %}</a></li>
+                  <li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>
                 </ul>
               </li>
               <li class="app-menu-group" x-data="menuGroup('commercial')">
@@ -93,7 +93,7 @@
                 <ul class="app-menu-dropdown" x-show="open" x-cloak>
                   <li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>
                   <li><a href="/sales/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>{% trans "Ventes" %}</a></li>
-                  <li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Etudes de faisabilite" %}</a></li>
+                  <li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Études de faisabilité" %}</a></li>
                 </ul>
               </li>
               <li class="app-menu-group" x-data="menuGroup('achats-logistique')">
@@ -126,7 +126,7 @@
                   <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
                 </a>
                 <ul class="app-menu-dropdown" x-show="open" x-cloak>
-                  <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilite" %}</a></li>
+                  <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilité" %}</a></li>
                   <li><a href="/financing/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Financement" %}</a></li>
                   <li><a href="/automation/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Automatisation" %}</a></li>
                 </ul>
@@ -197,7 +197,7 @@
           <li><a href="{% url 'profile' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Voir le profil" %}</a></li>
           <li><a href="{% url 'change_password' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lock"></use></svg>{% trans "Modifier le mot de passe" %}</a></li>
           <li class="account-menu-sep"></li>
-          <li><a href="{% url 'logout' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-log-out"></use></svg>{% trans "Se deconnecter" %}</a></li>
+          <li><a href="{% url 'logout' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-log-out"></use></svg>{% trans "Se déconnecter" %}</a></li>
         </ul>
       </div>
       {% endif %}

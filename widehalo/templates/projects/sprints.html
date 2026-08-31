@@ -6,7 +6,7 @@
   <h1>{% trans "Sprints agiles" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Velocite (moyenne des points completes sur les derniers sprints termines)" %} : {{ velocity }}</p>
+  <p>{% trans "Vélocité (moyenne des points complétés sur les derniers sprints termines)" %} : {{ velocity }}</p>
   <p>
     <a href="{% url 'projects:backlog' project.id %}">{% trans "Voir le backlog" %}</a>
     · <a href="{% url 'projects:kanban' project.id %}">{% trans "Voir le Kanban" %}</a>
@@ -18,7 +18,7 @@
     <thead>
       <tr>
         <th>{% trans "Nom" %}</th>
-        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Début" %}</th>
         <th>{% trans "Fin" %}</th>
         <th>{% trans "Statut" %}</th>
         <th>{% trans "Objectif" %}</th>
@@ -38,14 +38,14 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
                 <input type="hidden" name="action" value="start">
-                <button type="submit">{% trans "Demarrer" %}</button>
+                <button type="submit">{% trans "Démarrer" %}</button>
               </form>
             {% endif %}
             {% if sprint.status == "active" or sprint.status == "planned" %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
                 <input type="hidden" name="action" value="complete">
-                <button type="submit">{% trans "Cloturer" %}</button>
+                <button type="submit">{% trans "Clôturer" %}</button>
               </form>
             {% endif %}
             {% if sprint.status == "completed" or sprint.status == "active" %}
@@ -59,7 +59,7 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Creer un sprint" %}</h3>
+  <h3>{% trans "Créer un sprint" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create">
@@ -67,6 +67,6 @@
     <input type="date" name="start_date" required>
     <input type="date" name="end_date" required>
     <input type="text" name="goal" placeholder="{% trans 'Objectif du sprint' %}">
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

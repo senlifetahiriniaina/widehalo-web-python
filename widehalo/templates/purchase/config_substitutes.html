@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>{% trans "Substituts (RG-PUR-2)" %}</h1>
 </div>
-  <p>{% blocktrans %}Une substitution de niveau degrade sans validation ne peut pas etre utilisee sur une ligne de demande d'achat.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Une substitution de niveau dégradé sans validation ne peut pas être utilisée sur une ligne de demande d'achat.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <form method="get" style="margin-bottom:1em;">
@@ -19,7 +19,7 @@
       <tr>
         <th>{% trans "Article" %}</th>
         <th>{% trans "Substitut" %}</th>
-        <th>{% trans "Compatibilite" %}</th>
+        <th>{% trans "Compatibilité" %}</th>
         <th>{% trans "Ratio" %}</th>
         <th>{% trans "Approuve par" %}</th>
         <th></th>
@@ -57,13 +57,13 @@
     <div class="form-field"><label>{% trans "Article (UUID)" %}</label><input type="text" name="variant_id" required></div>
     <div class="form-field"><label>{% trans "Substitut (UUID)" %}</label><input type="text" name="substitute_variant_id" required></div>
     <div class="form-field">
-      <label>{% trans "Compatibilite" %}</label>
+      <label>{% trans "Compatibilité" %}</label>
       <select name="compatibility">
         {% for value, label in compatibility_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="form-field"><label>{% trans "Ratio" %}</label><input type="number" name="ratio" step="0.0001" value="1"></div>
     <div class="form-field"><label>{% trans "Conditions" %}</label><textarea name="conditions"></textarea></div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

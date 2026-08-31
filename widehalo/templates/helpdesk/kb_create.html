@@ -13,7 +13,7 @@
       <input id="title" type="text" name="title" required>
     </div>
     <div class="form-field">
-      <label for="category_id">{% trans "Categorie" %}</label>
+      <label for="category_id">{% trans "Catégorie" %}</label>
       <select id="category_id" name="category_id">
         <option value="">{% trans "Aucune" %}</option>
         {% for category in categories %}
@@ -26,8 +26,8 @@
       <textarea id="body" name="body" rows="10"></textarea>
     </div>
     <div class="form-field">
-      <label><input type="checkbox" name="is_published"> {% trans "Publier immediatement" %}</label>
+      <label><input type="checkbox" name="is_published"> {% trans "Publier immédiatement" %}</label>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

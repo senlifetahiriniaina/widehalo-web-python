@@ -8,10 +8,10 @@
   <nav class="app-menu-dropdown" style="position:static;display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
     <a href="{% url 'stocks:stock_view' %}">{% trans "Vue stock" %}</a>
     <a href="{% url 'stocks:move_list' %}">{% trans "Mouvements" %}</a>
-    <a href="{% url 'stocks:picking_list' %}">{% trans "Operations (pickings)" %}</a>
+    <a href="{% url 'stocks:picking_list' %}">{% trans "Opérations (pickings)" %}</a>
     <a href="{% url 'stocks:measurement_create' %}">{% trans "Mesures" %}</a>
-    <a href="{% url 'stocks:quality_list' %}">{% trans "Qualite" %}</a>
-    <a href="{% url 'stocks:reservation_list' %}">{% trans "Reservations" %}</a>
+    <a href="{% url 'stocks:quality_list' %}">{% trans "Qualité" %}</a>
+    <a href="{% url 'stocks:reservation_list' %}">{% trans "Réservations" %}</a>
     <a href="{% url 'stocks:inventory_list' %}">{% trans "Inventaires" %}</a>
     <a href="{% url 'stocks:return_list' %}">{% trans "Retours" %}</a>
     <a href="{% url 'stocks:traceability_lookup' %}">{% trans "Tracabilite" %}</a>
@@ -29,19 +29,19 @@
   {# --------------------------------------------------------------- #}
   {% if active_tab == "config" %}
     <nav style="display:flex;gap:.5rem;margin-bottom:1rem;">
-      <a href="{% url 'stocks:config_warehouses' %}">{% trans "Entrepots/emplacements" %}</a>
-      <a href="{% url 'stocks:config_defect_types' %}">{% trans "Types de defaut" %}</a>
-      <a href="{% url 'stocks:config_negative_stock' %}">{% trans "Exceptions stock negatif" %}</a>
+      <a href="{% url 'stocks:config_warehouses' %}">{% trans "Entrepôts/emplacements" %}</a>
+      <a href="{% url 'stocks:config_defect_types' %}">{% trans "Types de défaut" %}</a>
+      <a href="{% url 'stocks:config_negative_stock' %}">{% trans "Exceptions stock négatif" %}</a>
     </nav>
 
     {% if config_subtab == "warehouses" %}
-      <h2>{% trans "Entrepots" %}</h2>
+      <h2>{% trans "Entrepôts" %}</h2>
       <table class="smart-table">
         <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th></tr></thead>
         <tbody>
           {% for warehouse in warehouses %}
             <tr><td>{{ warehouse.code }}</td><td>{{ warehouse.name }}</td><td><span class="badge {{ warehouse.type|state_badge_class }}">{{ warehouse.get_type_display }}</span></td></tr>
-          {% empty %}<tr><td colspan="3">{% trans "Aucun entrepot." %}</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="3">{% trans "Aucun entrepôt." %}</td></tr>{% endfor %}
         </tbody>
       </table>
       <form method="post">
@@ -51,12 +51,12 @@
         <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
         <select name="type">{% for value, label in warehouse_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <input type="text" name="address" placeholder="{% trans 'Adresse' %}">
-        <button type="submit">{% trans "Creer un entrepot" %}</button>
+        <button type="submit">{% trans "Créer un entrepôt" %}</button>
       </form>
 
       <h2>{% trans "Emplacements" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Entrepot" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Parent" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Entrepôt" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Parent" %}</th></tr></thead>
         <tbody>
           {% for location in locations %}
             <tr><td>{{ location.warehouse.code }}</td><td>{{ location.code }}</td><td>{{ location.name }}</td><td><span class="badge {{ location.type|state_badge_class }}">{{ location.get_type_display }}</span></td><td>{{ location.parent.code|default:"-" }}</td></tr>
@@ -72,18 +72,18 @@
         <select name="loc_type">{% for value, label in location_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <select name="parent_id"><option value="">{% trans "(aucun parent)" %}</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
         <label><input type="checkbox" name="is_scrap"> {% trans "Rebut" %}</label>
-        <button type="submit">{% trans "Creer un emplacement" %}</button>
+        <button type="submit">{% trans "Créer un emplacement" %}</button>
       </form>
     {% endif %}
 
     {% if config_subtab == "defect_types" %}
-      <h2>{% trans "Types de defaut" %}</h2>
+      <h2>{% trans "Types de défaut" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Categorie" %}</th><th>{% trans "Severite" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Catégorie" %}</th><th>{% trans "Sévérité" %}</th></tr></thead>
         <tbody>
           {% for defect_type in defect_types %}
             <tr><td>{{ defect_type.code }}</td><td>{{ defect_type.name }}</td><td><span class="badge {{ defect_type.category|state_badge_class }}">{{ defect_type.get_category_display }}</span></td><td><span class="badge {{ defect_type.severity|state_badge_class }}">{{ defect_type.get_severity_display }}</span></td></tr>
-          {% empty %}<tr><td colspan="4">{% trans "Aucun type de defaut." %}</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="4">{% trans "Aucun type de défaut." %}</td></tr>{% endfor %}
         </tbody>
       </table>
       <form method="post">
@@ -93,12 +93,12 @@
         <select name="category">{% for value, label in category_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <select name="severity">{% for value, label in severity_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <input type="text" name="default_action" placeholder="{% trans 'Action par defaut' %}">
-        <button type="submit">{% trans "Creer" %}</button>
+        <button type="submit">{% trans "Créer" %}</button>
       </form>
     {% endif %}
 
     {% if config_subtab == "negative_stock" %}
-      <h2>{% trans "Exceptions de stock negatif (RG-STK-10)" %}</h2>
+      <h2>{% trans "Exceptions de stock négatif (RG-STK-10)" %}</h2>
       <table class="smart-table">
         <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Autorise par" %}</th><th>{% trans "Motif" %}</th><th></th></tr></thead>
         <tbody>
@@ -112,7 +112,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="revoke">
                   <input type="hidden" name="exception_id" value="{{ exception.id }}">
-                  <button type="submit">{% trans "Revoquer" %}</button>
+                  <button type="submit">{% trans "Révoquer" %}</button>
                 </form>
               </td>
             </tr>
@@ -160,7 +160,7 @@
         {% empty %}<tr><td colspan="6">{% trans "Aucun stock." %}</td></tr>{% endfor %}
       </tbody>
     </table>
-    <p><em>{% blocktrans %}"En commande"/"en production" ne sont pas exposes ici — aucune primitive de lecture cross-app n'existe pour ces deux colonnes dans le perimetre de ce lot (cf. docstring de la vue).{% endblocktrans %}</em></p>
+    <p><em>{% blocktrans %}"En commande"/"en production" ne sont pas exposes ici — aucune primitive de lecture cross-app n'existe pour ces deux colonnes dans le périmètre de ce lot (cf. docstring de la vue).{% endblocktrans %}</em></p>
   {% endif %}
 
   {# --------------------------------------------------------------- #}
@@ -183,7 +183,7 @@
     {% else %}
       <h2>{% trans "Mouvements de stock" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantite" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantité" %}</th><th></th></tr></thead>
         <tbody>
           {% for m in moves %}
             <tr><td>{{ m.reference }}</td><td><span class="badge {{ m.move_type|state_badge_class }}">{{ m.get_move_type_display }}</span></td><td><span class="badge {{ m.state|state_badge_class }}">{{ m.get_state_display }}</span></td><td>{{ m.date }}</td><td>{{ m.qty }}</td>
@@ -206,7 +206,7 @@
                aria-label="{% trans 'Document d origine' %}">
         <input type="number" name="unit_cost_mga" step="0.0001" placeholder="{% trans 'Cout unitaire' %}"
                aria-label="{% trans 'Cout unitaire' %}">
-        <button type="submit">{% trans "Creer (brouillon)" %}</button>
+        <button type="submit">{% trans "Créer (brouillon)" %}</button>
       </form>
     {% endif %}
   {% endif %}
@@ -220,7 +220,7 @@
       <p>{% trans "Statut" %}: <span class="badge {{ picking.state|state_badge_class }}">{{ picking.get_state_display }}</span></p>
       <p>{{ picking.location_from }} → {{ picking.location_to }}</p>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Statut" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Statut" %}</th></tr></thead>
         <tbody>{% for line in lines %}<tr><td>{{ line.variant_id }}</td><td>{{ line.qty }}</td><td><span class="badge {{ line.state|state_badge_class }}">{{ line.get_state_display }}</span></td></tr>{% empty %}<tr><td colspan="3">{% trans "Aucune ligne." %}</td></tr>{% endfor %}</tbody>
       </table>
       {% if picking.state == "draft" or picking.state == "waiting" %}
@@ -238,15 +238,15 @@
       <form method="post">
         {% csrf_token %}
         <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
-        {% if picking.state == "draft" or picking.state == "waiting" %}<button type="submit" name="action" value="ready">{% trans "Marquer pret" %}</button>{% endif %}
+        {% if picking.state == "draft" or picking.state == "waiting" %}<button type="submit" name="action" value="ready">{% trans "Marquer prêt" %}</button>{% endif %}
         {% if picking.state == "ready" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
         {% if picking.state != "done" and picking.state != "cancelled" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
       </form>
       <p><a href="{% url 'stocks:picking_list' %}">{% trans "Retour a la liste" %}</a></p>
     {% else %}
-      <h2>{% trans "Operations de stock (pickings)" %}</h2>
+      <h2>{% trans "Opérations de stock (pickings)" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for p in pickings %}
             <tr><td>{{ p.reference }}</td><td><span class="badge {{ p.type|state_badge_class }}">{{ p.get_type_display }}</span></td><td><span class="badge {{ p.state|state_badge_class }}">{{ p.get_state_display }}</span></td>
@@ -263,7 +263,7 @@
         <input type="text" name="partner_id" placeholder="{% trans 'Tiers (UUID, optionnel)' %}">
         <input type="date" name="date_scheduled">
         <input type="text" name="source_document" placeholder="{% trans 'Document d origine' %}">
-        <button type="submit">{% trans "Creer" %}</button>
+        <button type="submit">{% trans "Créer" %}</button>
       </form>
     {% endif %}
   {% endif %}
@@ -284,7 +284,7 @@
       <button type="submit">{% trans "Enregistrer" %}</button>
     </form>
     <table class="smart-table">
-      <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Type" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Ecart (%)" %}</th></tr></thead>
+      <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Type" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Écart (%)" %}</th></tr></thead>
       <tbody>
         {% for measurement in measurements %}
           <tr><td>{{ measurement.measured_at }}</td><td><span class="badge {{ measurement.type|state_badge_class }}">{{ measurement.get_type_display }}</span></td><td>{{ measurement.value }} {{ measurement.uom }}</td><td>{{ measurement.variance_pct|default:"-" }}</td></tr>
@@ -297,13 +297,13 @@
   {# Qualite                                                          #}
   {# --------------------------------------------------------------- #}
   {% if active_tab == "quality" %}
-    <h2>{% trans "Etats qualite (RG-STK-7)" %}</h2>
+    <h2>{% trans "États qualité (RG-STK-7)" %}</h2>
     <table class="smart-table">
-      <thead><tr><th>{% trans "Quant" %}</th><th>{% trans "Lot" %}</th><th>{% trans "Etat" %}</th><th>{% trans "Defaut" %}</th><th>{% trans "Quantite" %}</th></tr></thead>
+      <thead><tr><th>{% trans "Quant" %}</th><th>{% trans "Lot" %}</th><th>{% trans "État" %}</th><th>{% trans "Défaut" %}</th><th>{% trans "Quantité" %}</th></tr></thead>
       <tbody>
         {% for entry in entries %}
           <tr><td>{{ entry.quant_id|default:"-" }}</td><td>{{ entry.lot_id|default:"-" }}</td><td><span class="badge {{ entry.state|state_badge_class }}">{{ entry.get_state_display }}</span></td><td>{{ entry.defect_type|default:"-" }}</td><td>{{ entry.defect_qty }}</td></tr>
-        {% empty %}<tr><td colspan="5">{% trans "Aucun etat qualite." %}</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="5">{% trans "Aucun état qualité." %}</td></tr>{% endfor %}
       </tbody>
     </table>
     <h3>{% trans "Nouvelle classification" %}</h3>
@@ -316,7 +316,7 @@
       <select name="defect_type_id"><option value="">{% trans "(aucun)" %}</option>{% for defect_type in defect_types %}<option value="{{ defect_type.id }}">{{ defect_type.name }}</option>{% endfor %}</select>
       <input type="number" name="defect_qty" step="0.0001" value="0">
       <input type="text" name="description" placeholder="{% trans 'Description' %}">
-      <select name="relocate_location_id"><option value="">{% trans "(pas de deplacement)" %}</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
+      <select name="relocate_location_id"><option value="">{% trans "(pas de déplacement)" %}</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
       <button type="submit">{% trans "Classer" %}</button>
     </form>
   {% endif %}
@@ -325,9 +325,9 @@
   {# Reservations                                                     #}
   {# --------------------------------------------------------------- #}
   {% if active_tab == "reservations" %}
-    <h2>{% trans "Reservations (RG-STK-8)" %}</h2>
+    <h2>{% trans "Réservations (RG-STK-8)" %}</h2>
     <table class="smart-table">
-      <thead><tr><th>{% trans "Quant" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Date" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+      <thead><tr><th>{% trans "Quant" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Date" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
       <tbody>
         {% for reservation in reservations %}
           <tr>
@@ -338,22 +338,22 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="release">
                   <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
-                  <button type="submit">{% trans "Liberer" %}</button>
+                  <button type="submit">{% trans "Libérer" %}</button>
                 </form>
               {% endif %}
             </td>
           </tr>
-        {% empty %}<tr><td colspan="5">{% trans "Aucune reservation." %}</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="5">{% trans "Aucune réservation." %}</td></tr>{% endfor %}
       </tbody>
     </table>
-    <h3>{% trans "Nouvelle reservation" %}</h3>
+    <h3>{% trans "Nouvelle réservation" %}</h3>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="reserve">
       <input type="text" name="quant_id" placeholder="{% trans 'Quant (UUID)' %}" required>
       <input type="number" name="qty" step="0.0001" value="1">
       <input type="date" name="date">
-      <button type="submit">{% trans "Reserver" %}</button>
+      <button type="submit">{% trans "Réserver" %}</button>
     </form>
   {% endif %}
 
@@ -363,9 +363,9 @@
   {% if active_tab == "inventories" %}
     {% if inventory %}
       <h2>{{ inventory.reference|default:"(brouillon)" }} — <span class="badge {{ inventory.type|state_badge_class }}">{{ inventory.get_type_display }}</span></h2>
-      <p>{% trans "Statut" %}: <span class="badge {{ inventory.state|state_badge_class }}">{{ inventory.get_state_display }}</span> — {% trans "Entrepot" %}: {{ inventory.warehouse.code }}</p>
+      <p>{% trans "Statut" %}: <span class="badge {{ inventory.state|state_badge_class }}">{{ inventory.get_state_display }}</span> — {% trans "Entrepôt" %}: {{ inventory.warehouse.code }}</p>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Emplacement" %}</th><th>{% trans "Theorique" %}</th><th>{% trans "Compte" %}</th><th>{% trans "Ecart" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Emplacement" %}</th><th>{% trans "Théorique" %}</th><th>{% trans "Compte" %}</th><th>{% trans "Écart" %}</th><th></th></tr></thead>
         <tbody>
           {% for line in lines %}
             <tr>
@@ -399,7 +399,7 @@
       <form method="post">
         {% csrf_token %}
         <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
-        {% if inventory.state == "draft" %}<button type="submit" name="action" value="start">{% trans "Demarrer" %}</button>{% endif %}
+        {% if inventory.state == "draft" %}<button type="submit" name="action" value="start">{% trans "Démarrer" %}</button>{% endif %}
         {% if inventory.state == "in_progress" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
         {% if inventory.state == "draft" or inventory.state == "in_progress" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
       </form>
@@ -408,7 +408,7 @@
     {% else %}
       <h2>{% trans "Inventaires physiques (RG-STK-9)" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Entrepot" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Entrepôt" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for inv in inventories %}
             <tr><td>{{ inv.reference }}</td><td>{{ inv.warehouse.code }}</td><td><span class="badge {{ inv.type|state_badge_class }}">{{ inv.get_type_display }}</span></td><td><span class="badge {{ inv.state|state_badge_class }}">{{ inv.get_state_display }}</span></td>
@@ -422,7 +422,7 @@
         <select name="warehouse_id" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}">{{ warehouse.code }}</option>{% endfor %}</select>
         <input type="date" name="date">
         <select name="type">{% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-        <button type="submit">{% trans "Creer" %}</button>
+        <button type="submit">{% trans "Créer" %}</button>
       </form>
     {% endif %}
   {% endif %}
@@ -434,22 +434,22 @@
     {% if return_obj %}
       <h2>{{ return_obj.reference|default:"(brouillon)" }}</h2>
       <p>{% trans "Statut" %}: <span class="badge {{ return_obj.state|state_badge_class }}">{{ return_obj.get_state_display }}</span> — {% trans "Produit" %}: {{ return_obj.variant_id }} x{{ return_obj.qty }}</p>
-      <p>{% trans "Etat qualite" %}: {{ return_obj.quality_state|default:"-" }} — {% trans "Decision" %}: {{ return_obj.decision|default:"-" }}</p>
+      <p>{% trans "État qualité" %}: {{ return_obj.quality_state|default:"-" }} — {% trans "Décision" %}: {{ return_obj.decision|default:"-" }}</p>
       {% if return_obj.state == "draft" %}
-        <h3>{% trans "Evaluer" %}</h3>
+        <h3>{% trans "Évaluer" %}</h3>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="assess">
           <select name="quality_state">{% for value, label in quality_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
           <select name="decision">{% for value, label in decision_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-          <button type="submit">{% trans "Evaluer" %}</button>
+          <button type="submit">{% trans "Évaluer" %}</button>
         </form>
         <h3>{% trans "Traiter" %}</h3>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="process">
           <select name="location_to_id" required>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-          <button type="submit">{% trans "Traiter (mouvement reel)" %}</button>
+          <button type="submit">{% trans "Traiter (mouvement réel)" %}</button>
         </form>
         <form method="post">
           {% csrf_token %}
@@ -461,7 +461,7 @@
     {% else %}
       <h2>{% trans "Retours client (STK-RMA1)" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Produit" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Produit" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for r in returns %}
             <tr><td>{{ r.reference }}</td><td>{{ r.variant_id }}</td><td><span class="badge {{ r.state|state_badge_class }}">{{ r.get_state_display }}</span></td>
@@ -478,7 +478,7 @@
         <input type="date" name="date">
         <input type="text" name="reason" placeholder="{% trans 'Motif' %}" required>
         <input type="text" name="source_document" placeholder="{% trans 'Commande d origine' %}">
-        <button type="submit">{% trans "Creer" %}</button>
+        <button type="submit">{% trans "Créer" %}</button>
       </form>
     {% endif %}
   {% endif %}
@@ -495,9 +495,9 @@
     {% if lot_name and not lot %}<p>{% trans "Aucun lot trouve pour ce nom." %}</p>{% endif %}
     {% if result %}
       <p><a href="{% url 'stocks:report_traceability' lot_id=lot.id %}">{% trans "Telecharger (STK-TRAC)" %}</a></p>
-      <h3>{% trans "Amont (reception / commande fournisseur)" %}</h3>
+      <h3>{% trans "Amont (réception / commande fournisseur)" %}</h3>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Document d origine" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Document d origine" %}</th></tr></thead>
         <tbody>
           {% for move in result.upstream %}
             <tr><td>{{ move.reference }}</td><td>{{ move.date }}</td><td>{{ move.qty }}</td><td>{{ move.source_document|default:"-" }}</td></tr>
@@ -506,7 +506,7 @@
       </table>
       <h3>{% trans "Aval (livraison / commande client)" %}</h3>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Document d origine" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Document d origine" %}</th></tr></thead>
         <tbody>
           {% for move in result.downstream %}
             <tr><td>{{ move.reference }}</td><td>{{ move.date }}</td><td>{{ move.qty }}</td><td>{{ move.source_document|default:"-" }}</td></tr>
@@ -515,7 +515,7 @@
       </table>
       <h3>{% trans "Localisation courante" %}</h3>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Emplacement" %}</th><th>{% trans "Quantite" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Emplacement" %}</th><th>{% trans "Quantité" %}</th></tr></thead>
         <tbody>
           {% for loc in result.current_locations %}<tr><td>{{ loc.location_code }}</td><td>{{ loc.qty }}</td></tr>{% empty %}<tr><td colspan="2">{% trans "Aucun stock actuel." %}</td></tr>{% endfor %}
         </tbody>
@@ -529,7 +529,7 @@
   {% if active_tab == "redistribution" %}
     <h2>{% trans "Suggestions de redistribution inter-sites (STK-REDIS1)" %}</h2>
     <table class="smart-table">
-      <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "De" %}</th><th>{% trans "Vers" %}</th><th>{% trans "Quantite suggeree" %}</th></tr></thead>
+      <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "De" %}</th><th>{% trans "Vers" %}</th><th>{% trans "Quantité suggérée" %}</th></tr></thead>
       <tbody>
         {% for s in suggestions %}
           <tr><td>{{ s.variant_id }}</td><td>{{ s.from_warehouse_id }}</td><td>{{ s.to_warehouse_id }}</td><td>{{ s.suggested_qty }}</td></tr>
@@ -544,7 +544,7 @@
   {% if active_tab == "obsolescence" %}
     <h2>{% trans "Stock dormant / obsolescence (STK-OBS1)" %}</h2>
     <table class="smart-table">
-      <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Emplacement" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Jours depuis dernier mouvement" %}</th><th>{% trans "Dormant" %}</th></tr></thead>
+      <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Emplacement" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Jours depuis dernier mouvement" %}</th><th>{% trans "Dormant" %}</th></tr></thead>
       <tbody>
         {% for row in rows %}
           <tr><td>{{ row.variant_id }}</td><td>{{ row.location_id }}</td><td>{{ row.qty }}</td><td>{{ row.days_since_last_movement|default:"-" }}</td><td>{{ row.is_dormant }}</td></tr>
@@ -567,7 +567,7 @@
       <tbody>
         {% for c in classifications %}
           <tr><td>{{ c.variant_id }}</td><td>{{ c.abc_class|upper }}</td><td>{{ c.consumption_value_mga }}</td><td>{{ c.next_count_due|default:"-" }}</td></tr>
-        {% empty %}<tr><td colspan="4">{% trans "Aucune classification calculee." %}</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="4">{% trans "Aucune classification calculée." %}</td></tr>{% endfor %}
       </tbody>
     </table>
   {% endif %}
@@ -578,16 +578,16 @@
   {% if active_tab == "reports" %}
     <h2>{% trans "Rapports" %}</h2>
     <ul>
-      <li><a href="{% url 'stocks:report_state' %}">{% trans "Etat des stocks valorise (STK-ETAT)" %}</a></li>
+      <li><a href="{% url 'stocks:report_state' %}">{% trans "État des stocks valorise (STK-ETAT)" %}</a></li>
       <li><a href="{% url 'stocks:report_moves' %}">{% trans "Journal des mouvements (STK-MOUV)" %}</a></li>
       <li>{% trans "Tracabilite (STK-TRAC)" %} — {% trans "depuis l'onglet Tracabilite" %}</li>
       <li>{% trans "Feuille d'inventaire (STK-INV)" %} — {% trans "depuis la fiche d'un inventaire" %}</li>
-      <li><a href="{% url 'stocks:report_defects' %}">{% trans "Analyse des defauts (STK-DEF)" %}</a></li>
+      <li><a href="{% url 'stocks:report_defects' %}">{% trans "Analyse des défauts (STK-DEF)" %}</a></li>
       <li><a href="{% url 'stocks:report_dormant' %}">{% trans "Stock dormant (STK-AGE)" %}</a></li>
-      <li><a href="{% url 'stocks:report_consistency' %}">{% trans "Coherence production/stock (STK-COHER)" %}</a></li>
-      <li><a href="{% url 'stocks:report_measurements' %}">{% trans "Ecarts de mesure (STK-MES)" %}</a></li>
+      <li><a href="{% url 'stocks:report_consistency' %}">{% trans "Cohérence production/stock (STK-COHER)" %}</a></li>
+      <li><a href="{% url 'stocks:report_measurements' %}">{% trans "Écarts de mesure (STK-MES)" %}</a></li>
       <li><a href="{% url 'stocks:report_valuation' %}">{% trans "Valorisation par couche (STK-VAL)" %}</a></li>
     </ul>
-    <p><em>{% blocktrans %}STK-DEF n'expose que la dimension type de defaut/categorie — la dimension "par fournisseur" n'est pas fiablement derivable dans ce lot (aucun lien fournisseur trace sur un etat qualite, cf. docstring du rapport).{% endblocktrans %}</em></p>
+    <p><em>{% blocktrans %}STK-DEF n'expose que la dimension type de défaut/catégorie — la dimension "par fournisseur" n'est pas fiablement derivable dans ce lot (aucun lien fournisseur trace sur un état qualité, cf. docstring du rapport).{% endblocktrans %}</em></p>
   {% endif %}
 {% endblock %}

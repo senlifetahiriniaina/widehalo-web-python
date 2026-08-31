@@ -6,13 +6,13 @@
   <h1>{% trans "Portail invite" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
   <p class="hint">
-    {% trans "Un lien invite donne acces a une vue lecture seule de ce projet a un tiers externe (client, partenaire), sans compte ni mot de passe. Aucun montant de cout/marge interne n'est jamais visible depuis ce lien." %}
+    {% trans "Un lien invite donne accès a une vue lecture seule de ce projet a un tiers externe (client, partenaire), sans compte ni mot de passe. Aucun montant de coût/marge interne n'est jamais visible depuis ce lien." %}
   </p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   {% if new_link_url %}
     <p class="form-success">
-      {% trans "Lien cree — copiez-le maintenant, il ne sera plus jamais raffiche :" %}<br>
+      {% trans "Lien créé — copiez-le maintenant, il ne sera plus jamais raffiche :" %}<br>
       <code>{{ new_link_url }}</code>
     </p>
   {% endif %}
@@ -20,7 +20,7 @@
   <table>
     <thead>
       <tr>
-        <th>{% trans "Email invite" %}</th>
+        <th>{% trans "Émail invite" %}</th>
         <th>{% trans "Expire le" %}</th>
         <th>{% trans "Statut" %}</th>
         <th>{% trans "Actions" %}</th>
@@ -32,7 +32,7 @@
           <td>{{ guest_access.guest_email }}</td>
           <td>{{ guest_access.expires_at }}</td>
           <td>
-            {% if guest_access.revoked_at %}{% trans "Revoque" %}
+            {% if guest_access.revoked_at %}{% trans "Révoqué" %}
             {% else %}{% trans "Actif" %}{% endif %}
           </td>
           <td>
@@ -40,7 +40,7 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="action" value="revoke">
                 <input type="hidden" name="guest_access_id" value="{{ guest_access.id }}">
-                <button type="submit">{% trans "Revoquer" %}</button>
+                <button type="submit">{% trans "Révoquer" %}</button>
               </form>
             {% endif %}
           </td>
@@ -51,13 +51,13 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Creer un lien invite" %}</h3>
+  <h3>{% trans "Créer un lien invite" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="create">
     <input type="email" name="guest_email" placeholder="{% trans 'Email invite' %}" required>
     <label>{% trans "Expire le" %} <input type="datetime-local" name="expires_at" required></label>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 
   <p><a href="{% url 'projects:detail' project.id %}">{% trans "Retour au projet" %}</a></p>

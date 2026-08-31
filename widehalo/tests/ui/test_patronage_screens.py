@@ -155,7 +155,7 @@ def test_compute_consumption_and_marker_via_ui(patronage_consumption_screens_set
     )
     assert response.status_code == 302
     detail = client.get(f"/patronage/{pattern.id}/")
-    assert b"Consommation matiere" in detail.content
+    assert "Consommation matière".encode() in detail.content
 
     response = client.post(
         f"/patronage/{pattern.id}/",

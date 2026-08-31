@@ -11,7 +11,7 @@
     <thead>
       <tr>
         <th>{% trans "Nom" %}</th>
-        <th>{% trans "Par defaut" %}</th>
+        <th>{% trans "Par défaut" %}</th>
         <th></th>
       </tr>
     </thead>
@@ -20,7 +20,7 @@
         <tr>
           <td>{{ pipeline.name }}</td>
           <td>{% if pipeline.is_default %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
-          <td><a href="{% url 'crm:config_pipeline_detail' pipeline.id %}">{% trans "Etapes" %}</a></td>
+          <td><a href="{% url 'crm:config_pipeline_detail' pipeline.id %}">{% trans "Étapes" %}</a></td>
         </tr>
       {% empty %}
         <tr><td colspan="3">{% trans "Aucun pipeline." %}</td></tr>
@@ -38,9 +38,9 @@
     <div class="form-field">
       <label for="is_default">
         <input id="is_default" type="checkbox" name="is_default" value="1">
-        {% trans "Pipeline par defaut" %}
+        {% trans "Pipeline par défaut" %}
       </label>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

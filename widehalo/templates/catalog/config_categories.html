@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Categories" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Catégories" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Categories" %}</h1>
+  <h1>{% trans "Catégories" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -21,12 +21,12 @@
           <td>{{ category.parent|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="2">{% trans "Aucune categorie." %}</td></tr>
+        <tr><td colspan="2">{% trans "Aucune catégorie." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle categorie" %}</h2>
+  <h2>{% trans "Nouvelle catégorie" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -34,7 +34,7 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="parent_id">{% trans "Categorie parente" %}</label>
+      <label for="parent_id">{% trans "Catégorie parente" %}</label>
       <select id="parent_id" name="parent_id">
         <option value="">—</option>
         {% for category in categories %}
@@ -42,6 +42,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

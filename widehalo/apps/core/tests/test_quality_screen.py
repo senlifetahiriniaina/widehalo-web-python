@@ -35,7 +35,7 @@ def test_template_list_screen_renders_for_authenticated_user() -> None:
     response = client.get("/quality/templates/")
 
     assert response.status_code == 200
-    assert b"Gabarits de controle qualite" in response.content
+    assert "Gabarits de contrôle qualité".encode() in response.content
 
 
 def test_template_create_screen_renders_form() -> None:
@@ -48,7 +48,7 @@ def test_template_create_screen_renders_form() -> None:
     response = client.get("/quality/templates/new/")
 
     assert response.status_code == 200
-    assert b"Nouveau gabarit de controle" in response.content
+    assert "Nouveau gabarit de contrôle".encode() in response.content
 
 
 def test_template_detail_screen_shows_items() -> None:
@@ -78,7 +78,7 @@ def test_inspection_list_screen_renders_for_authenticated_user() -> None:
     response = client.get("/quality/inspections/")
 
     assert response.status_code == 200
-    assert b"Inspections qualite" in response.content
+    assert "Inspections qualité".encode() in response.content
 
 
 def test_inspection_detail_screen_shows_result() -> None:

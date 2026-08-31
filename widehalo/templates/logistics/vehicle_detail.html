@@ -7,15 +7,15 @@
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Type" %}: <span class="badge {{ vehicle.type|state_badge_class }}">{{ vehicle.get_type_display }}</span> — {% trans "Statut" %}: <span class="badge {{ vehicle.status|state_badge_class }}">{{ vehicle.get_status_display }}</span></p>
-  <p>{% trans "Kilometrage" %}: {{ vehicle.odometer_km }} km</p>
+  <p>{% trans "Kilométrage" %}: {{ vehicle.odometer_km }} km</p>
 
   <h2>{% trans "Documents" %}</h2>
   <table class="smart-table">
     <thead>
       <tr>
         <th>{% trans "Type" %}</th>
-        <th>{% trans "Reference" %}</th>
-        <th>{% trans "Echeance" %}</th>
+        <th>{% trans "Référence" %}</th>
+        <th>{% trans "Échéance" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -43,7 +43,7 @@
     <button type="submit">{% trans "Ajouter un document" %}</button>
   </form>
 
-  <h2>{% trans "Couts" %}</h2>
+  <h2>{% trans "Coûts" %}</h2>
   <table class="smart-table">
     <thead>
       <tr>
@@ -60,7 +60,7 @@
           <td>{{ cost.amount_mga }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="3">{% trans "Aucun cout enregistre." %}</td></tr>
+        <tr><td colspan="3">{% trans "Aucun coût enregistre." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -74,6 +74,6 @@
     <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant' %}" required>
     <input type="number" name="odometer_km" step="0.01" placeholder="{% trans 'Kilometrage' %}">
     <input type="text" name="note" placeholder="{% trans 'Note' %}">
-    <button type="submit">{% trans "Ajouter un cout" %}</button>
+    <button type="submit">{% trans "Ajouter un coût" %}</button>
   </form>
 {% endblock %}

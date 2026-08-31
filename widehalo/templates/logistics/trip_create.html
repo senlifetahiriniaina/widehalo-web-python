@@ -9,7 +9,7 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="vehicle_id">{% trans "Vehicule" %}</label>
+      <label for="vehicle_id">{% trans "Véhicule" %}</label>
       <select id="vehicle_id" name="vehicle_id" required>
         {% for vehicle in vehicles %}<option value="{{ vehicle.id }}">{{ vehicle.plate_number }}</option>{% endfor %}
       </select>
@@ -25,9 +25,9 @@
       <input id="date" type="date" name="date">
     </div>
     <div class="form-field">
-      <label for="stop_addresses">{% trans "Arrets (une adresse par ligne)" %}</label>
+      <label for="stop_addresses">{% trans "Arrêts (une adresse par ligne)" %}</label>
       <textarea id="stop_addresses" name="stop_addresses" rows="5" required></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

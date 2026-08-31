@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Regles de gradation" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Règles de gradation" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Regles de gradation" %}</h1>
+  <h1>{% trans "Règles de gradation" %}</h1>
 </div>
   <p><a href="{% url 'patronage:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
@@ -22,12 +22,12 @@
           <td>{{ rule.to_size }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7">{% trans "Aucune regle de gradation." %}</td></tr>
+        <tr><td colspan="7">{% trans "Aucune règle de gradation." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle regle de gradation" %}</h2>
+  <h2>{% trans "Nouvelle règle de gradation" %}</h2>
   {% if not size_charts or not measurement_points %}
     <p class="form-error">
       {% if not size_charts %}
@@ -35,13 +35,13 @@
         <a href="{% url 'patronage:config_size_charts' %}">{% trans "Configurer un tableau de mesures" %}</a>
       {% endif %}
       {% if not measurement_points %}
-        {% trans "Aucun point de mesure configure. Ajoutez-en un depuis le detail d'un tableau de mesures." %}
+        {% trans "Aucun point de mesure configure. Ajoutez-en un depuis le détail d'un tableau de mesures." %}
         <a href="{% url 'patronage:config_size_charts' %}">{% trans "Voir les tableaux de mesures" %}</a>
       {% endif %}
     </p>
   {% else %}
   <p class="hint">
-    {% trans "Formulaire simplifie (U3) : un seul formulaire generique pour les 4 modes. 'Valeur' porte l'increment/le pourcentage (increment fixe/progressif/pourcentage) ; 'Formule' ne sert qu'au mode formule (expression sur d'autres points de mesure de la meme taille)." %}
+    {% trans "Formulaire simplifie (U3) : un seul formulaire générique pour les 4 modes. 'Valeur' porte l'incrément/le pourcentage (incrément fixe/progressif/pourcentage) ; 'Formule' ne sert qu'au mode formule (expression sur d'autres points de mesure de la même taille)." %}
   </p>
   <form method="post">
     {% csrf_token %}
@@ -64,14 +64,14 @@
     <div class="form-field">
       <label for="mode">{% trans "Mode" %}</label>
       <select id="mode" name="mode" required>
-        <option value="increment_fixe">{% trans "Increment fixe" %}</option>
-        <option value="increment_progressif">{% trans "Increment progressif" %}</option>
+        <option value="increment_fixe">{% trans "Incrément fixe" %}</option>
+        <option value="increment_progressif">{% trans "Incrément progressif" %}</option>
         <option value="pourcentage">{% trans "Pourcentage" %}</option>
         <option value="formule">{% trans "Formule" %}</option>
       </select>
     </div>
     <div class="form-field">
-      <label for="value">{% trans "Valeur (increment/pourcentage)" %}</label>
+      <label for="value">{% trans "Valeur (incrément/pourcentage)" %}</label>
       <input id="value" type="number" name="value" step="0.0001">
     </div>
     <div class="form-field">
@@ -86,7 +86,7 @@
       <label for="to_size">{% trans "A la taille" %}</label>
       <input id="to_size" type="text" name="to_size" required>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
   {% endif %}
 {% endblock %}

@@ -9,6 +9,6 @@
     <tr><th>{% trans "Budget mensuel (tokens)" %}</th><td>{{ usage_limit.monthly_token_budget }}</td></tr>
     <tr><th>{% trans "Consommation ce mois-ci" %}</th><td>{{ current_month_usage }} ({{ usage_pct }}%)</td></tr>
     <tr><th>{% trans "Seuil d'alerte" %}</th><td>{{ usage_limit.alert_threshold_pct }}%</td></tr>
-    <tr><th>{% trans "Coupure au depassement" %}</th><td>{{ usage_limit.hard_stop|yesno:_("Oui,Non") }}</td></tr>
+    <tr><th>{% trans "Coupure au dépassement" %}</th><td>{{ usage_limit.hard_stop|yesno:_("Oui,Non") }}</td></tr>
   </table>
 {% endblock %}

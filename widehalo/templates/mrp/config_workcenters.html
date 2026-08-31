@@ -9,7 +9,7 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Atelier" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Capacite (u/h)" %}</th><th>{% trans "Cout/h (MGA)" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Atelier" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Capacité (u/h)" %}</th><th>{% trans "Coût/h (MGA)" %}</th></tr></thead>
     <tbody>
       {% for workcenter in workcenters %}
         <tr><td>{{ workcenter.workshop.code }}</td><td>{{ workcenter.code }}</td><td>{{ workcenter.name }}</td><td><span class="badge {{ workcenter.type|state_badge_class }}">{{ workcenter.get_type_display }}</span></td><td>{{ workcenter.capacity_units_hour }}</td><td>{{ workcenter.cost_per_hour_mga }}</td></tr>
@@ -57,14 +57,14 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="capacity_units_hour">{% trans "Capacite (u/h)" %}</label>
+      <label for="capacity_units_hour">{% trans "Capacité (u/h)" %}</label>
       <input id="capacity_units_hour" type="number" name="capacity_units_hour" step="0.01" value="0">
     </div>
     <div class="form-field">
-      <label for="cost_per_hour_mga">{% trans "Cout/h (MGA)" %}</label>
+      <label for="cost_per_hour_mga">{% trans "Coût/h (MGA)" %}</label>
       <input id="cost_per_hour_mga" type="number" name="cost_per_hour_mga" step="0.0001" value="0">
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
   {% endif %}
 {% endblock %}

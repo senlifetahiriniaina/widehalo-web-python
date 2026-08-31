@@ -33,7 +33,7 @@
   </table>
 
   <h2>{% trans "Nouvelle condition de paiement" %}</h2>
-  <p class="hint">{% trans "Simplifie a une seule ligne (le detail multi-lignes reste accessible via l'API)." %}</p>
+  <p class="hint">{% trans "Simplifie a une seule ligne (le détail multi-lignes reste accessible via l'api)." %}</p>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -52,6 +52,6 @@
       <label for="days">{% trans "Jours" %}</label>
       <input id="days" type="number" name="days" min="0" value="0" required>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

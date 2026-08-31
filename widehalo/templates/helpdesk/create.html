@@ -24,14 +24,14 @@
       <label for="ticket_type_id">{% trans "Type de ticket (catalogue)" %}</label>
       {% if ticket_types %}
         <select id="ticket_type_id" name="ticket_type_id">
-          <option value="">{% trans "Non specifie" %}</option>
+          <option value="">{% trans "Non spécifié" %}</option>
           {% for entry in ticket_types %}
             <option value="{{ entry.id }}">{{ entry.label }}</option>
           {% endfor %}
         </select>
       {% else %}
         <select id="ticket_type_id" name="ticket_type_id" disabled>
-          <option value="">{% trans "Non specifie" %}</option>
+          <option value="">{% trans "Non spécifié" %}</option>
         </select>
         <p class="form-error">
           {% trans "Aucun type de ticket configure." %}
@@ -40,9 +40,9 @@
       {% endif %}
     </div>
     <div class="form-field">
-      <label for="priority">{% trans "Priorite" %}</label>
+      <label for="priority">{% trans "Priorité" %}</label>
       <select id="priority" name="priority">
-        <option value="">{% trans "Par defaut du type" %}</option>
+        <option value="">{% trans "Par défaut du type" %}</option>
         {% for value, label in priorities %}
           <option value="{{ value }}">{{ label }}</option>
         {% endfor %}
@@ -52,6 +52,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

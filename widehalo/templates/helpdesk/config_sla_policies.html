@@ -5,11 +5,11 @@
 <div class="page-head">
   <h1>{% trans "Politiques de SLA" %}</h1>
 </div>
-  <p>{% blocktrans %}Decompte continu (24/7), sans calendrier d'heures ouvrees en V1.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Décompte continu (24/7), sans calendrier d'heures ouvrées en V1.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Priorite" %}</th><th>{% trans "1re reponse (min)" %}</th><th>{% trans "Resolution (min)" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Priorité" %}</th><th>{% trans "1re réponse (min)" %}</th><th>{% trans "Résolution (min)" %}</th></tr></thead>
     <tbody>
       {% for policy in policies %}
         <tr><td>{{ policy.name }}</td><td><span class="badge {{ policy.priority|state_badge_class }}">{{ policy.get_priority_display }}</span></td><td>{{ policy.first_response_minutes }}</td><td>{{ policy.resolution_minutes }}</td></tr>
@@ -24,13 +24,13 @@
     {% csrf_token %}
     <div class="form-field"><label>{% trans "Nom" %}</label><input type="text" name="name" required></div>
     <div class="form-field">
-      <label>{% trans "Priorite" %}</label>
+      <label>{% trans "Priorité" %}</label>
       <select name="priority" required>
         {% for value, label in priorities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="form-field"><label>{% trans "1re reponse (minutes)" %}</label><input type="number" name="first_response_minutes" min="0" required></div>
-    <div class="form-field"><label>{% trans "Resolution (minutes)" %}</label><input type="number" name="resolution_minutes" min="0" required></div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <div class="form-field"><label>{% trans "1re réponse (minutes)" %}</label><input type="number" name="first_response_minutes" min="0" required></div>
+    <div class="form-field"><label>{% trans "Résolution (minutes)" %}</label><input type="number" name="resolution_minutes" min="0" required></div>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

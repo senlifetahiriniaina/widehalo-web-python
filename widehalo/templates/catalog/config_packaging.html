@@ -11,8 +11,8 @@
     <thead>
       <tr>
         <th>{% trans "Variante" %}</th>
-        <th>{% trans "Quantite" %}</th>
-        <th>{% trans "Unite" %}</th>
+        <th>{% trans "Quantité" %}</th>
+        <th>{% trans "Unité" %}</th>
         <th>{% trans "Code-barres" %}</th>
       </tr>
     </thead>
@@ -42,11 +42,11 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="unit_count">{% trans "Quantite par colis" %}</label>
+      <label for="unit_count">{% trans "Quantité par colis" %}</label>
       <input id="unit_count" type="number" name="unit_count" value="1" required>
     </div>
     <div class="form-field">
-      <label for="uom_id">{% trans "Unite" %}</label>
+      <label for="uom_id">{% trans "Unité" %}</label>
       <select id="uom_id" name="uom_id" required>
         {% for uom in uoms %}
           <option value="{{ uom.id }}">{{ uom.code }}</option>
@@ -57,6 +57,6 @@
       <label for="barcode">{% trans "Code-barres" %}</label>
       <input id="barcode" type="text" name="barcode">
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

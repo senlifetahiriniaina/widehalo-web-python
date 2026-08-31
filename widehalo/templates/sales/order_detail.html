@@ -12,12 +12,12 @@
              aria-label="{% trans 'Motif (annulation)' %}">
       {% if order.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
       {% if order.state == "draft" or order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
-      {% if order.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Debloquer" %}</button>{% endif %}
-      {% if order.state == "confirmed" %}<button type="submit" name="action" value="start_preparation">{% trans "Demarrer la preparation" %}</button>{% endif %}
+      {% if order.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Débloquer" %}</button>{% endif %}
+      {% if order.state == "confirmed" %}<button type="submit" name="action" value="start_preparation">{% trans "Démarrer la préparation" %}</button>{% endif %}
       {% if order.state == "in_preparation" %}<button type="submit" name="action" value="deliver_partial">{% trans "Livrer partiellement" %}</button>{% endif %}
-      {% if order.state == "in_preparation" or order.state == "partially_delivered" %}<button type="submit" name="action" value="deliver_full">{% trans "Livrer completement" %}</button>{% endif %}
+      {% if order.state == "in_preparation" or order.state == "partially_delivered" %}<button type="submit" name="action" value="deliver_full">{% trans "Livrer complètement" %}</button>{% endif %}
       {% if order.state == "delivered" %}<button type="submit" name="action" value="invoice">{% trans "Facturer" %}</button>{% endif %}
-      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
+      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
       {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
     </form>
   </div>
@@ -30,7 +30,7 @@
   <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
   <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
   <p>{% trans "Total" %}: {{ order.amount_total_mga }} MGA</p>
-  <p>{% trans "Deja facture" %}: {{ order.invoiced_amount_mga }} MGA</p>
+  <p>{% trans "Déjà facture" %}: {{ order.invoiced_amount_mga }} MGA</p>
 
   <h2>{% trans "Rapports" %}</h2>
   <ul>
@@ -44,13 +44,13 @@
     <thead>
       <tr>
         <th>{% trans "Description" %}</th>
-        <th>{% trans "Quantite" %}</th>
+        <th>{% trans "Quantité" %}</th>
         <th>{% trans "Prix unitaire" %}</th>
         <th>{% trans "Sous-total" %}</th>
         <th>{% trans "Origine" %}</th>
         <th>{% trans "Politique de facturation" %}</th>
-        <th>{% trans "Qte livree" %}</th>
-        <th>{% trans "Qte facturee" %}</th>
+        <th>{% trans "Qte livrée" %}</th>
+        <th>{% trans "Qte facturée" %}</th>
         {% if can_see_margin %}<th>{% trans "Marge (%)" %}</th>{% endif %}
       </tr>
     </thead>
@@ -82,7 +82,7 @@
       <input id="description" type="text" name="description" required>
     </div>
     <div class="form-field">
-      <label for="qty">{% trans "Quantite" %}</label>
+      <label for="qty">{% trans "Quantité" %}</label>
       <input id="qty" type="number" name="qty" step="0.0001" value="1">
     </div>
     <div class="form-field">
@@ -92,8 +92,8 @@
     <div class="form-field">
       <label for="billing_policy">{% trans "Politique de facturation" %}</label>
       <select id="billing_policy" name="billing_policy">
-        <option value="on_ordered_qty">{% trans "Sur quantite commandee" %}</option>
-        <option value="on_delivered_qty">{% trans "Sur quantite livree" %}</option>
+        <option value="on_ordered_qty">{% trans "Sur quantité commandée" %}</option>
+        <option value="on_delivered_qty">{% trans "Sur quantité livrée" %}</option>
         <option value="on_deposit">{% trans "Sur acompte" %}</option>
         <option value="on_production_progress">{% trans "A l'avancement de production" %}</option>
       </select>

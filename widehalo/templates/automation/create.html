@@ -13,7 +13,7 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="trigger_event_type">{% trans "Declencheur (evenement)" %}</label>
+      <label for="trigger_event_type">{% trans "Déclencheur (événement)" %}</label>
       <select id="trigger_event_type" name="trigger_event_type">
         {% for event_type in event_types %}
           <option value="{{ event_type }}">{{ event_type }}</option>
@@ -24,6 +24,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer et ouvrir le constructeur" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer et ouvrir le constructeur" %}</button>
   </form>
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block title %}{{ inspection.template.name }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Resultat" %}:</strong>
+    <strong>{% trans "Résultat" %}:</strong>
     {% if inspection.passed %}{% trans "Conforme" %}{% else %}{% trans "Non conforme" %}{% endif %}
   </div>
 
@@ -13,7 +13,7 @@
   <p>{% trans "Inspecteur" %}: {{ inspection.inspector }}</p>
   <p>{% trans "Date" %}: {{ inspection.inspected_at }}</p>
 
-  <h2>{% trans "Resultats par critere" %}</h2>
+  <h2>{% trans "Résultats par critère" %}</h2>
   <table>
     <thead>
       <tr>

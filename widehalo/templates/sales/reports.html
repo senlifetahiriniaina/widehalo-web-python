@@ -8,8 +8,8 @@
   <p>{% blocktrans %}Le devis (SAL-DEVIS) et la confirmation de commande (SAL-BC) se telechargent depuis leur fiche respective. Le bon de livraison (SAL-BL) depuis la fiche commande.{% endblocktrans %}</p>
 
   <h2>{% trans "Facturation (SAL-FAC)" %}</h2>
-  <p>{% blocktrans %}Les factures generees depuis une commande de vente sont des documents comptables reels : consultez-les depuis l'ecran Comptabilite.{% endblocktrans %}</p>
-  <p><a href="{% url 'accounting:list' %}">{% trans "Voir les factures (Comptabilite)" %}</a></p>
+  <p>{% blocktrans %}Les factures générées depuis une commande de vente sont des documents comptables réels : consultez-les depuis l'écran Comptabilité.{% endblocktrans %}</p>
+  <p><a href="{% url 'accounting:list' %}">{% trans "Voir les factures (Comptabilité)" %}</a></p>
 
   <h2>{% trans "Chiffre d'affaires (SAL-CA)" %}</h2>
   <form method="get" action="{% url 'sales:report_revenue' %}">
@@ -41,7 +41,7 @@
   </form>
 
   <h2>{% trans "Analyse de marge (SAL-MARGE)" %}</h2>
-  <p>{% blocktrans %}RG-SAL-5 : la colonne marge n'apparait que pour les roles direction/admin/resp_commercial.{% endblocktrans %}</p>
+  <p>{% blocktrans %}RG-SAL-5 : la colonne marge n'apparaît que pour les rôles direction/admin/resp_commercial.{% endblocktrans %}</p>
   <form method="get" action="{% url 'sales:report_margin' %}">
     <div class="form-field">
       <label for="margin_format">{% trans "Format" %}</label>
@@ -67,10 +67,10 @@
     <button type="submit">{% trans "Telecharger" %}</button>
   </form>
 
-  <h2>{% trans "Realisation des objectifs (SAL-OBJ)" %}</h2>
+  <h2>{% trans "Réalisation des objectifs (SAL-OBJ)" %}</h2>
   <form method="get" action="{% url 'sales:report_targets' %}">
     <div class="form-field">
-      <label for="obj_period">{% trans "Periode (YYYY-MM)" %}</label>
+      <label for="obj_period">{% trans "Période (YYYY-MM)" %}</label>
       <input id="obj_period" type="text" name="period" placeholder="2026-08">
     </div>
     <div class="form-field">
@@ -84,14 +84,14 @@
     <button type="submit">{% trans "Telecharger" %}</button>
   </form>
 
-  <h2>{% trans "Previsions (SAL-PREV)" %}</h2>
+  <h2>{% trans "Prévisions (SAL-PREV)" %}</h2>
   <form method="get" action="{% url 'sales:report_forecast' %}">
     <div class="form-field">
-      <label for="prev_date_from">{% trans "Periode de" %} (YYYY-MM)</label>
+      <label for="prev_date_from">{% trans "Période de" %} (YYYY-MM)</label>
       <input id="prev_date_from" type="text" name="date_from" placeholder="2026-01">
     </div>
     <div class="form-field">
-      <label for="prev_date_to">{% trans "Periode a" %} (YYYY-MM)</label>
+      <label for="prev_date_to">{% trans "Période a" %} (YYYY-MM)</label>
       <input id="prev_date_to" type="text" name="date_to" placeholder="2026-12">
     </div>
     <div class="form-field">

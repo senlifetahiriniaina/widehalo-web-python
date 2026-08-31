@@ -22,7 +22,7 @@
   {% if project_description %}<p>{{ project_description }}</p>{% endif %}
 
   <p>
-    {% trans "Periode" %} :
+    {% trans "Période" %} :
     {{ start_date|default:"—" }} &rarr; {{ end_date|default:"—" }}
   </p>
 
@@ -37,8 +37,8 @@
   <table>
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
-        <th>{% trans "Etat" %}</th>
+        <th>{% trans "Référence" %}</th>
+        <th>{% trans "État" %}</th>
         <th>{% trans "Date" %}</th>
         <th>{% trans "Avancement" %}</th>
       </tr>
@@ -61,10 +61,10 @@
   <table>
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th>{% trans "Type" %}</th>
-        <th>{% trans "Etat" %}</th>
-        <th>{% trans "Debut" %}</th>
+        <th>{% trans "État" %}</th>
+        <th>{% trans "Début" %}</th>
         <th>{% trans "Fin" %}</th>
         <th>{% trans "Avancement" %}</th>
       </tr>
@@ -85,6 +85,6 @@
     </tbody>
   </table>
 
-  <footer>{% trans "Vue lecture seule generee pour un invite externe — aucune donnee financiere interne n'est affichee ici." %}</footer>
+  <footer>{% trans "Vue lecture seule générée pour un invite externe — aucune donnée financière interne n'est affichée ici." %}</footer>
 </body>
 </html>

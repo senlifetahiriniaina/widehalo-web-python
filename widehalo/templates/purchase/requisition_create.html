@@ -9,7 +9,7 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="department">{% trans "Departement" %}</label>
+      <label for="department">{% trans "Département" %}</label>
       <input id="department" type="text" name="department">
     </div>
     <div class="form-field">
@@ -24,6 +24,6 @@
       <label for="source_document">{% trans "Document d'origine" %}</label>
       <input id="source_document" type="text" name="source_document">
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

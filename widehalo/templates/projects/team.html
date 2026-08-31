@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Equipe" %} — {{ project.reference }} — WideHalo{% endblock %}
+{% block title %}{% trans "Équipe" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Equipe du projet" %} — {{ project.reference }} — {{ project.name }}</h1>
+  <h1>{% trans "Équipe du projet" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Allocation combinee sur ce projet" %} : {{ summary.total_allocation_pct }}%</p>
+  <p>{% trans "Allocation combinée sur ce projet" %} : {{ summary.total_allocation_pct }}%</p>
 
   <table>
     <thead>
       <tr>
         <th>{% trans "Utilisateur" %}</th>
-        <th>{% trans "Role" %}</th>
+        <th>{% trans "Rôle" %}</th>
         <th>{% trans "Allocation" %}</th>
         <th>{% trans "Actions" %}</th>
       </tr>

@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>{% trans "Assistant IA contextuel" %}</h1>
 </div>
-  <p>{% trans "Choisissez un module et decrivez l'action en cours pour obtenir une guidance." %}</p>
+  <p>{% trans "Choisissez un module et décrivez l'action en cours pour obtenir une guidance." %}</p>
   <form hx-post="{% url 'ai:assist_fragment' %}" hx-target="#assist-result">
     {% csrf_token %}
     <label>{% trans "Module" %}

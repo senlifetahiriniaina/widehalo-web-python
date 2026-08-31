@@ -9,15 +9,15 @@
     <form method="post" style="display:inline;">
       {% csrf_token %}
       <input type="text" name="reason" placeholder="{% trans 'Motif (blocage)' %}">
-      {% if shipment.state == "planned" %}<button type="submit" name="action" value="book">{% trans "Reserver" %}</button>{% endif %}
+      {% if shipment.state == "planned" %}<button type="submit" name="action" value="book">{% trans "Réserver" %}</button>{% endif %}
       {% if shipment.state == "booked" %}<button type="submit" name="action" value="pick_up">{% trans "Enlever" %}</button>{% endif %}
       {% if shipment.state == "picked_up" %}<button type="submit" name="action" value="mark_in_transit">{% trans "Marquer en transit" %}</button>{% endif %}
-      {% if shipment.state == "in_transit" %}<button type="submit" name="action" value="mark_arrived_at_port">{% trans "Marquer arrivee au port" %}</button>{% endif %}
-      {% if shipment.state == "arrived_at_port" %}<button type="submit" name="action" value="start_customs_clearance">{% trans "Mettre en dedouanement" %}</button>{% endif %}
-      {% if shipment.state == "customs_clearance" %}<button type="submit" name="action" value="mark_customs_cleared">{% trans "Marquer dedouanee" %}</button>{% endif %}
-      {% if shipment.state == "customs_cleared" %}<button type="submit" name="action" value="deliver">{% trans "Marquer livree" %}</button>{% endif %}
-      {% if shipment.state == "delivered" %}<button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>{% endif %}
-      {% if shipment.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Debloquer" %}</button>{% endif %}
+      {% if shipment.state == "in_transit" %}<button type="submit" name="action" value="mark_arrived_at_port">{% trans "Marquer arrivée au port" %}</button>{% endif %}
+      {% if shipment.state == "arrived_at_port" %}<button type="submit" name="action" value="start_customs_clearance">{% trans "Mettre en dédouanement" %}</button>{% endif %}
+      {% if shipment.state == "customs_clearance" %}<button type="submit" name="action" value="mark_customs_cleared">{% trans "Marquer dédouanée" %}</button>{% endif %}
+      {% if shipment.state == "customs_cleared" %}<button type="submit" name="action" value="deliver">{% trans "Marquer livrée" %}</button>{% endif %}
+      {% if shipment.state == "delivered" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
+      {% if shipment.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Débloquer" %}</button>{% endif %}
       {% if shipment.state == "booked" or shipment.state == "picked_up" or shipment.state == "in_transit" or shipment.state == "arrived_at_port" or shipment.state == "customs_clearance" %}<button type="submit" name="action" value="block">{% trans "Bloquer" %}</button>{% endif %}
     </form>
   </div>
@@ -27,7 +27,7 @@
 </div>
   <p>{% trans "Origine" %}: {{ shipment.origin }} — {% trans "Destination" %}: {{ shipment.destination }}</p>
   <p>{% trans "Incoterm" %}: {{ shipment.incoterm|default:"-" }}</p>
-  <p>{% trans "Cout de fret" %}: {{ shipment.freight_cost_mga }} MGA</p>
+  <p>{% trans "Coût de fret" %}: {{ shipment.freight_cost_mga }} MGA</p>
   {% if shipment.freight_billed_to_customer_mga %}<p>{% trans "Refacture au client" %}: {{ shipment.freight_billed_to_customer_mga }} MGA</p>{% endif %}
 
   <h3>{% trans "Refacturer le fret au client (LOG-REFACT1)" %}</h3>
@@ -39,7 +39,7 @@
     <button type="submit">{% trans "Refacturer" %}</button>
   </form>
 
-  <h2>{% trans "Etapes de transport (legs)" %}</h2>
+  <h2>{% trans "Étapes de transport (legs)" %}</h2>
   <table class="smart-table">
     <thead>
       <tr>
@@ -47,8 +47,8 @@
         <th>{% trans "Mode" %}</th>
         <th>{% trans "Origine" %}</th>
         <th>{% trans "Destination" %}</th>
-        <th>{% trans "Depart" %}</th>
-        <th>{% trans "Arrivee" %}</th>
+        <th>{% trans "Départ" %}</th>
+        <th>{% trans "Arrivée" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -62,7 +62,7 @@
           <td>{{ leg.arrival_date|default:"-" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6">{% trans "Aucune etape." %}</td></tr>
+        <tr><td colspan="6">{% trans "Aucune étape." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -83,7 +83,7 @@
     </select>
     <input type="date" name="departure_date">
     <input type="date" name="arrival_date">
-    <button type="submit">{% trans "Ajouter une etape" %}</button>
+    <button type="submit">{% trans "Ajouter une étape" %}</button>
   </form>
 
   <h2>{% trans "Dossiers douaniers (RG-LOG-6)" %}</h2>

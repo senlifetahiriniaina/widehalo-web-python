@@ -9,11 +9,11 @@
   <table class="smart-table">
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th>{% trans "Date" %}</th>
         <th>{% trans "Type" %}</th>
         <th>{% trans "Fournisseur" %}</th>
-        <th>{% trans "Cout (MGA)" %}</th>
+        <th>{% trans "Coût (MGA)" %}</th>
         <th>{% trans "Statut" %}</th>
         <th></th>
       </tr>
@@ -33,7 +33,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="cri_id" value="{{ entry.id }}">
                 <input type="text" name="action_taken" placeholder="{% trans 'Action corrective' %}">
-                <button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>
+                <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
               </form>
             {% endif %}
           </td>
@@ -56,10 +56,10 @@
       </select>
     </div>
     <div class="form-field"><label>{% trans "Fournisseur (UUID)" %}</label><input type="text" name="partner_id" required></div>
-    <div class="form-field"><label>{% trans "Commande liee (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
+    <div class="form-field"><label>{% trans "Commande liée (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
     <div class="form-field"><label>{% trans "Description" %}</label><textarea name="description" required></textarea></div>
     <div class="form-field"><label>{% trans "Impact" %}</label><textarea name="impact"></textarea></div>
-    <div class="form-field"><label>{% trans "Cout (MGA)" %}</label><input type="number" name="cost_mga" step="0.0001" value="0"></div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <div class="form-field"><label>{% trans "Coût (MGA)" %}</label><input type="number" name="cost_mga" step="0.0001" value="0"></div>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

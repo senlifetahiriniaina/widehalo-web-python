@@ -10,7 +10,7 @@
   <table class="smart-table">
     <thead>
       <tr>
-        <th>{% trans "Date du releve" %}</th>
+        <th>{% trans "Date du relevé" %}</th>
         <th>{% trans "Prix observe" %}</th>
         <th>{% trans "Devise" %}</th>
         <th>{% trans "Stub" %}</th>
@@ -23,11 +23,11 @@
           <td>{{ snapshot.observed_at }}</td>
           <td>{{ snapshot.observed_price|default:"—" }}</td>
           <td>{{ target.currency }}</td>
-          <td>{% if snapshot.is_stub %}{% trans "Oui (aucun appel reseau)" %}{% else %}{% trans "Non" %}{% endif %}</td>
+          <td>{% if snapshot.is_stub %}{% trans "Oui (aucun appel réseau)" %}{% else %}{% trans "Non" %}{% endif %}</td>
           <td>{{ snapshot.source_note }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucun releve pour cette cible." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucun relevé pour cette cible." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

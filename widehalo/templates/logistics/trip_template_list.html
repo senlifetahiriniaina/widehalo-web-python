@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Gabarits de tournee" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Gabarits de tournée" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Gabarits de tournee (LOG-REC1)" %}</h1>
+  <h1>{% trans "Gabarits de tournée (LOG-REC1)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
     <thead>
       <tr>
         <th>{% trans "Nom" %}</th>
-        <th>{% trans "Vehicule" %}</th>
+        <th>{% trans "Véhicule" %}</th>
         <th>{% trans "Chauffeur" %}</th>
-        <th>{% trans "Frequence" %}</th>
+        <th>{% trans "Fréquence" %}</th>
         <th>{% trans "Prochaine occurrence" %}</th>
       </tr>
     </thead>
@@ -47,6 +47,6 @@
     <input type="date" name="start_date" required>
     <input type="date" name="end_date">
     <textarea name="stop_addresses" rows="3" placeholder="{% trans 'Arrets (une adresse par ligne)' %}" required></textarea>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

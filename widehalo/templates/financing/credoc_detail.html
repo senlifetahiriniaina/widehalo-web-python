@@ -3,23 +3,23 @@
 {% block title %}{{ credoc.reference }} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Credit documentaire" %} {{ credoc.reference }}</h1>
+  <h1>{% trans "Crédit documentaire" %} {{ credoc.reference }}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Statut" %} : <span class="badge {{ credoc.state|state_badge_class }}">{{ credoc.get_state_display }}</span></p>
-  <p>{% trans "Banque emettrice" %} : {{ credoc.bank }}</p>
+  <p>{% trans "Banque émettrice" %} : {{ credoc.bank }}</p>
   <p>{% trans "Banque notificatrice" %} : {{ credoc.advising_bank|default:"—" }}</p>
-  <p>{% trans "Beneficiaire" %} : {{ credoc.beneficiary }}</p>
+  <p>{% trans "Bénéficiaire" %} : {{ credoc.beneficiary }}</p>
   <p>{% trans "Montant" %} : {{ credoc.amount_mga }} {{ credoc.currency }}</p>
-  <p>{% trans "Date de validite" %} : {{ credoc.validity_date }}</p>
+  <p>{% trans "Date de validité" %} : {{ credoc.validity_date }}</p>
 
   {% if credoc.state == "demande" %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="open"><button type="submit">{% trans "Ouvrir" %}</button></form>
   {% elif credoc.state == "ouvert" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="receive_documents"><button type="submit">{% trans "Marquer documents recus" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="receive_documents"><button type="submit">{% trans "Marquer documents reçus" %}</button></form>
   {% elif credoc.state == "documents_recus" %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="pay"><button type="submit">{% trans "Marquer paye" %}</button></form>
   {% elif credoc.state == "paye" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button type="submit">{% trans "Cloturer" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button type="submit">{% trans "Clôturer" %}</button></form>
   {% endif %}
 {% endblock %}

@@ -3,13 +3,13 @@
 {% block title %}{% trans "CRA achats" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Comptes rendus d'activite achats" %}</h1>
+  <h1>{% trans "Comptes rendus d'activité achats" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th>{% trans "Date" %}</th>
         <th>{% trans "Acheteur" %}</th>
         <th>{% trans "Fournisseur" %}</th>
@@ -52,14 +52,14 @@
     <div class="form-field"><label>{% trans "Date" %}</label><input type="date" name="date"></div>
     <div class="form-field"><label>{% trans "Fournisseur (UUID)" %}</label><input type="text" name="partner_id" required></div>
     <div class="form-field">
-      <label>{% trans "Type d'activite" %}</label>
+      <label>{% trans "Type d'activité" %}</label>
       <select name="activity_type">
         {% for value, label in activity_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="form-field"><label>{% trans "Heures" %}</label><input type="number" name="hours" step="0.01" value="0"></div>
-    <div class="form-field"><label>{% trans "Commande liee (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
+    <div class="form-field"><label>{% trans "Commande liée (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
     <div class="form-field"><label>{% trans "Commentaire" %}</label><textarea name="comment"></textarea></div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

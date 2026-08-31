@@ -10,7 +10,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="start">
         <input type="number" name="start_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de depart' %}" required>
-        <button type="submit">{% trans "Demarrer" %}</button>
+        <button type="submit">{% trans "Démarrer" %}</button>
       </form>
     {% endif %}
     {% if trip.status == "in_progress" %}
@@ -18,7 +18,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="close">
         <input type="number" name="end_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de fin' %}" required>
-        <button type="submit">{% trans "Cloturer" %}</button>
+        <button type="submit">{% trans "Clôturer" %}</button>
       </form>
     {% endif %}
   </div>
@@ -26,10 +26,10 @@
 <div class="page-head">
   <h1>{{ trip.reference|default:"(brouillon)" }}</h1>
 </div>
-  <p>{% trans "Vehicule" %}: {{ trip.vehicle.plate_number }} — {% trans "Chauffeur" %}: {{ trip.driver.name }}</p>
+  <p>{% trans "Véhicule" %}: {{ trip.vehicle.plate_number }} — {% trans "Chauffeur" %}: {{ trip.driver.name }}</p>
   <p>{% trans "Date" %}: {{ trip.date }}</p>
 
-  <h2>{% trans "Arrets" %}</h2>
+  <h2>{% trans "Arrêts" %}</h2>
   <table class="smart-table">
     <thead>
       <tr>

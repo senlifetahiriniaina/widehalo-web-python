@@ -151,7 +151,7 @@ def test_account_menu_present_for_any_authenticated_user(collaborateur_user: Use
     assert b"account-menu" in response.content
     assert b"Voir le profil" in response.content
     assert b"Modifier le mot de passe" in response.content
-    assert b"Se deconnecter" in response.content
+    assert "Se déconnecter".encode() in response.content
 
 
 def test_administration_link_hidden_for_non_admin_role(collaborateur_user: User) -> None:

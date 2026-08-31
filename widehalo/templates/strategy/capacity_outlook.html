@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Capacite de charge a 90 jours" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Capacité de charge a 90 jours" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Capacite de charge" %}</h1>
+  <h1>{% trans "Capacité de charge" %}</h1>
 </div>
   <form method="get">
     <label for="horizon_days">{% trans "Horizon (jours)" %}</label>
@@ -11,16 +11,16 @@
     <button type="submit">{% trans "Actualiser" %}</button>
   </form>
   <p>
-    {% blocktrans %}Seuil de surcharge : au-dela de {{ overload_threshold_pct }}% de la capacite disponible, la direction et le responsable production sont notifies.{% endblocktrans %}
+    {% blocktrans %}Seuil de surcharge : au-dela de {{ overload_threshold_pct }}% de la capacité disponible, la direction et le responsable production sont notifies.{% endblocktrans %}
   </p>
   <table class="smart-table">
     <thead>
       <tr>
         <th>{% trans "Semaine" %}</th>
-        <th>{% trans "Debut" %}</th>
+        <th>{% trans "Début" %}</th>
         <th>{% trans "Fin" %}</th>
-        <th>{% trans "Capacite (h)" %}</th>
-        <th>{% trans "Charge planifiee (h)" %}</th>
+        <th>{% trans "Capacité (h)" %}</th>
+        <th>{% trans "Charge planifiée (h)" %}</th>
         <th>{% trans "Taux de charge" %}</th>
         <th>{% trans "Nb ordres" %}</th>
         <th>{% trans "Absences (j-pers)" %}</th>
@@ -39,7 +39,7 @@
           <td>{{ week.absence_days }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8">{% trans "Aucune donnee sur cet horizon." %}</td></tr>
+        <tr><td colspan="8">{% trans "Aucune donnée sur cet horizon." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -61,7 +61,7 @@
           <td>{{ row.total_employer_social }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="3">{% trans "Aucune donnee." %}</td></tr>
+        <tr><td colspan="3">{% trans "Aucune donnée." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

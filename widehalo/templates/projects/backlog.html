@@ -6,14 +6,14 @@
   <h1>{% trans "Backlog" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
   <p class="hint">
-    {% trans "Taches du projet sans sprint assigne (hors taches terminees/annulees) — a planifier dans un futur sprint." %}
+    {% trans "Taches du projet sans sprint assigne (hors taches terminées/annulées) — a planifier dans un futur sprint." %}
   </p>
-  <p><a href="{% url 'projects:sprints' project.id %}">{% trans "Gerer les sprints" %}</a></p>
+  <p><a href="{% url 'projects:sprints' project.id %}">{% trans "Gérer les sprints" %}</a></p>
 
   <table>
     <thead>
       <tr>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th>{% trans "Type" %}</th>
         <th>{% trans "Statut" %}</th>
         <th>{% trans "Points" %}</th>

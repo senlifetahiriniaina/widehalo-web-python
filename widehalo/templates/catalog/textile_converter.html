@@ -5,9 +5,9 @@
 <div class="page-head">
   <h1>{% trans "Convertisseur poids / longueur" %}</h1>
 </div>
-  <p>{% blocktrans %}Calcule la longueur equivalente a un poids de tissu, ou l'inverse, a partir du grammage (g/m2) et de la laize (cm).{% endblocktrans %}</p>
+  <p>{% blocktrans %}Calcule la longueur équivalente a un poids de tissu, ou l'inverse, a partir du grammage (g/m2) et de la laize (cm).{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  {% if result is not None %}<p class="form-success">{% trans "Resultat" %}: {{ result }}</p>{% endif %}
+  {% if result is not None %}<p class="form-success">{% trans "Résultat" %}: {{ result }}</p>{% endif %}
 
   <form method="post">
     {% csrf_token %}

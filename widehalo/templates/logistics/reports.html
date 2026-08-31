@@ -6,7 +6,7 @@
   <h1>{% trans "Rapports Logistique (§5.7)" %}</h1>
 </div>
 
-  <h2>{% trans "Synthese des couts vehicule" %}</h2>
+  <h2>{% trans "Synthèse des coûts véhicule" %}</h2>
   <form method="get" action="{% url 'logistics:report_vehicle_costs' %}">
     <div class="form-field">
       <label for="veh_format">{% trans "Format" %}</label>
@@ -19,7 +19,7 @@
     <button type="submit">{% trans "Telecharger" %}</button>
   </form>
 
-  <h2>{% trans "Statut des expeditions" %}</h2>
+  <h2>{% trans "Statut des expéditions" %}</h2>
   <form method="get" action="{% url 'logistics:report_shipments' %}">
     <div class="form-field">
       <label for="shp_format">{% trans "Format" %}</label>
@@ -32,7 +32,7 @@
     <button type="submit">{% trans "Telecharger" %}</button>
   </form>
 
-  <h2>{% trans "Synthese des droits de douane" %}</h2>
+  <h2>{% trans "Synthèse des droits de douane" %}</h2>
   <form method="get" action="{% url 'logistics:report_customs' %}">
     <div class="form-field">
       <label for="cus_format">{% trans "Format" %}</label>

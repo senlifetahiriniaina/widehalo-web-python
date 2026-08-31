@@ -12,15 +12,15 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="token">{% trans "Code de verification" %}</label>
+      <label for="token">{% trans "Code de vérification" %}</label>
       <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
              maxlength="6" required autofocus autocomplete="one-time-code">
     </div>
-    <button type="submit">{% trans "Verifier" %}</button>
+    <button type="submit">{% trans "Vérifier" %}</button>
   </form>
 {% else %}
   <p>
-    {% blocktrans %}Votre role exige une authentification a deux facteurs. Scannez ce
+    {% blocktrans %}Votre rôle exige une authentification a deux facteurs. Scannez ce
     QR code avec une application d'authentification (Google Authenticator, Authy...)
     puis saisissez le code affiche pour terminer l'activation.{% endblocktrans %}
   </p>
@@ -28,7 +28,7 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="token">{% trans "Code de verification" %}</label>
+      <label for="token">{% trans "Code de vérification" %}</label>
       <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
              maxlength="6" required autofocus autocomplete="one-time-code">
     </div>

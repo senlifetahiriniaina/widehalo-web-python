@@ -44,7 +44,7 @@
             {% endfor %}
           </tr>
         {% empty %}
-          <tr><td colspan="{{ columns|length }}">{% trans "Aucun resultat." %}</td></tr>
+          <tr><td colspan="{{ columns|length }}">{% trans "Aucun résultat." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -53,7 +53,7 @@
       {% if page_obj.has_previous %}
         <a hx-get="{{ request.path }}?page={{ page_obj.previous_page_number }}&q={{ query }}"
            hx-target="#smart-table-{{ table_key }}" hx-select="#smart-table-{{ table_key }}"
-           hx-swap="outerHTML" hx-push-url="true">{% trans "Precedent" %}</a>
+           hx-swap="outerHTML" hx-push-url="true">{% trans "Précédent" %}</a>
       {% endif %}
       <span>{% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
       {% if page_obj.has_next %}

@@ -3,7 +3,7 @@
 {% block title %}{% trans "Nouveau CREDOC" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Nouveau credit documentaire" %}</h1>
+  <h1>{% trans "Nouveau crédit documentaire" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
@@ -13,11 +13,11 @@
       <input id="purchase_order_id" type="text" name="purchase_order_id" required>
     </div>
     <div class="form-field">
-      <label for="bank">{% trans "Banque emettrice" %}</label>
+      <label for="bank">{% trans "Banque émettrice" %}</label>
       <input id="bank" type="text" name="bank" required>
     </div>
     <div class="form-field">
-      <label for="beneficiary">{% trans "Beneficiaire" %}</label>
+      <label for="beneficiary">{% trans "Bénéficiaire" %}</label>
       <input id="beneficiary" type="text" name="beneficiary" required>
     </div>
     <div class="form-field">
@@ -25,9 +25,9 @@
       <input id="amount_mga" type="number" step="0.01" name="amount_mga" required>
     </div>
     <div class="form-field">
-      <label for="validity_date">{% trans "Date de validite" %}</label>
+      <label for="validity_date">{% trans "Date de validité" %}</label>
       <input id="validity_date" type="date" name="validity_date" required>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

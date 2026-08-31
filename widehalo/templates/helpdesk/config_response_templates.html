@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Gabarits de reponse" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Gabarits de réponse" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Gabarits de reponse" %}</h1>
+  <h1>{% trans "Gabarits de réponse" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Categorie" %}</th><th>{% trans "Contenu" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Catégorie" %}</th><th>{% trans "Contenu" %}</th></tr></thead>
     <tbody>
       {% for template in templates %}
         <tr><td>{{ template.name }}</td><td>{{ template.category }}</td><td>{{ template.body|truncatewords:20 }}</td></tr>
@@ -22,8 +22,8 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field"><label>{% trans "Nom" %}</label><input type="text" name="name" required></div>
-    <div class="form-field"><label>{% trans "Categorie" %}</label><input type="text" name="category"></div>
+    <div class="form-field"><label>{% trans "Catégorie" %}</label><input type="text" name="category"></div>
     <div class="form-field"><label>{% trans "Contenu" %}</label><textarea name="body"></textarea></div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

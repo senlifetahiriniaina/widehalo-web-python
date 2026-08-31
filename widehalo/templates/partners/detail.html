@@ -12,9 +12,9 @@
       <div class="page-head">
         <h1>{{ partner.name }}</h1>
       </div>
-      <p>{% trans "Reference" %}: {{ partner.reference }}</p>
+      <p>{% trans "Référence" %}: {{ partner.reference }}</p>
       <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
-      <p>{% trans "Plafond credit" %}: {{ partner.credit_limit_mga }} MGA</p>
+      <p>{% trans "Plafond crédit" %}: {{ partner.credit_limit_mga }} MGA</p>
       <p><a href="{% url 'partners:edit' partner.id %}">{% trans "Modifier" %}</a></p>
 
       <h2>{% trans "Documents" %}</h2>

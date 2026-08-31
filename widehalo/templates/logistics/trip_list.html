@@ -7,8 +7,8 @@
 </div>
   <p>
     <a href="{% url 'logistics:trip_create' %}">{% trans "Nouveau trajet" %}</a>
-    | <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournee" %}</a>
-    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Vehicules" %}</a>
+    | <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournée" %}</a>
+    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
   </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

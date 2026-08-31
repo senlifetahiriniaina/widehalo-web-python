@@ -22,9 +22,9 @@
   <p>
     {% trans "Note moyenne" %} :
     {% if csat.average_score %}{{ csat.average_score|floatformat:2 }}/5{% else %}—{% endif %}
-    &mdash; {% trans "Reponses" %} : {{ csat.response_count }}
-    ({{ csat.resolved_or_closed_count }} {% trans "tickets resolus/clotures sur la periode" %})
-    &mdash; {% trans "Taux de reponse" %} : {{ csat.response_rate|floatformat:1 }}
+    &mdash; {% trans "Réponses" %} : {{ csat.response_count }}
+    ({{ csat.resolved_or_closed_count }} {% trans "tickets résolus/clôturés sur la période" %})
+    &mdash; {% trans "Taux de réponse" %} : {{ csat.response_rate|floatformat:1 }}
   </p>
   <table>
     <thead>
@@ -49,9 +49,9 @@
       <tr>
         <th>{% trans "Agent" %}</th>
         <th>{% trans "Tickets" %}</th>
-        <th>{% trans "Taux de resolution" %}</th>
-        <th>{% trans "1re reponse (min, moy.)" %}</th>
-        <th>{% trans "Resolution (min, moy.)" %}</th>
+        <th>{% trans "Taux de résolution" %}</th>
+        <th>{% trans "1re réponse (min, moy.)" %}</th>
+        <th>{% trans "Résolution (min, moy.)" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -64,20 +64,20 @@
           <td>{{ row.avg_resolution_minutes|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune donnee sur la periode." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune donnée sur la période." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Benchmarking d'equipe" %}</h2>
+  <h2>{% trans "Benchmarking d'équipe" %}</h2>
   <table>
     <thead>
       <tr>
-        <th>{% trans "Equipe" %}</th>
+        <th>{% trans "Équipe" %}</th>
         <th>{% trans "Tickets" %}</th>
-        <th>{% trans "Taux de resolution" %}</th>
-        <th>{% trans "1re reponse (min, moy.)" %}</th>
-        <th>{% trans "Resolution (min, moy.)" %}</th>
+        <th>{% trans "Taux de résolution" %}</th>
+        <th>{% trans "1re réponse (min, moy.)" %}</th>
+        <th>{% trans "Résolution (min, moy.)" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -90,22 +90,22 @@
           <td>{{ row.avg_resolution_minutes|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune donnee sur la periode." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune donnée sur la période." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Conformite SLA" %}</h2>
+  <h2>{% trans "Conformité SLA" %}</h2>
   <p>
     {% trans "Tickets avec politique SLA" %} : {{ sla.total_tickets_with_sla }}
-    &mdash; {% trans "Breches" %} : {{ sla.breach_count }}
-    &mdash; {% trans "Taux de conformite" %} :
+    &mdash; {% trans "Brèches" %} : {{ sla.breach_count }}
+    &mdash; {% trans "Taux de conformité" %} :
     {% if sla.compliance_rate != None %}{{ sla.compliance_rate|floatformat:2 }}{% else %}—{% endif %}
   </p>
   <table>
     <thead>
       <tr>
-        <th>{% trans "Type de breche" %}</th>
+        <th>{% trans "Type de brèche" %}</th>
         <th>{% trans "Nombre" %}</th>
       </tr>
     </thead>

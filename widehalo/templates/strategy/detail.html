@@ -5,14 +5,14 @@
 <div class="page-head">
   <h1>{{ objective.title }}</h1>
 </div>
-  <p>{% trans "Reference" %}: {{ objective.reference }}</p>
+  <p>{% trans "Référence" %}: {{ objective.reference }}</p>
   <p>{% trans "Niveau" %}: <span class="badge {{ objective.level|state_badge_class }}">{{ objective.get_level_display }}</span></p>
   <p>{% trans "Statut" %}: <span class="badge {{ objective.status|state_badge_class }}">{{ objective.get_status_display }}</span></p>
   <p>{{ objective.description }}</p>
 
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <h2>{% trans "Resultats cles" %}</h2>
+  <h2>{% trans "Résultats clés" %}</h2>
   <table class="smart-table">
     <thead>
       <tr>
@@ -34,7 +34,7 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Ajouter un resultat cle" %}</h3>
+  <h3>{% trans "Ajouter un résultat clé" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_key_result">

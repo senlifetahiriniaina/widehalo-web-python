@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Matieres de reference" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Matières de reference" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Referentiel de matieres (fibres/tissus)" %}</h1>
+  <h1>{% trans "Référentiel de matières (fibres/tissus)" %}</h1>
 </div>
   <p>
-    {% trans "Fourchettes de grammage indicatives (document source LIFE MDG) — pas des specifications absolues, varient par fabricant/construction/lavage." %}
+    {% trans "Fourchettes de grammage indicatives (document source LIFE MDG) — pas des spécifications absolues, varient par fabricant/construction/lavage." %}
   </p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -18,7 +18,7 @@
         <th>{% trans "Nature" %}</th>
         <th>{% trans "Grammage min (g/m2)" %}</th>
         <th>{% trans "Grammage max (g/m2)" %}</th>
-        <th>{% trans "Reference fournisseur" %}</th>
+        <th>{% trans "Référence fournisseur" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -32,12 +32,12 @@
           <td>{{ material.supplier_reference|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6">{% trans "Aucune matiere de reference." %}</td></tr>
+        <tr><td colspan="6">{% trans "Aucune matière de reference." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle matiere de reference" %}</h2>
+  <h2>{% trans "Nouvelle matière de reference" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -69,9 +69,9 @@
       <textarea id="usage_notes" name="usage_notes"></textarea>
     </div>
     <div class="form-field">
-      <label for="supplier_reference">{% trans "Reference fournisseur (texte libre)" %}</label>
+      <label for="supplier_reference">{% trans "Référence fournisseur (texte libre)" %}</label>
       <input id="supplier_reference" type="text" name="supplier_reference">
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

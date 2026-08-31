@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n static %}
-{% block title %}{% trans "Nouveau gabarit de controle" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Nouveau gabarit de contrôle" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Nouveau gabarit de controle" %}</h1>
+  <h1>{% trans "Nouveau gabarit de contrôle" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
@@ -19,7 +19,7 @@
       {% endfor %}
     </select>
 
-    <h2>{% trans "Criteres de controle" %}</h2>
+    <h2>{% trans "Critères de contrôle" %}</h2>
     <div class="qlt-item-row">
       <input type="text" name="item_code" placeholder="{% trans 'Code' %}">
       <input type="text" name="item_label" placeholder="{% trans 'Libelle' %}">

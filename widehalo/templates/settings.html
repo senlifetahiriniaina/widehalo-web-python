@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load static i18n %}
-{% block title %}{% trans "Parametres" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Paramètres" %} — WideHalo{% endblock %}
 {% block content %}
   <div class="page-head">
-    <h1>{% trans "Parametres" %}</h1>
+    <h1>{% trans "Paramètres" %}</h1>
   </div>
-  <p>{% blocktrans %}Donnees de configuration par module (journaux, pipelines, ateliers, tableaux de mesures...). Les ecrans transactionnels (factures, opportunites, ordres, patrons) restent accessibles depuis le menu "Modules metier".{% endblocktrans %}</p>
+  <p>{% blocktrans %}Données de configuration par module (journaux, pipelines, ateliers, tableaux de mesures...). Les écrans transactionnels (factures, opportunités, ordres, patrons) restent accessibles depuis le menu "Modules métier".{% endblocktrans %}</p>
   <div class="kpi-row" style="flex-wrap:wrap;">
     <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'accounting:config_index' %}">
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>
-      <h3>{% trans "Comptabilite" %}</h3>
+      <h3>{% trans "Comptabilité" %}</h3>
     </a>
     <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'crm:config_index' %}">
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>
@@ -31,7 +31,7 @@
     </a>
     <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'sales:config_recurrences' %}">
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>
-      <h3>{% trans "Ventes (recurrences)" %}</h3>
+      <h3>{% trans "Ventes (récurrences)" %}</h3>
     </a>
     <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'purchase:config_index' %}">
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>

@@ -6,7 +6,7 @@
   <h1>{% trans "Calendrier" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
   <p class="hint">
-    {% trans "Vue simplifiee : liste des taches ayant une date de debut, groupees par mois calendaire — pas de grille mensuelle interactive a ce stade." %}
+    {% trans "Vue simplifiée : liste des taches ayant une date de début, groupées par mois calendaire — pas de grille mensuelle interactive a ce stade." %}
   </p>
 
   {% for month, month_tasks in months %}
@@ -14,9 +14,9 @@
     <table>
       <thead>
         <tr>
-          <th>{% trans "Debut" %}</th>
+          <th>{% trans "Début" %}</th>
           <th>{% trans "Fin" %}</th>
-          <th>{% trans "Reference" %}</th>
+          <th>{% trans "Référence" %}</th>
           <th>{% trans "Type" %}</th>
           <th>{% trans "Statut" %}</th>
         </tr>
@@ -34,6 +34,6 @@
       </tbody>
     </table>
   {% empty %}
-    <p>{% trans "Aucune tache datee." %}</p>
+    <p>{% trans "Aucune tache datée." %}</p>
   {% endfor %}
 {% endblock %}

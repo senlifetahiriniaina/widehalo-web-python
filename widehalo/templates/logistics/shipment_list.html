@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Expeditions" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Expéditions" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Expeditions" %}</h1>
+  <h1>{% trans "Expéditions" %}</h1>
 </div>
   <p>
-    <a href="{% url 'logistics:shipment_create' %}">{% trans "Nouvelle expedition" %}</a>
-    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Vehicules" %}</a>
+    <a href="{% url 'logistics:shipment_create' %}">{% trans "Nouvelle expédition" %}</a>
+    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
     | <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
     | <a href="{% url 'logistics:reports_index' %}">{% trans "Rapports" %}</a>
   </p>

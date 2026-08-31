@@ -26,7 +26,7 @@
         <li>{% blocktrans with count=summary.skipped_existing_count %}{{ count }} code(s) déjà existant(s), ignoré(s){% endblocktrans %}</li>
         <li>{% blocktrans with count=summary.duplicate_alerts_count %}{{ count }} alerte(s) de doublon NIF journalisée(s){% endblocktrans %}</li>
         {% if summary.coordinates_ignored_count %}
-          <li>{% blocktrans with count=summary.coordinates_ignored_count %}{{ count }} ligne(s) avec coordonnées (email/téléphone/adresse) — colonnes lues mais non persistées, aucun champ dédié sur le partenaire.{% endblocktrans %}</li>
+          <li>{% blocktrans with count=summary.coordinates_ignored_count %}{{ count }} ligne(s) avec coordonnées (émail/téléphone/adresse) — colonnes lues mais non persistées, aucun champ dédié sur le partenaire.{% endblocktrans %}</li>
         {% endif %}
       </ul>
     {% else %}

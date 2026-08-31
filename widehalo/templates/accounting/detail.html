@@ -25,11 +25,11 @@
       </div>
       <p>{% trans "Date" %}: {{ invoice.date }}</p>
       <p>{% trans "Devise" %}: {{ invoice.currency }}</p>
-      <p>{% trans "Total debit" %}: {{ invoice.total_debit }} MGA</p>
+      <p>{% trans "Total débit" %}: {{ invoice.total_debit }} MGA</p>
 
       <h2>{% trans "Lignes" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Libelle" %}</th><th>{% trans "Debit" %}</th><th>{% trans "Credit" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Libelle" %}</th><th>{% trans "Débit" %}</th><th>{% trans "Crédit" %}</th></tr></thead>
         <tbody>
           {% for line in lines %}
             <tr><td>{{ line.label }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>
@@ -76,7 +76,7 @@
           <button type="submit">{% trans "Enregistrer le paiement" %}</button>
         </form>
       {% else %}
-        <p>{% trans "Le paiement n est disponible que pour une facture publiee." %}</p>
+        <p>{% trans "Le paiement n est disponible que pour une facture publiée." %}</p>
       {% endif %}
 
       <h2>{% trans "Lettrage" %}</h2>

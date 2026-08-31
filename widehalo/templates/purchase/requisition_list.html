@@ -14,8 +14,8 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   {% include "components/_smart_table.html" %}
 
-  <h2>{% trans "Grouper des demandes approuvees en commandes (PUR-BULK1)" %}</h2>
-  <p>{% blocktrans %}Regroupe les lignes de plusieurs demandes approuvees par fournisseur prefere en une commande par fournisseur.{% endblocktrans %}</p>
+  <h2>{% trans "Grouper des demandes approuvées en commandes (PUR-BULK1)" %}</h2>
+  <p>{% blocktrans %}Regroupe les lignes de plusieurs demandes approuvées par fournisseur préféré en une commande par fournisseur.{% endblocktrans %}</p>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="bulk_create_orders">

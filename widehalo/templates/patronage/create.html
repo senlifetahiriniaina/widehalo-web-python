@@ -8,7 +8,7 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   {% if not size_charts %}
     <p class="form-error">
-      {% trans "Aucun tableau de mesures configure pour cette societe." %}
+      {% trans "Aucun tableau de mesures configure pour cette société." %}
       <a href="{% url 'patronage:config_size_charts' %}">{% trans "Configurer un tableau de mesures" %}</a>
     </p>
   {% endif %}
@@ -30,6 +30,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer le patron" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer le patron" %}</button>
   </form>
 {% endblock %}

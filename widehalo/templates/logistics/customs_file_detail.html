@@ -7,18 +7,18 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      {% if customs_file.state == "open" %}<button type="submit" name="action" value="mark_cleared">{% trans "Marquer dedouane" %}</button>{% endif %}
-      {% if customs_file.state == "cleared" %}<button type="submit" name="action" value="close">{% trans "Cloturer (transfert des couts d'approche)" %}</button>{% endif %}
+      {% if customs_file.state == "open" %}<button type="submit" name="action" value="mark_cleared">{% trans "Marquer dédouané" %}</button>{% endif %}
+      {% if customs_file.state == "cleared" %}<button type="submit" name="action" value="close">{% trans "Clôturer (transfert des coûts d'approche)" %}</button>{% endif %}
     </form>
   </div>
 
 <div class="page-head">
   <h1>{{ customs_file.reference|default:"(brouillon)" }}</h1>
 </div>
-  <p><a href="{% url 'logistics:shipment_detail' shipment_id=customs_file.shipment_id %}">{% trans "Expedition liee" %}</a></p>
+  <p><a href="{% url 'logistics:shipment_detail' shipment_id=customs_file.shipment_id %}">{% trans "Expédition liée" %}</a></p>
   <p>{% trans "Ouvert le" %}: {{ customs_file.opened_at }}</p>
-  {% if customs_file.cleared_at %}<p>{% trans "Dedouane le" %}: {{ customs_file.cleared_at }}</p>{% endif %}
-  {% if customs_file.closed_at %}<p>{% trans "Cloture le" %}: {{ customs_file.closed_at }}</p>{% endif %}
+  {% if customs_file.cleared_at %}<p>{% trans "Dédouané le" %}: {{ customs_file.cleared_at }}</p>{% endif %}
+  {% if customs_file.closed_at %}<p>{% trans "Clôturé le" %}: {{ customs_file.closed_at }}</p>{% endif %}
 
   <h2>{% trans "Lignes (RG-LOG-6)" %}</h2>
   <table class="smart-table">
@@ -29,7 +29,7 @@
         <th>{% trans "Valeur CAF" %}</th>
         <th>{% trans "Droits" %}</th>
         <th>{% trans "TVA" %}</th>
-        <th>{% trans "Cout de revient" %}</th>
+        <th>{% trans "Coût de revient" %}</th>
       </tr>
     </thead>
     <tbody>

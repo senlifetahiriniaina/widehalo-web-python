@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Unites de mesure" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Unités de mesure" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Unites de mesure" %}</h1>
+  <h1>{% trans "Unités de mesure" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -12,8 +12,8 @@
       <tr>
         <th>{% trans "Code" %}</th>
         <th>{% trans "Nom" %}</th>
-        <th>{% trans "Categorie" %}</th>
-        <th>{% trans "Unite de base" %}</th>
+        <th>{% trans "Catégorie" %}</th>
+        <th>{% trans "Unité de base" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -25,12 +25,12 @@
           <td>{{ uom.is_base|yesno:"Oui,Non" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="4">{% trans "Aucune unite." %}</td></tr>
+        <tr><td colspan="4">{% trans "Aucune unité." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle unite" %}</h2>
+  <h2>{% trans "Nouvelle unité" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -42,7 +42,7 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="category">{% trans "Categorie" %}</label>
+      <label for="category">{% trans "Catégorie" %}</label>
       <select id="category" name="category" required>
         {% for value, label in category_choices %}
           <option value="{{ value }}">{{ label }}</option>
@@ -50,9 +50,9 @@
       </select>
     </div>
     <div class="form-field">
-      <label><input type="checkbox" name="is_base"> {% trans "Unite de base" %}</label>
+      <label><input type="checkbox" name="is_base"> {% trans "Unité de base" %}</label>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 
   <h2>{% trans "Conversions" %}</h2>

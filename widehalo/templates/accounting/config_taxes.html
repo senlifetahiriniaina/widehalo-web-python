@@ -71,7 +71,7 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="account_deductible_id">{% trans "Compte de deduction" %}</label>
+      <label for="account_deductible_id">{% trans "Compte de déduction" %}</label>
       <select id="account_deductible_id" name="account_deductible_id">
         <option value="">—</option>
         {% for account in accounts %}
@@ -84,9 +84,9 @@
       <input id="valid_from" type="date" name="valid_from">
     </div>
     <div class="form-field">
-      <label for="valid_to">{% trans "Valide jusqu'a" %}</label>
+      <label for="valid_to">{% trans "Valide jusqu'à" %}</label>
       <input id="valid_to" type="date" name="valid_to">
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

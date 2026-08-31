@@ -20,7 +20,7 @@
 
   <h2>{% trans "Lignes" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Sequence" %}</th><th>{% trans "Composant (UUID)" %}</th><th>{% trans "Qte" %}</th><th>{% trans "Taux de chute (%)" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Séquence" %}</th><th>{% trans "Composant (UUID)" %}</th><th>{% trans "Qte" %}</th><th>{% trans "Taux de chute (%)" %}</th></tr></thead>
     <tbody>
       {% for line in lines %}
         <tr><td>{{ line.sequence }}</td><td>{{ line.component_template_id }}</td><td>{{ line.qty }}</td><td>{{ line.waste_pct }}</td></tr>
@@ -36,7 +36,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="add_line">
       <div class="form-field">
-        <label for="sequence">{% trans "Sequence" %}</label>
+        <label for="sequence">{% trans "Séquence" %}</label>
         <input id="sequence" type="number" name="sequence" value="0" required>
       </div>
       <div class="form-field">
@@ -44,7 +44,7 @@
         <input id="component_template_id" type="text" name="component_template_id" required>
       </div>
       <div class="form-field">
-        <label for="qty">{% trans "Quantite" %}</label>
+        <label for="qty">{% trans "Quantité" %}</label>
         <input id="qty" type="number" name="qty" step="0.0001" value="1" required>
       </div>
       <div class="form-field">
@@ -54,6 +54,6 @@
       <button type="submit">{% trans "Ajouter la ligne" %}</button>
     </form>
   {% else %}
-    <p class="hint">{% trans "Nomenclature immuable une fois active — creer une nouvelle version pour la modifier." %}</p>
+    <p class="hint">{% trans "Nomenclature immuable une fois active — créer une nouvelle version pour la modifier." %}</p>
   {% endif %}
 {% endblock %}

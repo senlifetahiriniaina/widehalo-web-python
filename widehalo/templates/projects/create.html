@@ -13,7 +13,7 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="methodology">{% trans "Methodologie" %}</label>
+      <label for="methodology">{% trans "Méthodologie" %}</label>
       <select id="methodology" name="methodology">
         {% for value, label in methodologies %}
           <option value="{{ value }}">{{ label }}</option>
@@ -24,6 +24,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

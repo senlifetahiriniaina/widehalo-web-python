@@ -6,7 +6,7 @@
   <h1>{% trans "Veille prix fournisseurs Chine/Europe" %}</h1>
 </div>
   <p class="form-hint">
-    {% trans "Aucun scraping reel n'est effectue tant qu'un connecteur n'est pas explicitement configure : chaque releve reste un releve stub (sans prix) par defaut." %}
+    {% trans "Aucun scraping réel n'est effectue tant qu'un connecteur n'est pas explicitement configure : chaque relevé reste un relevé stub (sans prix) par défaut." %}
   </p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
@@ -15,8 +15,8 @@
         <th>{% trans "Plateforme" %}</th>
         <th>{% trans "Recherche / URL" %}</th>
         <th>{% trans "Devise" %}</th>
-        <th>{% trans "Frequence" %}</th>
-        <th>{% trans "Reference" %}</th>
+        <th>{% trans "Fréquence" %}</th>
+        <th>{% trans "Référence" %}</th>
         <th></th>
       </tr>
     </thead>
@@ -28,7 +28,7 @@
           <td>{{ target.currency }}</td>
           <td><span class="badge {{ target.frequency|state_badge_class }}">{{ target.get_frequency_display }}</span></td>
           <td>
-            {% if target.material_reference_id %}{% trans "Matiere" %} {{ target.material_reference_id }}{% endif %}
+            {% if target.material_reference_id %}{% trans "Matière" %} {{ target.material_reference_id }}{% endif %}
             {% if target.variant_id %}{% trans "Variante" %} {{ target.variant_id }}{% endif %}
           </td>
           <td>
@@ -37,7 +37,7 @@
               {% csrf_token %}
               <input type="hidden" name="action" value="check">
               <input type="hidden" name="target_id" value="{{ target.id }}">
-              <button type="submit">{% trans "Verifier maintenant" %}</button>
+              <button type="submit">{% trans "Vérifier maintenant" %}</button>
             </form>
           </td>
         </tr>
@@ -57,17 +57,17 @@
         {% for value, label in platform_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="form-field"><label>{% trans "Requete de recherche ou URL" %}</label><textarea name="search_query_or_url" required></textarea></div>
+    <div class="form-field"><label>{% trans "Requête de recherche ou URL" %}</label><textarea name="search_query_or_url" required></textarea></div>
     <div class="form-field"><label>{% trans "Devise" %}</label><input type="text" name="currency" value="MGA"></div>
     <div class="form-field">
-      <label>{% trans "Frequence" %}</label>
+      <label>{% trans "Fréquence" %}</label>
       <select name="frequency">
         {% for value, label in frequency_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="form-field"><label>{% trans "Reference matiere (UUID, optionnel)" %}</label><input type="text" name="material_reference_id"></div>
+    <div class="form-field"><label>{% trans "Référence matière (UUID, optionnel)" %}</label><input type="text" name="material_reference_id"></div>
     <div class="form-field"><label>{% trans "Variante produit (UUID, optionnel)" %}</label><input type="text" name="variant_id"></div>
     <p class="form-hint">{% trans "Renseigner exactement l'un des deux champs ci-dessus (jamais les deux, jamais aucun)." %}</p>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

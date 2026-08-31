@@ -6,7 +6,7 @@
     <h1>{% trans "Rapports CRM" %}</h1>
   </div>
   <section>
-    <h2>{% trans "Repartition du pipeline" %}</h2>
+    <h2>{% trans "Répartition du pipeline" %}</h2>
     <form method="get" action="{% url 'crm:report_pipeline' %}">
       <label>{% trans "Pipeline" %}
         <select name="pipeline_id" required>
@@ -48,7 +48,7 @@
   </section>
 
   <section>
-    <h2>{% trans "Activites par type" %}</h2>
+    <h2>{% trans "Activités par type" %}</h2>
     <form method="get" action="{% url 'crm:report_activities' %}">
       <label>{% trans "Format" %}
         <select name="format">

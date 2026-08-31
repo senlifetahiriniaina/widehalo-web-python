@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Operations" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Opérations" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Operations" %}</h1>
+  <h1>{% trans "Opérations" %}</h1>
 </div>
   <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type poste" %}</th><th>{% trans "Duree par defaut (min)" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type poste" %}</th><th>{% trans "Durée par défaut (min)" %}</th></tr></thead>
     <tbody>
       {% for operation in operations %}
         <tr><td>{{ operation.code }}</td><td>{{ operation.name }}</td><td><span class="badge {{ operation.workcenter_type|state_badge_class }}">{{ operation.get_workcenter_type_display }}</span></td><td>{{ operation.default_duration_min }}</td></tr>
       {% empty %}
-        <tr><td colspan="4">{% trans "Aucune operation." %}</td></tr>
+        <tr><td colspan="4">{% trans "Aucune opération." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle operation" %}</h2>
+  <h2>{% trans "Nouvelle opération" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -43,13 +43,13 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="default_duration_min">{% trans "Duree par defaut (min)" %}</label>
+      <label for="default_duration_min">{% trans "Durée par défaut (min)" %}</label>
       <input id="default_duration_min" type="number" name="default_duration_min" value="0">
     </div>
     <div class="form-field">
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

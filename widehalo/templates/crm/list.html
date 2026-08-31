@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Opportunites" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Opportunités" %} — WideHalo{% endblock %}
 {% block content %}
   <div class="page-head">
-    <h1>{% trans "Opportunites" %}</h1>
+    <h1>{% trans "Opportunités" %}</h1>
   </div>
-  <p><a href="{% url 'crm:create' %}">{% trans "Nouvelle opportunite" %}</a></p>
+  <p><a href="{% url 'crm:create' %}">{% trans "Nouvelle opportunité" %}</a></p>
   <p><a href="{% url 'crm:reports_index' %}">{% trans "Rapports" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

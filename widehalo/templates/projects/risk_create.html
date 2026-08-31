@@ -8,11 +8,11 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}
-    <label for="likelihood">{% trans "Probabilite (1-5)" %}</label>
+    <label for="likelihood">{% trans "Probabilité (1-5)" %}</label>
     <input type="number" id="likelihood" name="likelihood" min="1" max="5" required>
     <label for="impact">{% trans "Impact (1-5)" %}</label>
     <input type="number" id="impact" name="impact" min="1" max="5" required>
-    <label for="mitigation_plan">{% trans "Plan d'attenuation" %}</label>
+    <label for="mitigation_plan">{% trans "Plan d'atténuation" %}</label>
     <textarea id="mitigation_plan" name="mitigation_plan"></textarea>
     <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Signaler" %}</button>
   </form>

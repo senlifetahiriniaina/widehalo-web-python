@@ -16,7 +16,7 @@ accounting...). Contexte attendu, tous optionnels :
       {% for entry in audit_entries %}
         <li>{{ entry.action }} — {{ entry.created_at }}</li>
       {% empty %}
-        <li>{% trans "Aucune entree." %}</li>
+        <li>{% trans "Aucune entrée." %}</li>
       {% endfor %}
     </ul>
   {% endif %}

@@ -16,17 +16,17 @@
     <input type="email" value="{{ user.email }}" disabled>
   </div>
   <div class="form-field">
-    <label>{% trans "Role(s)" %}</label>
+    <label>{% trans "Rôle(s)" %}</label>
     <input type="text" value="{{ role_codes|join:', ' }}" disabled>
   </div>
   <div class="form-field">
-    <label>{% trans "Societe" %}</label>
+    <label>{% trans "Société" %}</label>
     <input type="text" value="{{ current_tenant.name|default:'' }}" disabled>
   </div>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="first_name">{% trans "Prenom" %}</label>
+      <label for="first_name">{% trans "Prénom" %}</label>
       <input id="first_name" type="text" name="first_name" value="{{ user.first_name }}">
     </div>
     <div class="form-field">
@@ -34,11 +34,11 @@
       <input id="last_name" type="text" name="last_name" value="{{ user.last_name }}">
     </div>
     <div class="form-field">
-      <label for="phone">{% trans "Telephone" %}</label>
+      <label for="phone">{% trans "Téléphone" %}</label>
       <input id="phone" type="text" name="phone" value="{{ user.phone }}">
     </div>
     <div class="form-field">
-      <label for="preferred_language">{% trans "Langue preferee" %}</label>
+      <label for="preferred_language">{% trans "Langue préférée" %}</label>
       <input id="preferred_language" type="text" name="preferred_language" value="{{ user.preferred_language }}" maxlength="5">
     </div>
     <button type="submit">{% trans "Enregistrer" %}</button>

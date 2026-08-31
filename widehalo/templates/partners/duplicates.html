@@ -9,9 +9,9 @@
     <thead>
       <tr>
         <th>{% trans "Partenaire" %}</th>
-        <th>{% trans "Doublon presume" %}</th>
+        <th>{% trans "Doublon présumé" %}</th>
         <th>{% trans "Champ" %}</th>
-        <th>{% trans "Detecte le" %}</th>
+        <th>{% trans "Détecté le" %}</th>
         <th></th>
       </tr>
     </thead>
@@ -27,7 +27,7 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="alert_id" value="{{ alert.id }}">
-              <button type="submit">{% trans "Resoudre" %}</button>
+              <button type="submit">{% trans "Résoudre" %}</button>
             </form>
           </td>
         </tr>

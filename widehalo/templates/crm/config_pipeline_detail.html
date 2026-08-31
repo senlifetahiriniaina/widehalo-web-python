@@ -13,9 +13,9 @@
       <tr>
         <th>{% trans "Code" %}</th>
         <th>{% trans "Nom" %}</th>
-        <th>{% trans "Sequence" %}</th>
-        <th>{% trans "Probabilite" %}</th>
-        <th>{% trans "Gagnee" %}</th>
+        <th>{% trans "Séquence" %}</th>
+        <th>{% trans "Probabilité" %}</th>
+        <th>{% trans "Gagnée" %}</th>
         <th>{% trans "Perdue" %}</th>
       </tr>
     </thead>
@@ -30,12 +30,12 @@
           <td>{% if stage.is_lost %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6">{% trans "Aucune etape." %}</td></tr>
+        <tr><td colspan="6">{% trans "Aucune étape." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Nouvelle etape" %}</h2>
+  <h2>{% trans "Nouvelle étape" %}</h2>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -47,23 +47,23 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="sequence">{% trans "Sequence" %}</label>
+      <label for="sequence">{% trans "Séquence" %}</label>
       <input id="sequence" type="number" name="sequence" min="0" value="0">
     </div>
     <div class="form-field">
-      <label for="probability">{% trans "Probabilite (0-100)" %}</label>
+      <label for="probability">{% trans "Probabilité (0-100)" %}</label>
       <input id="probability" type="number" name="probability" min="0" max="100" value="0">
     </div>
     <div class="form-field">
       <label for="is_won">
         <input id="is_won" type="checkbox" name="is_won" value="1">
-        {% trans "Etape gagnee" %}
+        {% trans "Étape gagnée" %}
       </label>
     </div>
     <div class="form-field">
       <label for="is_lost">
         <input id="is_lost" type="checkbox" name="is_lost" value="1">
-        {% trans "Etape perdue" %}
+        {% trans "Étape perdue" %}
       </label>
     </div>
     <div class="form-field">
@@ -72,6 +72,6 @@
         {% trans "Motif de perte requis" %}
       </label>
     </div>
-    <button type="submit">{% trans "Ajouter l'etape" %}</button>
+    <button type="submit">{% trans "Ajouter l'étape" %}</button>
   </form>
 {% endblock %}

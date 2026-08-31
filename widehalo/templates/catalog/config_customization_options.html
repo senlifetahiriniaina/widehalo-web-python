@@ -6,7 +6,7 @@
   <h1>{% trans "Options de personnalisation" %}</h1>
 </div>
   <p>
-    {% trans "Broderie, serigraphie, sublimation, transfert thermocollant, floquage, gravure, badge — compatibilite matiere indicative (ex. la sublimation necessite une matiere ~100% polyester)." %}
+    {% trans "Broderie, sérigraphie, sublimation, transfert thermocollant, floquage, gravure, badge — compatibilité matière indicative (ex. la sublimation nécessite une matière ~100% polyester)." %}
   </p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -16,7 +16,7 @@
         <th>{% trans "Code" %}</th>
         <th>{% trans "Nom" %}</th>
         <th>{% trans "Technique" %}</th>
-        <th>{% trans "Matieres compatibles" %}</th>
+        <th>{% trans "Matières compatibles" %}</th>
         <th>{% trans "Notes" %}</th>
       </tr>
     </thead>
@@ -61,20 +61,20 @@
       </select>
     </div>
     <fieldset>
-      <legend>{% trans "Matieres compatibles" %}</legend>
+      <legend>{% trans "Matières compatibles" %}</legend>
       {% for material in materials %}
         <label>
           <input type="checkbox" name="compatible_material_ids" value="{{ material.id }}">
           {{ material.code }} — {{ material.name }}
         </label>
       {% empty %}
-        <p>{% trans "Aucune matiere de reference disponible." %}</p>
+        <p>{% trans "Aucune matière de reference disponible." %}</p>
       {% endfor %}
     </fieldset>
     <div class="form-field">
       <label for="notes">{% trans "Notes" %}</label>
       <textarea id="notes" name="notes"></textarea>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

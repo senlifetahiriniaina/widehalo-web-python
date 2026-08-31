@@ -9,13 +9,13 @@
 <div class="page-head">
   <h1><span class="badge {{ risk_item.category|state_badge_class }}">{{ risk_item.get_category_display }}</span></h1>
 </div>
-  <p>{% trans "Probabilite" %}: {{ risk_item.likelihood }}</p>
+  <p>{% trans "Probabilité" %}: {{ risk_item.likelihood }}</p>
   <p>{% trans "Impact" %}: {{ risk_item.impact }}</p>
   <p>{% trans "Score" %}: {{ risk_item.score }}</p>
   <p>{% trans "Responsable" %}: {{ risk_item.owner }}</p>
   <p>{% trans "Date de revue" %}: {{ risk_item.review_date|default:"—" }}</p>
 
-  <h2>{% trans "Plan d'attenuation" %}</h2>
+  <h2>{% trans "Plan d'atténuation" %}</h2>
   <form method="post">
     {% csrf_token %}
     <textarea name="mitigation_plan">{{ risk_item.mitigation_plan }}</textarea>
@@ -25,7 +25,7 @@
   {% if risk_item.status != "closed" %}
     <form method="post">
       {% csrf_token %}
-      <button type="submit" name="action" value="close">{% trans "Cloturer le risque" %}</button>
+      <button type="submit" name="action" value="close">{% trans "Clôturer le risque" %}</button>
     </form>
   {% endif %}
 {% endblock %}

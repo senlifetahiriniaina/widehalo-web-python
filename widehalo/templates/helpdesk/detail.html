@@ -5,10 +5,10 @@
 <div class="page-head">
   <h1>{{ ticket.subject }}</h1>
 </div>
-  <p>{% trans "Reference" %}: {{ ticket.reference }}</p>
+  <p>{% trans "Référence" %}: {{ ticket.reference }}</p>
   <p>{% trans "Type" %}: <span class="badge {{ ticket.kind|state_badge_class }}">{{ ticket.get_kind_display }}</span>
      {% if ticket.ticket_type %} — {{ ticket.ticket_type.label }}{% endif %}</p>
-  <p>{% trans "Priorite" %}: <span class="badge {{ ticket.priority|state_badge_class }}">{{ ticket.get_priority_display }}</span></p>
+  <p>{% trans "Priorité" %}: <span class="badge {{ ticket.priority|state_badge_class }}">{{ ticket.get_priority_display }}</span></p>
   <p>{% trans "Statut" %}: <span class="badge {{ ticket.state|state_badge_class }}">{{ ticket.get_state_display }}</span></p>
   <p>{{ ticket.description }}</p>
 
@@ -24,7 +24,7 @@
   <form hx-post="{% url 'helpdesk:ticket_suggest_reply' ticket_id=ticket.id %}"
         hx-target="#suggest-reply-result">
     {% csrf_token %}
-    <button type="submit">{% trans "Suggestion de reponse (IA)" %}</button>
+    <button type="submit">{% trans "Suggestion de réponse (IA)" %}</button>
   </form>
   <div id="suggest-reply-result"></div>
 
@@ -37,9 +37,9 @@
       <button type="submit" name="action" value="assign">{% trans "Prendre en charge" %}</button>
       <button type="submit" name="action" value="request_more_info">{% trans "Demander des informations" %}</button>
       <button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>
-      <button type="submit" name="action" value="resolve">{% trans "Resoudre" %}</button>
+      <button type="submit" name="action" value="resolve">{% trans "Résoudre" %}</button>
       <button type="submit" name="action" value="reopen">{% trans "Reouvrir" %}</button>
-      <button type="submit" name="action" value="close">{% trans "Cloturer" %}</button>
+      <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
       <button type="submit" name="action" value="escalate">{% trans "Escalader" %}</button>
       <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
     </form>
@@ -60,11 +60,11 @@
   </ul>
 
   {% if csat_response %}
-    <h2>{% trans "Enquete de satisfaction" %}</h2>
+    <h2>{% trans "Enquête de satisfaction" %}</h2>
     <p>{% trans "Note" %}: {{ csat_response.score }}/5
        {% if csat_response.comment %}— {{ csat_response.comment }}{% endif %}</p>
   {% elif can_submit_csat %}
-    <h2>{% trans "Enquete de satisfaction" %}</h2>
+    <h2>{% trans "Enquête de satisfaction" %}</h2>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="csat">

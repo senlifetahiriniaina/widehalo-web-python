@@ -238,7 +238,11 @@ def test_customs_file_detail_add_line_mark_cleared_and_close(logistics_screens_s
     assert response.status_code == 302
 
     detail = client.get(customs_file_url)
-    assert b"Dedouane" in detail.content or b"cleared" in detail.content.lower()
+    assert (
+        "Dédouané".encode() in detail.content
+        or b"Dedouane" in detail.content
+        or b"cleared" in detail.content.lower()
+    )
 
     response = client.post(customs_file_url, {"action": "close"})
     assert response.status_code == 302

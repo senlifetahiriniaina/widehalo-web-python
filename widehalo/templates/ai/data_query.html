@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>{% trans "Questions-donnees IA" %}</h1>
 </div>
-  <p>{% trans "Posez une question en langage naturel sur vos donnees (chiffre d'affaires, marge, stock...) — l'IA ne peut choisir que des rapports deja construits et testes, jamais une requete inventee." %}</p>
+  <p>{% trans "Posez une question en langage naturel sur vos données (chiffre d'affaires, marge, stock...) — l'IA ne peut choisir que des rapports déjà construits et testes, jamais une requête inventée." %}</p>
   <form method="get">
     <label>{% trans "Question" %}
       <textarea name="question" rows="3" placeholder="{% trans 'ex. quel est le chiffre d affaires du mois dernier par client ?' %}">{{ question }}</textarea>
@@ -16,8 +16,8 @@
     <div class="wh-data-query-result">
       <p>{{ result.answer }}</p>
       <p><small>
-        {% if result.succeeded %}{% trans "Analyse terminee." %}
-        {% else %}{% trans "Analyse incomplete (fournisseur IA non configure, budget epuise, ou erreur)." %}
+        {% if result.succeeded %}{% trans "Analyse terminée." %}
+        {% else %}{% trans "Analyse incomplète (fournisseur IA non configure, budget épuisé, ou erreur)." %}
         {% endif %}
       </small></p>
       {% if result.tools_called %}

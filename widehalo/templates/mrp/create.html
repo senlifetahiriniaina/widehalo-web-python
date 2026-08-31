@@ -8,7 +8,7 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   {% if not boms or not workshops %}
     <p class="form-error">
-      {% trans "Aucune nomenclature active ou aucun atelier configure pour cette societe." %}
+      {% trans "Aucune nomenclature active ou aucun atelier configure pour cette société." %}
       <a href="{% url 'mrp:config_boms' %}">{% trans "Configurer les nomenclatures" %}</a>
       &middot;
       <a href="{% url 'mrp:config_workshops' %}">{% trans "Configurer les ateliers" %}</a>
@@ -33,9 +33,9 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="qty">{% trans "Quantite" %}</label>
+      <label for="qty">{% trans "Quantité" %}</label>
       <input id="qty" type="number" name="qty" step="0.0001" min="0" value="1" required>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer l ordre" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer l ordre" %}</button>
   </form>
 {% endblock %}

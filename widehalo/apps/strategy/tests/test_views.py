@@ -67,7 +67,7 @@ def test_capacity_outlook_screen_renders(web_strategy) -> None:
     response = client.get("/strategy/capacity/", HTTP_X_TENANT_ID=str(tenant.id))
 
     assert response.status_code == 200
-    assert "Capacite" in response.content.decode()
+    assert "Capacité" in response.content.decode()
 
 
 def test_capacity_outlook_screen_accepts_custom_horizon(web_strategy) -> None:

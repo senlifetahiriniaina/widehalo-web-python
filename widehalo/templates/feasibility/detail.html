@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>{{ study.name }}</h1>
 </div>
-  <p>{% trans "Reference" %}: {{ study.reference }}</p>
+  <p>{% trans "Référence" %}: {{ study.reference }}</p>
   <p>{% trans "Secteur" %}: {{ study.get_sector_code_display|default:"-" }}</p>
   <p>{% trans "Statut" %}: <span class="badge {{ study.status|state_badge_class }}">{{ study.get_status_display }}</span></p>
   <p>{{ study.description }}</p>
@@ -17,10 +17,10 @@
     <thead>
       <tr>
         <th>{% trans "Produit" %}</th>
-        <th>{% trans "Quantite hypothese" %}</th>
+        <th>{% trans "Quantité hypothèse" %}</th>
         <th>{% trans "Prix unitaire (MGA)" %}</th>
-        <th>{% trans "Cout total (MGA)" %}</th>
-        <th>{% trans "CA hypothese (MGA)" %}</th>
+        <th>{% trans "Coût total (MGA)" %}</th>
+        <th>{% trans "CA hypothèse (MGA)" %}</th>
         <th>{% trans "Marge %" %}</th>
         <th></th>
       </tr>
@@ -48,11 +48,11 @@
   </table>
 
   <p>
-    {% trans "Cout total etude" %}: {{ total_cost_mga }} MGA —
-    {% trans "CA hypothese total" %}: {{ total_revenue_mga }} MGA
+    {% trans "Coût total étude" %}: {{ total_cost_mga }} MGA —
+    {% trans "CA hypothèse total" %}: {{ total_revenue_mga }} MGA
   </p>
 
-  <h3>{% trans "Ajouter un produit (reel ou hypothetique)" %}</h3>
+  <h3>{% trans "Ajouter un produit (réel ou hypothétique)" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_line">
@@ -61,15 +61,15 @@
       <input id="variant_id" type="text" name="variant_id">
     </div>
     <div class="form-field">
-      <label for="hypothetical_name">{% trans "Nom du produit hypothetique (sinon)" %}</label>
+      <label for="hypothetical_name">{% trans "Nom du produit hypothétique (sinon)" %}</label>
       <input id="hypothetical_name" type="text" name="hypothetical_name">
     </div>
     <div class="form-field">
-      <label for="assumed_qty">{% trans "Quantite hypothese" %}</label>
+      <label for="assumed_qty">{% trans "Quantité hypothèse" %}</label>
       <input id="assumed_qty" type="text" name="assumed_qty" value="1">
     </div>
     <div class="form-field">
-      <label for="assumed_unit_price_mga">{% trans "Prix unitaire hypothese (MGA)" %}</label>
+      <label for="assumed_unit_price_mga">{% trans "Prix unitaire hypothèse (MGA)" %}</label>
       <input id="assumed_unit_price_mga" type="text" name="assumed_unit_price_mga" value="0">
     </div>
     <button type="submit">{% trans "Ajouter" %}</button>

@@ -8,24 +8,24 @@
   <p><a href="{% url 'mrp:config_routings' %}">{% trans "Retour gammes" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <h2>{% trans "Etapes" %}</h2>
+  <h2>{% trans "Étapes" %}</h2>
   <table class="smart-table">
-    <thead><tr><th>{% trans "Sequence" %}</th><th>{% trans "Operation" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Duree (min)" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Séquence" %}</th><th>{% trans "Opération" %}</th><th>{% trans "Poste de charge" %}</th><th>{% trans "Durée (min)" %}</th></tr></thead>
     <tbody>
       {% for step in steps %}
         <tr><td>{{ step.sequence }}</td><td>{{ step.operation }}</td><td>{{ step.workcenter }}</td><td>{{ step.duration_min }}</td></tr>
       {% empty %}
-        <tr><td colspan="4">{% trans "Aucune etape." %}</td></tr>
+        <tr><td colspan="4">{% trans "Aucune étape." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>{% trans "Ajouter une etape" %}</h2>
+  <h2>{% trans "Ajouter une étape" %}</h2>
   {% if not operations or not workcenters %}
     <p class="form-error">
       {% if not operations %}
-        {% trans "Aucune operation configuree." %}
-        <a href="{% url 'mrp:config_operations' %}">{% trans "Configurer une operation" %}</a>
+        {% trans "Aucune opération configurée." %}
+        <a href="{% url 'mrp:config_operations' %}">{% trans "Configurer une opération" %}</a>
       {% endif %}
       {% if not workcenters %}
         {% trans "Aucun poste de charge configure." %}
@@ -36,11 +36,11 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
-      <label for="sequence">{% trans "Sequence" %}</label>
+      <label for="sequence">{% trans "Séquence" %}</label>
       <input id="sequence" type="number" name="sequence" value="0" required>
     </div>
     <div class="form-field">
-      <label for="operation_id">{% trans "Operation" %}</label>
+      <label for="operation_id">{% trans "Opération" %}</label>
       <select id="operation_id" name="operation_id" required>
         {% for operation in operations %}
           <option value="{{ operation.id }}" {% if operation.id == default_operation_id %}selected{% endif %}>{{ operation.code }} — {{ operation.name }}</option>
@@ -56,10 +56,10 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="duration_min">{% trans "Duree (min)" %}</label>
+      <label for="duration_min">{% trans "Durée (min)" %}</label>
       <input id="duration_min" type="number" name="duration_min" value="0" required>
     </div>
-    <button type="submit">{% trans "Ajouter l etape" %}</button>
+    <button type="submit">{% trans "Ajouter l étape" %}</button>
   </form>
   {% endif %}
 {% endblock %}

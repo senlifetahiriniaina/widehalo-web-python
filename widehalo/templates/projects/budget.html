@@ -34,18 +34,18 @@
     </tbody>
   </table>
   <p class="hint">
-    {% trans "SPI/CPI/EAC non calculables (« — ») quand le projet n'a pas encore de dates de debut/fin, aucune tache active ou aucun cout reel constate." %}
+    {% trans "SPI/CPI/EAC non calculables (« — ») quand le projet n'a pas encore de dates de début/fin, aucune tache active ou aucun coût réel constate." %}
   </p>
 
-  <h2>{% trans "Lignes budgetaires" %}</h2>
+  <h2>{% trans "Lignes budgétaires" %}</h2>
   <table>
     <thead>
       <tr>
-        <th>{% trans "Categorie" %}</th>
+        <th>{% trans "Catégorie" %}</th>
         <th>{% trans "Libelle" %}</th>
-        <th>{% trans "Periode" %}</th>
+        <th>{% trans "Période" %}</th>
         <th>{% trans "Montant planifie" %}</th>
-        <th>{% trans "Montant reel" %}</th>
+        <th>{% trans "Montant réel" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -58,12 +58,12 @@
           <td>{{ line.actual_amount }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune ligne budgetaire." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune ligne budgétaire." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h3>{% trans "Ajouter une ligne budgetaire" %}</h3>
+  <h3>{% trans "Ajouter une ligne budgétaire" %}</h3>
   <form method="post">
     {% csrf_token %}
     <select name="category" aria-label="{% trans 'Categorie' %}">
@@ -78,18 +78,18 @@
     <button type="submit">{% trans "Ajouter" %}</button>
   </form>
 
-  <h2>{% trans "Courbe en S CAPEX/OPEX (valeurs cumulees par mois)" %}</h2>
+  <h2>{% trans "Courbe en S CAPEX/OPEX (valeurs cumulées par mois)" %}</h2>
   <p class="hint">
-    {% trans "Table de valeurs uniquement a ce stade — le rendu graphique reel est reporte a une etape ulterieure de finalisation." %}
+    {% trans "Table de valeurs uniquement a ce stade — le rendu graphique réel est reporte a une étape ultérieure de finalisation." %}
   </p>
   <table>
     <thead>
       <tr>
         <th>{% trans "Mois" %}</th>
         <th>{% trans "CAPEX planifie cumule" %}</th>
-        <th>{% trans "CAPEX reel cumule" %}</th>
+        <th>{% trans "CAPEX réel cumule" %}</th>
         <th>{% trans "OPEX planifie cumule" %}</th>
-        <th>{% trans "OPEX reel cumule" %}</th>
+        <th>{% trans "OPEX réel cumule" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -102,7 +102,7 @@
           <td>{{ point.opex_actual_cumulative }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune donnee." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune donnée." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

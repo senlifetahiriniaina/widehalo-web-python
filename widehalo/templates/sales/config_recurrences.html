@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Recurrences de vente" %} — WideHalo{% endblock %}
+{% block title %}{% trans "Récurrences de vente" %} — WideHalo{% endblock %}
 {% block content %}
   <div class="page-head">
-    <h1>{% trans "Gabarits de recurrence (RG-SAL-6)" %}</h1>
+    <h1>{% trans "Gabarits de récurrence (RG-SAL-6)" %}</h1>
   </div>
-  <p>{% blocktrans %}Une commande recurrente genere automatiquement une nouvelle commande brouillon a echeance, jamais confirmee automatiquement.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Une commande récurrente genere automatiquement une nouvelle commande brouillon a échéance, jamais confirmée automatiquement.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Intervalle" %}</th><th>{% trans "Prochaine generation" %}</th><th>{% trans "Gabarit" %}</th><th>{% trans "Active" %}</th></tr></thead>
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Intervalle" %}</th><th>{% trans "Prochaine génération" %}</th><th>{% trans "Gabarit" %}</th><th>{% trans "Active" %}</th></tr></thead>
     <tbody>
       {% for recurrence in recurrences %}
         <tr>
@@ -20,7 +20,7 @@
           <td>{{ recurrence.is_active|yesno:"Oui,Non" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">{% trans "Aucune recurrence." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucune récurrence." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -42,7 +42,7 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="start_date">{% trans "Date de debut" %}</label>
+      <label for="start_date">{% trans "Date de début" %}</label>
       <input id="start_date" type="date" name="start_date" required>
     </div>
     <div class="form-field">
@@ -55,6 +55,6 @@
         {% for order in templates %}<option value="{{ order.id }}">{{ order }}</option>{% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

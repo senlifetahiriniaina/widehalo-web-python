@@ -15,7 +15,7 @@
   {% if result %}
     <div class="wh-nl-search-result">
       <p><small>
-        {% if result.is_ai_enhanced %}{% trans "Filtres extraits par IA appliques en complement de la recherche." %}
+        {% if result.is_ai_enhanced %}{% trans "Filtres extraits par IA appliques en complément de la recherche." %}
         {% else %}{% trans "Recherche brute (aucun filtre IA applique)." %}
         {% endif %}
       </small></p>
@@ -23,7 +23,7 @@
         {% for item in result.results %}
           <li><a href="{{ item.url }}">{{ item.reference }}</a> — {{ item.text }}</li>
         {% empty %}
-          <li>{% trans "Aucun resultat." %}</li>
+          <li>{% trans "Aucun résultat." %}</li>
         {% endfor %}
       </ul>
     </div>

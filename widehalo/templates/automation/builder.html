@@ -18,7 +18,7 @@
   <h1>{{ flow.name }} <small>({{ flow.reference }})</small></h1>
 </div>
   <p>
-    {% trans "Declencheur" %} : <code>{{ flow.trigger_event_type }}</code>
+    {% trans "Déclencheur" %} : <code>{{ flow.trigger_event_type }}</code>
     — {% trans "Statut" %} :
     {% if flow.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
   </p>
@@ -26,10 +26,10 @@
     {% csrf_token %}
     <input type="hidden" name="action" value="toggle_active">
     <button type="submit">
-      {% if flow.is_active %}{% trans "Desactiver" %}{% else %}{% trans "Activer" %}{% endif %}
+      {% if flow.is_active %}{% trans "Désactiver" %}{% else %}{% trans "Activer" %}{% endif %}
     </button>
   </form>
-  <a href="{% url 'automation:run_history' flow.id %}">{% trans "Historique d'execution" %}</a>
+  <a href="{% url 'automation:run_history' flow.id %}">{% trans "Historique d'exécution" %}</a>
 
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

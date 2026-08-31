@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% load i18n core_extras %}
-{% block title %}{% trans "Execution" %} {{ run.id }} — WideHalo{% endblock %}
+{% block title %}{% trans "Exécution" %} {{ run.id }} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{% trans "Execution" %} {{ run.id }}</h1>
+  <h1>{% trans "Exécution" %} {{ run.id }}</h1>
 </div>
   <p>
     {% trans "Flux" %} : <a href="{% url 'automation:builder' run.flow_id %}">{{ run.flow.name }}</a>
     — {% trans "Statut" %} : <span class="badge {{ run.status|state_badge_class }}">{{ run.get_status_display }}</span>
-    — {% trans "Demarre le" %} : {{ run.started_at }}
+    — {% trans "Démarré le" %} : {{ run.started_at }}
     {% if run.finished_at %}— {% trans "Termine le" %} : {{ run.finished_at }}{% endif %}
   </p>
   <table>
     <thead>
       <tr>
-        <th>{% trans "Etape" %}</th>
+        <th>{% trans "Étape" %}</th>
         <th>{% trans "Statut" %}</th>
-        <th>{% trans "Resultat" %}</th>
+        <th>{% trans "Résultat" %}</th>
         <th>{% trans "Erreur" %}</th>
         <th>{% trans "Tentatives" %}</th>
-        <th>{% trans "Execute le" %}</th>
+        <th>{% trans "Exécuté le" %}</th>
       </tr>
     </thead>
     <tbody>

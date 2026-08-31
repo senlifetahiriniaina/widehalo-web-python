@@ -9,7 +9,7 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
-    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type vetement" %}</th><th>{% trans "Tailles" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type vêtement" %}</th><th>{% trans "Tailles" %}</th><th></th></tr></thead>
     <tbody>
       {% for size_chart in size_charts %}
         <tr>
@@ -37,7 +37,7 @@
       <input id="name" type="text" name="name" required>
     </div>
     <div class="form-field">
-      <label for="garment_type">{% trans "Type vetement" %}</label>
+      <label for="garment_type">{% trans "Type vêtement" %}</label>
       <select id="garment_type" name="garment_type" required>
         <option value="chemise">{% trans "Chemise" %}</option>
         <option value="pantalon">{% trans "Pantalon" %}</option>
@@ -50,13 +50,13 @@
       </select>
     </div>
     <div class="form-field">
-      <label for="sizes">{% trans "Tailles (separees par virgule)" %}</label>
+      <label for="sizes">{% trans "Tailles (séparées par virgule)" %}</label>
       <input id="sizes" type="text" name="sizes" placeholder="S,M,L" required>
     </div>
     <div class="form-field">
       <label for="base_size">{% trans "Taille de base" %}</label>
       <input id="base_size" type="text" name="base_size" placeholder="M" required>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit">{% trans "Créer" %}</button>
   </form>
 {% endblock %}

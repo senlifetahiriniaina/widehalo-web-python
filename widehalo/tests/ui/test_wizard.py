@@ -21,7 +21,7 @@ def test_two_step_wizard_creates_a_partner_without_full_page_reload() -> None:
 
     step1 = client.post("/partners/new/", {"step": "1", "name": "Wizard Partner", "nif": "NIF-WIZ"})
     assert step1.status_code == 200
-    assert "Etape 2" in step1.content.decode()
+    assert "Étape 2" in step1.content.decode()
 
     with use_tenant(tenant.id):
         assert not Partner.objects.filter(name="Wizard Partner").exists()

@@ -5,9 +5,9 @@
 <div class="page-head">
   <h1>{% trans "Burndown" %} — {{ sprint.name }} ({{ project.reference }})</h1>
 </div>
-  <p>{% trans "Velocite du projet (moyenne sur les derniers sprints termines)" %} : {{ velocity }}</p>
+  <p>{% trans "Vélocité du projet (moyenne sur les derniers sprints termines)" %} : {{ velocity }}</p>
   <p class="hint">
-    {% trans "Points restants reconstitues jour par jour a partir de l'historique reel des transitions d'etat des taches (journal generique core_state_transition) — cf. limitation disclosee dans services/sprints.py si l'ensemble des taches du sprint a change en cours de route." %}
+    {% trans "Points restants reconstitues jour par jour a partir de l'historique réel des transitions d'état des taches (journal générique core_state_transition) — cf. limitation disclosee dans services/sprints.py si l'ensemble des taches du sprint a change en cours de route." %}
   </p>
 
   <table>
@@ -24,7 +24,7 @@
           <td>{{ point.story_points_remaining }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="2">{% trans "Aucune donnee." %}</td></tr>
+        <tr><td colspan="2">{% trans "Aucune donnée." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
