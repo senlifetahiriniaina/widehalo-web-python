@@ -102,17 +102,21 @@ table.smart-table td,
   overflow-y: auto;
 }
 
-.sidebar .logo-row {
+.logo-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  color: #fff;
   text-decoration: none;
 }
-.sidebar .logo-row:hover { text-decoration: none; }
-.sidebar .logo-row img { height: 28px; width: auto; display: block; }
-.sidebar .logo-row .wordmark { font-family: var(--font-display); font-weight: var(--fw-600); font-size: var(--fs-16); }
+.logo-row:hover { text-decoration: none; }
+.logo-row img { height: 28px; width: auto; display: block; }
+.logo-row .wordmark { font-family: var(--font-display); font-weight: var(--fw-600); font-size: var(--fs-16); color: var(--fg-1); }
+
+.sidebar .logo-row {
+  padding: var(--spacing-md);
+  color: #fff;
+}
+.sidebar .logo-row .wordmark { color: #fff; }
 
 .sidebar-nav { padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-lg); flex: 1; }
 
@@ -206,7 +210,11 @@ table.smart-table td,
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.topbar .crumbs { font-size: var(--fs-13); color: var(--fg-3); }
+.topbar .crumbs { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--fs-13); color: var(--fg-3); }
+.topbar .crumbs a { color: var(--fg-3); text-decoration: none; }
+.topbar .crumbs a:hover { color: var(--fg-1); text-decoration: underline; }
+.topbar .crumbs .crumb-sep { color: var(--fg-4); }
+.topbar .crumbs .crumb-current { color: var(--fg-1); font-weight: var(--fw-500); }
 
 main#main-content {
   grid-area: main;
@@ -214,6 +222,14 @@ main#main-content {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
+}
+
+.app-footer {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--fg-3);
+  font-size: var(--fs-13);
+  text-align: center;
 }
 
 /* Icones (sprite vendorise, cf. static/icons/sprite.svg) — jamais remplies
@@ -435,7 +451,7 @@ table.smart-table th a:focus-visible {
   align-items: center;
 }
 
-.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); }
+.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); padding: 0 var(--spacing-md) var(--spacing-md); }
 
 /* ============== Formulaires ============== */
 .form-field { margin-bottom: var(--spacing); display: flex; flex-direction: column; gap: 0.25rem; }

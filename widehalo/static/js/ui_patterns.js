@@ -96,3 +96,72 @@ document.body.addEventListener("wh-toast", (event) => {
   if (!detail.message) return;
   Alpine.store("toast").push(detail.message, detail.level);
 });
+
+/*
+ * Fil d'ariane calcule cote client (chantier UI signale par l'utilisateur
+ * apres test reel de l'interface). Zero modification des ~200 templates :
+ * derive uniquement de deux sources deja presentes sur chaque page rendue
+ * via base.html — le lien de la sidebar dont le href est le prefixe le
+ * plus long de location.pathname (miette "Module") et le texte de
+ * `.page-head h1` (miette "Page", ajoutee seulement si distincte du
+ * libelle du module). Toujours en tete : "Accueil" vers /dashboard/.
+ * Purement derive du DOM deja rendu — un ecran sans lien sidebar
+ * correspondant ni `.page-head h1` affiche seulement "Accueil", jamais une
+ * miette cassee/vide.
+ */
+function buildBreadcrumb() {
+  const container = document.querySelector(".crumbs");
+  if (!container) return;
+
+  const path = window.location.pathname;
+  const links = Array.from(document.querySelectorAll(".app-menu a[href]"));
+  let bestMatch = null;
+  for (const link of links) {
+    const href = link.getAttribute("href");
+    if (!href || href === "/" || href === "#") continue;
+    if (path.startsWith(href) && (!bestMatch || href.length > bestMatch.href.length)) {
+      const label = Array.from(link.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent.trim())
+        .join(" ")
+        .trim();
+      if (label) bestMatch = { href, label };
+    }
+  }
+
+  const crumbs = [{ href: "/dashboard/", label: container.dataset.home || "Accueil" }];
+  if (bestMatch) crumbs.push({ href: bestMatch.href, label: bestMatch.label });
+
+  const pageHeading = document.querySelector(".page-head h1");
+  if (pageHeading) {
+    const pageLabel = pageHeading.textContent.trim();
+    if (pageLabel && (!bestMatch || pageLabel !== bestMatch.label)) {
+      crumbs.push({ href: null, label: pageLabel });
+    }
+  }
+
+  container.textContent = "";
+  crumbs.forEach((crumb, index) => {
+    if (index > 0) {
+      const sep = document.createElement("span");
+      sep.className = "crumb-sep";
+      sep.setAttribute("aria-hidden", "true");
+      sep.textContent = "›";
+      container.appendChild(sep);
+    }
+    const isLast = index === crumbs.length - 1;
+    if (crumb.href && !isLast) {
+      const a = document.createElement("a");
+      a.href = crumb.href;
+      a.textContent = crumb.label;
+      container.appendChild(a);
+    } else {
+      const span = document.createElement("span");
+      span.className = "crumb-current";
+      span.textContent = crumb.label;
+      container.appendChild(span);
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", buildBreadcrumb);

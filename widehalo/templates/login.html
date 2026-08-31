@@ -18,6 +18,10 @@
 </head>
 <body>
   <main style="max-width:400px; margin:4rem auto;">
+    <a class="logo-row" href="/dashboard/" style="justify-content:center;">
+      <img src="{% static 'img/logo-mark.svg' %}" alt="" width="28" height="28">
+      <span class="wordmark">WideHalo</span>
+    </a>
     <h1>WideHalo</h1>
     {% if error %}<p role="alert">{% trans "Identifiants invalides." %}</p>{% endif %}
     <form method="post">
@@ -33,5 +37,6 @@
       <button type="submit">{% trans "Se connecter" %}</button>
     </form>
   </main>
+  <footer class="app-footer">WideHalo{% if current_tenant %} — {{ current_tenant.name }}{% endif %}</footer>
 </body>
 </html>

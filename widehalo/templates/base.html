@@ -111,6 +111,8 @@
     </main>
   </div>
 
+  <footer class="app-footer">WideHalo{% if current_tenant %} — {{ current_tenant.name }}{% endif %}</footer>
+
   {% comment %}
   Confirmation destructrice generalisee (UI1-3) : modale unique, pilotee
   par le store Alpine `confirmDialog` (cf. static/js/ui_patterns.js),
