@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Inspections qualite" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Inspections qualite" %}</h1>
+</div>
   <p>
     <a href="{% url 'qlt_inspection_create' %}">{% trans "Nouvelle inspection" %}</a>
     <a href="{% url 'qlt_template_list' %}">{% trans "Voir les gabarits" %}</a>

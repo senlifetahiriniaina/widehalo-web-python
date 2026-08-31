@@ -7,7 +7,9 @@
     {% if inspection.passed %}{% trans "Conforme" %}{% else %}{% trans "Non conforme" %}{% endif %}
   </div>
 
+<div class="page-head">
   <h1>{{ inspection.template.name }}</h1>
+</div>
   <p>{% trans "Inspecteur" %}: {{ inspection.inspector }}</p>
   <p>{% trans "Date" %}: {{ inspection.inspected_at }}</p>
 

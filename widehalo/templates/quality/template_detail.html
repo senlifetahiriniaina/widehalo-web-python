@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{{ template.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ template.name }}</h1>
+</div>
   <p>{% trans "Secteur" %}: {{ template.get_sector_code_display|default:"—" }}</p>
 
   <h2>{% trans "Criteres de controle" %}</h2>

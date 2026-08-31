@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Tickets support" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Tickets support" %}</h1>
+</div>
   <p><a href="{% url 'helpdesk:create' %}">{% trans "Nouveau ticket" %}</a></p>
   <p><a href="{% url 'helpdesk:reports' %}">{% trans "Rapports" %}</a></p>
   {% include "components/_smart_table.html" %}

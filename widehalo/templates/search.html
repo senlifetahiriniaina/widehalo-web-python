@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Recherche" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Recherche" %}</h1>
+</div>
   <div class="form-field">
     <label for="instant-search">{% trans "Rechercher dans toute l'application" %}</label>
     <input id="instant-search" type="search" name="q"

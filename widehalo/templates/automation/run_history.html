@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Historique d'execution" %} — {{ flow.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Historique d'execution" %} — {{ flow.name }}</h1>
+</div>
   <p><a href="{% url 'automation:builder' flow.id %}">{% trans "Retour au constructeur" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

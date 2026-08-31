@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Budget IA" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Budget de tokens IA" %}</h1>
+</div>
   <table>
     <tr><th>{% trans "Budget mensuel (tokens)" %}</th><td>{{ usage_limit.monthly_token_budget }}</td></tr>
     <tr><th>{% trans "Consommation ce mois-ci" %}</th><td>{{ current_month_usage }} ({{ usage_pct }}%)</td></tr>

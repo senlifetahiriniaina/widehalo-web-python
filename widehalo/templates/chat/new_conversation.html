@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Nouvelle conversation" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Nouvelle conversation" %}</h1>
+</div>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">

@@ -1,13 +1,15 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ ticket.subject }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ ticket.subject }}</h1>
+</div>
   <p>{% trans "Reference" %}: {{ ticket.reference }}</p>
-  <p>{% trans "Type" %}: {{ ticket.get_kind_display }}
+  <p>{% trans "Type" %}: <span class="badge {{ ticket.kind|state_badge_class }}">{{ ticket.get_kind_display }}</span>
      {% if ticket.ticket_type %} — {{ ticket.ticket_type.label }}{% endif %}</p>
-  <p>{% trans "Priorite" %}: {{ ticket.get_priority_display }}</p>
-  <p>{% trans "Statut" %}: {{ ticket.get_state_display }}</p>
+  <p>{% trans "Priorite" %}: <span class="badge {{ ticket.priority|state_badge_class }}">{{ ticket.get_priority_display }}</span></p>
+  <p>{% trans "Statut" %}: <span class="badge {{ ticket.state|state_badge_class }}">{{ ticket.get_state_display }}</span></p>
   <p>{{ ticket.description }}</p>
 
   {% if related_model_label %}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Support" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Support" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'helpdesk:config_sla_policies' %}">{% trans "Politiques de SLA" %}</a></li>
     <li><a href="{% url 'helpdesk:config_escalation_rules' %}">{% trans "Regles d'escalade" %}</a></li>

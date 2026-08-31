@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Studio de workflow" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Studio de workflow visuel" %}</h1>
+</div>
   <p><a href="{% url 'automation:create' %}">{% trans "Nouveau flux" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

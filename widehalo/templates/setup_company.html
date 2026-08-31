@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Paramétrage de la société" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Bienvenue — paramétrez la première société de cette instance" %}</h1>
+</div>
   <p>{% trans "Cette étape ne s'affiche qu'une seule fois, tant qu'aucune société n'existe encore sur cette instance." %}</p>
   {% for error in errors %}
     <p role="alert">{{ error }}</p>

@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Execution" %} {{ run.id }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Execution" %} {{ run.id }}</h1>
+</div>
   <p>
     {% trans "Flux" %} : <a href="{% url 'automation:builder' run.flow_id %}">{{ run.flow.name }}</a>
-    — {% trans "Statut" %} : {{ run.get_status_display }}
+    — {% trans "Statut" %} : <span class="badge {{ run.status|state_badge_class }}">{{ run.get_status_display }}</span>
     — {% trans "Demarre le" %} : {{ run.started_at }}
     {% if run.finished_at %}— {% trans "Termine le" %} : {{ run.finished_at }}{% endif %}
   </p>
@@ -24,7 +26,7 @@
       {% for step in steps %}
         <tr>
           <td>{{ step.step.step_type|default:"—" }}</td>
-          <td>{{ step.get_status_display }}</td>
+          <td><span class="badge {{ step.status|state_badge_class }}">{{ step.get_status_display }}</span></td>
           <td><code>{{ step.result }}</code></td>
           <td>{{ step.error }}</td>
           <td>{{ step.retry_count }}</td>

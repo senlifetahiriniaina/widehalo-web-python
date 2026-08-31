@@ -2,6 +2,8 @@
 {% load i18n %}
 {% block title %}{% trans "Documents" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Documents" %}</h1>
+</div>
   {% include "components/_smart_table.html" %}
 {% endblock %}

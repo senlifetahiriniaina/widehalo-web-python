@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{{ article.title }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ article.title }}</h1>
+</div>
   <p>
     {% if article.is_published %}{% trans "Publie" %}{% else %}{% trans "Brouillon" %}{% endif %}
     — {% trans "Vues" %}: {{ article.view_count }}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Messagerie" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Messagerie" %}</h1>
+</div>
   <p><a href="{% url 'chat:new_conversation' %}">{% trans "Nouvelle conversation" %}</a></p>
   <div style="display:flex; gap:2rem;">
     <ul style="flex:1;">

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% trans "Nouvelle inspection qualite" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Nouvelle inspection qualite" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   {% if not template %}
@@ -47,7 +49,7 @@
           {% endfor %}
         </tbody>
       </table>
-      <button type="submit">{% trans "Enregistrer l'inspection" %}</button>
+      <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Enregistrer l'inspection" %}</button>
     </form>
   {% endif %}
 {% endblock %}

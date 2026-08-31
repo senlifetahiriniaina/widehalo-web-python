@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Registre des risques" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Registre des risques" %}</h1>
+</div>
   <p>
     <a href="{% url 'risk_create' %}">{% trans "Signaler un risque" %}</a>
   </p>

@@ -14,7 +14,9 @@
   </style>
 {% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ flow.name }} <small>({{ flow.reference }})</small></h1>
+</div>
   <p>
     {% trans "Declencheur" %} : <code>{{ flow.trigger_event_type }}</code>
     — {% trans "Statut" %} :

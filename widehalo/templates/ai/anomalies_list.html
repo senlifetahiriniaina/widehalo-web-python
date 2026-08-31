@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Anomalies detectees" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Anomalies detectees (ouvertes)" %}</h1>
+</div>
   <table>
     <thead>
       <tr>
@@ -17,7 +19,7 @@
       {% for anomaly in anomalies %}
         <tr>
           <td>{{ anomaly.check_code }}</td>
-          <td>{{ anomaly.get_severity_display }}</td>
+          <td><span class="badge {{ anomaly.severity|state_badge_class }}">{{ anomaly.get_severity_display }}</span></td>
           <td>{{ anomaly.description }}</td>
           <td>{{ anomaly.ai_narrative|default:"—" }}</td>
           <td>{{ anomaly.created_at }}</td>

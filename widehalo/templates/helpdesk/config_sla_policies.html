@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Politiques de SLA" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Politiques de SLA" %}</h1>
+</div>
   <p>{% blocktrans %}Decompte continu (24/7), sans calendrier d'heures ouvrees en V1.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -10,7 +12,7 @@
     <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Priorite" %}</th><th>{% trans "1re reponse (min)" %}</th><th>{% trans "Resolution (min)" %}</th></tr></thead>
     <tbody>
       {% for policy in policies %}
-        <tr><td>{{ policy.name }}</td><td>{{ policy.get_priority_display }}</td><td>{{ policy.first_response_minutes }}</td><td>{{ policy.resolution_minutes }}</td></tr>
+        <tr><td>{{ policy.name }}</td><td><span class="badge {{ policy.priority|state_badge_class }}">{{ policy.get_priority_display }}</span></td><td>{{ policy.first_response_minutes }}</td><td>{{ policy.resolution_minutes }}</td></tr>
       {% empty %}
         <tr><td colspan="4">{% trans "Aucune politique." %}</td></tr>
       {% endfor %}
