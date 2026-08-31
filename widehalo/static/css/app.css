@@ -93,6 +93,21 @@ table.smart-table td,
   min-height: 100vh;
 }
 
+/* Ecrans d'amorcage d'instance (changement de mot de passe force avant la
+   creation de la premiere societe, parametrage de cette societe) : aucun
+   tenant courant n'existe encore, donc aucune sidebar/navigation applicative
+   n'a de sens (tous ses liens exigeraient une societe active) — la sidebar
+   est alors omise du DOM (base.html) et la grille repasse en une seule
+   colonne pleine largeur. */
+.app-shell-onboarding {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "topbar"
+    "main";
+}
+
+.logo-row-topbar { margin-right: var(--spacing-md); }
+
 .sidebar {
   grid-area: sidebar;
   background: var(--slate-900);
@@ -497,7 +512,7 @@ table.smart-table th a:focus-visible {
   align-items: center;
 }
 
-.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); padding: 0 var(--spacing-md) var(--spacing-md); }
+.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); }
 
 /* ============== Formulaires ============== */
 .form-field { margin-bottom: var(--spacing); display: flex; flex-direction: column; gap: 0.25rem; }

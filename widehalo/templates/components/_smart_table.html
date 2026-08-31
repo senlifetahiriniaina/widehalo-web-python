@@ -13,52 +13,54 @@
     <a class="btn btn-secondary btn-sm" href="?export=csv&q={{ query }}">{% trans "Exporter CSV" %}</a>
   </form>
 
-  <table class="smart-table">
-    <thead>
-      <tr>
-        {% for column in columns %}
-          <th scope="col" {% if sort == column.key %}aria-sort="ascending"{% endif %}>
-            <a hx-get="{{ request.path }}?sort={{ column.key }}&q={{ query }}"
-               hx-target="#smart-table-{{ table_key }}"
-               hx-select="#smart-table-{{ table_key }}"
-               hx-swap="outerHTML"
-               hx-push-url="true">{{ column.label }}{% if sort == column.key %}
-               <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right" style="transform:rotate(-90deg);"></use></svg><span class="sr-only">{% trans "(tri actif)" %}</span>
-               {% endif %}</a>
-          </th>
-        {% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in page_obj %}
+  <div class="panel-body">
+    <table class="smart-table">
+      <thead>
         <tr>
           {% for column in columns %}
-            <td>
-              {% if forloop.first and row_url_name %}
-                <a href="{{ row|reverse_with_pk:row_url_name }}">{{ row|getattr:column.key }}</a>
-              {% else %}
-                {{ row|getattr:column.key }}
-              {% endif %}
-            </td>
+            <th scope="col" {% if sort == column.key %}aria-sort="ascending"{% endif %}>
+              <a hx-get="{{ request.path }}?sort={{ column.key }}&q={{ query }}"
+                 hx-target="#smart-table-{{ table_key }}"
+                 hx-select="#smart-table-{{ table_key }}"
+                 hx-swap="outerHTML"
+                 hx-push-url="true">{{ column.label }}{% if sort == column.key %}
+                 <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right" style="transform:rotate(-90deg);"></use></svg><span class="sr-only">{% trans "(tri actif)" %}</span>
+                 {% endif %}</a>
+            </th>
           {% endfor %}
         </tr>
-      {% empty %}
-        <tr><td colspan="{{ columns|length }}">{% trans "Aucun resultat." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for row in page_obj %}
+          <tr>
+            {% for column in columns %}
+              <td>
+                {% if forloop.first and row_url_name %}
+                  <a href="{{ row|reverse_with_pk:row_url_name }}">{{ row|getattr:column.key }}</a>
+                {% else %}
+                  {{ row|getattr:column.key }}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="{{ columns|length }}">{% trans "Aucun resultat." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
-  <nav class="pagination" aria-label="{% trans 'Pagination' %}">
-    {% if page_obj.has_previous %}
-      <a hx-get="{{ request.path }}?page={{ page_obj.previous_page_number }}&q={{ query }}"
-         hx-target="#smart-table-{{ table_key }}" hx-select="#smart-table-{{ table_key }}"
-         hx-swap="outerHTML" hx-push-url="true">{% trans "Precedent" %}</a>
-    {% endif %}
-    <span>{% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
-    {% if page_obj.has_next %}
-      <a hx-get="{{ request.path }}?page={{ page_obj.next_page_number }}&q={{ query }}"
-         hx-target="#smart-table-{{ table_key }}" hx-select="#smart-table-{{ table_key }}"
-         hx-swap="outerHTML" hx-push-url="true">{% trans "Suivant" %}</a>
-    {% endif %}
-  </nav>
+    <nav class="pagination" aria-label="{% trans 'Pagination' %}">
+      {% if page_obj.has_previous %}
+        <a hx-get="{{ request.path }}?page={{ page_obj.previous_page_number }}&q={{ query }}"
+           hx-target="#smart-table-{{ table_key }}" hx-select="#smart-table-{{ table_key }}"
+           hx-swap="outerHTML" hx-push-url="true">{% trans "Precedent" %}</a>
+      {% endif %}
+      <span>{% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
+      {% if page_obj.has_next %}
+        <a hx-get="{{ request.path }}?page={{ page_obj.next_page_number }}&q={{ query }}"
+           hx-target="#smart-table-{{ table_key }}" hx-select="#smart-table-{{ table_key }}"
+           hx-swap="outerHTML" hx-push-url="true">{% trans "Suivant" %}</a>
+      {% endif %}
+    </nav>
+  </div>
 </div>

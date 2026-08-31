@@ -15,7 +15,8 @@
 </head>
 <body>
   <a class="sr-only sr-only-focusable" href="#main-content">{% trans "Aller au contenu principal" %}</a>
-  <div class="app-shell">
+  <div class="app-shell{% if not current_tenant %} app-shell-onboarding{% endif %}">
+    {% if current_tenant %}
     <aside class="sidebar">
       <a class="logo-row" href="/dashboard/">
         <img src="{% static 'img/logo-mark.svg' %}" alt="" width="28" height="28">
@@ -103,8 +104,15 @@
         </ul>
       </nav>
     </aside>
+    {% endif %}
 
     <header class="topbar">
+      {% if not current_tenant %}
+      <a class="logo-row logo-row-topbar" href="/dashboard/">
+        <img src="{% static 'img/logo-mark.svg' %}" alt="" width="24" height="24">
+        <span class="wordmark">WideHalo</span>
+      </a>
+      {% endif %}
       <span class="crumbs">{% block breadcrumb %}{% endblock %}</span>
       {% if user.is_authenticated %}
       <div class="account-menu" x-data="{ open: false }" @click.outside="open = false">
