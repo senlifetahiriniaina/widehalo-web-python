@@ -84,7 +84,7 @@ def test_merge_rejects_identical_primary_and_duplicate() -> None:
         {"primary_id": str(partner.id), "duplicate_id": str(partner.id)},
     )
     assert response.status_code == 200
-    assert "differer" in response.content.decode()
+    assert "différer" in response.content.decode()
 
 
 def test_partner_edit_updates_credit_limit() -> None:
