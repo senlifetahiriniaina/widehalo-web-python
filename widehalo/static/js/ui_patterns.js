@@ -33,8 +33,62 @@
  *    une vue peut faire
  *        response["HX-Trigger"] = json.dumps({"wh-toast": {"message": "...", "level": "success"}})
  *    pour declencher un toast, sans modifier ce fichier ni base.html.
+ *
+ * 4. `menuGroup(key)` : accordeon des groupes de la sidebar "Modules
+ *    metier" (chantier "accordeon RBAC"). Chaque groupe est independant
+ *    des autres (jamais un accordeon strict). L'etat ouvert/ferme est
+ *    persiste dans localStorage (chaque navigation dans cette appli
+ *    declenche un rechargement de page complet — sans persistance, l'etat
+ *    Alpine en memoire serait perdu a chaque clic sur un lien, ce qui
+ *    reintroduirait la friction que la decision "toujours visible" (cf.
+ *    chantier E3) avait justement supprimee). En complement : le groupe
+ *    contenant le lien correspondant a la page actuellement affichee
+ *    s'ouvre automatiquement au chargement (jamais ecrit dans
+ *    localStorage — c'est une consequence de la page courante, pas un
+ *    choix persistant de l'utilisateur), sans jamais refermer un autre
+ *    groupe deja ouvert manuellement.
  */
+function readMenuGroupState(key) {
+  try {
+    return window.localStorage.getItem(`wh-menu-group-${key}`) === "1";
+  } catch (e) {
+    return false;
+  }
+}
+
+function writeMenuGroupState(key, open) {
+  try {
+    window.localStorage.setItem(`wh-menu-group-${key}`, open ? "1" : "0");
+  } catch (e) {
+    /* localStorage indisponible (navigation privee, desactive) — l'etat
+     * ne persiste simplement pas, jamais d'exception qui casserait le
+     * rendu de la sidebar. */
+  }
+}
+
+function menuGroupContainsCurrentPage(el) {
+  const path = window.location.pathname;
+  const links = el.querySelectorAll("a[href]");
+  for (const link of links) {
+    const href = link.getAttribute("href");
+    if (href && href !== "#" && path.startsWith(href)) return true;
+  }
+  return false;
+}
+
 document.addEventListener("alpine:init", () => {
+  Alpine.data("menuGroup", (key) => ({
+    key,
+    open: false,
+    init() {
+      this.open = readMenuGroupState(this.key) || menuGroupContainsCurrentPage(this.$el);
+    },
+    toggle() {
+      this.open = !this.open;
+      writeMenuGroupState(this.key, this.open);
+    },
+  }));
+
   Alpine.data("whModal", (initiallyOpen = false) => ({
     open: initiallyOpen,
     show() {

@@ -213,6 +213,33 @@ table.smart-table td,
 }
 .app-menu-dropdown li a:hover { background: rgba(255, 255, 255, 0.06); color: #fff; text-decoration: none; }
 
+/* Groupes accordeon a l'interieur de "Modules metier" (chantier accordeon
+   RBAC) — chaque groupe est independant, .app-menu-dropdown reutilise tel
+   quel pour le contenu de chaque groupe, imbrique un niveau plus profond. */
+.app-menu-groups {
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.app-menu-group-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 6px var(--spacing-sm);
+  border-radius: var(--r-sm);
+  color: var(--slate-400);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-500);
+  text-decoration: none;
+}
+.app-menu-group-trigger:hover { background: rgba(255, 255, 255, 0.06); color: #fff; text-decoration: none; }
+.app-menu-group-trigger span { flex: 1; }
+.app-menu-group-trigger .chevron { transition: transform var(--transition-fast); }
+.app-menu-group .app-menu-dropdown { padding-left: calc(var(--spacing-md) + var(--spacing-sm)); }
+
 /* ============== Barre du haut ============== */
 .topbar {
   grid-area: topbar;

@@ -71,25 +71,88 @@
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layers"></use></svg>
               {% trans "Modules metier" %}
             </span>
-            <ul class="app-menu-dropdown">
-              <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilite" %}</a></li>
-              <li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>
-              <li><a href="/logistics/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>{% trans "Logistique" %}</a></li>
-              <li><a href="/mrp/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-factory"></use></svg>{% trans "Production" %}</a></li>
-              <li><a href="/patronage/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-scissors"></use></svg>{% trans "Patronage" %}</a></li>
-              <li><a href="/presence/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Présence" %}</a></li>
-              <li><a href="/purchase/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>{% trans "Achats" %}</a></li>
-              <li><a href="/sales/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>{% trans "Ventes" %}</a></li>
-              <li><a href="/stocks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-boxes"></use></svg>{% trans "Stocks" %}</a></li>
-              <li><a href="/payroll/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-banknote"></use></svg>{% trans "Paie" %}</a></li>
-              <li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>
-              <li><a href="/risks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shield-alert"></use></svg>{% trans "Registre des risques" %}</a></li>
-              <li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Etudes de faisabilite" %}</a></li>
-              <li><a href="/projects/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-folder-kanban"></use></svg>{% trans "Gestion de projets" %}</a></li>
-              <li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi operationnel" %}</a></li>
-              <li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Strategie et pilotage" %}</a></li>
-              <li><a href="/financing/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Financement" %}</a></li>
-              <li><a href="/automation/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Automatisation" %}</a></li>
+            <ul class="app-menu-groups">
+              <li class="app-menu-group" x-data="menuGroup('pour-tous')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
+                  <span>{% trans "Pour tous" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>
+                  <li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Strategie et pilotage" %}</a></li>
+                  <li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi operationnel" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('commercial')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>
+                  <span>{% trans "Commercial" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>
+                  <li><a href="/sales/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>{% trans "Ventes" %}</a></li>
+                  <li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Etudes de faisabilite" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('achats-logistique')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>
+                  <span>{% trans "Achats et logistique" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/purchase/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>{% trans "Achats" %}</a></li>
+                  <li><a href="/stocks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-boxes"></use></svg>{% trans "Stocks" %}</a></li>
+                  <li><a href="/logistics/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>{% trans "Logistique" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('production')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-factory"></use></svg>
+                  <span>{% trans "Production" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/mrp/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-factory"></use></svg>{% trans "Production" %}</a></li>
+                  <li><a href="/patronage/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-scissors"></use></svg>{% trans "Patronage" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('finance-pilotage')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>
+                  <span>{% trans "Finance et pilotage" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilite" %}</a></li>
+                  <li><a href="/financing/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Financement" %}</a></li>
+                  <li><a href="/automation/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Automatisation" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('rh')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>
+                  <span>{% trans "RH" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/presence/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Présence" %}</a></li>
+                  <li><a href="/payroll/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-banknote"></use></svg>{% trans "Paie" %}</a></li>
+                </ul>
+              </li>
+              <li class="app-menu-group" x-data="menuGroup('projets-risques')">
+                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-folder-kanban"></use></svg>
+                  <span>{% trans "Projets et risques" %}</span>
+                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+                </a>
+                <ul class="app-menu-dropdown" x-show="open" x-cloak>
+                  <li><a href="/projects/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-folder-kanban"></use></svg>{% trans "Gestion de projets" %}</a></li>
+                  <li><a href="/risks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shield-alert"></use></svg>{% trans "Registre des risques" %}</a></li>
+                </ul>
+              </li>
             </ul>
           </li>
           {% if is_admin_user %}
