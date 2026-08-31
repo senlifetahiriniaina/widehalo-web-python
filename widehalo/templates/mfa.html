@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Authentification a deux facteurs" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Authentification a deux facteurs" %}</h1>
+</div>
+{% if error %}<p role="alert" class="form-error">{{ error }}</p>{% endif %}
+
+{% if has_device %}
+  <p>{% trans "Saisissez le code a 6 chiffres genere par votre application d'authentification." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="token">{% trans "Code de verification" %}</label>
+      <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
+             maxlength="6" required autofocus autocomplete="one-time-code">
+    </div>
+    <button type="submit">{% trans "Verifier" %}</button>
+  </form>
+{% else %}
+  <p>
+    {% blocktrans %}Votre role exige une authentification a deux facteurs. Scannez ce
+    QR code avec une application d'authentification (Google Authenticator, Authy...)
+    puis saisissez le code affiche pour terminer l'activation.{% endblocktrans %}
+  </p>
+  <img src="{{ qr_data_uri }}" alt="{% trans 'QR code TOTP' %}" width="200" height="200">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="token">{% trans "Code de verification" %}</label>
+      <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
+             maxlength="6" required autofocus autocomplete="one-time-code">
+    </div>
+    <button type="submit">{% trans "Activer" %}</button>
+  </form>
+{% endif %}
+{% endblock %}

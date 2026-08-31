@@ -2,6 +2,7 @@ from apps.core.views.auth_web import (
     change_password_view,
     login_view,
     logout_view,
+    mfa_view,
     setup_company_view,
 )
 from django.conf import settings
@@ -19,6 +20,7 @@ urlpatterns = [
     path("logout/", logout_view, name="logout"),
     path("change-password/", change_password_view, name="change_password"),
     path("setup/", setup_company_view, name="setup_company"),
+    path("mfa/", mfa_view, name="mfa"),
     path("", include("apps.core.urls")),
     path("partners/", include("apps.partners.urls")),
     path("catalog/", include("apps.catalog.urls")),

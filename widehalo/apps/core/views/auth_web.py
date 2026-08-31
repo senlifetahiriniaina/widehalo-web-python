@@ -18,10 +18,12 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
+from django_otp import login as otp_login
 
 from apps.core.models.regulatory import CountryDefaultsProfile
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import UserTenantMembership
+from apps.core.services import mfa as mfa_service
 from apps.core.services.smart_defaults import apply_country_defaults
 
 
@@ -121,3 +123,51 @@ def setup_company_view(request: HttpRequest) -> HttpResponse:
         "setup_company.html",
         {"errors": errors, "country_choices": country_choices},
     )
+
+
+@login_required
+def mfa_view(request: HttpRequest) -> HttpResponse:
+    """Ecran web MFA (enrolement TOTP la premiere fois, puis verification a
+    chaque session non encore verifiee) — reutilise integralement
+    `apps.core.services.mfa` (meme logique que les endpoints API
+    `/api/v1/auth/mfa/*`, jamais dupliquee) ; seule la persistance differe :
+    ici une session web (`django_otp.login`), la ou l'API retourne un
+    couple de jetons JWT.
+
+    Bug reel corrige (jamais construit avant) : `apps.core.middleware.
+    MFAEnforcementMiddleware` redirige vers cette URL depuis l'origine du
+    socle (Lot 1, etape 4) mais aucune route/vue/template n'existait
+    encore — tout compte soumis a MFA obligatoire (admin/direction/
+    comptable/rh, cf. `settings.CORE_MFA_REQUIRED_ROLES`, et tout
+    superutilisateur) restait bloque en boucle sur une 404 des sa premiere
+    connexion web, jamais detecte plus tot faute d'avoir teste ce parcours
+    en navigateur reel avec un compte MFA obligatoire."""
+    user = request.user
+    is_verified = getattr(user, "is_verified", lambda: True)()
+    if not mfa_service.mfa_required_for_user(user) or is_verified:
+        return redirect("dashboard")
+
+    has_device = mfa_service.has_confirmed_device(user)
+    error: str | None = None
+
+    if request.method == "POST":
+        token = request.POST.get("token", "").strip()
+        if not has_device:
+            device = mfa_service.enroll_device(user)
+            if mfa_service.confirm_device(device, token):
+                otp_login(request, device)
+                return redirect("dashboard")
+            error = _("Code invalide.")
+        else:
+            verified_device = mfa_service.verify_token(user, token)
+            if verified_device is not None:
+                otp_login(request, verified_device)
+                return redirect("dashboard")
+            error = _("Code invalide.")
+
+    context: dict[str, object] = {"error": error, "has_device": has_device}
+    if not has_device:
+        device = mfa_service.enroll_device(user)
+        context["qr_data_uri"] = mfa_service.generate_totp_qr_data_uri(device)
+
+    return render(request, "mfa.html", context)
