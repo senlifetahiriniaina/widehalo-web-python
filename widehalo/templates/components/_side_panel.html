@@ -1,0 +1,47 @@
+{% comment %}
+Panneau lateral generique (audit / documents / discussion), formalise a
+partir du patron deja duplique dans plusieurs ecrans de detail (partners,
+accounting...). Contexte attendu, tous optionnels :
+  - audit_entries : iterable d'objets avec .action / .created_at
+  - documents : iterable d'objets avec .original_name
+  - document_upload_url : URL de POST du formulaire d'upload (si fourni,
+    le formulaire est affiche)
+  - chat_channel_id : si fourni, lien vers la messagerie contextuelle
+{% endcomment %}
+{% load i18n %}
+<aside class="side-panel">
+  {% if audit_entries is not None %}
+    <h2>{% trans "Audit" %}</h2>
+    <ul>
+      {% for entry in audit_entries %}
+        <li>{{ entry.action }} — {{ entry.created_at }}</li>
+      {% empty %}
+        <li>{% trans "Aucune entree." %}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if documents is not None %}
+    <h2>{% trans "Documents" %}</h2>
+    <ul>
+      {% for document in documents %}
+        <li>{{ document.original_name }}</li>
+      {% empty %}
+        <li>{% trans "Aucun document." %}</li>
+      {% endfor %}
+    </ul>
+    {% if document_upload_url %}
+      <form method="post" action="{{ document_upload_url }}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="document-upload">{% trans "Ajouter un document" %}</label>
+        <input id="document-upload" type="file" name="document" required>
+        <button type="submit" class="btn btn-sm">{% trans "Envoyer" %}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+
+  {% if chat_channel_id %}
+    <h2>{% trans "Discussion" %}</h2>
+    <p><a href="/chat/{{ chat_channel_id }}/">{% trans "Ouvrir la messagerie contextuelle" %}</a></p>
+  {% endif %}
+</aside>

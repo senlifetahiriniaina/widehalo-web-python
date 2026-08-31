@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration CRM" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Configuration CRM" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Configuration CRM" %}</h1>
+  </div>
   <ul>
     <li><a href="{% url 'crm:config_pipelines' %}">{% trans "Pipelines et etapes" %}</a></li>
     <li><a href="{% url 'crm:config_teams' %}">{% trans "Equipes" %}</a></li>

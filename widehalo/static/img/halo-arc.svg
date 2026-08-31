@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" fill="none">
+  
+  <defs>
+    <radialGradient id="haloDisc" cx="0.4" cy="0.4" r="0.7">
+      <stop offset="0%" stop-color="#5781FB"></stop>
+      <stop offset="100%" stop-color="#1E45C9"></stop>
+    </radialGradient>
+  </defs>
+
+  
+  <circle cx="160" cy="120" r="92" stroke="#ED9C2B" stroke-width="3.5" fill="none"></circle>
+
+  
+  <circle cx="160" cy="120" r="80" stroke="#F2B14F" stroke-width="1.5" fill="none" opacity="0.55"></circle>
+
+  
+  <circle cx="160" cy="120" r="68" fill="url(#haloDisc)"></circle>
+
+  
+  <path d="M 112 92 L 130 156 L 148 110 L 166 156 L 184 110 L 202 156 L 220 92" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+
+  
+  <circle cx="225" cy="55" r="5" fill="#ED9C2B"></circle>
+</svg>

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Ventes" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Rapports Ventes (§5.5.7)" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Rapports Ventes (§5.5.7)" %}</h1>
+  </div>
   <p>{% blocktrans %}Le devis (SAL-DEVIS) et la confirmation de commande (SAL-BC) se telechargent depuis leur fiche respective. Le bon de livraison (SAL-BL) depuis la fiche commande.{% endblocktrans %}</p>
 
   <h2>{% trans "Facturation (SAL-FAC)" %}</h2>

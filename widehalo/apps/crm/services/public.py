@@ -60,3 +60,11 @@ def pipeline_weighted_demand(
         contribution = line.qty * Decimal(line.lead.probability) / Decimal(100)
         weighted[key] = weighted.get(key, Decimal(0)) + contribution
     return weighted
+
+
+def count_open_opportunities() -> int:
+    """Nombre d'opportunites CRM ni gagnees ni perdues (`stage.is_won`/
+    `is_lost` tous deux faux) pour le tenant courant — deja tenant-scope
+    par `CrmLead.objects` (RLS), aucun parametre `tenant` necessaire.
+    Utilise par le tableau de bord transversal (chantier UX6)."""
+    return CrmLead.objects.filter(stage__is_won=False, stage__is_lost=False).count()

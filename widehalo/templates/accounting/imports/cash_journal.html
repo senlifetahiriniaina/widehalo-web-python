@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Import du journal de caisse" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Import du journal de caisse" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Import du journal de caisse" %}</h1>
+  </div>
   <p>{% trans "Format attendu : colonnes DATE/CAISSE/CATEGORIE/EXCLU DES TOTAUX/COMPTE PCG/LIBELLE/ENTREE/SORTIE — voir docs/IMPORT_FORMATS.md." %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

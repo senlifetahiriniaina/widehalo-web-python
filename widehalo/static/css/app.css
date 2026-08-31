@@ -1,55 +1,66 @@
-/* Feuille de style minimale, ecrite a la main (pas de build Tailwind dans ce
-   lot — cf. simplifications assumees) pour rester tres legere : la page
-   d'accueil doit peser moins de 200 Ko compresse, un fragment HTMX moins de
-   30 Ko. */
+/* WideHalo — feuille de style principale.
+   Ecrite a la main (pas de chaine de build Node/Tailwind — cf. contrainte de
+   connectivite malgache variable, deja actee au Lot 1). Adaptee du design
+   system WideHalo fourni par l'utilisateur (cf. static/css/tokens.css) :
+   les elements HTML bruts sont stylees directement pour que la quasi-totalite
+   des ecrans (qui n'utilisent pas encore de classes de composant) beneficie
+   du reskin sans etre retouches un par un. Poids cible : page d'accueil
+   < 200 Ko compresse, fragment HTMX < 30 Ko (cf. tests/ui/test_page_budgets.py). */
 
+/* tokens.css et fonts.css sont links separement dans base.html (avant ce
+   fichier) plutot qu'importes ici via @import — evite un aller-retour
+   reseau bloquant supplementaire pour la premiere peinture de page. */
+
+/* Alias retro-compatibles : les templates/JS existants (ui_patterns.js,
+   200+ ecrans) referencent encore ces noms de variable historiques —
+   jamais renommes, seulement repointes vers les tokens du design system. */
 :root {
-  --color-primary: #0f4c5c;
-  --color-primary-hover: #0c3c48;
-  --color-bg: #f7f7f5;
-  --color-surface: #ffffff;
-  --color-border: #d8d8d3;
-  --color-text: #1b1b18;
-  --color-text-muted: #5a5a54;
-  --color-danger: #a6332e;
-  --color-danger-bg: #fbeceb;
+  --color-primary: var(--accent-brand);
+  --color-primary-hover: var(--accent-brand-hover);
+  --color-bg: var(--bg-app);
+  --color-surface: var(--bg-canvas);
+  --color-border: var(--border-subtle);
+  --color-text: var(--fg-1);
+  --color-text-muted: var(--fg-3);
+  --color-danger: var(--danger-fg);
+  --color-danger-bg: var(--danger-bg);
   --color-danger-border: #e3a29e;
-  --color-focus-ring: #0f4c5c;
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing: 0.75rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2.5rem;
-  --transition-fast: 120ms ease;
+  --color-focus-ring: var(--border-focus);
+  --spacing-xs: var(--sp-1);
+  --spacing-sm: var(--sp-2);
+  --spacing: var(--sp-3);
+  --spacing-md: var(--sp-4);
+  --spacing-lg: var(--sp-6);
+  --spacing-xl: var(--sp-10);
+  --transition-fast: var(--dur-fast) var(--ease-out);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--color-text);
-  background: var(--color-bg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-15);
+  line-height: var(--lh-base);
+  color: var(--fg-1);
+  background: var(--bg-app);
 }
 
-/* Hierarchie typographique : rythme vertical coherent sur tout le site,
-   sans introduire de dependance de build (regles ecrites a la main, cf.
-   remarque en tete de fichier). */
-h1, h2, h3 { line-height: 1.25; color: var(--color-text); }
-h1 { font-size: 1.75rem; margin: 0 0 var(--spacing-md); }
-h2 { font-size: 1.3rem; margin: var(--spacing-xl) 0 var(--spacing); }
-h3 { font-size: 1.05rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
-h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+/* ============== Hierarchie typographique ============== */
+h1, h2, h3, h4 { font-family: var(--font-display); line-height: var(--lh-snug); color: var(--fg-1); font-weight: var(--fw-600); }
+h1 { font-size: var(--fs-30); letter-spacing: var(--tr-tight); margin: 0 0 var(--spacing-md); }
+h2 { font-size: var(--fs-24); margin: var(--spacing-xl) 0 var(--spacing); }
+h3 { font-size: var(--fs-18); margin: var(--spacing-lg) 0 var(--spacing-sm); }
+h4 { font-size: var(--fs-16); margin: var(--spacing) 0 var(--spacing-sm); }
+h1:first-child, h2:first-child, h3:first-child, h4:first-child { margin-top: 0; }
 p { margin: 0 0 var(--spacing); }
 
 a {
-  color: var(--color-primary);
+  color: var(--fg-link);
+  text-decoration: none;
   transition: color var(--transition-fast);
 }
-a:hover { color: var(--color-primary-hover); }
+a:hover { color: var(--accent-brand-hover); text-decoration: underline; }
 
 a:focus-visible,
 button:focus-visible,
@@ -57,84 +68,342 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 .btn:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: var(--spacing) 1.5rem;
-  background: white;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.app-logo { font-weight: 700; text-decoration: none; font-size: 1.1rem; }
-
-.app-menu {
-  display: flex;
-  gap: 1rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  flex-wrap: wrap;
-}
-
-.app-menu-disabled {
-  color: #9a9a94;
-  cursor: not-allowed;
+/* Chiffres tabulaires partout ou une donnee numerique est affichee — non
+   negociable du design system (montants, quantites, KPI). */
+.num-tabular,
+table.smart-table td,
+.kpi .num {
+  font-variant-numeric: tabular-nums;
 }
 
 [x-cloak] { display: none !important; }
 
-.app-menu-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 10;
-  background: white;
-  border: 1px solid var(--color-border);
-  border-radius: 0.25rem;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0.5rem;
-  min-width: 10rem;
+/* ============== App shell : sidebar persistante + barre du haut ============== */
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 56px 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar main";
+  min-height: 100vh;
 }
 
-.app-menu-dropdown li {
-  padding: 0.25rem 0;
+.sidebar {
+  grid-area: sidebar;
+  background: var(--slate-900);
+  color: var(--slate-200);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
+
+.sidebar .logo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  color: #fff;
+  text-decoration: none;
+}
+.sidebar .logo-row:hover { text-decoration: none; }
+.sidebar .logo-row img { height: 28px; width: auto; display: block; }
+.sidebar .logo-row .wordmark { font-family: var(--font-display); font-weight: var(--fw-600); font-size: var(--fs-16); }
+
+.sidebar-nav { padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-lg); flex: 1; }
+
+.app-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-menu > li { position: relative; }
+
+.app-menu > li > a,
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-sm);
+  border-radius: var(--r-md);
+  color: var(--slate-300);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-500);
+  text-decoration: none;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-menu > li > a:hover,
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  text-decoration: none;
+}
+
+.app-menu > li > a.active,
+.nav-item.active {
+  background: rgba(46, 91, 232, 0.28);
+  color: #fff;
+  border-left: 2px solid var(--halo-400);
+  padding-left: calc(var(--spacing-sm) - 2px);
+}
+
+.app-menu-disabled {
+  color: var(--slate-500);
+  cursor: not-allowed;
+}
+
+.nav-section-title {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-600);
+  letter-spacing: var(--tr-caps);
+  text-transform: uppercase;
+  color: var(--slate-500);
+  padding: var(--spacing-md) var(--spacing-sm) var(--spacing-xs);
+}
+
+/* Sous-liste "Modules metier" : rendue en section depliee dans la sidebar
+   (pas un menu flottant) — structure ul.app-menu-dropdown inchangee (le
+   test de garde-fou tests/ui/test_menu.py compte uniquement les <li>
+   directs de ul.app-menu, jamais ceux de cette sous-liste). */
+.app-menu-dropdown {
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 0 0 0 var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.app-menu-dropdown li a {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 6px var(--spacing-sm);
+  border-radius: var(--r-sm);
+  color: var(--slate-400);
+  font-size: var(--fs-13);
+  text-decoration: none;
+}
+.app-menu-dropdown li a:hover { background: rgba(255, 255, 255, 0.06); color: #fff; text-decoration: none; }
+
+/* ============== Barre du haut ============== */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: 0 var(--spacing-lg);
+  background: var(--bg-canvas);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.topbar .crumbs { font-size: var(--fs-13); color: var(--fg-3); }
+
+main#main-content {
+  grid-area: main;
+  padding: var(--spacing-lg);
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Icones (sprite vendorise, cf. static/icons/sprite.svg) — jamais remplies
+   ni multicolores, trait uniquement (currentColor). */
+.ic {
+  width: 1em;
+  height: 1em;
+  font-size: 1.15em;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+}
+.ic-sm { font-size: 1em; }
+.ic-lg { font-size: 1.5em; }
+
+/* ============== Boutons ============== */
+button, .btn, .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--accent-brand);
+  color: #fff;
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  border-radius: var(--r-md);
+  font: inherit;
+  font-weight: var(--fw-500);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+button:hover, .btn:hover, .btn-primary:hover { background: var(--accent-brand-hover); }
+
+.btn-sm { padding: 0.3rem 0.65rem; font-size: var(--fs-13); }
+.btn-lg { padding: 0.7rem 1.3rem; font-size: var(--fs-16); }
+
+.btn-secondary {
+  background: var(--bg-canvas);
+  color: var(--fg-1);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover { background: var(--bg-sunken); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg-2);
+  border-color: transparent;
+}
+.btn-ghost:hover { background: var(--bg-sunken); color: var(--fg-1); }
+
+button.btn-danger, .btn-danger {
+  background: var(--red-500);
+  color: #fff;
+}
+button.btn-danger:hover, .btn-danger:hover { background: var(--red-600); }
+
+/* Bouton d'action icone seule — toujours accompagne d'un aria-label. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--fg-2);
+  border: 1px solid transparent;
+}
+.icon-btn:hover { background: var(--bg-sunken); color: var(--fg-1); }
+
+/* ============== Cartes / panneaux ============== */
+.card, .panel {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: var(--spacing-lg);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing) var(--spacing-md);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.panel-head h2, .panel-head h3 { margin: 0; }
+.panel-body { padding: var(--spacing-md); }
+
+/* ============== En-tete de page ============== */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-lg);
+}
+.page-head h1 { margin: 0; }
+.page-head .actions { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+
+/* ============== Mise en page deux colonnes ============== */
+.two-col {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: flex-start;
+}
+.two-col > .col-main { flex: 2; min-width: 0; }
+.two-col > .col-side { flex: 1; min-width: 260px; }
+
+/* ============== KPI ============== */
+.kpi-row {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-lg);
+}
+.kpi {
+  flex: 1;
+  min-width: 180px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-xs);
+}
+.kpi .label {
+  display: block;
+  font-size: var(--fs-13);
+  color: var(--fg-3);
+  margin-bottom: var(--spacing-xs);
+}
+.kpi .num {
+  font-family: var(--font-display);
+  font-size: var(--fs-30);
+  font-weight: var(--fw-600);
+  color: var(--fg-1);
+}
+.kpi .delta { font-size: var(--fs-13); margin-left: var(--spacing-xs); }
+.kpi .delta.up { color: var(--green-600); }
+.kpi .delta.down { color: var(--red-600); }
+.kpi .delta.flat { color: var(--fg-3); }
+
+/* ============== Badges d'etat ============== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-500);
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.badge.b-draft, .badge.b-neutral { background: var(--bg-sunken); color: var(--fg-2); }
+.badge.b-pending, .badge.b-sent { background: var(--warn-bg); color: var(--warn-fg); }
+.badge.b-success, .badge.b-paid { background: var(--success-bg); color: var(--success-fg); }
+.badge.b-danger, .badge.b-fail { background: var(--danger-bg); color: var(--danger-fg); }
 
 .app-badge {
-  font-size: 0.7rem;
-  background: var(--color-border);
-  border-radius: 0.25rem;
+  font-size: var(--fs-12);
+  background: var(--bg-sunken);
+  border-radius: var(--r-xs);
   padding: 0.1rem 0.35rem;
   margin-left: 0.25rem;
 }
 
-main { padding: var(--spacing-lg); max-width: 1200px; margin: 0 auto; }
-
+/* ============== Tableaux (SmartTable) ============== */
 table.smart-table {
   width: 100%;
   border-collapse: collapse;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.25rem;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
   overflow: hidden;
 }
 
 table.smart-table th,
 table.smart-table td {
   text-align: left;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-border);
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 table.smart-table thead th {
-  background: var(--color-bg);
-  font-weight: 600;
+  background: var(--bg-sunken);
+  font-weight: var(--fw-600);
+  font-size: var(--fs-13);
+  color: var(--fg-2);
 }
 
 table.smart-table tbody tr {
@@ -142,20 +411,20 @@ table.smart-table tbody tr {
 }
 
 table.smart-table tbody tr:hover {
-  background: var(--color-bg);
+  background: var(--bg-sunken);
 }
 
-/* Colonnes triables (_smart_table.html) : l'en-tete entier est cliquable,
-   rendu explicite au survol/focus pour affordance. */
 table.smart-table th a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: inherit;
   text-decoration: none;
 }
 
 table.smart-table th a:hover,
 table.smart-table th a:focus-visible {
-  color: var(--color-primary);
+  color: var(--accent-brand);
 }
 
 .smart-table-toolbar {
@@ -163,66 +432,68 @@ table.smart-table th a:focus-visible {
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing);
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); }
 
+/* ============== Formulaires ============== */
 .form-field { margin-bottom: var(--spacing); display: flex; flex-direction: column; gap: 0.25rem; }
+.form-field label { font-size: var(--fs-13); font-weight: var(--fw-500); color: var(--fg-2); }
+.form-field .help { font-size: var(--fs-12); color: var(--fg-3); }
 
-.workflow-banner {
-  background: #fff7e6;
-  border: 1px solid #e8c778;
-  padding: var(--spacing);
-  border-radius: 0.25rem;
-  margin-bottom: var(--spacing);
-}
-
-.side-panel {
-  border-left: 1px solid var(--color-border);
-  padding-left: 1rem;
-}
-
-button, .btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-button:hover, .btn:hover { background: var(--color-primary-hover); }
-
-button.btn-danger, .btn-danger { background: var(--color-danger); }
-button.btn-danger:hover, .btn-danger:hover { background: #8a2924; }
-
-/* Retours de validation de formulaire (bordures/couleurs d'erreur, deja
-   utilise par de nombreux templates via class="form-error" mais jusque-la
-   sans style — corrige ici une fois pour tout le site). */
 input, select, textarea {
-  border: 1px solid var(--color-border);
-  border-radius: 0.25rem;
-  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 0.45rem 0.65rem;
   font: inherit;
+  background: var(--bg-canvas);
+  color: var(--fg-1);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-input:hover, select:hover, textarea:hover { border-color: #b8b8b0; }
+input:hover, select:hover, textarea:hover { border-color: var(--slate-400); }
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-inner);
+}
 
 input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:placeholder-shown) {
   border-color: var(--color-danger-border);
 }
 
 .form-error {
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
+  color: var(--danger-fg);
+  background: var(--danger-bg);
   border: 1px solid var(--color-danger-border);
-  border-radius: 0.25rem;
+  border-radius: var(--r-md);
   padding: var(--spacing-sm) var(--spacing);
   margin: var(--spacing-sm) 0;
 }
 
+/* ============== Bandeau de workflow / panneau lateral ============== */
+.workflow-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  background: var(--amber-50);
+  border: 1px solid var(--amber-200);
+  padding: var(--spacing);
+  border-radius: var(--r-md);
+  margin-bottom: var(--spacing);
+}
+
+.side-panel {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  padding: var(--spacing-md);
+}
+.side-panel h2, .side-panel h3 { margin-top: 0; }
+
+/* ============== Accessibilite ============== */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -235,8 +506,6 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   border: 0;
 }
 
-/* Extension .sr-only : rendu visible au focus clavier (lien d'evitement
-   "Aller au contenu principal" en tete de base.html). */
 .sr-only-focusable:focus {
   position: fixed;
   top: var(--spacing-sm);
@@ -248,34 +517,32 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   overflow: visible;
   clip: auto;
   white-space: normal;
-  background: var(--color-surface);
-  color: var(--color-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 0.25rem;
-  z-index: 100;
+  background: var(--bg-canvas);
+  color: var(--accent-brand);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  z-index: var(--z-toast);
 }
 
-/* Modale generique (UI1-3, patron Alpine `whModal()` / store
-   `confirmDialog`) : ouverture/fermeture + overlay, posee une fois dans
-   base.html. */
+/* ============== Modale generique (UI1-3) ============== */
 .wh-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(27, 27, 24, 0.45);
+  background: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--spacing-lg);
-  z-index: 200;
+  z-index: var(--z-modal);
 }
 
 .wh-modal {
-  background: var(--color-surface);
-  border-radius: 0.5rem;
+  background: var(--bg-canvas);
+  border-radius: var(--r-lg);
   padding: var(--spacing-lg);
   max-width: 28rem;
   width: 100%;
-  box-shadow: 0 0.5rem 1.5rem rgba(27, 27, 24, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .wh-modal-actions {
@@ -285,8 +552,7 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   margin-top: var(--spacing-lg);
 }
 
-/* Toasts de notification (UI1-3) : empilement en bas a droite, transition
-   d'apparition douce. */
+/* ============== Toasts (UI1-3) ============== */
 .wh-toast-container {
   position: fixed;
   bottom: var(--spacing-lg);
@@ -294,20 +560,20 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  z-index: 300;
+  z-index: var(--z-toast);
 }
 
 .wh-toast {
-  background: var(--color-text);
-  color: white;
+  background: var(--slate-800);
+  color: #fff;
   padding: var(--spacing-sm) var(--spacing);
-  border-radius: 0.25rem;
-  box-shadow: 0 0.25rem 0.75rem rgba(27, 27, 24, 0.25);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
   animation: wh-toast-in var(--transition-fast);
 }
 
-.wh-toast-success { background: #1f6f4a; }
-.wh-toast-error { background: var(--color-danger); }
+.wh-toast-success { background: var(--green-600); }
+.wh-toast-error { background: var(--red-600); }
 
 @keyframes wh-toast-in {
   from { opacity: 0; transform: translateY(0.5rem); }

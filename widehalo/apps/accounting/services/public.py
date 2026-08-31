@@ -681,3 +681,17 @@ def get_financial_ratios_summary(tenant: Tenant, *, fiscal_year_id: UUID) -> dic
     if fiscal_year is None:
         return None
     return financial_ratios(fiscal_year)
+
+
+def count_unpaid_customer_invoices() -> int:
+    """Nombre de factures clients validees mais non totalement soldees
+    (`validated`/`paid_partially`) pour le tenant courant — deja
+    tenant-scope par `AccMove.objects` (TenantManager/RLS), aucun
+    parametre `tenant` necessaire ici puisque toujours appele depuis un
+    cycle de requete HTTP authentifie. Utilise par le tableau de bord
+    transversal (chantier UX6) — jamais un import direct de `AccMove`
+    depuis `core`."""
+    return AccMove.objects.filter(
+        move_type=AccMove.TYPE_CUSTOMER_INVOICE,
+        invoice_state__in=[AccMove.INVOICE_STATE_VALIDATED, AccMove.INVOICE_STATE_PAID_PARTIALLY],
+    ).count()

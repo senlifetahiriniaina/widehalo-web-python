@@ -2,8 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports CRM" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Rapports CRM" %}</h1>
-
+  <div class="page-head">
+    <h1>{% trans "Rapports CRM" %}</h1>
+  </div>
   <section>
     <h2>{% trans "Repartition du pipeline" %}</h2>
     <form method="get" action="{% url 'crm:report_pipeline' %}">

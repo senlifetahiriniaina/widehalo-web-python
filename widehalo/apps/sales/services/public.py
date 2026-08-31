@@ -74,3 +74,11 @@ def get_forecast_summary(
         }
         for forecast in forecasts
     ]
+
+
+def count_orders_pending_confirmation() -> int:
+    """Nombre de commandes de vente envoyees mais pas encore confirmees
+    (`state=sent`) pour le tenant courant — deja tenant-scope par
+    `SalesOrder.objects` (RLS), aucun parametre `tenant` necessaire.
+    Utilise par le tableau de bord transversal (chantier UX6)."""
+    return SalesOrder.objects.filter(state=SalesOrder.STATE_SENT).count()

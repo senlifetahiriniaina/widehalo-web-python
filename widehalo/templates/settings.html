@@ -1,19 +1,55 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load static i18n %}
 {% block title %}{% trans "Parametres" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Parametres" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Parametres" %}</h1>
+  </div>
   <p>{% blocktrans %}Donnees de configuration par module (journaux, pipelines, ateliers, tableaux de mesures...). Les ecrans transactionnels (factures, opportunites, ordres, patrons) restent accessibles depuis le menu "Modules metier".{% endblocktrans %}</p>
-  <ul>
-    <li><a href="{% url 'accounting:config_index' %}">{% trans "Configuration Comptabilite" %}</a></li>
-    <li><a href="{% url 'crm:config_index' %}">{% trans "Configuration CRM" %}</a></li>
-    <li><a href="{% url 'mrp:config_index' %}">{% trans "Configuration Production" %}</a></li>
-    <li><a href="{% url 'patronage:config_index' %}">{% trans "Configuration Patronage" %}</a></li>
-    <li><a href="{% url 'catalog:config_index' %}">{% trans "Configuration Catalogue" %}</a></li>
-    <li><a href="{% url 'sales:config_recurrences' %}">{% trans "Configuration Ventes (recurrences)" %}</a></li>
-    <li><a href="{% url 'purchase:config_index' %}">{% trans "Configuration Achats" %}</a></li>
-    <li><a href="{% url 'stocks:config_index' %}">{% trans "Configuration Stocks" %}</a></li>
-    <li><a href="{% url 'logistics:config_index' %}">{% trans "Configuration Logistique" %}</a></li>
-    <li><a href="{% url 'helpdesk:config_index' %}">{% trans "Configuration Support" %}</a></li>
-  </ul>
+  <div class="kpi-row" style="flex-wrap:wrap;">
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'accounting:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>
+      <h3>{% trans "Comptabilite" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'crm:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>
+      <h3>{% trans "CRM" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'mrp:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-factory"></use></svg>
+      <h3>{% trans "Production" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'patronage:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-scissors"></use></svg>
+      <h3>{% trans "Patronage" %}</h3>
+    </a>
+  </div>
+  <div class="kpi-row" style="flex-wrap:wrap;">
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'catalog:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-package"></use></svg>
+      <h3>{% trans "Catalogue" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'sales:config_recurrences' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>
+      <h3>{% trans "Ventes (recurrences)" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'purchase:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>
+      <h3>{% trans "Achats" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'stocks:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-boxes"></use></svg>
+      <h3>{% trans "Stocks" %}</h3>
+    </a>
+  </div>
+  <div class="kpi-row" style="flex-wrap:wrap;">
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'logistics:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>
+      <h3>{% trans "Logistique" %}</h3>
+    </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'helpdesk:config_index' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>
+      <h3>{% trans "Support" %}</h3>
+    </a>
+  </div>
 {% endblock %}

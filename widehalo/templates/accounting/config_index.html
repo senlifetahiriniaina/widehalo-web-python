@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Comptabilite" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Configuration Comptabilite" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Configuration Comptabilite" %}</h1>
+  </div>
   <ul>
     <li><a href="{% url 'accounting:config_fiscal_years' %}">{% trans "Exercices" %}</a></li>
     <li><a href="{% url 'accounting:config_periods' %}">{% trans "Periodes" %}</a></li>

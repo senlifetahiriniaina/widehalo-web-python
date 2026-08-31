@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Devis" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Devis" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Devis" %}</h1>
+  </div>
   <p>
     <a href="{% url 'sales:quotation_create' %}">{% trans "Nouveau devis" %}</a>
     | <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>

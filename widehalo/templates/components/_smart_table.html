@@ -1,6 +1,6 @@
-{% load i18n core_extras %}
-<div id="smart-table-{{ table_key }}">
-  <form class="smart-table-toolbar"
+{% load i18n static core_extras %}
+<div id="smart-table-{{ table_key }}" class="panel">
+  <form class="smart-table-toolbar panel-head"
         hx-get="{{ request.path }}"
         hx-target="#smart-table-{{ table_key }}"
         hx-select="#smart-table-{{ table_key }}"
@@ -9,8 +9,8 @@
     <label for="smart-table-search-{{ table_key }}" class="sr-only">{% trans "Rechercher" %}</label>
     <input id="smart-table-search-{{ table_key }}" type="search" name="q" value="{{ query }}"
            placeholder="{% trans 'Rechercher…' %}" aria-label="{% trans 'Rechercher' %}">
-    <button type="submit">{% trans "Filtrer" %}</button>
-    <a class="btn" href="?export=csv&q={{ query }}">{% trans "Exporter CSV" %}</a>
+    <button type="submit" class="btn-sm">{% trans "Filtrer" %}</button>
+    <a class="btn btn-secondary btn-sm" href="?export=csv&q={{ query }}">{% trans "Exporter CSV" %}</a>
   </form>
 
   <table class="smart-table">
@@ -23,7 +23,7 @@
                hx-select="#smart-table-{{ table_key }}"
                hx-swap="outerHTML"
                hx-push-url="true">{{ column.label }}{% if sort == column.key %}
-               <span aria-hidden="true"> &#9650;</span><span class="sr-only">{% trans "(tri actif)" %}</span>
+               <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right" style="transform:rotate(-90deg);"></use></svg><span class="sr-only">{% trans "(tri actif)" %}</span>
                {% endif %}</a>
           </th>
         {% endfor %}

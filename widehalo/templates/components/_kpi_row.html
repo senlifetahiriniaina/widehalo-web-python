@@ -1,0 +1,16 @@
+{% comment %}
+Rangee de tuiles KPI (design system, cf. .kpi-row/.kpi dans static/css/app.css).
+Contexte attendu : `kpis` = liste de dicts {label, value, delta (optionnel), delta_direction (up/down/flat, optionnel)}.
+{% endcomment %}
+{% load i18n %}
+<div class="kpi-row">
+  {% for item in kpis %}
+    <div class="kpi">
+      <span class="label">{{ item.label }}</span>
+      <span class="num">{{ item.value }}</span>
+      {% if item.delta %}
+        <span class="delta {{ item.delta_direction|default:'flat' }}">{{ item.delta }}</span>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>

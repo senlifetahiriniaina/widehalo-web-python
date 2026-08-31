@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Import du plan comptable" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Import du plan comptable" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Import du plan comptable" %}</h1>
+  </div>
   <p>{% trans "Format attendu : colonnes Classe/Code/Intitulé/Type (ou Nature)/Catégorie de caisse — voir docs/IMPORT_FORMATS.md." %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

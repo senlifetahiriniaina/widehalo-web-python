@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ order.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ order.state|state_badge_class }}">{{ order.get_state_display }}</span>
     {% if order.blocked_reason %}<p>{% trans "Motif de blocage" %}: {{ order.blocked_reason }}</p>{% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
@@ -22,7 +22,11 @@
     </form>
   </div>
 
-  <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+  <div class="page-head">
+
+    <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+
+  </div>
   <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
   <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
   <p>{% trans "Total" %}: {{ order.amount_total_mga }} MGA</p>

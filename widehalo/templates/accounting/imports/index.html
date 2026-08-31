@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Imports comptables" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Imports comptables" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Imports comptables" %}</h1>
+  </div>
   <ul>
     <li><a href="{% url 'accounting:imports_chart_of_accounts' %}">{% trans "Importer un plan comptable" %}</a></li>
     <li><a href="{% url 'accounting:imports_cash_journal' %}">{% trans "Importer un journal de caisse" %}</a></li>

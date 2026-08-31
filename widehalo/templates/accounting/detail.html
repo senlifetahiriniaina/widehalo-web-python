@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ invoice.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ invoice.get_invoice_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ invoice.invoice_state|state_badge_class }}">{{ invoice.get_invoice_state_display }}</span>
     <form method="post" style="display:inline;">
       {% csrf_token %}
       {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
@@ -18,9 +18,11 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   </div>
 
-  <div style="display:flex; gap:2rem;">
-    <div style="flex:2;">
-      <h1>{{ invoice.reference|default:"(brouillon)" }}</h1>
+  <div class="two-col">
+    <div class="col-main">
+      <div class="page-head">
+        <h1>{{ invoice.reference|default:"(brouillon)" }}</h1>
+      </div>
       <p>{% trans "Date" %}: {{ invoice.date }}</p>
       <p>{% trans "Devise" %}: {{ invoice.currency }}</p>
       <p>{% trans "Total debit" %}: {{ invoice.total_debit }} MGA</p>
@@ -109,15 +111,8 @@
       </form>
     </div>
 
-    <aside class="side-panel" style="flex:1;">
-      <h2>{% trans "Audit" %}</h2>
-      <ul>
-        {% for entry in audit_entries %}
-          <li>{{ entry.action }} — {{ entry.created_at }}</li>
-        {% empty %}
-          <li>{% trans "Aucune entree." %}</li>
-        {% endfor %}
-      </ul>
-    </aside>
+    <div class="col-side">
+      {% include "components/_side_panel.html" %}
+    </div>
   </div>
 {% endblock %}

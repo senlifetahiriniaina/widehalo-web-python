@@ -27,9 +27,11 @@
     </form>
   </div>
 
-  <div style="display:flex; gap:2rem;">
-    <div style="flex:2;">
-      <h1>{{ lead.name }}</h1>
+  <div class="two-col">
+    <div class="col-main">
+      <div class="page-head">
+        <h1>{{ lead.name }}</h1>
+      </div>
       <p>{% trans "Reference" %}: {{ lead.reference }}</p>
       <p>{% trans "Montant attendu" %}: {{ lead.expected_revenue_mga }} MGA</p>
       <p>{% trans "Probabilite" %}: {{ lead.probability }}%</p>

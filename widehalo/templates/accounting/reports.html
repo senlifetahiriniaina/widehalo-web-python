@@ -2,8 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports comptables" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Rapports comptables" %}</h1>
-
+  <div class="page-head">
+    <h1>{% trans "Rapports comptables" %}</h1>
+  </div>
   <section>
     <h2>{% trans "Balance generale" %}</h2>
     <form method="get" action="{% url 'accounting:report_trial_balance' %}">

@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}WideHalo{% endblock %}</title>
+  <link rel="icon" href="{% static 'img/logo-mark.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
   <script src="{% static 'js/ui_patterns.js' %}" defer></script>
@@ -12,44 +15,101 @@
 </head>
 <body>
   <a class="sr-only sr-only-focusable" href="#main-content">{% trans "Aller au contenu principal" %}</a>
-  <header class="app-header">
-    <a class="app-logo" href="/">WideHalo</a>
-    <nav aria-label="{% trans 'Menu principal' %}">
-      <ul class="app-menu">
-        <li><a href="/dashboard/">{% trans "Tableau de bord" %}</a></li>
-        <li><a href="/partners/">{% trans "Partenaires" %}</a></li>
-        <li><a href="/catalog/templates/">{% trans "Catalogue" %}</a></li>
-        <li><a href="/chat/">{% trans "Messagerie" %}</a></li>
-        <li><a href="/search/">{% trans "Recherche" %}</a></li>
-        <li><a href="/documents/">{% trans "Documents" %}</a></li>
-        <li><a href="/ai/assist/">{% trans "Assistant IA" %}</a></li>
-        <li x-data="{ open: false }" @click.outside="open = false" style="position:relative;">
-          <a href="#" @click.prevent="open = !open">{% trans "Modules metier" %}</a>
-          <ul x-show="open" x-cloak class="app-menu-dropdown">
-            <li><a href="/accounting/">{% trans "Comptabilite" %}</a></li>
-            <li><a href="/crm/">{% trans "CRM" %}</a></li>
-            <li><a href="/logistics/">{% trans "Logistique" %}</a></li>
-            <li><a href="/mrp/">{% trans "Production" %}</a></li>
-            <li><a href="/patronage/">{% trans "Patronage" %}</a></li>
-            <li><a href="/presence/">{% trans "Présence" %}</a></li>
-            <li><a href="/purchase/">{% trans "Achats" %}</a></li>
-            <li><a href="/sales/">{% trans "Ventes" %}</a></li>
-            <li><a href="/stocks/">{% trans "Stocks" %}</a></li>
-            <li><a href="/payroll/">{% trans "Paie" %}</a></li>
-            <li><a href="/reporting/">{% trans "Rapports" %}</a></li>
-            <li><a href="/risks/">{% trans "Registre des risques" %}</a></li>
-            <li><a href="/feasibility/">{% trans "Etudes de faisabilite" %}</a></li>
-            <li><a href="/projects/">{% trans "Gestion de projets" %}</a></li>
-            <li><a href="/helpdesk/">{% trans "Support et suivi operationnel" %}</a></li>
-          </ul>
-        </li>
-        <li><a href="/settings/">{% trans "Parametres" %}</a></li>
-      </ul>
-    </nav>
-  </header>
-  <main id="main-content">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="logo-row" href="/dashboard/">
+        <img src="{% static 'img/logo-mark.svg' %}" alt="" width="28" height="28">
+        <span class="wordmark">WideHalo</span>
+      </a>
+      <nav class="sidebar-nav" aria-label="{% trans 'Menu principal' %}">
+        <ul class="app-menu">
+          <li>
+            <a href="/dashboard/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layout-dashboard"></use></svg>
+              {% trans "Tableau de bord" %}
+            </a>
+          </li>
+          <li>
+            <a href="/partners/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
+              {% trans "Partenaires" %}
+            </a>
+          </li>
+          <li>
+            <a href="/catalog/templates/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-package"></use></svg>
+              {% trans "Catalogue" %}
+            </a>
+          </li>
+          <li>
+            <a href="/chat/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-message-circle"></use></svg>
+              {% trans "Messagerie" %}
+            </a>
+          </li>
+          <li>
+            <a href="/search/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-search"></use></svg>
+              {% trans "Recherche" %}
+            </a>
+          </li>
+          <li>
+            <a href="/documents/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-file-text"></use></svg>
+              {% trans "Documents" %}
+            </a>
+          </li>
+          <li>
+            <a href="/ai/assist/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
+              {% trans "Assistant IA" %}
+            </a>
+          </li>
+          <li x-data="{ open: false }" @click.outside="open = false">
+            <a href="#" @click.prevent="open = !open">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layers"></use></svg>
+              {% trans "Modules metier" %}
+              <svg class="ic ic-sm" aria-hidden="true" style="margin-left:auto;" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+            </a>
+            <ul x-show="open" x-cloak class="app-menu-dropdown">
+              <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilite" %}</a></li>
+              <li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>
+              <li><a href="/logistics/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>{% trans "Logistique" %}</a></li>
+              <li><a href="/mrp/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-factory"></use></svg>{% trans "Production" %}</a></li>
+              <li><a href="/patronage/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-scissors"></use></svg>{% trans "Patronage" %}</a></li>
+              <li><a href="/presence/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Présence" %}</a></li>
+              <li><a href="/purchase/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>{% trans "Achats" %}</a></li>
+              <li><a href="/sales/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>{% trans "Ventes" %}</a></li>
+              <li><a href="/stocks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-boxes"></use></svg>{% trans "Stocks" %}</a></li>
+              <li><a href="/payroll/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-banknote"></use></svg>{% trans "Paie" %}</a></li>
+              <li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>
+              <li><a href="/risks/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shield-alert"></use></svg>{% trans "Registre des risques" %}</a></li>
+              <li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Etudes de faisabilite" %}</a></li>
+              <li><a href="/projects/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-folder-kanban"></use></svg>{% trans "Gestion de projets" %}</a></li>
+              <li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi operationnel" %}</a></li>
+              <li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Strategie et pilotage" %}</a></li>
+              <li><a href="/financing/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Financement" %}</a></li>
+              <li><a href="/automation/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Automatisation" %}</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="/settings/">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-settings"></use></svg>
+              {% trans "Parametres" %}
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <header class="topbar">
+      <span class="crumbs">{% block breadcrumb %}{% endblock %}</span>
+    </header>
+
+    <main id="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 
   {# Confirmation destructrice generalisee (UI1-3) : modale unique, pilotee
      par le store Alpine `confirmDialog` (cf. static/js/ui_patterns.js),
@@ -66,7 +126,7 @@
       <h2 id="wh-confirm-title">{% trans "Confirmation" %}</h2>
       <p x-text="$store.confirmDialog.message"></p>
       <div class="wh-modal-actions">
-        <button type="button" class="btn" @click="$store.confirmDialog.cancel()">{% trans "Annuler" %}</button>
+        <button type="button" class="btn btn-secondary" @click="$store.confirmDialog.cancel()">{% trans "Annuler" %}</button>
         <button type="button" class="btn btn-danger" @click="$store.confirmDialog.confirm()">{% trans "Confirmer" %}</button>
       </div>
     </div>

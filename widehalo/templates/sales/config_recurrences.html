@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Recurrences de vente" %} — WideHalo{% endblock %}
 {% block content %}
-  <h1>{% trans "Gabarits de recurrence (RG-SAL-6)" %}</h1>
+  <div class="page-head">
+    <h1>{% trans "Gabarits de recurrence (RG-SAL-6)" %}</h1>
+  </div>
   <p>{% blocktrans %}Une commande recurrente genere automatiquement une nouvelle commande brouillon a echeance, jamais confirmee automatiquement.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
