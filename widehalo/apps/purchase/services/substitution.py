@@ -113,7 +113,7 @@ def approve_substitute(substitute: PurSubstitute, *, approved_by: User) -> PurSu
     sont deja utilisables sans validation."""
     if substitute.compatibility != PurSubstitute.COMPATIBILITY_DEGRADE:
         raise ValidationError(
-            _("Seule une substitution de niveau degrade necessite une validation d'approbation.")
+            _("Seule une substitution de niveau dégradé nécessite une validation d'approbation.")
         )
 
     rule = _ensure_rule(substitute.tenant)
@@ -140,5 +140,5 @@ def ensure_substitute_usable(substitute: PurSubstitute) -> None:
         and substitute.approved_by_id is None
     ):
         raise ValidationError(
-            _("Une substitution de niveau degrade non validee ne peut pas etre utilisee.")
+            _("Une substitution de niveau dégradé non validée ne peut pas être utilisée.")
         )

@@ -50,7 +50,7 @@ def create_cri(
 
 def close_cri(cri: PurCri, *, action_taken: str = "") -> PurCri:
     if cri.state == PurCri.STATE_CLOSED:
-        raise ValidationError(_("Ce CRI est deja cloture."))
+        raise ValidationError(_("Ce CRI est déjà cloture."))
     cri.state = PurCri.STATE_CLOSED
     update_fields = ["state"]
     if action_taken:

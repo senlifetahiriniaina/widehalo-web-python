@@ -126,7 +126,7 @@ def record_measurement(
             type=_DISPUTE_INCIDENT_TYPE,
             partner_id=partner_id_for_dispute,
             description=_(
-                "Ecart de mesure de %(pct)s%% (seuil %(threshold)s%%) — "
+                "Écart de mesure de %(pct)s%% (seuil %(threshold)s%%) — "
                 "mesure %(type)s : %(value)s %(uom)s (theorique : %(theoretical)s %(uom)s)."
             )
             % {

@@ -53,7 +53,7 @@ def create_import_cost_batch_for_order(
     if order.origin == PurOrder.ORIGIN_LOCAL:
         raise ValidationError(
             _(
-                "Un lot de couts d'importation ne peut etre cree que pour "
+                "Un lot de coûts d'importation ne peut être créé que pour "
                 "une commande passee a l'import (RG-PUR-7)."
             )
         )

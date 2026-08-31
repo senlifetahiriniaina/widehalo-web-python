@@ -65,7 +65,7 @@ def reserve_stock(
     available = quant_locked.qty - quant_locked.qty_reserved
     if qty > available:
         raise ValidationError(
-            _("Quantite a reserver (%(qty)s) superieure a la quantite disponible (%(available)s).")
+            _("Quantité a réserver (%(qty)s) supérieure a la quantité disponible (%(available)s).")
             % {"qty": qty, "available": available}
         )
 
@@ -97,7 +97,7 @@ def _end_reservation(reservation: StkReservation, *, target_state: str) -> StkRe
     explicitement une liberation manuelle/a l'annulation d'une expiration
     automatique de delai)."""
     if reservation.state != StkReservation.STATE_ACTIVE:
-        raise ValidationError(_("Seule une reservation active peut etre liberee ou expiree."))
+        raise ValidationError(_("Seule une réservation active peut être libérée ou expirée."))
     quant = StkQuant.objects.select_for_update().get(pk=reservation.quant_id)
     quant.qty_reserved -= reservation.qty
     quant.save(update_fields=["qty_reserved"])

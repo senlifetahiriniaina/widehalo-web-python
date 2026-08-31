@@ -76,7 +76,7 @@ def set_quality_state(
     if (quant is None) == (lot is None):
         raise ValidationError(
             _(
-                "Renseigner exactement un quant ou un lot pour un etat qualite, "
+                "Renseigner exactement un quant ou un lot pour un état qualité, "
                 "jamais les deux ni aucun."
             )
         )

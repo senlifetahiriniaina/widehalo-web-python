@@ -47,7 +47,7 @@ def create_cra(
 
 def submit_cra(cra: PurCra) -> PurCra:
     if cra.state != PurCra.STATE_DRAFT:
-        raise ValidationError(_("Seul un CRA en brouillon peut etre soumis."))
+        raise ValidationError(_("Seul un CRA en brouillon peut être soumis."))
     cra.state = PurCra.STATE_SUBMITTED
     cra.save(update_fields=["state"])
     return cra
@@ -55,7 +55,7 @@ def submit_cra(cra: PurCra) -> PurCra:
 
 def validate_cra(cra: PurCra, *, validated_by: User | None = None) -> PurCra:
     if cra.state != PurCra.STATE_SUBMITTED:
-        raise ValidationError(_("Seul un CRA soumis peut etre valide."))
+        raise ValidationError(_("Seul un CRA soumis peut être valide."))
     cra.state = PurCra.STATE_VALIDATED
     update_fields = ["state"]
     if validated_by is not None:
@@ -67,7 +67,7 @@ def validate_cra(cra: PurCra, *, validated_by: User | None = None) -> PurCra:
 
 def reject_cra(cra: PurCra, *, reason: str) -> PurCra:
     if cra.state != PurCra.STATE_SUBMITTED:
-        raise ValidationError(_("Seul un CRA soumis peut etre rejete."))
+        raise ValidationError(_("Seul un CRA soumis peut être rejeté."))
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour rejeter un CRA."))
     cra.state = PurCra.STATE_REJECTED

@@ -155,7 +155,7 @@ def generate_due_order(recurrence: SalesRecurrence, user: User) -> SalesOrder | 
             "reference": new_order.reference,
             "recurrence_id": str(recurrence.id),
             "message": str(
-                _("Une commande recurrente a ete generee en brouillon et attend votre validation.")
+                _("Une commande récurrente a été générée en brouillon et attend votre validation.")
             ),
         },
         tenant_id=str(recurrence.tenant_id),

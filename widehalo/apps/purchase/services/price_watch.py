@@ -166,7 +166,7 @@ class GenericHttpPriceSourceProvider:
                 price=Decimal(str(price)) if price is not None else None,
                 currency=data.get("currency", target.currency),
                 is_stub=False,
-                note=str(_("Releve via connecteur configure (%(base_url)s)."))
+                note=str(_("Relevé via connecteur configure (%(base_url)s)."))
                 % {"base_url": self.base_url},
             )
         except Exception as exc:  # noqa: BLE001 — degrade en releve sans prix, jamais un crash
@@ -174,7 +174,7 @@ class GenericHttpPriceSourceProvider:
                 price=None,
                 currency=target.currency,
                 is_stub=False,
-                note=str(_("Echec du connecteur configure : %(error)s")) % {"error": str(exc)},
+                note=str(_("Échec du connecteur configure : %(error)s")) % {"error": str(exc)},
             )
 
 

@@ -66,18 +66,18 @@ def receive_order_line(
     if order.state not in _RECEIVABLE_STATES:
         raise ValidationError(
             _(
-                "Seule une commande en transit ou partiellement recue peut "
+                "Seule une commande en transit ou partiellement reçue peut "
                 "faire l'objet d'une reception."
             )
         )
     if quality_status not in _VALID_QUALITY_STATUSES:
-        raise ValidationError(_("Statut de controle qualite invalide."))
+        raise ValidationError(_("Statut de contrôle qualité invalide."))
     if qty_received_now <= 0:
-        raise ValidationError(_("La quantite recue doit etre strictement positive."))
+        raise ValidationError(_("La quantité reçue doit être strictement positive."))
     if line.qty_received + qty_received_now > line.qty:
         raise ValidationError(
             _(
-                "La quantite recue (%(qty)s) depasserait la quantite "
+                "La quantité reçue (%(qty)s) dépasserait la quantité "
                 "commandee de la ligne (RG-PUR-5, ecart trace jamais silencieux)."
             )
             % {"qty": line.qty}

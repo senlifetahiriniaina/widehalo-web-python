@@ -158,7 +158,7 @@ def close_customs_file(customs_file: LogCustomsFile) -> LogCustomsFile:
     la version initialement envisagee de ce chantier."""
     if customs_file.state != LogCustomsFile.STATE_CLEARED:
         raise ValidationError(
-            _("Le dossier douanier doit etre au statut « dedouane » avant d'etre cloture.")
+            _("Le dossier douanier doit être au statut « dédouané » avant d'être cloture.")
         )
 
     lines = list(customs_file.lines.all())
@@ -212,7 +212,7 @@ def close_customs_file(customs_file: LogCustomsFile) -> LogCustomsFile:
 
 def mark_customs_file_cleared(customs_file: LogCustomsFile) -> LogCustomsFile:
     if customs_file.state != LogCustomsFile.STATE_OPEN:
-        raise ValidationError(_("Le dossier douanier doit etre ouvert pour etre dedouane."))
+        raise ValidationError(_("Le dossier douanier doit être ouvert pour être dédouané."))
     customs_file.state = LogCustomsFile.STATE_CLEARED
     customs_file.cleared_at = dt.date.today()
     customs_file.save(update_fields=["state", "cleared_at"])

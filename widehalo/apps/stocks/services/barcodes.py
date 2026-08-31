@@ -90,7 +90,7 @@ def set_location_barcode(location: StkLocation, *, value: str | None = None) -> 
     )
     if conflict:
         raise ValidationError(
-            _("Un autre emplacement actif porte deja ce code-barres : %(value)s")
+            _("Un autre emplacement actif porte déjà ce code-barres : %(value)s")
             % {"value": resolved_value}
         )
     location.barcode = resolved_value
@@ -125,7 +125,7 @@ def set_lot_barcode(lot: StkLot, *, value: str | None = None) -> StkLot:
     )
     if conflict:
         raise ValidationError(
-            _("Un autre lot actif porte deja ce code-barres : %(value)s")
+            _("Un autre lot actif porte déjà ce code-barres : %(value)s")
             % {"value": resolved_value}
         )
     lot.barcode = resolved_value

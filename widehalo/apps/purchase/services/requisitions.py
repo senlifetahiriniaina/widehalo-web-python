@@ -97,9 +97,9 @@ def add_requisition_line(
 
 def submit_requisition(requisition: PurRequisition) -> PurRequisition:
     if requisition.state != PurRequisition.STATE_DRAFT:
-        raise ValidationError(_("Seule une demande d'achat en brouillon peut etre soumise."))
+        raise ValidationError(_("Seule une demande d'achat en brouillon peut être soumise."))
     if not requisition.lines.exists():
-        raise ValidationError(_("Une demande d'achat sans ligne ne peut pas etre soumise."))
+        raise ValidationError(_("Une demande d'achat sans ligne ne peut pas être soumise."))
     requisition.state = PurRequisition.STATE_SUBMITTED
     requisition.save(update_fields=["state"])
     return requisition
@@ -109,7 +109,7 @@ def approve_requisition(
     requisition: PurRequisition, *, approved_by: User | None = None
 ) -> PurRequisition:
     if requisition.state != PurRequisition.STATE_SUBMITTED:
-        raise ValidationError(_("Seule une demande d'achat soumise peut etre approuvee."))
+        raise ValidationError(_("Seule une demande d'achat soumise peut être approuvée."))
     requisition.state = PurRequisition.STATE_APPROVED
     update_fields = ["state"]
     if approved_by is not None:
@@ -121,7 +121,7 @@ def approve_requisition(
 
 def reject_requisition(requisition: PurRequisition, *, reason: str) -> PurRequisition:
     if requisition.state != PurRequisition.STATE_SUBMITTED:
-        raise ValidationError(_("Seule une demande d'achat soumise peut etre rejetee."))
+        raise ValidationError(_("Seule une demande d'achat soumise peut être rejetée."))
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour rejeter une demande d'achat."))
     requisition.state = PurRequisition.STATE_REJECTED

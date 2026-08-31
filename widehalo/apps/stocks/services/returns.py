@@ -63,7 +63,7 @@ def assess_return(return_obj: StkReturn, *, quality_state: str, decision: str) -
     `cancelled` n'a plus de sens : le stock a deja bouge, ou le retour est
     abandonne)."""
     if return_obj.state != StkReturn.STATE_DRAFT:
-        raise ValidationError(_("Seul un retour en brouillon peut etre evalue."))
+        raise ValidationError(_("Seul un retour en brouillon peut être évalué."))
     return_obj.quality_state = quality_state
     return_obj.decision = decision
     return_obj.save(update_fields=["quality_state", "decision"])
@@ -97,10 +97,10 @@ def process_return(
     prealable OBLIGATOIRE), ou si le retour n'est plus `draft`
     (`processed`/`cancelled` : deja traite ou abandonne)."""
     if return_obj.state != StkReturn.STATE_DRAFT:
-        raise ValidationError(_("Seul un retour en brouillon peut etre traite."))
+        raise ValidationError(_("Seul un retour en brouillon peut être traite."))
     if not return_obj.quality_state or not return_obj.decision:
         raise ValidationError(
-            _("Un retour doit etre evalue (etat qualite et decision) avant d'etre traite.")
+            _("Un retour doit être évalué (état qualité et décision) avant d'être traite.")
         )
 
     client_location = StkLocation.objects.filter(
@@ -111,7 +111,7 @@ def process_return(
     if client_location is None:
         raise ValidationError(
             _(
-                "Aucun emplacement virtuel client trouve pour l'entrepot de "
+                "Aucun emplacement virtuel client trouve pour l'entrepôt de "
                 "destination — impossible de tracer l'origine du retour."
             )
         )
@@ -147,7 +147,7 @@ def cancel_return(return_obj: StkReturn, *, reason: str) -> StkReturn:
         raise ValidationError(_("Un motif est obligatoire pour annuler un retour."))
     if return_obj.state != StkReturn.STATE_DRAFT:
         raise ValidationError(
-            _("Seul un retour en brouillon peut etre annule — un retour traite est immuable.")
+            _("Seul un retour en brouillon peut être annule — un retour traite est immuable.")
         )
     return_obj.state = StkReturn.STATE_CANCELLED
     return_obj.save(update_fields=["state"])

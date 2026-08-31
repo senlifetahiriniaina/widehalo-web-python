@@ -40,7 +40,7 @@ def _suggest_conformity_followup(
     return [
         RecommendationCandidate(
             label=gettext(
-                "%(count)s incident(s) de conformite ouvert(s) — envisagez d'automatiser "
+                "%(count)s incident(s) de conformité ouvert(s) — envisagez d'automatiser "
                 "leur ouverture/suivi"
             )
             % {"count": open_count},

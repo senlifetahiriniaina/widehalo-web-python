@@ -53,7 +53,7 @@ def create_location(
 ) -> StkLocation:
     if parent is not None and parent.warehouse_id != warehouse.id:
         raise ValidationError(
-            _("L'emplacement parent doit appartenir au meme entrepot que l'emplacement cree.")
+            _("L'emplacement parent doit appartenir au même entrepôt que l'emplacement créé.")
         )
     return StkLocation.objects.create(
         tenant=tenant,

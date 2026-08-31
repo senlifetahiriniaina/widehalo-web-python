@@ -129,7 +129,7 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
             requester=fallback_requester,
             date_needed=today,
             justification=_(
-                "Reapprovisionnement automatique (RG-PUR-3) : stock "
+                "Réapprovisionnement automatique (RG-PUR-3) : stock "
                 "disponible (%(available)s) sous le seuil minimum de la regle "
                 "(%(min_qty)s)."
             )
@@ -139,7 +139,7 @@ def run_reordering(tenant: Tenant) -> list[PurRequisition]:
         add_requisition_line(
             requisition,
             variant_id=rule.variant_id,
-            description=_("Reapprovisionnement automatique"),
+            description=_("Réapprovisionnement automatique"),
             qty=qty,
         )
         created.append(requisition)

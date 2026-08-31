@@ -160,10 +160,10 @@ def mark_picking_ready(picking: StkPicking) -> StkPicking:
     ("une demande d'achat sans ligne ne peut pas etre soumise")."""
     if picking.state not in _READY_ELIGIBLE_STATES:
         raise ValidationError(
-            _("Seul un picking en brouillon ou en attente peut etre marque pret.")
+            _("Seul un picking en brouillon ou en attente peut être marque prêt.")
         )
     if not picking.moves.exists():
-        raise ValidationError(_("Un picking sans ligne ne peut pas etre marque pret."))
+        raise ValidationError(_("Un picking sans ligne ne peut pas être marque prêt."))
     picking.state = StkPicking.STATE_READY
     picking.save(update_fields=["state"])
     return picking
@@ -195,7 +195,7 @@ def validate_picking(picking: StkPicking, *, date_done: dt.date | None = None) -
     defensive), AUCUNE des lignes deja traitees dans cet appel n'est
     persistee — tout ou rien."""
     if picking.state != StkPicking.STATE_READY:
-        raise ValidationError(_("Seul un picking pret peut etre valide."))
+        raise ValidationError(_("Seul un picking prêt peut être valide."))
     for move in picking.moves.filter(state=StkMove.STATE_DRAFT):
         validate_move(move)
     picking.state = StkPicking.STATE_DONE
@@ -219,7 +219,7 @@ def cancel_picking(picking: StkPicking, *, reason: str) -> StkPicking:
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour annuler un picking."))
     if picking.state not in _CANCEL_ELIGIBLE_STATES:
-        raise ValidationError(_("Un picking termine est immuable — il ne peut pas etre annule."))
+        raise ValidationError(_("Un picking termine est immuable — il ne peut pas être annule."))
     for move in picking.moves.filter(state=StkMove.STATE_DRAFT):
         cancel_move(move, reason=reason)
     picking.state = StkPicking.STATE_CANCELLED

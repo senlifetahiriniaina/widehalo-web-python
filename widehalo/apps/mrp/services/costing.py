@@ -180,7 +180,7 @@ def consume_component(
 
     if variance_pct > threshold_pct and not reason:
         raise ValidationError(
-            _("Un motif est obligatoire : l'ecart de consommation depasse le seuil autorise.")
+            _("Un motif est obligatoire : l'écart de consommation depasse le seuil autorise.")
         )
 
     component.qty_consumed = qty_consumed

@@ -62,13 +62,13 @@ def send_rfq(rfq: PurRfq) -> PurRfq:
     d'offres vide n'a aucun sens metier (rien a comparer, aucune reponse
     possible)."""
     if rfq.state != PurRfq.STATE_DRAFT:
-        raise ValidationError(_("Seul un appel d'offres en brouillon peut etre envoye."))
+        raise ValidationError(_("Seul un appel d'offres en brouillon peut être envoyé."))
     if not rfq.suppliers.exists():
         raise ValidationError(
-            _("Un appel d'offres sans fournisseur consulte ne peut pas etre envoye.")
+            _("Un appel d'offres sans fournisseur consulte ne peut pas être envoyé.")
         )
     if not rfq.lines.exists():
-        raise ValidationError(_("Un appel d'offres sans ligne ne peut pas etre envoye."))
+        raise ValidationError(_("Un appel d'offres sans ligne ne peut pas être envoyé."))
     rfq.state = PurRfq.STATE_SENT
     rfq.save(update_fields=["state"])
     return rfq
@@ -89,7 +89,7 @@ def record_rfq_response(
     partir des lignes, pour rester coherent avec le detail enregistre."""
     if rfq.state != PurRfq.STATE_SENT:
         raise ValidationError(
-            _("Une reponse ne peut etre enregistree que pour un appel d'offres envoye.")
+            _("Une réponse ne peut être enregistrée que pour un appel d'offres envoyé.")
         )
 
     total_mga = sum(
@@ -177,9 +177,9 @@ def award_rfq(rfq: PurRfq, response: PurRfqResponse, *, awarded_by: User) -> Pur
     l'attribution comme une decision humaine s'appuyant sur le tableau
     comparatif, pas un automatisme, cf. plan)."""
     if rfq.state != PurRfq.STATE_SENT:
-        raise ValidationError(_("Seul un appel d'offres envoye peut etre attribue."))
+        raise ValidationError(_("Seul un appel d'offres envoyé peut être attribue."))
     if response.rfq_id != rfq.id:
-        raise ValidationError(_("Cette reponse n'appartient pas a cet appel d'offres."))
+        raise ValidationError(_("Cette réponse n'appartient pas a cet appel d'offres."))
 
     rfq_lines_by_variant = {line.variant_id: line for line in rfq.lines.all()}
 

@@ -107,7 +107,7 @@ def _recompute_totals(quotation: SalesQuotation) -> None:
 
 def send_quotation(quotation: SalesQuotation) -> SalesQuotation:
     if quotation.state != SalesQuotation.STATE_DRAFT:
-        raise ValidationError(_("Seul un devis brouillon peut etre envoye."))
+        raise ValidationError(_("Seul un devis brouillon peut être envoyé."))
     quotation.state = SalesQuotation.STATE_SENT
     quotation.save(update_fields=["state"])
     return quotation
@@ -115,7 +115,7 @@ def send_quotation(quotation: SalesQuotation) -> SalesQuotation:
 
 def accept_quotation(quotation: SalesQuotation) -> SalesQuotation:
     if quotation.state != SalesQuotation.STATE_SENT:
-        raise ValidationError(_("Seul un devis envoye peut etre accepte."))
+        raise ValidationError(_("Seul un devis envoyé peut être accepte."))
     quotation.state = SalesQuotation.STATE_ACCEPTED
     quotation.save(update_fields=["state"])
     return quotation
@@ -123,7 +123,7 @@ def accept_quotation(quotation: SalesQuotation) -> SalesQuotation:
 
 def decline_quotation(quotation: SalesQuotation, *, reason: str = "") -> SalesQuotation:
     if quotation.state != SalesQuotation.STATE_SENT:
-        raise ValidationError(_("Seul un devis envoye peut etre refuse."))
+        raise ValidationError(_("Seul un devis envoyé peut être refuse."))
     quotation.state = SalesQuotation.STATE_DECLINED
     if reason:
         quotation.internal_notes = (
@@ -137,7 +137,7 @@ def decline_quotation(quotation: SalesQuotation, *, reason: str = "") -> SalesQu
 
 def expire_quotation(quotation: SalesQuotation) -> SalesQuotation:
     if quotation.state != SalesQuotation.STATE_SENT:
-        raise ValidationError(_("Seul un devis envoye peut expirer."))
+        raise ValidationError(_("Seul un devis envoyé peut expirer."))
     quotation.state = SalesQuotation.STATE_EXPIRED
     quotation.save(update_fields=["state"])
     return quotation

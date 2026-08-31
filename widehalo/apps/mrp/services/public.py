@@ -41,7 +41,7 @@ def set_bom_line_qty_by_size(
     bom = MrpBom.objects.get(id=bom_id)
     if bom.state == MrpBom.STATE_ACTIVE:
         raise ValidationError(
-            _("Une nomenclature active est immuable — creer une nouvelle version.")
+            _("Une nomenclature active est immuable — créer une nouvelle version.")
         )
 
     line = MrpBomLine.objects.filter(

@@ -57,7 +57,7 @@ def compute_packaging_plan(
         if packaging_info is None:
             raise ValidationError(
                 _(
-                    "Aucun conditionnement catalogue declare pour cette variante — "
+                    "Aucun conditionnement catalogue déclaré pour cette variante — "
                     "a renseigner avant de calculer un plan d'emballage."
                 )
             )

@@ -143,7 +143,7 @@ def create_order_from_requisition(requisition: PurRequisition, *, partner_id: UU
     resultante reste donc une decision de l'appelant, pas une deduction
     automatique."""
     if requisition.state != PurRequisition.STATE_APPROVED:
-        raise ValidationError(_("Seule une demande d'achat approuvee peut generer une commande."))
+        raise ValidationError(_("Seule une demande d'achat approuvée peut générer une commande."))
 
     order = create_order(
         tenant=requisition.tenant,
@@ -181,7 +181,7 @@ def create_bulk_orders_from_requisitions(
     if not_approved:
         raise ValidationError(
             _(
-                "Seules des demandes d'achat approuvees peuvent etre "
+                "Seules des demandes d'achat approuvées peuvent être "
                 "groupees en commandes (PUR-BULK1)."
             )
         )
@@ -342,7 +342,7 @@ def ensure_purchase_approval(order: PurOrder, *, requested_by: User) -> None:
             )
         if existing.status == ApprovalRequest.STATUS_REJECTED:
             raise ValidationError(
-                _("Validation rejetee par %(role)s.") % {"role": rule.approver_role}
+                _("Validation rejetée par %(role)s.") % {"role": rule.approver_role}
             )
 
 

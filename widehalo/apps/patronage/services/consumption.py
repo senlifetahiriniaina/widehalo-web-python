@@ -37,7 +37,7 @@ def compute_consumption(
 
     if not total_area_cm2:
         raise ValidationError(
-            _("Aucune geometrie disponible pour cette matiere/taille — generer les pieces d'abord.")
+            _("Aucune géométrie disponible pour cette matière/taille — générer les pièces d'abord.")
         )
 
     adjusted_area_cm2 = total_area_cm2 * (Decimal(1) + waste_pct / Decimal(100))
@@ -82,7 +82,7 @@ def compute_marker(
 
     if not total_area_cm2:
         raise ValidationError(
-            _("Aucune geometrie disponible pour cette matiere — generer les pieces d'abord.")
+            _("Aucune géométrie disponible pour cette matière — générer les pièces d'abord.")
         )
 
     length_cm = total_area_cm2 / fabric_width_cm / (efficiency_pct / Decimal(100))
@@ -112,7 +112,7 @@ def push_to_bom(
         )
     }
     if not qty_by_size:
-        raise ValidationError(_("Aucune consommation calculee pour cette matiere."))
+        raise ValidationError(_("Aucune consommation calculée pour cette matière."))
 
     updated = set_bom_line_qty_by_size(
         bom_id=bom_id, component_variant_id=material_variant_id, qty_by_size=qty_by_size

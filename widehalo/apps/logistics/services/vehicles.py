@@ -76,7 +76,7 @@ def record_vehicle_cost(
     note: str = "",
 ) -> LogVehicleCost:
     if amount_mga <= 0:
-        raise ValidationError(_("Le montant d'un cout vehicule doit etre strictement positif."))
+        raise ValidationError(_("Le montant d'un coût véhicule doit être strictement positif."))
     cost = LogVehicleCost(
         tenant=vehicle.tenant,
         vehicle=vehicle,

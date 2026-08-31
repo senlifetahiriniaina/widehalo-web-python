@@ -123,7 +123,7 @@ def close_shipment(shipment: LogShipment, user: User) -> LogShipment:
 
 def block_shipment(shipment: LogShipment, user: User, *, reason: str) -> LogShipment:
     if not reason:
-        raise ValidationError(_("Un motif est obligatoire pour bloquer une expedition."))
+        raise ValidationError(_("Un motif est obligatoire pour bloquer une expédition."))
     attempt_transition(shipment, "block", user, comment=reason)
     shipment.block_reason = reason
     shipment.save(update_fields=["state", "block_reason"])

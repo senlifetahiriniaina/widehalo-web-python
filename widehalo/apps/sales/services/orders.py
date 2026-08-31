@@ -91,7 +91,7 @@ def create_order_from_quotation(quotation: SalesQuotation) -> SalesOrder:
     demander a l'appelant de les refournir. Seul un devis `accepted` peut
     etre transforme."""
     if quotation.state != SalesQuotation.STATE_ACCEPTED:
-        raise ValidationError(_("Seul un devis accepte peut etre transforme en commande."))
+        raise ValidationError(_("Seul un devis accepte peut être transforme en commande."))
 
     reference = next_reference(quotation.tenant, "CMD", timezone.now().year)
     order = SalesOrder.objects.create(
@@ -242,7 +242,7 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     outstanding_amount_mga = outstanding + order.amount_total_mga
 
     if is_over_credit_limit(order.partner_id, outstanding_amount_mga):
-        reason = _("Plafond de credit depasse")
+        reason = _("Plafond de crédit depasse")
         attempt_transition(order, "block_for_credit", user, comment=reason)
         order.blocked_reason = reason
         order.save(update_fields=["state", "blocked_reason"])
@@ -258,7 +258,7 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
             order,
             "sales.order_blocked",
             str(
-                _("La commande %(reference)s a ete bloquee pour depassement de credit.")
+                _("La commande %(reference)s a été bloquée pour dépassement de crédit.")
                 % {"reference": order.reference}
             ),
         )
@@ -288,7 +288,7 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
 
     # SAL-NOTIF1 (S7) : jamais sur le chemin `blocked` ci-dessus (return
     # anticipe) — uniquement une confirmation effective.
-    message = _("La commande %(reference)s a ete confirmee.") % {"reference": order.reference}
+    message = _("La commande %(reference)s a été confirmée.") % {"reference": order.reference}
     _notify_salesperson(order, "sales.order_confirmed", str(message))
     return order
 
@@ -327,7 +327,7 @@ def mark_delivered(order: SalesOrder, user: User, *, partial: bool = False) -> S
     # SAL-NOTIF1 (S7) : "a l'expedition" — uniquement la livraison
     # COMPLETE (jamais sur `mark_partially_delivered` ci-dessus, qui
     # retourne plus tot).
-    message = _("La commande %(reference)s a ete livree.") % {"reference": order.reference}
+    message = _("La commande %(reference)s a été livrée.") % {"reference": order.reference}
     _notify_salesperson(order, "sales.order_delivered", str(message))
     return order
 
@@ -351,7 +351,7 @@ def cancel_order(order: SalesOrder, user: User, *, reason: str) -> SalesOrder:
     )
     if order.state in non_cancellable_states:
         raise ValidationError(
-            _("Une commande livree, facturee ou cloturee ne peut plus etre annulee directement.")
+            _("Une commande livrée, facturée ou clôturée ne peut plus être annulée directement.")
         )
 
     attempt_transition(order, "cancel", user, comment=reason)

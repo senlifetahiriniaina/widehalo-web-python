@@ -102,7 +102,7 @@ def _resolve_variance_location(warehouse: StkWarehouse) -> StkLocation:
         tenant=warehouse.tenant,
         warehouse=warehouse,
         code=_VARIANCE_LOCATION_CODE,
-        name=_("Ecart d'inventaire"),
+        name=_("Écart d'inventaire"),
         type=StkLocation.TYPE_INVENTAIRE,
     )
 
@@ -162,9 +162,9 @@ def start_inventory(inventory: StkInventory) -> StkInventory:
     meme discipline exacte que `services.pickings.mark_picking_ready`
     ("un picking sans ligne ne peut pas etre marque pret")."""
     if inventory.state != StkInventory.STATE_DRAFT:
-        raise ValidationError(_("Seul un inventaire en brouillon peut etre demarre."))
+        raise ValidationError(_("Seul un inventaire en brouillon peut être démarré."))
     if not inventory.lines.exists():
-        raise ValidationError(_("Un inventaire sans ligne ne peut pas etre demarre."))
+        raise ValidationError(_("Un inventaire sans ligne ne peut pas être démarré."))
     inventory.state = StkInventory.STATE_IN_PROGRESS
     inventory.save(update_fields=["state"])
     return inventory
@@ -207,7 +207,7 @@ def record_count(
     if variance_pct > threshold_pct and not reason:
         raise ValidationError(
             _(
-                "Ecart de %(pct)s%% (seuil %(threshold)s%%) : un motif est "
+                "Écart de %(pct)s%% (seuil %(threshold)s%%) : un motif est "
                 "obligatoire pour valider ce comptage."
             )
             % {"pct": variance_pct, "threshold": threshold_pct}
@@ -260,11 +260,11 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
     QUAND la comptabilite est configuree, pas sur une dependance dure du
     stock envers la comptabilite."""
     if inventory.state != StkInventory.STATE_IN_PROGRESS:
-        raise ValidationError(_("Seul un inventaire en cours peut etre valide."))
+        raise ValidationError(_("Seul un inventaire en cours peut être valide."))
     lines = list(inventory.lines.all())
     if any(line.qty_counted is None for line in lines):
         raise ValidationError(
-            _("Toutes les lignes doivent etre comptees avant de valider l'inventaire.")
+            _("Toutes les lignes doivent être comptées avant de valider l'inventaire.")
         )
 
     variance_location = _resolve_variance_location(inventory.warehouse)
@@ -307,13 +307,13 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
         value = move.value_mga
         if line.difference > 0:
             adjustment_lines = [
-                {"account_id": None, "amount": value, "label": _("Entree ajustement inventaire")},
-                {"account_id": None, "amount": -value, "label": _("Ecart d'inventaire")},
+                {"account_id": None, "amount": value, "label": _("Entrée ajustement inventaire")},
+                {"account_id": None, "amount": -value, "label": _("Écart d'inventaire")},
             ]
         else:
             adjustment_lines = [
                 {"account_id": None, "amount": -value, "label": _("Sortie ajustement inventaire")},
-                {"account_id": None, "amount": value, "label": _("Ecart d'inventaire")},
+                {"account_id": None, "amount": value, "label": _("Écart d'inventaire")},
             ]
         create_stock_adjustment_entry_from_source(
             tenant=inventory.tenant,
@@ -338,7 +338,7 @@ def cancel_inventory(inventory: StkInventory, *, reason: str) -> StkInventory:
     if not reason:
         raise ValidationError(_("Un motif est obligatoire pour annuler un inventaire."))
     if inventory.state not in (StkInventory.STATE_DRAFT, StkInventory.STATE_IN_PROGRESS):
-        raise ValidationError(_("Un inventaire valide est immuable — il ne peut pas etre annule."))
+        raise ValidationError(_("Un inventaire valide est immuable — il ne peut pas être annule."))
     inventory.state = StkInventory.STATE_CANCELLED
     inventory.save(update_fields=["state"])
     return inventory

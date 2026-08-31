@@ -117,7 +117,7 @@ def _dispute_reason(match: dict[str, Any], *, threshold_pct: Decimal) -> str:
         f"{row['description']} ({row['variance_pct']:.2f}%)" for row in blocked_lines
     )
     return _(
-        "Controle facture 3 voies (RG-PUR-6) : ecart superieur au seuil "
+        "Controle facture 3 voies (RG-PUR-6) : écart supérieur au seuil "
         "(%(threshold)s%%) sur %(count)s ligne(s) : %(details)s"
     ) % {"threshold": threshold_pct, "count": len(blocked_lines), "details": details}
 

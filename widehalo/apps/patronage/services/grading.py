@@ -153,7 +153,7 @@ def _check_monotonic(
             if ordered[i] < ordered[i - 1]:
                 raise ValidationError(
                     _(
-                        "Incoherence de gradation detectee pour %(point)s : "
+                        "Incohérence de gradation détectée pour %(point)s : "
                         "la mesure diminue entre deux tailles successives."
                     )
                     % {"point": code}

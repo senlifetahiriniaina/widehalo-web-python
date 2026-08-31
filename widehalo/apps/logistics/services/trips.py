@@ -57,7 +57,7 @@ def create_trip(
     (aucun reordonnancement automatique implicite, cf. `suggest_stop_order`
     pour une suggestion explicite separee)."""
     if not stops:
-        raise ValidationError(_("Un trajet doit comporter au moins un arret."))
+        raise ValidationError(_("Un trajet doit comporter au moins un arrêt."))
 
     trip = LogTrip(
         tenant=tenant,
@@ -129,7 +129,7 @@ def reorder_stops(trip: LogTrip, ordered_stop_ids: list[Any]) -> None:
     stops_by_id = {stop.id: stop for stop in trip.stops.all()}
     if set(stops_by_id) != set(ordered_stop_ids):
         raise ValidationError(
-            _("La nouvelle liste d'arrets doit contenir exactement les arrets existants du trajet.")
+            _("La nouvelle liste d'arrêts doit contenir exactement les arrêts existants du trajet.")
         )
     # Deux passes pour eviter toute collision transitoire sur la contrainte
     # UNIQUE (trip, sequence) : d'abord des valeurs hors plage, puis les
@@ -205,10 +205,10 @@ def close_trip(trip: LogTrip, *, end_odometer_km: Decimal) -> LogTrip:
     Refuse un kilometrage de fin inferieur au depart (erreur de saisie) ou
     l'absence de kilometrage de depart (jamais devine)."""
     if trip.start_odometer_km is None:
-        raise ValidationError(_("Kilometrage de depart manquant — a saisir avant la cloture."))
+        raise ValidationError(_("Kilométrage de départ manquant — a saisir avant la cloture."))
     if end_odometer_km < trip.start_odometer_km:
         raise ValidationError(
-            _("Le kilometrage de fin ne peut pas etre inferieur au kilometrage de depart.")
+            _("Le kilométrage de fin ne peut pas être inférieur au kilométrage de départ.")
         )
 
     trip.end_odometer_km = end_odometer_km

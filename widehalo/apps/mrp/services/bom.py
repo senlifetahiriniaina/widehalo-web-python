@@ -46,9 +46,9 @@ def create_bom(
 
 def _check_no_cycle(root_template_id: UUID, component_template_id: UUID, depth: int) -> None:
     if depth > MAX_BOM_DEPTH:
-        raise ValidationError(_("Profondeur de nomenclature maximale (5 niveaux) depassee."))
+        raise ValidationError(_("Profondeur de nomenclature maximale (5 niveaux) dépassée."))
     if component_template_id == root_template_id:
-        raise ValidationError(_("Cycle detecte dans la nomenclature."))
+        raise ValidationError(_("Cycle détecté dans la nomenclature."))
 
     child_bom = MrpBom.objects.filter(
         product_template_id=component_template_id, state=MrpBom.STATE_ACTIVE
@@ -75,7 +75,7 @@ def add_bom_line(
 ) -> MrpBomLine:
     if bom.state == MrpBom.STATE_ACTIVE:
         raise ValidationError(
-            _("Une nomenclature active est immuable — creer une nouvelle version.")
+            _("Une nomenclature active est immuable — créer une nouvelle version.")
         )
 
     _check_no_cycle(bom.product_template_id, component_template_id, depth=1)
@@ -171,7 +171,7 @@ def _explode_level(
     depth: int,
 ) -> None:
     if depth > MAX_BOM_DEPTH:
-        raise ValidationError(_("Profondeur de nomenclature maximale (5 niveaux) depassee."))
+        raise ValidationError(_("Profondeur de nomenclature maximale (5 niveaux) dépassée."))
 
     for line in bom.lines.all():
         if line.apply_on_attribute_values and not (

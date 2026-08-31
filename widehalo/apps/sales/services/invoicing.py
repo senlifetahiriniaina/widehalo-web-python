@@ -192,7 +192,7 @@ def invoice_order(
     # final — cf. sa docstring) ; silencieux si aucun commercial n'est
     # assigne a la commande.
     if order.salesperson is not None:
-        message = _("La commande %(reference)s a ete facturee.") % {"reference": order.reference}
+        message = _("La commande %(reference)s a été facturée.") % {"reference": order.reference}
         dispatch_notification(
             user=order.salesperson,
             notification_type="sales.order_invoiced",

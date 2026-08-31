@@ -71,7 +71,7 @@ def grant_negative_stock_exception(
         tenant=tenant, variant_id=variant_id
     ).first()
     if existing is not None and existing.is_active:
-        raise ValidationError(_("Une exception de stock negatif est deja active pour ce produit."))
+        raise ValidationError(_("Une exception de stock négatif est déjà active pour ce produit."))
     if existing is not None:
         existing.is_active = True
         existing.archived_at = None

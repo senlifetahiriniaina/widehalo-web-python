@@ -141,11 +141,11 @@ def create_move(
     — RG-STK-1, discipline "ceinture et bretelles" identique a RG-ACC-1."""
     if qty <= 0:
         raise ValidationError(
-            _("La quantite d'un mouvement de stock doit etre strictement positive.")
+            _("La quantité d'un mouvement de stock doit être strictement positive.")
         )
     if location_from.id == location_to.id:
         raise ValidationError(
-            _("Un mouvement de stock ne peut pas avoir la meme origine et la meme destination.")
+            _("Un mouvement de stock ne peut pas avoir la même origine et la même destination.")
         )
     reference = next_reference(tenant, "STKMV", date.year)
     return StkMove.objects.create(
@@ -254,10 +254,10 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIF
     par mouvement inverse uniquement — `reverse_move`, meme discipline que
     `AccMove`/RG-ACC-2)."""
     if move.state != StkMove.STATE_DRAFT:
-        raise ValidationError(_("Seul un mouvement brouillon peut etre valide."))
+        raise ValidationError(_("Seul un mouvement brouillon peut être valide."))
     if valuation_method not in (VALUATION_METHOD_FIFO, VALUATION_METHOD_CMP):
         raise ValidationError(
-            _("Methode de valorisation inconnue : %(method)s") % {"method": valuation_method}
+            _("Méthode de valorisation inconnue : %(method)s") % {"method": valuation_method}
         )
 
     to_internal = _is_valuation_internal(move.location_to)
@@ -282,7 +282,7 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIF
             if not has_negative_stock_exception(move.variant_id):
                 raise ValidationError(
                     _(
-                        "Ce mouvement ferait passer le stock de ce produit en negatif a "
+                        "Ce mouvement ferait passer le stock de ce produit en négatif a "
                         "l'emplacement %(location)s — interdit par defaut (RG-STK-10). "
                         "Une exception par produit peut etre accordee pour l'autoriser."
                     )
@@ -384,7 +384,7 @@ def cancel_move(move: StkMove, *, reason: str) -> StkMove:
         raise ValidationError(_("Un motif est obligatoire pour annuler un mouvement de stock."))
     if move.state != StkMove.STATE_DRAFT:
         raise ValidationError(
-            _("Seul un mouvement brouillon peut etre annule — un mouvement valide est immuable.")
+            _("Seul un mouvement brouillon peut être annule — un mouvement valide est immuable.")
         )
     move.state = StkMove.STATE_CANCELLED
     move.cancel_reason = reason
@@ -400,7 +400,7 @@ def reverse_move(move: StkMove) -> StkMove:
     un mouvement `done` peut etre extourne (corriger un `draft`/`cancelled`
     n'a pas de sens, il suffit de ne jamais le valider ou de l'annuler)."""
     if move.state != StkMove.STATE_DONE:
-        raise ValidationError(_("Seul un mouvement valide peut etre extourne."))
+        raise ValidationError(_("Seul un mouvement valide peut être extourne."))
     reversal = StkMove.objects.create(
         tenant=move.tenant,
         reference=next_reference(move.tenant, "STKMV", move.date.year),

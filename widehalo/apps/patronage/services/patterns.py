@@ -59,7 +59,7 @@ def add_pattern_piece(
     notes: str = "",
 ) -> PatPatternPiece:
     if pattern.state != PatPattern.STATE_DRAFT:
-        raise ValidationError(_("Un patron valide est fige — creer une nouvelle version."))
+        raise ValidationError(_("Un patron valide est fige — créer une nouvelle version."))
 
     return PatPatternPiece.objects.create(
         tenant=pattern.tenant,
@@ -165,14 +165,14 @@ def generate_piece_geometry(
     if requirement is None:
         raise ValidationError(
             _(
-                "Aucun gabarit parametrique disponible pour ce type de vetement — "
+                "Aucun gabarit paramétrique disponible pour ce type de vêtement — "
                 "utiliser l'editeur de croquis manuel ou l'import SVG."
             )
         )
     _expected_piece_code, width_point, length_point = requirement
 
     if width_point not in graded_measurements or length_point not in graded_measurements:
-        raise ValidationError(_("Points de mesure manquants pour generer le gabarit parametrique."))
+        raise ValidationError(_("Points de mesure manquants pour générer le gabarit paramétrique."))
 
     width = graded_measurements[width_point] / Decimal(4) + DEFAULT_EASE_CM
     height = graded_measurements[length_point]
