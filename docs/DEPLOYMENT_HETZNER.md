@@ -76,9 +76,25 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
+# Retrait defensif de tout paquet Docker/Compose preexistant sur l'image de
+# base (docker.io/docker-compose du depot Ubuntu, versions partielles sans
+# le plugin Compose V2) - evite un conflit d'installation avec le script
+# officiel ci-dessous. Idempotent : sans effet si aucun n'est present.
+apt-get remove -y docker.io docker-doc docker-compose podman-docker \
+  containerd runc 2>/dev/null || true
+
 # Docker Engine + plugin Compose (dépôt officiel Docker, pas le paquet
 # Ubuntu obsolète)
 curl -fsSL https://get.docker.com | sh
+
+# Verification explicite - ne jamais supposer que l'installation a reussi
+# silencieusement.
+docker --version
+docker compose version   # doit afficher une version (plugin V2), pas une
+                          # erreur "'compose' is not a docker command"
+systemctl enable --now docker   # le script get.docker.com le fait deja au
+                                 # premier install, explicite ici pour ne
+                                 # pas en dependre implicitement
 ```
 
 ## 5. Pointer le sous-domaine sur l'IP du VM
@@ -295,6 +311,15 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
 
 ## 11. Dépannage rapide
 
+- **`unknown flag: -f` (ou similaire) en lançant `docker compose -f ...`** :
+  le plugin Compose V2 n'est pas installé (`docker compose`, avec un
+  espace, est un plugin CLI — pas la commande historique `docker-compose`
+  avec un tiret). Vérifier avec `docker compose version` ; si elle échoue,
+  retirer les paquets conflictuels (`apt-get remove -y docker.io
+  docker-compose containerd runc`) puis réinstaller via
+  `curl -fsSL https://get.docker.com | sh` (cf. section 4) — ne jamais
+  mélanger le paquet `docker.io` du dépôt Ubuntu avec le dépôt officiel
+  Docker sur le même VM.
 - **Le certificat n'est jamais émis** (`caddy` boucle en erreur dans ses
   logs) : vérifier que `dig +short <sous-domaine>` renvoie bien l'IP du VM
   (étape 5), et que le port 80 est ouvert depuis Internet (pas seulement en
