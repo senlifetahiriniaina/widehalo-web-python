@@ -28,6 +28,28 @@ def fold_header(text: str) -> str:
     return " ".join(without_apostrophes.split()).upper()
 
 
+def build_xlsx_template(headers: list[str], *, example_row: list[Any] | None = None) -> bytes:
+    """Construit un classeur xlsx minimal (en-tetes + une ligne d'exemple
+    optionnelle) telecharge par l'utilisateur comme modele de saisie avant
+    un import ulterieur. `headers` doit reprendre un des libelles de colonne
+    deja accepte par la table d'alias de l'import correspondant (comparee
+    via `fold_header`), pour qu'un fichier rempli depuis ce modele soit
+    accepte sans aucune correspondance approximative. Reutilisee par tout
+    ecran d'import (partners/catalog/stocks/accounting) plutot que
+    dupliquee — le seul point de construction xlsx cote import, symetrique
+    a `read_xlsx_rows` ci-dessus."""
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(headers)
+    if example_row is not None:
+        sheet.append(example_row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 def read_xlsx_rows(
     file_bytes: bytes, *, sheet_name: str | None = None
 ) -> tuple[list[str], list[list[Any]]]:

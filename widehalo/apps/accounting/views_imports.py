@@ -6,6 +6,7 @@ autres ecrans de configuration."""
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
 from django.contrib.auth.decorators import login_required
@@ -20,7 +21,16 @@ from apps.accounting.services.cash_journal_import import (
     resolve_import_row,
 )
 from apps.accounting.services.chart_of_accounts_import import import_chart_of_accounts_xlsx
+from apps.core.services.import_xlsx import build_xlsx_template
 from apps.core.views.tenant_web import resolve_tenant
+
+
+def _xlsx_template_response(data: bytes, filename: str) -> HttpResponse:
+    response = HttpResponse(
+        data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
@@ -28,6 +38,42 @@ def imports_index(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     batches = AccImportBatch.objects.filter(tenant=tenant).order_by("-created_at")[:20]
     return render(request, "accounting/imports/index.html", {"batches": batches})
+
+
+@login_required
+def download_chart_of_accounts_template(request: HttpRequest) -> HttpResponse:
+    data = build_xlsx_template(
+        ["Code", "Intitulé", "Classe", "Nature", "Catégorie de caisse"],
+        example_row=["601000", "Achats de matières premières", 6, "CHARGE", "Achats matière"],
+    )
+    return _xlsx_template_response(data, "modele_import_plan_comptable.xlsx")
+
+
+@login_required
+def download_cash_journal_template(request: HttpRequest) -> HttpResponse:
+    data = build_xlsx_template(
+        [
+            "Date",
+            "Caisse",
+            "Catégorie",
+            "Exclu des totaux",
+            "Compte PCG",
+            "Libellé",
+            "Entrée",
+            "Sortie",
+        ],
+        example_row=[
+            dt.date.today(),
+            "CAISSE PRINCIPALE",
+            "Achats matière",
+            "",
+            "601000",
+            "Achat de tissu",
+            "",
+            150000,
+        ],
+    )
+    return _xlsx_template_response(data, "modele_import_journal_caisse.xlsx")
 
 
 @login_required

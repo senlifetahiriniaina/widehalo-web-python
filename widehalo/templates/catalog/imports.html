@@ -5,7 +5,8 @@
 <div class="page-head">
   <h1>{% trans "Import du catalogue" %}</h1>
 </div>
-  <p>{% trans "Format attendu : colonnes Template_code/Template_name/Category/Uom/Variant_attributes (attribut=valeur;...)/Material/Composition/Weight_gsm/Width_cm — voir docs/IMPORT_FORMATS.md." %}</p>
+  <p>{% trans "Téléchargez le modèle Excel ci-dessous, complétez-le avec vos données, puis importez-le." %}</p>
+  <p><a href="{% url 'catalog:imports_catalog_template' %}">{% trans "Télécharger le modèle Excel" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <form method="post" enctype="multipart/form-data">

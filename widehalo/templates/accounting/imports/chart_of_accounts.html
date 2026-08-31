@@ -5,7 +5,8 @@
   <div class="page-head">
     <h1>{% trans "Import du plan comptable" %}</h1>
   </div>
-  <p>{% trans "Format attendu : colonnes Classe/Code/Intitulé/Type (ou Nature)/Catégorie de caisse — voir docs/IMPORT_FORMATS.md." %}</p>
+  <p>{% trans "Téléchargez le modèle Excel ci-dessous, complétez-le avec vos données, puis importez-le." %}</p>
+  <p><a href="{% url 'accounting:imports_chart_of_accounts_template' %}">{% trans "Télécharger le modèle Excel" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <form method="post" enctype="multipart/form-data">

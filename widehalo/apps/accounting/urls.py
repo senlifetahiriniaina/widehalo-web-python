@@ -38,9 +38,19 @@ urlpatterns = [
         name="imports_chart_of_accounts",
     ),
     path(
+        "config/imports/chart-of-accounts/template.xlsx",
+        views_imports.download_chart_of_accounts_template,
+        name="imports_chart_of_accounts_template",
+    ),
+    path(
         "config/imports/cash-journal/",
         views_imports.imports_cash_journal,
         name="imports_cash_journal",
+    ),
+    path(
+        "config/imports/cash-journal/template.xlsx",
+        views_imports.download_cash_journal_template,
+        name="imports_cash_journal_template",
     ),
     path(
         "config/imports/cash-journal/<uuid:batch_id>/",

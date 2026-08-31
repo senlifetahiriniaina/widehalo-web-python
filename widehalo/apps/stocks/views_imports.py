@@ -16,6 +16,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
+from apps.core.services.import_xlsx import build_xlsx_template
 from apps.core.views.tenant_web import resolve_tenant
 from apps.stocks.models import StkImportBatch, StkImportRow, StkLocation, StkWarehouse
 from apps.stocks.services.stock_import import (
@@ -23,6 +24,19 @@ from apps.stocks.services.stock_import import (
     qualify_import_row,
     resolve_import_row,
 )
+
+
+@login_required
+def download_stock_import_template(request: HttpRequest) -> HttpResponse:
+    data = build_xlsx_template(
+        ["Code variante", "Entrepôt", "Emplacement", "Quantité", "Coût unitaire", "Lot"],
+        example_row=["VAR-0001", "ENT-01", "A-01-01", 100, 5000, "LOT-2026-001"],
+    )
+    response = HttpResponse(
+        data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="modele_import_stock.xlsx"'
+    return response
 
 
 @login_required

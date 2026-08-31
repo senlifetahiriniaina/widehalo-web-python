@@ -172,3 +172,88 @@ def test_imports_screens_render(accounting_screens_setup) -> None:
 
     cash_journal = client.get("/accounting/config/imports/cash-journal/")
     assert cash_journal.status_code == 200
+
+
+def test_imports_screens_never_reference_the_internal_docs_file(accounting_screens_setup) -> None:
+    """L'utilisateur final n'a pas connaissance des fichiers source — plus
+    aucun ecran ne doit renvoyer vers docs/IMPORT_FORMATS.md."""
+    client, _tenant, _journal, _receivable, _income = accounting_screens_setup
+
+    chart = client.get("/accounting/config/imports/chart-of-accounts/")
+    cash_journal = client.get("/accounting/config/imports/cash-journal/")
+    assert b"IMPORT_FORMATS" not in chart.content
+    assert b"IMPORT_FORMATS" not in cash_journal.content
+    assert "Télécharger le modèle Excel" in chart.content.decode()
+
+
+def test_download_chart_of_accounts_template_round_trips(accounting_screens_setup) -> None:
+    """Le modele telechargeable doit etre accepte tel quel par l'import
+    reel — sinon la promesse du bouton n'est pas tenue."""
+    from apps.accounting.services.chart_of_accounts_import import import_chart_of_accounts_xlsx
+    from apps.core.tests.utils import use_tenant
+
+    client, tenant, _journal, _receivable, _income = accounting_screens_setup
+
+    response = client.get("/accounting/config/imports/chart-of-accounts/template.xlsx")
+    assert response.status_code == 200
+    assert response["Content-Type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "modele_import_plan_comptable.xlsx" in response["Content-Disposition"]
+
+    with use_tenant(tenant.id):
+        summary = import_chart_of_accounts_xlsx(tenant, response.content)
+    assert summary.is_valid
+    assert summary.created_count == 1
+
+
+def test_download_cash_journal_template_round_trips(accounting_screens_setup) -> None:
+    """Le modele telechargeable doit avoir ses en-tetes reconnus par
+    l'import reel — verifie via un journal de caisse (TYPE_CASH) portant
+    le meme nom que la caisse d'exemple du modele, pour que la ligne
+    s'importe sans aucune anomalie bloquante. La date d'exemple du modele
+    (date du jour) est recalee sur la periode ouverte du tenant de test
+    (janvier 2026) — sans rapport avec la reconnaissance des en-tetes, qui
+    est le seul point verifie ici. Le modele n'a pas de colonne
+    Fournisseur/Client/Partenaire (RG-QUALIF, chantier posterieur a ce
+    modele) : la ligne resout donc un partenaire "placeholder" et reste
+    `needs_qualification` plutot que `ok` — jamais bloquant, une AccMove
+    reelle est quand meme creee (verifie ci-dessous), c'est la seule
+    difference attendue avec un import "propre"."""
+    import io
+
+    from apps.accounting.models import AccJournal
+    from apps.accounting.services.cash_journal_import import import_cash_journal_xlsx
+    from apps.core.tests.utils import use_tenant
+    from openpyxl import load_workbook
+
+    client, tenant, _journal, _receivable, income = accounting_screens_setup
+
+    response = client.get("/accounting/config/imports/cash-journal/template.xlsx")
+    assert response.status_code == 200
+    assert response["Content-Type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "modele_import_journal_caisse.xlsx" in response["Content-Disposition"]
+
+    workbook = load_workbook(io.BytesIO(response.content))
+    sheet = workbook.active
+    sheet["A2"] = dt.date(2026, 1, 15)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    with use_tenant(tenant.id):
+        AccJournal.objects.create(
+            tenant=tenant,
+            code="CAISSE",
+            name="CAISSE PRINCIPALE",
+            type=AccJournal.TYPE_CASH,
+            sequence_prefix="CAI",
+            default_account=income,
+        )
+        batch = import_cash_journal_xlsx(tenant, buffer.getvalue())
+        row_move = batch.batch.rows.get().move
+    assert batch.total_rows == 1
+    assert batch.needs_qualification_count == 1
+    assert batch.unresolvable_count == 0
+    assert row_move is not None

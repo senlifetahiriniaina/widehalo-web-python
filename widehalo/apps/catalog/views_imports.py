@@ -10,7 +10,41 @@ from django.shortcuts import render
 from django.utils.translation import gettext as _
 
 from apps.catalog.services.catalog_import import import_catalog_xlsx
+from apps.core.services.import_xlsx import build_xlsx_template
 from apps.core.views.tenant_web import resolve_tenant
+
+
+@login_required
+def download_catalog_template(request: HttpRequest) -> HttpResponse:
+    data = build_xlsx_template(
+        [
+            "Code",
+            "Nom",
+            "Catégorie",
+            "Unité de mesure",
+            "Attributs de variantes",
+            "Matière",
+            "Composition",
+            "Grammage",
+            "Laize",
+        ],
+        example_row=[
+            "TPL-0001",
+            "T-shirt coton",
+            "Vêtements",
+            "PCE",
+            "couleur=bleu;taille=M",
+            "Coton",
+            "100% coton",
+            180,
+            150,
+        ],
+    )
+    response = HttpResponse(
+        data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="modele_import_catalogue.xlsx"'
+    return response
 
 
 @login_required

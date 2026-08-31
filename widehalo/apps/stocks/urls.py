@@ -8,6 +8,11 @@ urlpatterns = [
     path("", views.stock_view, name="index"),
     path("imports/", views_imports.imports_index, name="imports_index"),
     path(
+        "imports/template.xlsx",
+        views_imports.download_stock_import_template,
+        name="imports_template",
+    ),
+    path(
         "imports/<uuid:batch_id>/",
         views_imports.imports_batch_detail,
         name="imports_batch_detail",

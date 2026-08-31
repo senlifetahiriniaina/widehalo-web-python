@@ -12,8 +12,22 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
+from apps.core.services.import_xlsx import build_xlsx_template
 from apps.core.views.tenant_web import resolve_tenant
 from apps.partners.services.partner_import import import_partners_xlsx
+
+
+@login_required
+def download_partner_template(request: HttpRequest) -> HttpResponse:
+    data = build_xlsx_template(
+        ["Code", "Nom", "NIF", "Roles", "Plafond de crédit"],
+        example_row=["PART-0001", "Client Exemple SARL", "1234567890", "client", 500000],
+    )
+    response = HttpResponse(
+        data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="modele_import_partenaires.xlsx"'
+    return response
 
 
 @login_required
