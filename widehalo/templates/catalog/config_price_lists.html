@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Listes de prix" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Listes de prix" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
@@ -18,7 +20,7 @@
       {% for price_list in price_lists %}
         <tr>
           <td><a href="{% url 'catalog:price_list_detail' price_list.id %}">{{ price_list.name }}</a></td>
-          <td>{{ price_list.get_kind_display }}</td>
+          <td><span class="badge {{ price_list.kind|state_badge_class }}">{{ price_list.get_kind_display }}</span></td>
           <td>{{ price_list.partner_id|default:"—" }}</td>
           <td>{{ price_list.valid_from|default:"—" }} — {{ price_list.valid_to|default:"—" }}</td>
         </tr>

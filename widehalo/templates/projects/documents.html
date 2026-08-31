@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Documents" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Documents du projet" %} — {{ project.name }}</h1>
+</div>
   <ul>
     {% for document in documents %}
       <li>{{ document.original_name }}</li>

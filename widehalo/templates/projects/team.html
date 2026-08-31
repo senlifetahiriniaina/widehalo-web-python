@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Equipe" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Equipe du projet" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Allocation combinee sur ce projet" %} : {{ summary.total_allocation_pct }}%</p>
 

@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ application.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Dossier de financement" %} {{ application.reference }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Type" %} : {{ application.get_type_display }}</p>
-  <p>{% trans "Statut" %} : {{ application.get_state_display }}</p>
+  <p>{% trans "Type" %} : <span class="badge {{ application.type|state_badge_class }}">{{ application.get_type_display }}</span></p>
+  <p>{% trans "Statut" %} : <span class="badge {{ application.state|state_badge_class }}">{{ application.get_state_display }}</span></p>
   <p>{% trans "Montant demande" %} : {{ application.amount_requested_mga }} {{ application.currency }}</p>
   <p>{% trans "Apport propre" %} : {{ application.own_contribution_pct }}%</p>
 
@@ -16,7 +18,7 @@
     </thead>
     <tbody>
       {% for line in lines %}
-        <tr><td>{{ line.get_source_display }}</td><td>{{ line.label }}</td><td>{{ line.amount_mga }}</td></tr>
+        <tr><td><span class="badge {{ line.source|state_badge_class }}">{{ line.get_source_display }}</span></td><td>{{ line.label }}</td><td>{{ line.amount_mga }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -67,9 +69,9 @@
       {% for guarantee in guarantees %}
         <tr>
           <td>{{ guarantee.reference }}</td>
-          <td>{{ guarantee.get_type_display }}</td>
+          <td><span class="badge {{ guarantee.type|state_badge_class }}">{{ guarantee.get_type_display }}</span></td>
           <td>{{ guarantee.estimated_value_mga }}</td>
-          <td>{{ guarantee.get_formalization_status_display }}</td>
+          <td><span class="badge {{ guarantee.formalization_status|state_badge_class }}">{{ guarantee.get_formalization_status_display }}</span></td>
         </tr>
       {% endfor %}
     </tbody>

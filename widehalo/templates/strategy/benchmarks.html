@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Referentiel sectoriel" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Referentiel sectoriel" %}</h1>
+</div>
   <form method="get">
     <select name="sector" onchange="this.form.submit()">
       {% for value, label in sectors %}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Generer un rapport" %} — {{ code }}{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Generer" %} {{ report.label }}</h1>
+</div>
   <form hx-post="{% url 'reporting:generate_submit' code %}" hx-target="#job-result">
     <label>{% trans "Parametres (JSON)" %}
       <textarea name="params" rows="4" cols="60">{}</textarea>

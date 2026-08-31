@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Sprints" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Sprints agiles" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Velocite (moyenne des points completes sur les derniers sprints termines)" %} : {{ velocity }}</p>
   <p>
@@ -29,7 +31,7 @@
           <td>{{ sprint.name }}</td>
           <td>{{ sprint.start_date }}</td>
           <td>{{ sprint.end_date }}</td>
-          <td>{{ sprint.get_status_display }}</td>
+          <td><span class="badge {{ sprint.status|state_badge_class }}">{{ sprint.get_status_display }}</span></td>
           <td>{{ sprint.goal }}</td>
           <td>
             {% if sprint.status == "planned" %}

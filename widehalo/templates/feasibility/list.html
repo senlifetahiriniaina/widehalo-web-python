@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Etudes de faisabilite" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Etudes de faisabilite" %}</h1>
+</div>
   <p><a href="{% url 'feasibility:create' %}">{% trans "Nouvelle etude" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

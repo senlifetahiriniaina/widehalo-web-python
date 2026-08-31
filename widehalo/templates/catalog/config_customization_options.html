@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Personnalisation" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Options de personnalisation" %}</h1>
+</div>
   <p>
     {% trans "Broderie, serigraphie, sublimation, transfert thermocollant, floquage, gravure, badge — compatibilite matiere indicative (ex. la sublimation necessite une matiere ~100% polyester)." %}
   </p>
@@ -23,7 +25,7 @@
         <tr>
           <td>{{ option.code }}</td>
           <td>{{ option.name }}</td>
-          <td>{{ option.get_technique_display }}</td>
+          <td><span class="badge {{ option.technique|state_badge_class }}">{{ option.get_technique_display }}</span></td>
           <td>
             {% for material in option.compatible_materials.all %}
               {{ material.code }}{% if not forloop.last %}, {% endif %}

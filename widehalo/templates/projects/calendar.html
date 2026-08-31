@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Calendrier" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Calendrier" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   <p class="hint">
     {% trans "Vue simplifiee : liste des taches ayant une date de debut, groupees par mois calendaire — pas de grille mensuelle interactive a ce stade." %}
   </p>
@@ -25,8 +27,8 @@
             <td>{{ task.start_date }}</td>
             <td>{{ task.end_date|default_if_none:"—" }}</td>
             <td>{{ task.reference }}</td>
-            <td>{{ task.get_task_type_display }}</td>
-            <td>{{ task.get_state_display }}</td>
+            <td><span class="badge {{ task.task_type|state_badge_class }}">{{ task.get_task_type_display }}</span></td>
+            <td><span class="badge {{ task.state|state_badge_class }}">{{ task.get_state_display }}</span></td>
           </tr>
         {% endfor %}
       </tbody>

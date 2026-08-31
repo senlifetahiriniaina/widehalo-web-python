@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Risques" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Registre des risques" %} — {{ project.name }}</h1>
+</div>
   <p><a href="{% url 'projects:risk_create' project.id %}">{% trans "Signaler un risque" %}</a></p>
   <table>
     <thead>
@@ -17,11 +19,11 @@
     <tbody>
       {% for risk in risks %}
         <tr>
-          <td>{{ risk.get_category_display }}</td>
+          <td><span class="badge {{ risk.category|state_badge_class }}">{{ risk.get_category_display }}</span></td>
           <td>{{ risk.likelihood }}</td>
           <td>{{ risk.impact }}</td>
           <td>{{ risk.score }}</td>
-          <td>{{ risk.get_status_display }}</td>
+          <td><span class="badge {{ risk.status|state_badge_class }}">{{ risk.get_status_display }}</span></td>
         </tr>
       {% empty %}
         <tr><td colspan="5">{% trans "Aucun risque signale." %}</td></tr>

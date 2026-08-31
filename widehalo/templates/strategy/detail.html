@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ objective.title }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ objective.title }}</h1>
+</div>
   <p>{% trans "Reference" %}: {{ objective.reference }}</p>
-  <p>{% trans "Niveau" %}: {{ objective.get_level_display }}</p>
-  <p>{% trans "Statut" %}: {{ objective.get_status_display }}</p>
+  <p>{% trans "Niveau" %}: <span class="badge {{ objective.level|state_badge_class }}">{{ objective.get_level_display }}</span></p>
+  <p>{% trans "Statut" %}: <span class="badge {{ objective.status|state_badge_class }}">{{ objective.get_status_display }}</span></p>
   <p>{{ objective.description }}</p>
 
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Burndown" %} — {{ sprint.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Burndown" %} — {{ sprint.name }} ({{ project.reference }})</h1>
+</div>
   <p>{% trans "Velocite du projet (moyenne sur les derniers sprints termines)" %} : {{ velocity }}</p>
   <p class="hint">
     {% trans "Points restants reconstitues jour par jour a partir de l'historique reel des transitions d'etat des taches (journal generique core_state_transition) — cf. limitation disclosee dans services/sprints.py si l'ensemble des taches du sprint a change en cours de route." %}

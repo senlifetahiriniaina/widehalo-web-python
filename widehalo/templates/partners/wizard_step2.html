@@ -1,7 +1,9 @@
 {% load i18n %}
 {% csrf_token %}
 <input type="hidden" name="step" value="2">
-<h1>{% trans "Nouveau partenaire" %} — {% trans "Etape 2 sur 2" %}</h1>
+<div class="page-head">
+  <h1>{% trans "Nouveau partenaire" %} — {% trans "Etape 2 sur 2" %}</h1>
+</div>
 <div class="form-field">
   <label for="roles">{% trans "Roles" %}</label>
   <select id="roles" name="roles" multiple>

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Import des partenaires" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Import des partenaires" %}</h1>
+</div>
   <p>{% trans "Format attendu : colonnes Code/Nom/NIF/Roles (client;fournisseur;transporteur;sous_traitant)/Plafond de crédit — voir docs/IMPORT_FORMATS.md." %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

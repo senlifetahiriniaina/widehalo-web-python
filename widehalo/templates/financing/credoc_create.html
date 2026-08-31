@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% trans "Nouveau CREDOC" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Nouveau credit documentaire" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}
@@ -26,6 +28,6 @@
       <label for="validity_date">{% trans "Date de validite" %}</label>
       <input id="validity_date" type="date" name="validity_date" required>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
   </form>
 {% endblock %}

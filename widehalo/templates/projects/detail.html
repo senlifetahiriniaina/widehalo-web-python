@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Projet" %} {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Methodologie" %} : {{ project.get_methodology_display }}</p>
-  <p>{% trans "Statut" %} : {{ project.get_status_display }}</p>
+  <p>{% trans "Methodologie" %} : <span class="badge {{ project.methodology|state_badge_class }}">{{ project.get_methodology_display }}</span></p>
+  <p>{% trans "Statut" %} : <span class="badge {{ project.status|state_badge_class }}">{{ project.get_status_display }}</span></p>
   <p>{{ project.description }}</p>
   <p><a href="{% url 'projects:gantt' project.id %}">{% trans "Voir le Gantt (chemin critique)" %}</a></p>
   <p><a href="{% url 'projects:budget' project.id %}">{% trans "Voir le budget (SPI/CPI/EAC)" %}</a></p>
@@ -82,8 +84,8 @@
       {% for task in tasks %}
         <tr>
           <td>{{ task.reference }}</td>
-          <td>{{ task.get_task_type_display }}</td>
-          <td>{{ task.get_state_display }}</td>
+          <td><span class="badge {{ task.task_type|state_badge_class }}">{{ task.get_task_type_display }}</span></td>
+          <td><span class="badge {{ task.state|state_badge_class }}">{{ task.get_state_display }}</span></td>
           <td>{{ task.percent_complete }}%</td>
           <td>
             {% if task.state == "todo" %}

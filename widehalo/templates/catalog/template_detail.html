@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ template.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ template.reference }} — {{ template.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Categorie" %}: {{ template.category|default:"—" }}</p>
   <p>{% trans "Unite de base" %}: {{ template.base_uom }}</p>
@@ -95,7 +97,7 @@
           {% if spec %}
             <tr>
               <td>{{ variant.reference }}</td>
-              <td>{{ spec.get_sector_code_display }}</td>
+              <td><span class="badge {{ spec.sector_code|state_badge_class }}">{{ spec.get_sector_code_display }}</span></td>
               <td>{{ spec.attributes }}</td>
             </tr>
           {% endif %}
@@ -148,7 +150,7 @@
         <tr>
           <td>{{ item.variant.reference }}</td>
           <td>{{ item.price_list.name }}</td>
-          <td>{{ item.price_list.get_kind_display }}</td>
+          <td><span class="badge {{ item.price_list.kind|state_badge_class }}">{{ item.price_list.get_kind_display }}</span></td>
           <td>{{ item.price_mga }}</td>
         </tr>
       {% empty %}

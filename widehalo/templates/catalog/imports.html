@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Import du catalogue" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Import du catalogue" %}</h1>
+</div>
   <p>{% trans "Format attendu : colonnes Template_code/Template_name/Category/Uom/Variant_attributes (attribut=valeur;...)/Material/Composition/Weight_gsm/Width_cm — voir docs/IMPORT_FORMATS.md." %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

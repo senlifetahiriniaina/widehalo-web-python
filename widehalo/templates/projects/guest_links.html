@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Liens invite" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Portail invite" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   <p class="hint">
     {% trans "Un lien invite donne acces a une vue lecture seule de ce projet a un tiers externe (client, partenaire), sans compte ni mot de passe. Aucun montant de cout/marge interne n'est jamais visible depuis ce lien." %}
   </p>

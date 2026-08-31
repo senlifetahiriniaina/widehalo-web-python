@@ -7,9 +7,11 @@
     {% if partner.is_active %}{% trans "Actif" %}{% else %}{% trans "Archive" %}{% endif %}
   </div>
 
-  <div style="display:flex; gap:2rem;">
-    <div style="flex:2;">
-      <h1>{{ partner.name }}</h1>
+  <div class="two-col">
+    <div class="col-main">
+      <div class="page-head">
+        <h1>{{ partner.name }}</h1>
+      </div>
       <p>{% trans "Reference" %}: {{ partner.reference }}</p>
       <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
       <p>{% trans "Plafond credit" %}: {{ partner.credit_limit_mga }} MGA</p>
@@ -31,18 +33,8 @@
       </form>
     </div>
 
-    <aside class="side-panel" style="flex:1;">
-      <h2>{% trans "Audit" %}</h2>
-      <ul>
-        {% for entry in audit_entries %}
-          <li>{{ entry.action }} — {{ entry.created_at }}</li>
-        {% empty %}
-          <li>{% trans "Aucune entree." %}</li>
-        {% endfor %}
-      </ul>
-
-      <h2>{% trans "Discussion" %}</h2>
-      <p><a href="/chat/{{ chat_channel_id }}/">{% trans "Ouvrir la messagerie contextuelle" %}</a></p>
-    </aside>
+    <div class="col-side">
+      {% include "components/_side_panel.html" with documents=None %}
+    </div>
   </div>
 {% endblock %}

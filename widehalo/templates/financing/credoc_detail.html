@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ credoc.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Credit documentaire" %} {{ credoc.reference }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Statut" %} : {{ credoc.get_state_display }}</p>
+  <p>{% trans "Statut" %} : <span class="badge {{ credoc.state|state_badge_class }}">{{ credoc.get_state_display }}</span></p>
   <p>{% trans "Banque emettrice" %} : {{ credoc.bank }}</p>
   <p>{% trans "Banque notificatrice" %} : {{ credoc.advising_bank|default:"—" }}</p>
   <p>{% trans "Beneficiaire" %} : {{ credoc.beneficiary }}</p>

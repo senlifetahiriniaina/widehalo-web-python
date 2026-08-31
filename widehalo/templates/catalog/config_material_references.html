@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Matieres de reference" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Referentiel de matieres (fibres/tissus)" %}</h1>
+</div>
   <p>
     {% trans "Fourchettes de grammage indicatives (document source LIFE MDG) — pas des specifications absolues, varient par fabricant/construction/lavage." %}
   </p>
@@ -24,7 +26,7 @@
         <tr>
           <td>{{ material.code }}</td>
           <td>{{ material.name }}</td>
-          <td>{{ material.get_nature_display }}</td>
+          <td><span class="badge {{ material.nature|state_badge_class }}">{{ material.get_nature_display }}</span></td>
           <td>{{ material.typical_gsm_min|default:"—" }}</td>
           <td>{{ material.typical_gsm_max|default:"—" }}</td>
           <td>{{ material.supplier_reference|default:"—" }}</td>

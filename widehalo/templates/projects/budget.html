@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Budget" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Budget & valeur acquise (EVM)" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Statut projet" %} : {{ project.get_status_display }}</p>
+  <p>{% trans "Statut projet" %} : <span class="badge {{ project.status|state_badge_class }}">{{ project.get_status_display }}</span></p>
 
   <h2>{% trans "Indicateurs EVM (a la date du jour)" %}</h2>
   <table>
@@ -49,7 +51,7 @@
     <tbody>
       {% for line in lines %}
         <tr>
-          <td>{{ line.get_category_display }}</td>
+          <td><span class="badge {{ line.category|state_badge_class }}">{{ line.get_category_display }}</span></td>
           <td>{{ line.label }}</td>
           <td>{{ line.period }}</td>
           <td>{{ line.planned_amount }}</td>

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Champs personnalises" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration — Champs personnalises (projets/taches)" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table>
@@ -18,10 +20,10 @@
     <tbody>
       {% for definition in definitions %}
         <tr>
-          <td>{{ definition.get_entity_type_display }}</td>
+          <td><span class="badge {{ definition.entity_type|state_badge_class }}">{{ definition.get_entity_type_display }}</span></td>
           <td>{{ definition.field_key }}</td>
           <td>{{ definition.field_label }}</td>
-          <td>{{ definition.get_field_type_display }}</td>
+          <td><span class="badge {{ definition.field_type|state_badge_class }}">{{ definition.get_field_type_display }}</span></td>
           <td>{{ definition.validation_rule }}</td>
         </tr>
       {% empty %}

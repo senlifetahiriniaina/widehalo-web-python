@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Wiki" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Wiki du projet" %} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <ul>
     {% for page, level in rows %}

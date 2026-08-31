@@ -1,9 +1,11 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ price_list.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ price_list.name }}</h1>
-  <p>{% trans "Type" %}: {{ price_list.get_kind_display }}</p>
+</div>
+  <p>{% trans "Type" %}: <span class="badge {{ price_list.kind|state_badge_class }}">{{ price_list.get_kind_display }}</span></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">

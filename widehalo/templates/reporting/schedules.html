@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Planifications de rapports" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Planifications de rapports" %}</h1>
+</div>
 
   <form method="post" hx-post="{% url 'reporting:schedules' %}" hx-target="body">
     <label>{% trans "Rapport" %}

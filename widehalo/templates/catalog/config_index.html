@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Catalogue" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Catalogue" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'catalog:config_categories' %}">{% trans "Categories" %}</a></li>
     <li><a href="{% url 'catalog:config_attributes' %}">{% trans "Attributs" %}</a></li>

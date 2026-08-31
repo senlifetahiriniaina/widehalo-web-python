@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ study.name }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ study.name }}</h1>
+</div>
   <p>{% trans "Reference" %}: {{ study.reference }}</p>
   <p>{% trans "Secteur" %}: {{ study.get_sector_code_display|default:"-" }}</p>
-  <p>{% trans "Statut" %}: {{ study.get_status_display }}</p>
+  <p>{% trans "Statut" %}: <span class="badge {{ study.status|state_badge_class }}">{{ study.get_status_display }}</span></p>
   <p>{{ study.description }}</p>
 
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}

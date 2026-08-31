@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Kanban" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Kanban" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   <p class="hint">
     {% trans "Vue en lecture seule — le changement d'etat d'une tache reste pilote depuis l'ecran detail du projet." %}
   </p>
@@ -23,7 +25,7 @@
             {% for task in column_tasks %}
               <tr>
                 <td>{{ task.reference }}</td>
-                <td>{{ task.get_task_type_display }}</td>
+                <td><span class="badge {{ task.task_type|state_badge_class }}">{{ task.get_task_type_display }}</span></td>
                 <td>{{ task.story_points|default_if_none:"—" }}</td>
               </tr>
             {% empty %}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Certifications" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Certifications" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Backlog" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Backlog" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   <p class="hint">
     {% trans "Taches du projet sans sprint assigne (hors taches terminees/annulees) — a planifier dans un futur sprint." %}
   </p>
@@ -21,8 +23,8 @@
       {% for task in tasks %}
         <tr>
           <td>{{ task.reference }}</td>
-          <td>{{ task.get_task_type_display }}</td>
-          <td>{{ task.get_state_display }}</td>
+          <td><span class="badge {{ task.task_type|state_badge_class }}">{{ task.get_task_type_display }}</span></td>
+          <td><span class="badge {{ task.state|state_badge_class }}">{{ task.get_state_display }}</span></td>
           <td>{{ task.story_points|default_if_none:"—" }}</td>
         </tr>
       {% empty %}

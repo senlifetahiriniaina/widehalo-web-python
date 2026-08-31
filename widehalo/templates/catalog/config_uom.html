@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Unites de mesure" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Unites de mesure" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <table class="smart-table">
@@ -19,7 +21,7 @@
         <tr>
           <td>{{ uom.code }}</td>
           <td>{{ uom.name }}</td>
-          <td>{{ uom.get_category_display }}</td>
+          <td><span class="badge {{ uom.category|state_badge_class }}">{{ uom.get_category_display }}</span></td>
           <td>{{ uom.is_base|yesno:"Oui,Non" }}</td>
         </tr>
       {% empty %}

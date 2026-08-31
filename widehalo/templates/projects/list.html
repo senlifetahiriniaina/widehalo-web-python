@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Projets" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Projets" %}</h1>
+</div>
   <p><a href="{% url 'projects:create' %}">{% trans "Nouveau projet" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

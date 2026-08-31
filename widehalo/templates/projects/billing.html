@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Facturation" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Facturation multi-modes" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   {% if success %}<p class="form-success">{{ success }}</p>{% endif %}
 
@@ -65,7 +67,7 @@
       {% for record in records %}
         <tr>
           <td>{{ record.billed_date }}</td>
-          <td>{{ record.get_mode_display }}</td>
+          <td><span class="badge {{ record.mode|state_badge_class }}">{{ record.get_mode_display }}</span></td>
           <td>{{ record.amount }}</td>
           <td>{{ record.invoice_id }}</td>
         </tr>

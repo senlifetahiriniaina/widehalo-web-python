@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Gantt" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Gantt" %} — {{ project.reference }} — {{ project.name }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p class="hint">
     {% trans "Rendu SVG cote serveur, echelle fixe en jours (V1) : le glisser-deposer visuel n'est pas encore construit ici — modifiez les dates via le formulaire ci-dessous, qui recalcule automatiquement le chemin critique (barres orange)." %}
@@ -18,7 +20,7 @@
     <select name="task_id" aria-label="{% trans 'Tache' %}">
       {% for task in tasks %}
         <option value="{{ task.id }}">
-          {{ task.reference }} — {{ task.get_task_type_display }}
+          {{ task.reference }} — <span class="badge {{ task.task_type|state_badge_class }}">{{ task.get_task_type_display }}</span>
           {% if task.is_critical_path %}({% trans "chemin critique" %}){% endif %}
         </option>
       {% endfor %}

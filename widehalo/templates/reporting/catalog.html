@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Catalogue des rapports" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Catalogue des rapports" %}</h1>
+</div>
   <p>{% trans "Rapports auxquels vous avez acces, tous modules confondus." %}</p>
   <p><a href="{% url 'reporting:schedules' %}">{% trans "Gerer les planifications" %}</a></p>
   <table>
