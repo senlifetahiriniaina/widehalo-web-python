@@ -378,3 +378,27 @@ planifié, copié hors du VM) reste la garantie la plus simple et la plus
   `localhost,127.0.0.1`. Après correction, un simple redémarrage suffit
   (pas de `--build`, c'est un changement de `.env`, pas de code) :
   `docker compose -f docker-compose.prod.yml up -d`.
+- **`DisallowedHost: 'localhost:8000'` en boucle dans les logs `web`** :
+  le healthcheck Docker interroge `web` directement via
+  `http://localhost:8000/...` depuis l'intérieur du conteneur — son
+  en-tête `Host:` est donc littéralement `localhost:8000`. C'est
+  désormais géré automatiquement par le code (`config/settings/prod.py`
+  accepte toujours `localhost`/`127.0.0.1`, indépendamment de
+  `DJANGO_ALLOWED_HOSTS` — sans danger côté sécurité, Caddy est le seul
+  frontal HTTP externe et transmet toujours le `Host:` réel du client).
+  Si ce message réapparaît malgré tout après avoir corrigé
+  `DJANGO_ALLOWED_HOSTS`, c'est le signe d'une image pas reconstruite
+  (`--build` manquant, cf. l'entrée dédiée plus haut) plutôt qu'un
+  nouveau problème `.env` — relancer avec
+  `docker compose -f docker-compose.prod.yml up -d --build`.
+- **`WARN[0000] The "..." variable is not set. Defaulting to a blank
+  string.` au démarrage de `docker compose`** : Docker Compose interpole
+  les références `${VAR}` y compris à l'intérieur du fichier `.env`
+  lui-même. Si une valeur sensible (`DJANGO_SECRET_KEY`, un mot de passe
+  généré) contient un `$` suivi de texte qui ressemble à un nom de
+  variable, Compose l'interprète à tort comme une référence non définie
+  et la remplace silencieusement par une chaîne vide — la valeur
+  réellement utilisée diffère alors de la valeur voulue, tronquée à cet
+  endroit. Corriger en régénérant la valeur sans `$`, ou en l'échappant
+  en `$$` dans `.env` ; vérifier ensuite qu'aucune valeur sensible n'a
+  été silencieusement tronquée (comparer la longueur/le contenu attendu).

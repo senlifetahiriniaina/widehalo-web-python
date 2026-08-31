@@ -28,6 +28,17 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # X-Forwarded-Proto lui-meme, jamais transmis tel quel depuis l'exterieur.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Le healthcheck Docker (docker-compose.prod.yml) interroge web directement
+# via http://localhost:8000/... depuis l'interieur du conteneur — Host:
+# localhost:8000 doit donc toujours etre accepte ici, inconditionnellement
+# (jamais pilote par DJANGO_ALLOWED_HOSTS, pour ne pas dependre d'une valeur
+# que l'operateur pourrait resserrer par erreur, cf. incident reel). Sans
+# danger cote securite : Caddy est le seul frontal HTTP externe (port 8000
+# jamais publie) et transmet toujours le Host: reel du client, jamais
+# "localhost" — une requete externe ne peut donc jamais se faire passer
+# pour le healthcheck via cet en-tete.
+ALLOWED_HOSTS = [*ALLOWED_HOSTS, "localhost", "127.0.0.1"]  # noqa: F405
+
 # Origines autorisees pour les requetes POST avec cookie de session (formulaires
 # HTMX de ce socle) — distinct de DJANGO_ALLOWED_HOSTS (Host: header) : Django
 # exige un schema explicite ici. Sans ceci, tout POST depuis le sous-domaine
