@@ -5,12 +5,15 @@ import datetime as dt
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services import mfa as mfa_service
 from apps.core.tests.utils import use_tenant
 from apps.logistics.models import LogHsCode, LogServiceProvider
 from apps.logistics.services.shipments import create_shipment
 from apps.logistics.services.trips import create_trip
 from apps.logistics.tests.factories import LogDriverFactory, LogVehicleFactory
+from django.contrib.auth.models import Group
 from django.test import Client
+from django_otp.oath import totp
 
 pytestmark = pytest.mark.django_db
 
@@ -302,7 +305,33 @@ def test_reports_screen_and_downloads(logistics_screens_setup) -> None:
 
 
 def test_settings_hub_links_to_logistics_config(logistics_screens_setup) -> None:
-    client, *_ = logistics_screens_setup
-    response = client.get("/settings/")
+    """`/settings/` est desormais restreint admin/direction/superutilisateur
+    (chantier menu compte utilisateur / section Administration) — un
+    utilisateur admin dedie a ce seul test (jamais ajoute au fixture
+    partage `logistics_screens_setup`, qui redeviendrait alors soumis a
+    MFA obligatoire pour TOUS les autres tests de ce fichier)."""
+    _, tenant, *_ = logistics_screens_setup
+
+    admin_user = User.objects.create_user(
+        email="ui-log-admin@example.com", password="Str0ngPassw0rd!23"
+    )
+    admin_group, _ = Group.objects.get_or_create(name="admin")
+    admin_user.groups.add(admin_group)
+    admin_client = Client()
+    response = admin_client.post(
+        "/login/", {"email": admin_user.email, "password": "Str0ngPassw0rd!23"}
+    )
+    assert response.status_code == 302, response.content
+    session = admin_client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    admin_client.get("/mfa/")
+    device = mfa_service.enroll_device(admin_user)
+    token = str(totp(device.bin_key)).zfill(6)
+    response = admin_client.post("/mfa/", {"token": token})
+    assert response.status_code == 302, response.content
+
+    response = admin_client.get("/settings/")
     assert response.status_code == 200
     assert b"/logistics/config/" in response.content

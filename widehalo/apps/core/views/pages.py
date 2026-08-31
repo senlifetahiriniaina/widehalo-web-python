@@ -8,8 +8,11 @@ from django.shortcuts import render
 
 from apps.core.models.document import Document
 from apps.core.models.user import User
+from apps.core.services.permissions import user_role_codes
 from apps.core.services.search import global_search
 from apps.core.views.smart_table import Column, smart_table_response
+
+_ADMIN_ROLE_CODES = {"admin", "direction"}
 
 DOCUMENT_COLUMNS = [
     Column(key="original_name", label="Nom du fichier"),
@@ -47,4 +50,13 @@ def documents_list(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def settings_page(request: HttpRequest) -> HttpResponse:
+    """Hub « Administration » (config des modules metier) — restreint a
+    admin/direction/superutilisateur (chantier menu compte utilisateur /
+    section Administration signale par l'utilisateur). Garde en defense en
+    profondeur : le lien sidebar est deja masque pour les autres roles via
+    `is_admin_user` (context processor `apps.core.context_processors.
+    account`), mais la vue reste protegee meme sur un acces direct devine."""
+    role_codes = user_role_codes(cast(User, request.user))
+    if not (role_codes & _ADMIN_ROLE_CODES or request.user.is_superuser):
+        return HttpResponse(status=403)
     return render(request, "settings.html", {})

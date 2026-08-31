@@ -92,18 +92,35 @@
               <li><a href="/automation/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Automatisation" %}</a></li>
             </ul>
           </li>
+          {% if is_admin_user %}
           <li>
             <a href="/settings/">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-settings"></use></svg>
-              {% trans "Parametres" %}
+              {% trans "Administration" %}
             </a>
           </li>
+          {% endif %}
         </ul>
       </nav>
     </aside>
 
     <header class="topbar">
       <span class="crumbs">{% block breadcrumb %}{% endblock %}</span>
+      {% if user.is_authenticated %}
+      <div class="account-menu" x-data="{ open: false }" @click.outside="open = false">
+        <a href="#" class="account-menu-trigger" @click.prevent="open = !open">
+          <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>
+          <span>{{ user.get_full_name|default:user.email }}</span>
+          <svg class="ic ic-sm" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+        </a>
+        <ul x-show="open" x-cloak class="account-menu-dropdown">
+          <li><a href="{% url 'profile' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Voir le profil" %}</a></li>
+          <li><a href="{% url 'change_password' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lock"></use></svg>{% trans "Modifier le mot de passe" %}</a></li>
+          <li class="account-menu-sep"></li>
+          <li><a href="{% url 'logout' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-log-out"></use></svg>{% trans "Se deconnecter" %}</a></li>
+        </ul>
+      </div>
+      {% endif %}
     </header>
 
     <main id="main-content">

@@ -24,6 +24,7 @@ from apps.core.models.regulatory import CountryDefaultsProfile
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import UserTenantMembership
 from apps.core.services import mfa as mfa_service
+from apps.core.services.permissions import user_role_codes
 from apps.core.services.smart_defaults import apply_country_defaults
 
 
@@ -81,6 +82,46 @@ def change_password_view(request: HttpRequest) -> HttpResponse:
             update_session_auth_hash(request, request.user)
             return redirect("dashboard")
     return render(request, "change_password.html", {"errors": errors})
+
+
+@login_required
+def profile_view(request: HttpRequest) -> HttpResponse:
+    """Ecran de profil editable (chantier menu compte utilisateur signale
+    par l'utilisateur : « voir le profil » depuis le nouveau menu topbar).
+    Meme style manuel que `change_password_view` (pas de `forms.py`, pas de
+    `django.contrib.messages` — jamais utilise dans ce depot). `email`
+    reste affiche en lecture seule : c'est l'identite de connexion
+    (`USERNAME_FIELD`), la modifier necessiterait un flux de verification
+    dedie, hors perimetre de ce chantier. `preferred_language` reste un
+    simple champ texte : aucune liste de choix n'est definie nulle part
+    dans le code existant, ne pas en inventer une."""
+    user = request.user
+    errors: list[str] = []
+    success = False
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        phone = request.POST.get("phone", "").strip()
+        preferred_language = request.POST.get("preferred_language", "").strip() or "fr"
+        if len(preferred_language) > 5:
+            errors.append(_("La langue preferee ne doit pas depasser 5 caracteres."))
+        if not errors:
+            user.first_name = first_name
+            user.last_name = last_name
+            user.phone = phone
+            user.preferred_language = preferred_language
+            user.save(update_fields=["first_name", "last_name", "phone", "preferred_language"])
+            success = True
+
+    return render(
+        request,
+        "profile.html",
+        {
+            "errors": errors,
+            "success": success,
+            "role_codes": sorted(user_role_codes(user)),
+        },
+    )
 
 
 @login_required
