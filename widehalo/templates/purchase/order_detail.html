@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ order.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ order.state|state_badge_class }}">{{ order.get_state_display }}</span>
     {% if order.import_dossier_pending %}<p>{% trans "Dossier d'importation en attente d'ouverture (RG-PUR-7)." %}</p>{% endif %}
     {% if order.cancel_reason %}<p>{% trans "Motif d'annulation" %}: {{ order.cancel_reason }}</p>{% endif %}
     {% if order.dispute_reason %}<p>{% trans "Motif de litige" %}: {{ order.dispute_reason }}</p>{% endif %}
@@ -26,9 +26,11 @@
     </form>
   </div>
 
+<div class="page-head">
   <h1>{{ order.reference|default:"(brouillon)" }}</h1>
+</div>
   <p>{% trans "Fournisseur" %}: {{ order.partner_id }}</p>
-  <p>{% trans "Origine" %}: {{ order.get_origin_display }} — {% trans "Incoterm" %}: {{ order.incoterm|default:"-" }}</p>
+  <p>{% trans "Origine" %}: <span class="badge {{ order.origin|state_badge_class }}">{{ order.get_origin_display }}</span> — {% trans "Incoterm" %}: {{ order.incoterm|default:"-" }}</p>
   <p>{% trans "Axe analytique" %}: {{ order.analytic_account_id|default:"-" }}</p>
   <p>{% trans "Total" %}: {{ order.amount_total_mga }} {{ order.currency }}</p>
 

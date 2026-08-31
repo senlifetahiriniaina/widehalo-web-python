@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ rfq.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ rfq.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ rfq.state|state_badge_class }}">{{ rfq.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
@@ -11,7 +11,9 @@
     </form>
   </div>
 
+<div class="page-head">
   <h1>{{ rfq.reference|default:"(brouillon)" }}</h1>
+</div>
   <p>{% trans "Date" %}: {{ rfq.date }} — {% trans "Echeance" %}: {{ rfq.deadline|default:"-" }}</p>
   <p>{% trans "Ponderation (prix/delai/qualite)" %}: {{ rfq.award_criteria }}</p>
   <p>

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Prestataires et tarifs de fret" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Prestataires et tarifs de fret (LOG3)" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
   <h2>{% trans "Prestataires" %}</h2>
@@ -20,7 +22,7 @@
         <tr>
           <td>{{ provider.code }}</td>
           <td>{{ provider.name }}</td>
-          <td>{{ provider.get_type_display }}</td>
+          <td><span class="badge {{ provider.type|state_badge_class }}">{{ provider.get_type_display }}</span></td>
           <td>{{ provider.contact_phone|default:"-" }} {{ provider.contact_email|default:"" }}</td>
         </tr>
       {% empty %}

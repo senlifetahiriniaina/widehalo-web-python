@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Gabarits de tournee" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Gabarits de tournee (LOG-REC1)" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
     <thead>
@@ -20,7 +22,7 @@
           <td>{{ template.name }}</td>
           <td>{{ template.vehicle.plate_number }}</td>
           <td>{{ template.driver.name }}</td>
-          <td>{{ template.get_interval_display }}</td>
+          <td><span class="badge {{ template.interval|state_badge_class }}">{{ template.get_interval_display }}</span></td>
           <td>{{ template.next_run }}</td>
         </tr>
       {% empty %}

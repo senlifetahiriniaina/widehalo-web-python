@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Demandes d'achat" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Demandes d'achat" %}</h1>
+</div>
   <p>
     <a href="{% url 'purchase:requisition_create' %}">{% trans "Nouvelle demande" %}</a>
     | <a href="{% url 'purchase:rfq_list' %}">{% trans "Appels d'offres" %}</a>

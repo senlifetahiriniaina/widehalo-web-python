@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "CRA achats" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Comptes rendus d'activite achats" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
     <thead>
@@ -24,9 +26,9 @@
           <td>{{ entry.date }}</td>
           <td>{{ entry.buyer }}</td>
           <td>{{ entry.partner_id }}</td>
-          <td>{{ entry.get_activity_type_display }}</td>
+          <td><span class="badge {{ entry.activity_type|state_badge_class }}">{{ entry.get_activity_type_display }}</span></td>
           <td>{{ entry.hours }}</td>
-          <td>{{ entry.get_state_display }}</td>
+          <td><span class="badge {{ entry.state|state_badge_class }}">{{ entry.get_state_display }}</span></td>
           <td>
             <form method="post" style="display:inline;">
               {% csrf_token %}

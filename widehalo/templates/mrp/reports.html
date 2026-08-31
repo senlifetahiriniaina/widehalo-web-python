@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports MRP" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Rapports MRP" %}</h1>
+</div>
 
   <h2>{% trans "Comptes rendus d'activite (CRA)" %}</h2>
   <form method="get" action="{% url 'mrp:report_cra' %}">

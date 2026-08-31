@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% trans "Nouvel ordre de fabrication" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Nouvel ordre de fabrication" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}
@@ -26,6 +28,6 @@
       <label for="qty">{% trans "Quantite" %}</label>
       <input id="qty" type="number" name="qty" step="0.0001" min="0" value="1" required>
     </div>
-    <button type="submit">{% trans "Creer l ordre" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer l ordre" %}</button>
   </form>
 {% endblock %}

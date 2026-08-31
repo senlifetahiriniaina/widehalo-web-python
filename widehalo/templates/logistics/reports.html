@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Logistique" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Rapports Logistique (§5.7)" %}</h1>
+</div>
 
   <h2>{% trans "Synthese des couts vehicule" %}</h2>
   <form method="get" action="{% url 'logistics:report_vehicle_costs' %}">

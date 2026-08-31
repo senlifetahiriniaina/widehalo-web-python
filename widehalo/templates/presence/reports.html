@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Présence" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Rapports Présence (§5.9.6)" %}</h1>
+</div>
 
   <h2>PRS-POINT — {% trans "Feuille de pointage mensuelle" %}</h2>
   <form method="get" action="{% url 'presence:report_attendance_sheet' %}">

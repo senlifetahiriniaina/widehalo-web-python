@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Postes de charge" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Postes de charge" %}</h1>
+</div>
   <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -10,7 +12,7 @@
     <thead><tr><th>{% trans "Atelier" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Capacite (u/h)" %}</th><th>{% trans "Cout/h (MGA)" %}</th></tr></thead>
     <tbody>
       {% for workcenter in workcenters %}
-        <tr><td>{{ workcenter.workshop.code }}</td><td>{{ workcenter.code }}</td><td>{{ workcenter.name }}</td><td>{{ workcenter.get_type_display }}</td><td>{{ workcenter.capacity_units_hour }}</td><td>{{ workcenter.cost_per_hour_mga }}</td></tr>
+        <tr><td>{{ workcenter.workshop.code }}</td><td>{{ workcenter.code }}</td><td>{{ workcenter.name }}</td><td><span class="badge {{ workcenter.type|state_badge_class }}">{{ workcenter.get_type_display }}</span></td><td>{{ workcenter.capacity_units_hour }}</td><td>{{ workcenter.cost_per_hour_mga }}</td></tr>
       {% empty %}
         <tr><td colspan="6">{% trans "Aucun poste de charge." %}</td></tr>
       {% endfor %}

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Tableaux de mesures" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Tableaux de mesures" %}</h1>
+</div>
   <p><a href="{% url 'patronage:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -13,7 +15,7 @@
         <tr>
           <td>{{ size_chart.code }}</td>
           <td>{{ size_chart.name }}</td>
-          <td>{{ size_chart.get_garment_type_display }}</td>
+          <td><span class="badge {{ size_chart.garment_type|state_badge_class }}">{{ size_chart.get_garment_type_display }}</span></td>
           <td>{{ size_chart.sizes|join:", " }}</td>
           <td><a href="{% url 'patronage:config_size_chart_detail' size_chart_id=size_chart.id %}">{% trans "Voir" %}</a></td>
         </tr>

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{{ routing.code }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ routing.code }} — {{ routing.name }}</h1>
+</div>
   <p><a href="{% url 'mrp:config_routings' %}">{% trans "Retour gammes" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

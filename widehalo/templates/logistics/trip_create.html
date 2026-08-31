@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% trans "Nouveau trajet" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Nouveau trajet" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}
@@ -26,6 +28,6 @@
       <label for="stop_addresses">{% trans "Arrets (une adresse par ligne)" %}</label>
       <textarea id="stop_addresses" name="stop_addresses" rows="5" required></textarea>
     </div>
-    <button type="submit">{% trans "Creer" %}</button>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Creer" %}</button>
   </form>
 {% endblock %}

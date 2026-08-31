@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Operations" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Operations" %}</h1>
+</div>
   <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -10,7 +12,7 @@
     <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type poste" %}</th><th>{% trans "Duree par defaut (min)" %}</th></tr></thead>
     <tbody>
       {% for operation in operations %}
-        <tr><td>{{ operation.code }}</td><td>{{ operation.name }}</td><td>{{ operation.get_workcenter_type_display }}</td><td>{{ operation.default_duration_min }}</td></tr>
+        <tr><td>{{ operation.code }}</td><td>{{ operation.name }}</td><td><span class="badge {{ operation.workcenter_type|state_badge_class }}">{{ operation.get_workcenter_type_display }}</span></td><td>{{ operation.default_duration_min }}</td></tr>
       {% empty %}
         <tr><td colspan="4">{% trans "Aucune operation." %}</td></tr>
       {% endfor %}

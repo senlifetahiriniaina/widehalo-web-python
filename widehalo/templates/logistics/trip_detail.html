@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ trip.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ trip.get_status_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ trip.status|state_badge_class }}">{{ trip.get_status_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     {% if trip.status == "planned" %}
       <form method="post" style="display:inline;">
@@ -23,7 +23,9 @@
     {% endif %}
   </div>
 
+<div class="page-head">
   <h1>{{ trip.reference|default:"(brouillon)" }}</h1>
+</div>
   <p>{% trans "Vehicule" %}: {{ trip.vehicle.plate_number }} — {% trans "Chauffeur" %}: {{ trip.driver.name }}</p>
   <p>{% trans "Date" %}: {{ trip.date }}</p>
 
@@ -43,8 +45,8 @@
         <tr>
           <td>{{ stop.sequence }}</td>
           <td>{{ stop.address }}</td>
-          <td>{{ stop.get_type_display }}</td>
-          <td>{{ stop.get_status_display }}</td>
+          <td><span class="badge {{ stop.type|state_badge_class }}">{{ stop.get_type_display }}</span></td>
+          <td><span class="badge {{ stop.status|state_badge_class }}">{{ stop.get_status_display }}</span></td>
           <td>{{ stop.signed_by|default:"-" }}</td>
         </tr>
       {% endfor %}

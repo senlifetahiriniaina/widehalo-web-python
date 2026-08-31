@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ vehicle.plate_number }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ vehicle.plate_number }}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <p>{% trans "Type" %}: {{ vehicle.get_type_display }} — {% trans "Statut" %}: {{ vehicle.get_status_display }}</p>
+  <p>{% trans "Type" %}: <span class="badge {{ vehicle.type|state_badge_class }}">{{ vehicle.get_type_display }}</span> — {% trans "Statut" %}: <span class="badge {{ vehicle.status|state_badge_class }}">{{ vehicle.get_status_display }}</span></p>
   <p>{% trans "Kilometrage" %}: {{ vehicle.odometer_km }} km</p>
 
   <h2>{% trans "Documents" %}</h2>
@@ -19,7 +21,7 @@
     <tbody>
       {% for document in documents %}
         <tr>
-          <td>{{ document.get_doc_type_display }}</td>
+          <td><span class="badge {{ document.doc_type|state_badge_class }}">{{ document.get_doc_type_display }}</span></td>
           <td>{{ document.reference|default:"-" }}</td>
           <td>{{ document.expiry_date|default:"-" }}</td>
         </tr>
@@ -54,7 +56,7 @@
       {% for cost in costs %}
         <tr>
           <td>{{ cost.date }}</td>
-          <td>{{ cost.get_cost_type_display }}</td>
+          <td><span class="badge {{ cost.cost_type|state_badge_class }}">{{ cost.get_cost_type_display }}</span></td>
           <td>{{ cost.amount_mga }}</td>
         </tr>
       {% empty %}

@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Achats" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Achats" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'purchase:config_reordering_rules' %}">{% trans "Regles de reapprovisionnement (RG-PUR-3)" %}</a></li>
     <li><a href="{% url 'purchase:substitute_list' %}">{% trans "Substituts (RG-PUR-2)" %}</a></li>

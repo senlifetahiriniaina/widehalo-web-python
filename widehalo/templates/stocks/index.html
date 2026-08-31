@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Stocks" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Stocks" %}</h1>
+</div>
   <nav class="app-menu-dropdown" style="position:static;display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
     <a href="{% url 'stocks:stock_view' %}">{% trans "Vue stock" %}</a>
     <a href="{% url 'stocks:move_list' %}">{% trans "Mouvements" %}</a>
@@ -38,7 +40,7 @@
         <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th></tr></thead>
         <tbody>
           {% for warehouse in warehouses %}
-            <tr><td>{{ warehouse.code }}</td><td>{{ warehouse.name }}</td><td>{{ warehouse.get_type_display }}</td></tr>
+            <tr><td>{{ warehouse.code }}</td><td>{{ warehouse.name }}</td><td><span class="badge {{ warehouse.type|state_badge_class }}">{{ warehouse.get_type_display }}</span></td></tr>
           {% empty %}<tr><td colspan="3">{% trans "Aucun entrepot." %}</td></tr>{% endfor %}
         </tbody>
       </table>
@@ -57,7 +59,7 @@
         <thead><tr><th>{% trans "Entrepot" %}</th><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Parent" %}</th></tr></thead>
         <tbody>
           {% for location in locations %}
-            <tr><td>{{ location.warehouse.code }}</td><td>{{ location.code }}</td><td>{{ location.name }}</td><td>{{ location.get_type_display }}</td><td>{{ location.parent.code|default:"-" }}</td></tr>
+            <tr><td>{{ location.warehouse.code }}</td><td>{{ location.code }}</td><td>{{ location.name }}</td><td><span class="badge {{ location.type|state_badge_class }}">{{ location.get_type_display }}</span></td><td>{{ location.parent.code|default:"-" }}</td></tr>
           {% empty %}<tr><td colspan="5">{% trans "Aucun emplacement." %}</td></tr>{% endfor %}
         </tbody>
       </table>
@@ -80,7 +82,7 @@
         <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Categorie" %}</th><th>{% trans "Severite" %}</th></tr></thead>
         <tbody>
           {% for defect_type in defect_types %}
-            <tr><td>{{ defect_type.code }}</td><td>{{ defect_type.name }}</td><td>{{ defect_type.get_category_display }}</td><td>{{ defect_type.get_severity_display }}</td></tr>
+            <tr><td>{{ defect_type.code }}</td><td>{{ defect_type.name }}</td><td><span class="badge {{ defect_type.category|state_badge_class }}">{{ defect_type.get_category_display }}</span></td><td><span class="badge {{ defect_type.severity|state_badge_class }}">{{ defect_type.get_severity_display }}</span></td></tr>
           {% empty %}<tr><td colspan="4">{% trans "Aucun type de defaut." %}</td></tr>{% endfor %}
         </tbody>
       </table>
@@ -166,8 +168,8 @@
   {# --------------------------------------------------------------- #}
   {% if active_tab == "moves" %}
     {% if move %}
-      <h2>{{ move.reference|default:"(brouillon)" }} — {{ move.get_move_type_display }}</h2>
-      <p>{% trans "Statut" %}: {{ move.get_state_display }}</p>
+      <h2>{{ move.reference|default:"(brouillon)" }} — <span class="badge {{ move.move_type|state_badge_class }}">{{ move.get_move_type_display }}</span></h2>
+      <p>{% trans "Statut" %}: <span class="badge {{ move.state|state_badge_class }}">{{ move.get_state_display }}</span></p>
       <p>{{ move.location_from }} → {{ move.location_to }} : {{ move.qty }} {{ move.uom }}</p>
       <p>{% trans "Valeur" %}: {{ move.value_mga }} MGA — {% trans "Origine" %}: {{ move.source_document|default:"-" }}</p>
       <form method="post">
@@ -184,7 +186,7 @@
         <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Date" %}</th><th>{% trans "Quantite" %}</th><th></th></tr></thead>
         <tbody>
           {% for m in moves %}
-            <tr><td>{{ m.reference }}</td><td>{{ m.get_move_type_display }}</td><td>{{ m.get_state_display }}</td><td>{{ m.date }}</td><td>{{ m.qty }}</td>
+            <tr><td>{{ m.reference }}</td><td><span class="badge {{ m.move_type|state_badge_class }}">{{ m.get_move_type_display }}</span></td><td><span class="badge {{ m.state|state_badge_class }}">{{ m.get_state_display }}</span></td><td>{{ m.date }}</td><td>{{ m.qty }}</td>
               <td><a href="{% url 'stocks:move_detail' move_id=m.id %}">{% trans "Ouvrir" %}</a></td></tr>
           {% empty %}<tr><td colspan="6">{% trans "Aucun mouvement." %}</td></tr>{% endfor %}
         </tbody>
@@ -214,12 +216,12 @@
   {# --------------------------------------------------------------- #}
   {% if active_tab == "pickings" %}
     {% if picking %}
-      <h2>{{ picking.reference|default:"(brouillon)" }} — {{ picking.get_type_display }}</h2>
-      <p>{% trans "Statut" %}: {{ picking.get_state_display }}</p>
+      <h2>{{ picking.reference|default:"(brouillon)" }} — <span class="badge {{ picking.type|state_badge_class }}">{{ picking.get_type_display }}</span></h2>
+      <p>{% trans "Statut" %}: <span class="badge {{ picking.state|state_badge_class }}">{{ picking.get_state_display }}</span></p>
       <p>{{ picking.location_from }} → {{ picking.location_to }}</p>
       <table class="smart-table">
         <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Quantite" %}</th><th>{% trans "Statut" %}</th></tr></thead>
-        <tbody>{% for line in lines %}<tr><td>{{ line.variant_id }}</td><td>{{ line.qty }}</td><td>{{ line.get_state_display }}</td></tr>{% empty %}<tr><td colspan="3">{% trans "Aucune ligne." %}</td></tr>{% endfor %}</tbody>
+        <tbody>{% for line in lines %}<tr><td>{{ line.variant_id }}</td><td>{{ line.qty }}</td><td><span class="badge {{ line.state|state_badge_class }}">{{ line.get_state_display }}</span></td></tr>{% empty %}<tr><td colspan="3">{% trans "Aucune ligne." %}</td></tr>{% endfor %}</tbody>
       </table>
       {% if picking.state == "draft" or picking.state == "waiting" %}
         <h3>{% trans "Ajouter une ligne" %}</h3>
@@ -247,7 +249,7 @@
         <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for p in pickings %}
-            <tr><td>{{ p.reference }}</td><td>{{ p.get_type_display }}</td><td>{{ p.get_state_display }}</td>
+            <tr><td>{{ p.reference }}</td><td><span class="badge {{ p.type|state_badge_class }}">{{ p.get_type_display }}</span></td><td><span class="badge {{ p.state|state_badge_class }}">{{ p.get_state_display }}</span></td>
               <td><a href="{% url 'stocks:picking_detail' picking_id=p.id %}">{% trans "Ouvrir" %}</a></td></tr>
           {% empty %}<tr><td colspan="4">{% trans "Aucun picking." %}</td></tr>{% endfor %}
         </tbody>
@@ -285,7 +287,7 @@
       <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Type" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Ecart (%)" %}</th></tr></thead>
       <tbody>
         {% for measurement in measurements %}
-          <tr><td>{{ measurement.measured_at }}</td><td>{{ measurement.get_type_display }}</td><td>{{ measurement.value }} {{ measurement.uom }}</td><td>{{ measurement.variance_pct|default:"-" }}</td></tr>
+          <tr><td>{{ measurement.measured_at }}</td><td><span class="badge {{ measurement.type|state_badge_class }}">{{ measurement.get_type_display }}</span></td><td>{{ measurement.value }} {{ measurement.uom }}</td><td>{{ measurement.variance_pct|default:"-" }}</td></tr>
         {% empty %}<tr><td colspan="4">{% trans "Aucune mesure." %}</td></tr>{% endfor %}
       </tbody>
     </table>
@@ -300,7 +302,7 @@
       <thead><tr><th>{% trans "Quant" %}</th><th>{% trans "Lot" %}</th><th>{% trans "Etat" %}</th><th>{% trans "Defaut" %}</th><th>{% trans "Quantite" %}</th></tr></thead>
       <tbody>
         {% for entry in entries %}
-          <tr><td>{{ entry.quant_id|default:"-" }}</td><td>{{ entry.lot_id|default:"-" }}</td><td>{{ entry.get_state_display }}</td><td>{{ entry.defect_type|default:"-" }}</td><td>{{ entry.defect_qty }}</td></tr>
+          <tr><td>{{ entry.quant_id|default:"-" }}</td><td>{{ entry.lot_id|default:"-" }}</td><td><span class="badge {{ entry.state|state_badge_class }}">{{ entry.get_state_display }}</span></td><td>{{ entry.defect_type|default:"-" }}</td><td>{{ entry.defect_qty }}</td></tr>
         {% empty %}<tr><td colspan="5">{% trans "Aucun etat qualite." %}</td></tr>{% endfor %}
       </tbody>
     </table>
@@ -329,7 +331,7 @@
       <tbody>
         {% for reservation in reservations %}
           <tr>
-            <td>{{ reservation.quant_id }}</td><td>{{ reservation.qty }}</td><td>{{ reservation.date }}</td><td>{{ reservation.get_state_display }}</td>
+            <td>{{ reservation.quant_id }}</td><td>{{ reservation.qty }}</td><td>{{ reservation.date }}</td><td><span class="badge {{ reservation.state|state_badge_class }}">{{ reservation.get_state_display }}</span></td>
             <td>
               {% if reservation.state == "active" %}
                 <form method="post" style="display:inline;">
@@ -360,8 +362,8 @@
   {# --------------------------------------------------------------- #}
   {% if active_tab == "inventories" %}
     {% if inventory %}
-      <h2>{{ inventory.reference|default:"(brouillon)" }} — {{ inventory.get_type_display }}</h2>
-      <p>{% trans "Statut" %}: {{ inventory.get_state_display }} — {% trans "Entrepot" %}: {{ inventory.warehouse.code }}</p>
+      <h2>{{ inventory.reference|default:"(brouillon)" }} — <span class="badge {{ inventory.type|state_badge_class }}">{{ inventory.get_type_display }}</span></h2>
+      <p>{% trans "Statut" %}: <span class="badge {{ inventory.state|state_badge_class }}">{{ inventory.get_state_display }}</span> — {% trans "Entrepot" %}: {{ inventory.warehouse.code }}</p>
       <table class="smart-table">
         <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Emplacement" %}</th><th>{% trans "Theorique" %}</th><th>{% trans "Compte" %}</th><th>{% trans "Ecart" %}</th><th></th></tr></thead>
         <tbody>
@@ -409,7 +411,7 @@
         <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Entrepot" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for inv in inventories %}
-            <tr><td>{{ inv.reference }}</td><td>{{ inv.warehouse.code }}</td><td>{{ inv.get_type_display }}</td><td>{{ inv.get_state_display }}</td>
+            <tr><td>{{ inv.reference }}</td><td>{{ inv.warehouse.code }}</td><td><span class="badge {{ inv.type|state_badge_class }}">{{ inv.get_type_display }}</span></td><td><span class="badge {{ inv.state|state_badge_class }}">{{ inv.get_state_display }}</span></td>
               <td><a href="{% url 'stocks:inventory_detail' inventory_id=inv.id %}">{% trans "Ouvrir" %}</a></td></tr>
           {% empty %}<tr><td colspan="5">{% trans "Aucun inventaire." %}</td></tr>{% endfor %}
         </tbody>
@@ -431,7 +433,7 @@
   {% if active_tab == "returns" %}
     {% if return_obj %}
       <h2>{{ return_obj.reference|default:"(brouillon)" }}</h2>
-      <p>{% trans "Statut" %}: {{ return_obj.get_state_display }} — {% trans "Produit" %}: {{ return_obj.variant_id }} x{{ return_obj.qty }}</p>
+      <p>{% trans "Statut" %}: <span class="badge {{ return_obj.state|state_badge_class }}">{{ return_obj.get_state_display }}</span> — {% trans "Produit" %}: {{ return_obj.variant_id }} x{{ return_obj.qty }}</p>
       <p>{% trans "Etat qualite" %}: {{ return_obj.quality_state|default:"-" }} — {% trans "Decision" %}: {{ return_obj.decision|default:"-" }}</p>
       {% if return_obj.state == "draft" %}
         <h3>{% trans "Evaluer" %}</h3>
@@ -462,7 +464,7 @@
         <thead><tr><th>{% trans "Reference" %}</th><th>{% trans "Produit" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
         <tbody>
           {% for r in returns %}
-            <tr><td>{{ r.reference }}</td><td>{{ r.variant_id }}</td><td>{{ r.get_state_display }}</td>
+            <tr><td>{{ r.reference }}</td><td>{{ r.variant_id }}</td><td><span class="badge {{ r.state|state_badge_class }}">{{ r.get_state_display }}</span></td>
               <td><a href="{% url 'stocks:return_detail' return_id=r.id %}">{% trans "Ouvrir" %}</a></td></tr>
           {% empty %}<tr><td colspan="4">{% trans "Aucun retour." %}</td></tr>{% endfor %}
         </tbody>

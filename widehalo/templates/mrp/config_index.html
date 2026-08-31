@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Production" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Production" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'mrp:config_workshops' %}">{% trans "Ateliers" %}</a></li>
     <li><a href="{% url 'mrp:config_workcenters' %}">{% trans "Postes de charge" %}</a></li>

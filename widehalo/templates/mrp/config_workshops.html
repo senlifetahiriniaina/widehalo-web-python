@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Ateliers" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Ateliers" %}</h1>
+</div>
   <p><a href="{% url 'mrp:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

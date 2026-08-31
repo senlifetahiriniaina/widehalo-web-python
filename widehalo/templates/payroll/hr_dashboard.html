@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Tableau de bord Paie" %} — WideHalo{% endblock %}
 {% block content %}
-<h1>{% trans "Periodes de paie" %}</h1>
+<div class="page-head">
+  <h1>{% trans "Periodes de paie" %}</h1>
+</div>
 <table>
   <thead>
     <tr>
@@ -19,7 +21,7 @@
       <td>{{ period.code }}</td>
       <td>{{ period.date_from }}</td>
       <td>{{ period.date_to }}</td>
-      <td>{{ period.get_state_display }}</td>
+      <td><span class="badge {{ period.state|state_badge_class }}">{{ period.get_state_display }}</span></td>
       {% if can_see_amounts %}
       <td>
         {% with total=0 %}

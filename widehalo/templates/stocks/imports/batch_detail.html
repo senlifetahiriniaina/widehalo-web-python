@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Lot d'import" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Lot d'import" %} — {{ batch.source_filename|default:batch.id }}</h1>
+</div>
   <p>
     {% blocktrans with total=batch.total_rows anomalies=batch.anomaly_rows_count applied=batch.applied_rows_count %}
       {{ total }} ligne(s), {{ anomalies }} en anomalie, {{ applied }} appliquée(s).
@@ -25,7 +27,7 @@
       {% for row in rows %}
         <tr>
           <td>{{ row.row_number }}</td>
-          <td>{{ row.get_status_display }}</td>
+          <td><span class="badge {{ row.status|state_badge_class }}">{{ row.get_status_display }}</span></td>
           <td>{{ row.raw_data.variant_code }}</td>
           <td>{{ row.raw_data.warehouse_code }} / {{ row.raw_data.location_code }}</td>
           <td>{{ row.raw_data.qty }}</td>

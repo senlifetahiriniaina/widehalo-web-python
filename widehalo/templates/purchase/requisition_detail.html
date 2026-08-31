@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ requisition.reference }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ requisition.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ requisition.state|state_badge_class }}">{{ requisition.get_state_display }}</span>
     {% if requisition.rejection_reason %}<p>{% trans "Motif de rejet" %}: {{ requisition.rejection_reason }}</p>{% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
@@ -15,7 +15,9 @@
     </form>
   </div>
 
+<div class="page-head">
   <h1>{{ requisition.reference|default:"(brouillon)" }}</h1>
+</div>
   <p>{% trans "Demandeur" %}: {{ requisition.requester }}</p>
   <p>{% trans "Departement" %}: {{ requisition.department|default:"-" }}</p>
   <p>{% trans "Besoin le" %}: {{ requisition.date_needed }}</p>

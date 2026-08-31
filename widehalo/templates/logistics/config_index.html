@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Logistique" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Logistique" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'logistics:config_packaging_types' %}">{% trans "Types d'emballage (RG-LOG-5)" %}</a></li>
     <li><a href="{% url 'logistics:config_service_providers' %}">{% trans "Prestataires et tarifs de fret (LOG3)" %}</a></li>

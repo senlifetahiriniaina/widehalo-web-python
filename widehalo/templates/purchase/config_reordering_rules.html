@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Regles de reapprovisionnement" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Regles de reapprovisionnement (RG-PUR-3)" %}</h1>
+</div>
   <p>{% blocktrans %}Chaque regle declenchee genere une demande d'achat en brouillon uniquement, jamais une commande confirmee automatiquement.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

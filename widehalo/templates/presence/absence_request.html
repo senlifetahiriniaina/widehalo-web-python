@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Demande d'absence" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Demande d'absence" %}</h1>
+</div>
   {% if not employee %}
     <p role="alert">{% trans "Aucun profil employé associé à ce compte." %}</p>
   {% else %}
@@ -31,7 +33,7 @@
       <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Du" %}</th><th>{% trans "Au" %}</th><th>{% trans "État" %}</th></tr></thead>
       <tbody>
         {% for a in my_absences %}
-          <tr><td>{{ a.type.name }}</td><td>{{ a.date_from }}</td><td>{{ a.date_to }}</td><td>{{ a.get_state_display }}</td></tr>
+          <tr><td>{{ a.type.name }}</td><td>{{ a.date_from }}</td><td>{{ a.date_to }}</td><td><span class="badge {{ a.state|state_badge_class }}">{{ a.get_state_display }}</span></td></tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Aucune demande." %}</td></tr>
         {% endfor %}

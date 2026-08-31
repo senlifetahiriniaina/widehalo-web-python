@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Calendrier d'équipe" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Calendrier d'équipe" %} — {{ date }}</h1>
+</div>
   <form method="get" action="{% url 'presence:team_calendar' %}">
     <div class="form-field">
       <label for="date">{% trans "Date" %}</label>
@@ -16,7 +18,7 @@
     <thead><tr><th>{% trans "Employé" %}</th><th>{% trans "Mode" %}</th></tr></thead>
     <tbody>
       {% for a in attendances %}
-        <tr><td>{{ a.employee }}</td><td>{{ a.get_mode_display }}</td></tr>
+        <tr><td>{{ a.employee }}</td><td><span class="badge {{ a.mode|state_badge_class }}">{{ a.get_mode_display }}</span></td></tr>
       {% empty %}
         <tr><td colspan="2">{% trans "Aucun pointage ce jour." %}</td></tr>
       {% endfor %}

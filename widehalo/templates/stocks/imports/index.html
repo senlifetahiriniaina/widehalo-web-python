@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Import des quantités initiales" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Import des quantités initiales de stock" %}</h1>
+</div>
   <p>{% trans "Format attendu : colonnes Variant_code/Warehouse_code/Location_code/Qty/Unit_cost_mga/Lot_reference — voir docs/IMPORT_FORMATS.md." %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

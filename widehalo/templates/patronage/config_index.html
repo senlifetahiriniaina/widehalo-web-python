@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Patronage" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Configuration Patronage" %}</h1>
+</div>
   <ul>
     <li><a href="{% url 'patronage:config_size_charts' %}">{% trans "Tableaux de mesures" %}</a></li>
     <li><a href="{% url 'patronage:config_grading_rules' %}">{% trans "Regles de gradation" %}</a></li>

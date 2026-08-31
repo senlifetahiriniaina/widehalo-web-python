@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Regles de gradation" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Regles de gradation" %}</h1>
+</div>
   <p><a href="{% url 'patronage:config_index' %}">{% trans "Retour configuration" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -13,7 +15,7 @@
         <tr>
           <td>{{ rule.size_chart.code }}</td>
           <td>{{ rule.measurement_point.code }}</td>
-          <td>{{ rule.get_mode_display }}</td>
+          <td><span class="badge {{ rule.mode|state_badge_class }}">{{ rule.get_mode_display }}</span></td>
           <td>{{ rule.value|default:"—" }}</td>
           <td>{{ rule.formula|default:"—" }}</td>
           <td>{{ rule.from_size }}</td>

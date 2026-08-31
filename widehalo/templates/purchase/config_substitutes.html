@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Substituts" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Substituts (RG-PUR-2)" %}</h1>
+</div>
   <p>{% blocktrans %}Une substitution de niveau degrade sans validation ne peut pas etre utilisee sur une ligne de demande d'achat.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
@@ -28,7 +30,7 @@
         <tr>
           <td>{{ substitute.variant_id }}</td>
           <td>{{ substitute.substitute_variant_id }}</td>
-          <td>{{ substitute.get_compatibility_display }}</td>
+          <td><span class="badge {{ substitute.compatibility|state_badge_class }}">{{ substitute.get_compatibility_display }}</span></td>
           <td>{{ substitute.ratio }}</td>
           <td>{{ substitute.approved_by|default:"-" }}</td>
           <td>

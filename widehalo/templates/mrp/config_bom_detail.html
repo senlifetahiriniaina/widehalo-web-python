@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ bom.code }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ bom.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ bom.state|state_badge_class }}">{{ bom.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
@@ -12,7 +12,9 @@
     </form>
   </div>
 
+<div class="page-head">
   <h1>{{ bom.code }} v{{ bom.version }}</h1>
+</div>
   <p>{% trans "Produit (UUID)" %}: {{ bom.product_template_id }}</p>
   <p><a href="{% url 'mrp:config_boms' %}">{% trans "Retour nomenclatures" %}</a></p>
 

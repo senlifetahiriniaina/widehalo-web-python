@@ -2,7 +2,9 @@
 {% load i18n %}
 {% block title %}{{ size_chart.code }} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{{ size_chart.code }} — {{ size_chart.name }}</h1>
+</div>
   <p>{% trans "Tailles" %}: {{ size_chart.sizes|join:", " }} ({% trans "base" %}: {{ size_chart.base_size }})</p>
   <p><a href="{% url 'patronage:config_size_charts' %}">{% trans "Retour tableaux de mesures" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}

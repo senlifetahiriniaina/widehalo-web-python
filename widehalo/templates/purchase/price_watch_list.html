@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "Veille prix fournisseurs" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Veille prix fournisseurs Chine/Europe" %}</h1>
+</div>
   <p class="form-hint">
     {% trans "Aucun scraping reel n'est effectue tant qu'un connecteur n'est pas explicitement configure : chaque releve reste un releve stub (sans prix) par defaut." %}
   </p>
@@ -21,10 +23,10 @@
     <tbody>
       {% for target in targets %}
         <tr>
-          <td>{{ target.get_platform_code_display }}</td>
+          <td><span class="badge {{ target.platform_code|state_badge_class }}">{{ target.get_platform_code_display }}</span></td>
           <td>{{ target.search_query_or_url }}</td>
           <td>{{ target.currency }}</td>
-          <td>{{ target.get_frequency_display }}</td>
+          <td><span class="badge {{ target.frequency|state_badge_class }}">{{ target.get_frequency_display }}</span></td>
           <td>
             {% if target.material_reference_id %}{% trans "Matiere" %} {{ target.material_reference_id }}{% endif %}
             {% if target.variant_id %}{% trans "Variante" %} {{ target.variant_id }}{% endif %}

@@ -3,7 +3,9 @@
 {% block title %}{% trans "Kiosque de pointage" %} — WideHalo{% endblock %}
 {% block content %}
 <div style="max-width:420px;margin:8vh auto;text-align:center;">
+<div class="page-head">
   <h1>{% trans "Pointage" %}</h1>
+</div>
   {% if message == "checked_in" %}
     <p role="status">{% trans "Pointage enregistré." %}</p>
   {% elif message == "employee_not_found" %}

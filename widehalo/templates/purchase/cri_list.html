@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{% trans "CRI achats" %} — WideHalo{% endblock %}
 {% block content %}
+<div class="page-head">
   <h1>{% trans "Comptes rendus d'incident achats" %}</h1>
+</div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <table class="smart-table">
     <thead>
@@ -21,10 +23,10 @@
         <tr>
           <td>{{ entry.reference }}</td>
           <td>{{ entry.date }}</td>
-          <td>{{ entry.get_type_display }}</td>
+          <td><span class="badge {{ entry.type|state_badge_class }}">{{ entry.get_type_display }}</span></td>
           <td>{{ entry.partner_id }}</td>
           <td>{{ entry.cost_mga }}</td>
-          <td>{{ entry.get_state_display }}</td>
+          <td><span class="badge {{ entry.state|state_badge_class }}">{{ entry.get_state_display }}</span></td>
           <td>
             {% if entry.state == "draft" %}
               <form method="post" style="display:inline;">

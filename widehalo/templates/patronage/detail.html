@@ -3,7 +3,7 @@
 {% block title %}{{ pattern.name }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
-    <strong>{% trans "Statut" %}:</strong> {{ pattern.get_state_display }}
+    <strong>{% trans "Statut" %}:</strong> <span class="badge {{ pattern.state|state_badge_class }}">{{ pattern.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     {% if pattern.state == "draft" %}
       <form method="post" style="display:inline;">
@@ -13,7 +13,9 @@
     {% endif %}
   </div>
 
+<div class="page-head">
   <h1>{{ pattern.name }} — v{{ pattern.version }}</h1>
+</div>
   <p>{% trans "Code" %}: {{ pattern.code }}</p>
   <p><a href="{% url 'patronage:tech_pack_download' pattern_id=pattern.id %}">{% trans "Telecharger le dossier technique" %}</a></p>
 
