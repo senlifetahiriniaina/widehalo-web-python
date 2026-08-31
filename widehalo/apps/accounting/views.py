@@ -122,11 +122,16 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
     documents = Document.objects.filter(content_type=content_type, object_id=str(invoice.id))
     payment_journals = AccJournal.objects.filter(
         tenant=invoice.tenant, type__in=[AccJournal.TYPE_BANK, AccJournal.TYPE_CASH]
-    )
-    accounts = AccAccount.objects.filter(tenant=invoice.tenant, is_active=True)
+    ).order_by("code")
+    cash_accounts = AccAccount.objects.filter(
+        tenant=invoice.tenant, is_active=True, type__in=[AccAccount.TYPE_BANK, AccAccount.TYPE_CASH]
+    ).order_by("code")
+    accounts = AccAccount.objects.filter(tenant=invoice.tenant, is_active=True).order_by("code")
     allocations = AccPaymentAllocation.objects.filter(move_line__move=invoice).select_related(
         "payment", "move_line"
     )
+    default_payment_journal = payment_journals.first()
+    default_cash_account = cash_accounts.first()
 
     return render(
         request,
@@ -137,7 +142,12 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
             "audit_entries": audit_entries,
             "documents": documents,
             "payment_journals": payment_journals,
+            "cash_accounts": cash_accounts,
             "accounts": accounts,
+            "default_payment_journal_id": (
+                default_payment_journal.id if default_payment_journal else None
+            ),
+            "default_cash_account_id": default_cash_account.id if default_cash_account else None,
             "payment_methods": AccPayment.METHOD_CHOICES,
             "allocations": allocations,
             "error": error,
@@ -152,8 +162,16 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
     detail multi-lignes reste accessible via l'API pour les besoins
     avances — coherent avec le perimetre "ecran minimal" de cette phase)."""
     tenant = resolve_tenant(request)
-    journals = AccJournal.objects.filter(tenant=tenant, type=AccJournal.TYPE_SALE)
-    accounts = AccAccount.objects.filter(tenant=tenant, is_active=True)
+    journals = AccJournal.objects.filter(tenant=tenant, type=AccJournal.TYPE_SALE).order_by("code")
+    receivable_accounts = AccAccount.objects.filter(
+        tenant=tenant, is_active=True, type=AccAccount.TYPE_RECEIVABLE
+    ).order_by("code")
+    income_accounts = AccAccount.objects.filter(
+        tenant=tenant, is_active=True, type=AccAccount.TYPE_INCOME
+    ).order_by("code")
+    default_journal = journals.first()
+    default_receivable_account = receivable_accounts.first()
+    default_income_account = income_accounts.first()
     error = None
 
     if request.method == "POST":
@@ -194,5 +212,18 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "accounting/create.html",
-        {"journals": journals, "accounts": accounts, "error": error, "today": date.today()},
+        {
+            "journals": journals,
+            "receivable_accounts": receivable_accounts,
+            "income_accounts": income_accounts,
+            "default_journal_id": default_journal.id if default_journal else None,
+            "default_receivable_account_id": (
+                default_receivable_account.id if default_receivable_account else None
+            ),
+            "default_income_account_id": (
+                default_income_account.id if default_income_account else None
+            ),
+            "error": error,
+            "today": date.today(),
+        },
     )

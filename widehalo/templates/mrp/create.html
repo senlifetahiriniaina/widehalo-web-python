@@ -6,13 +6,21 @@
   <h1>{% trans "Nouvel ordre de fabrication" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if not boms or not workshops %}
+    <p class="form-error">
+      {% trans "Aucune nomenclature active ou aucun atelier configure pour cette societe." %}
+      <a href="{% url 'mrp:config_boms' %}">{% trans "Configurer les nomenclatures" %}</a>
+      &middot;
+      <a href="{% url 'mrp:config_workshops' %}">{% trans "Configurer les ateliers" %}</a>
+    </p>
+  {% endif %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
       <label for="bom_id">{% trans "Nomenclature" %}</label>
       <select id="bom_id" name="bom_id" required>
         {% for bom in boms %}
-          <option value="{{ bom.id }}">{{ bom.code }}</option>
+          <option value="{{ bom.id }}" {% if bom.id == default_bom_id %}selected{% endif %}>{{ bom.code }}</option>
         {% endfor %}
       </select>
     </div>
@@ -20,7 +28,7 @@
       <label for="workshop_id">{% trans "Atelier" %}</label>
       <select id="workshop_id" name="workshop_id" required>
         {% for workshop in workshops %}
-          <option value="{{ workshop.id }}">{{ workshop.name }}</option>
+          <option value="{{ workshop.id }}" {% if workshop.id == default_workshop_id %}selected{% endif %}>{{ workshop.name }}</option>
         {% endfor %}
       </select>
     </div>

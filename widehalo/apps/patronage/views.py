@@ -199,7 +199,8 @@ def tech_pack_download(request: HttpRequest, pattern_id: str) -> HttpResponse:
 @login_required
 def pattern_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    size_charts = PatSizeChart.objects.filter(tenant=tenant)
+    size_charts = PatSizeChart.objects.filter(tenant=tenant).order_by("name")
+    default_size_chart = size_charts.first()
     error = None
 
     if request.method == "POST":
@@ -216,4 +217,12 @@ def pattern_create(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("patronage:detail", pattern_id=pattern.id)
 
-    return render(request, "patronage/create.html", {"size_charts": size_charts, "error": error})
+    return render(
+        request,
+        "patronage/create.html",
+        {
+            "size_charts": size_charts,
+            "default_size_chart_id": default_size_chart.id if default_size_chart else None,
+            "error": error,
+        },
+    )

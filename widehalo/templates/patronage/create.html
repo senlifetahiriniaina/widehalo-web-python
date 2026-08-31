@@ -6,6 +6,12 @@
   <h1>{% trans "Nouveau patron" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if not size_charts %}
+    <p class="form-error">
+      {% trans "Aucun tableau de mesures configure pour cette societe." %}
+      <a href="{% url 'patronage:config_size_charts' %}">{% trans "Configurer un tableau de mesures" %}</a>
+    </p>
+  {% endif %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -20,7 +26,7 @@
       <label for="size_chart_id">{% trans "Tableau de mesures" %}</label>
       <select id="size_chart_id" name="size_chart_id" required>
         {% for size_chart in size_charts %}
-          <option value="{{ size_chart.id }}">{{ size_chart.name }}</option>
+          <option value="{{ size_chart.id }}" {% if size_chart.id == default_size_chart_id %}selected{% endif %}>{{ size_chart.name }}</option>
         {% endfor %}
       </select>
     </div>

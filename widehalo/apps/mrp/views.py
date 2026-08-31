@@ -245,8 +245,10 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
 @login_required
 def order_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    boms = MrpBom.objects.filter(tenant=tenant, state=MrpBom.STATE_ACTIVE)
-    workshops = MrpWorkshop.objects.filter(tenant=tenant, is_active=True)
+    boms = MrpBom.objects.filter(tenant=tenant, state=MrpBom.STATE_ACTIVE).order_by("code")
+    workshops = MrpWorkshop.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    default_bom = boms.first()
+    default_workshop = workshops.first()
     error = None
 
     if request.method == "POST":
@@ -265,5 +267,13 @@ def order_create(request: HttpRequest) -> HttpResponse:
             return redirect("mrp:detail", order_id=order.id)
 
     return render(
-        request, "mrp/create.html", {"boms": boms, "workshops": workshops, "error": error}
+        request,
+        "mrp/create.html",
+        {
+            "boms": boms,
+            "workshops": workshops,
+            "default_bom_id": default_bom.id if default_bom else None,
+            "default_workshop_id": default_workshop.id if default_workshop else None,
+            "error": error,
+        },
     )

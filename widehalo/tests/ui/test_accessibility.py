@@ -81,9 +81,20 @@ def test_search_page_input_has_a_label() -> None:
     client, _tenant = _logged_in_client()
     soup = BeautifulSoup(client.get("/search/").content, "html.parser")
     labelled_ids = {label.get("for") for label in soup.find_all("label") if label.get("for")}
-    search_input = soup.find("input", {"name": "q"})
+    # id="instant-search" identifies the search page's own input, distinct from the
+    # topbar's always-present "topbar-search" input (which uses aria-label instead
+    # of a <label for>, also a valid accessible name, cf. test below).
+    search_input = soup.find("input", {"name": "q", "id": "instant-search"})
     assert search_input is not None
     assert search_input.get("id") in labelled_ids
+
+
+def test_topbar_search_input_has_an_accessible_name() -> None:
+    client, _tenant = _logged_in_client()
+    soup = BeautifulSoup(client.get("/dashboard/").content, "html.parser")
+    topbar_search = soup.find("input", {"id": "topbar-search"})
+    assert topbar_search is not None
+    assert topbar_search.get("aria-label")
 
 
 # --- Audit accessibilite etendu (UI1-3) : echantillon representatif -------

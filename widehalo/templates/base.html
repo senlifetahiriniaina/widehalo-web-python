@@ -66,13 +66,12 @@
               {% trans "Assistant IA" %}
             </a>
           </li>
-          <li x-data="{ open: false }" @click.outside="open = false">
-            <a href="#" @click.prevent="open = !open">
+          <li>
+            <span class="nav-section-title">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layers"></use></svg>
               {% trans "Modules metier" %}
-              <svg class="ic ic-sm" aria-hidden="true" style="margin-left:auto;" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
-            </a>
-            <ul x-show="open" x-cloak class="app-menu-dropdown">
+            </span>
+            <ul class="app-menu-dropdown">
               <li><a href="/accounting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-calculator"></use></svg>{% trans "Comptabilite" %}</a></li>
               <li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>
               <li><a href="/logistics/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-truck"></use></svg>{% trans "Logistique" %}</a></li>
@@ -114,6 +113,16 @@
       </a>
       {% endif %}
       <span class="crumbs">{% block breadcrumb %}{% endblock %}</span>
+      {% if user.is_authenticated and current_tenant %}
+      <div class="topbar-search">
+        <input id="topbar-search" type="search" name="q"
+               hx-get="/search/instant/" hx-trigger="keyup changed delay:300ms, search"
+               hx-target="#topbar-search-results" hx-swap="innerHTML"
+               placeholder="{% trans 'Rechercher…' %}" autocomplete="off"
+               aria-label="{% trans 'Recherche globale' %}">
+        <div id="topbar-search-results" class="topbar-search-results"></div>
+      </div>
+      {% endif %}
       {% if user.is_authenticated %}
       <div class="account-menu" x-data="{ open: false }" @click.outside="open = false">
         <a href="#" class="account-menu-trigger" @click.prevent="open = !open">

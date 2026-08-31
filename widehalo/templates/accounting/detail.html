@@ -46,12 +46,12 @@
           <input type="hidden" name="action" value="register_payment">
           <select name="payment_journal_id" required aria-label="{% trans 'Journal de paiement' %}">
             {% for journal in payment_journals %}
-              <option value="{{ journal.id }}">{{ journal.name }}</option>
+              <option value="{{ journal.id }}" {% if journal.id == default_payment_journal_id %}selected{% endif %}>{{ journal.name }}</option>
             {% endfor %}
           </select>
           <select name="cash_account_id" required aria-label="{% trans 'Compte de tresorerie' %}">
-            {% for account in accounts %}
-              <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+            {% for account in cash_accounts %}
+              <option value="{{ account.id }}" {% if account.id == default_cash_account_id %}selected{% endif %}>{{ account.code }} — {{ account.name }}</option>
             {% endfor %}
           </select>
           <select name="gain_account_id" required aria-label="{% trans 'Compte de gain de change' %}">

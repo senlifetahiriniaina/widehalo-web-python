@@ -104,6 +104,7 @@ def absence_request(request: HttpRequest) -> HttpResponse:
                 error = "; ".join(exc.messages)
 
     types = PrsAbsenceType.objects.filter(tenant=tenant, is_active=True).order_by("name")
+    default_type = types.first()
     my_absences = (
         PrsAbsence.objects.filter(tenant=tenant, employee=employee, is_active=True).order_by(
             "-date_from"
@@ -114,7 +115,13 @@ def absence_request(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "presence/absence_request.html",
-        {"types": types, "employee": employee, "error": error, "my_absences": my_absences},
+        {
+            "types": types,
+            "default_type_id": default_type.id if default_type else None,
+            "employee": employee,
+            "error": error,
+            "my_absences": my_absences,
+        },
     )
 
 

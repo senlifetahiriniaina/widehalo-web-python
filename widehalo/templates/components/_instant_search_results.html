@@ -1,5 +1,5 @@
 {% load i18n %}
-<ul id="instant-search-results">
+<ul>
   {% for result in results %}
     <li><a href="{{ result.url }}">{{ result.reference }} — {{ result.text }}</a></li>
   {% empty %}

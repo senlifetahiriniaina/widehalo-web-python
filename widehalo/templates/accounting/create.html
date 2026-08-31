@@ -6,13 +6,21 @@
     <h1>{% trans "Nouvelle facture client" %}</h1>
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if not journals or not receivable_accounts or not income_accounts %}
+    <p class="form-error">
+      {% trans "La configuration comptable de cette societe est incomplete (journal de vente, compte client ou compte produit manquant)." %}
+      <a href="{% url 'accounting:config_journals' %}">{% trans "Configurer les journaux" %}</a>
+      &middot;
+      <a href="{% url 'accounting:config_accounts' %}">{% trans "Configurer les comptes" %}</a>
+    </p>
+  {% endif %}
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
       <label for="journal_id">{% trans "Journal" %}</label>
       <select id="journal_id" name="journal_id" required>
         {% for journal in journals %}
-          <option value="{{ journal.id }}">{{ journal.name }}</option>
+          <option value="{{ journal.id }}" {% if journal.id == default_journal_id %}selected{% endif %}>{{ journal.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -23,16 +31,16 @@
     <div class="form-field">
       <label for="receivable_account_id">{% trans "Compte client" %}</label>
       <select id="receivable_account_id" name="receivable_account_id" required>
-        {% for account in accounts %}
-          <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+        {% for account in receivable_accounts %}
+          <option value="{{ account.id }}" {% if account.id == default_receivable_account_id %}selected{% endif %}>{{ account.code }} — {{ account.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="form-field">
       <label for="income_account_id">{% trans "Compte produit" %}</label>
       <select id="income_account_id" name="income_account_id" required>
-        {% for account in accounts %}
-          <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+        {% for account in income_accounts %}
+          <option value="{{ account.id }}" {% if account.id == default_income_account_id %}selected{% endif %}>{{ account.code }} — {{ account.name }}</option>
         {% endfor %}
       </select>
     </div>

@@ -225,10 +225,35 @@ table.smart-table td,
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.topbar .crumbs { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--fs-13); color: var(--fg-3); }
+.topbar .crumbs { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--fs-13); color: var(--fg-3); flex: 1 1 auto; }
 .topbar .crumbs a { color: var(--fg-3); text-decoration: none; }
 .topbar .crumbs a:hover { color: var(--fg-1); text-decoration: underline; }
 .topbar .crumbs .crumb-sep { color: var(--fg-4); }
+
+.topbar-search { position: relative; flex: 0 1 320px; }
+.topbar-search #topbar-search {
+  width: 100%;
+  padding: 6px var(--spacing-sm);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--fs-13);
+  background: var(--bg-canvas);
+  color: var(--fg-1);
+}
+.topbar-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+.topbar-search-results:empty { display: none; }
 .topbar .crumbs .crumb-current { color: var(--fg-1); font-weight: var(--fw-500); }
 
 /* Menu compte utilisateur (chantier menu compte utilisateur / section
