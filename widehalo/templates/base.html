@@ -111,12 +111,14 @@
     </main>
   </div>
 
-  {# Confirmation destructrice generalisee (UI1-3) : modale unique, pilotee
-     par le store Alpine `confirmDialog` (cf. static/js/ui_patterns.js),
-     declenchee automatiquement par tout attribut htmx `hx-confirm="..."`
-     present sur n'importe quel ecran, present ou futur, sans modification
-     de ce template. Meme patron de composant que la modale generique
-     `whModal()` (x-data ouverture/fermeture + overlay). #}
+  {% comment %}
+  Confirmation destructrice generalisee (UI1-3) : modale unique, pilotee
+  par le store Alpine `confirmDialog` (cf. static/js/ui_patterns.js),
+  declenchee automatiquement par tout attribut htmx `hx-confirm="..."`
+  present sur n'importe quel ecran, present ou futur, sans modification
+  de ce template. Meme patron de composant que la modale generique
+  `whModal()` (x-data ouverture/fermeture + overlay).
+  {% endcomment %}
   <div x-data
        x-show="$store.confirmDialog.open"
        x-cloak
@@ -132,12 +134,14 @@
     </div>
   </div>
 
-  {# Toasts de notification (UI1-3) : alimentes par l'evenement DOM
-     `wh-toast` — que htmx declenche automatiquement pour toute cle du
-     meme nom presente dans l'en-tete de reponse `HX-Trigger` d'une action.
-     Aucune vue de ce chantier n'emet encore cet en-tete (cf. commentaire
-     de tete de static/js/ui_patterns.js) : le mecanisme est pret, a
-     brancher au besoin par un futur chantier. #}
+  {% comment %}
+  Toasts de notification (UI1-3) : alimentes par l'evenement DOM
+  `wh-toast` — que htmx declenche automatiquement pour toute cle du
+  meme nom presente dans l'en-tete de reponse `HX-Trigger` d'une action.
+  Aucune vue de ce chantier n'emet encore cet en-tete (cf. commentaire
+  de tete de static/js/ui_patterns.js) : le mecanisme est pret, a
+  brancher au besoin par un futur chantier.
+  {% endcomment %}
   <div class="wh-toast-container" aria-live="polite" role="status" x-data>
     <template x-for="item in $store.toast.items" :key="item.id">
       <div class="wh-toast" :class="'wh-toast-' + item.level" x-text="item.message"></div>

@@ -4,10 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% trans "Connexion" %} — WideHalo</title>
-  {# app.css consomme les variables definies par tokens.css (couleurs/espacement/
-     polices) via var(--...) — sans lui, ses regles ne resolvent a rien et la
-     page rend en texte brut non stylise. Meme trio, dans le meme ordre, que
-     base.html. #}
+  {% comment %}
+  app.css consomme les variables definies par tokens.css (couleurs/espacement/
+  polices) via var(--...) — sans lui, ses regles ne resolvent a rien et la
+  page rend en texte brut non stylise. Meme trio, dans le meme ordre, que
+  base.html. Django's {# #} shorthand ne supporte pas les commentaires
+  multi-lignes (son tokenizer n'utilise pas re.DOTALL) — {% comment %} le
+  supporte, jamais l'inverse.
+  {% endcomment %}
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
