@@ -54,7 +54,20 @@ class TenantBackupSchedule(BaseModel):
 class TenantDataOperation(BaseModel):
     """Journal unique des operations de sauvegarde/restauration/
     reinitialisation d'un tenant — pas `ReferenceMixin` (enregistrement de
-    suivi, pas un document numerote, meme choix que `RiskItem`)."""
+    suivi, pas un document numerote, meme choix que `RiskItem`).
+
+    **Pas de permission personnalisee ici** (contrairement au premier jet
+    de ce chantier, corrige apres coup par le commanditaire — cf. rapport
+    de fin de chantier) : sauvegarde/restauration/reinitialisation/
+    planification sont reservees au SEUL superadministrateur
+    (`request.user.is_superuser`), jamais a un role `admin`/`direction`
+    classique via le mecanisme RBAC generique (`ROLE_APP_PERMISSIONS`/
+    `CUSTOM_PERMISSIONS` n'attribuent des droits qu'a des GROUPES, jamais
+    a `is_superuser` seul — une permission Django ordinaire ici aurait
+    donc automatiquement laisse passer `admin`/`direction`, ce qui n'est
+    pas voulu). Le garde reel vit directement dans les vues/endpoints
+    (`apps.core.api_backup`/`apps.core.views.backup_admin`), verifie
+    `is_superuser` sans intermediaire RBAC."""
 
     TYPE_BACKUP = "backup"
     TYPE_RESTORE = "restore"
@@ -94,7 +107,6 @@ class TenantDataOperation(BaseModel):
     class Meta:
         db_table = "core_tenant_data_operation"
         ordering = ["-created_at"]
-        permissions = [("manage_tenant_backups", "Peut gérer les sauvegardes et restaurations")]
 
     def __str__(self) -> str:
         return f"{self.get_operation_type_display()} — {self.tenant} ({self.status})"

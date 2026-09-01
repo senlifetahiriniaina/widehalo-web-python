@@ -128,6 +128,37 @@ EXPECTED_UNDECLARED_PATHS: set[tuple[str, str]] = {
     # propose au LLM), pas un `require_permission` global sur l'endpoint
     # lui-meme (cf. docstring de tete de `apps/ai/api.py`).
     ("POST", "/ai/data-query/ask"),
+    # Chantier sauvegarde/restauration/reinitialisation : `is_superuser`
+    # STRICT (`require_superuser`, cf. `apps.core.api_backup`), jamais une
+    # permission RBAC N2 declaree via `require_permission` — decision
+    # actee explicitement par le commanditaire APRES le demarrage de ce
+    # chantier : ces operations doivent rester hors de portee de TOUT
+    # role, meme `admin`/`direction`, donc hors du mecanisme de groupes/
+    # permissions que ce test verifie ici. Couverture RBAC equivalente
+    # assuree par `apps.core.tests.test_api_backup` (403 pour un
+    # `admin`/`direction` non-superuser, 200 pour un superuser).
+    ("GET", "/core/backups"),
+    ("POST", "/core/backups"),
+    ("POST", "/core/backups/restore"),
+    ("POST", "/core/reset"),
+    ("GET", "/core/backup-schedule"),
+    ("PUT", "/core/backup-schedule"),
+}
+
+# Sous-ensemble de `EXPECTED_UNDECLARED_PATHS` gate par `is_superuser`
+# STRICT (`require_superuser`), PAS "ouvert a tout role authentifie" comme
+# le reste de `EXPECTED_UNDECLARED_PATHS` (chat/AI...) — l'hypothese de
+# `test_rbac_matrix_report` ("endpoint sans permission declaree => jamais
+# de 403") ne s'applique donc pas ici : 403 est le resultat ATTENDU pour
+# TOUS les roles sondes (aucun n'est superuser), exclu explicitement de
+# cette assertion plutot que signale comme un ecart.
+SUPERUSER_ONLY_PATHS: set[tuple[str, str]] = {
+    ("GET", "/core/backups"),
+    ("POST", "/core/backups"),
+    ("POST", "/core/backups/restore"),
+    ("POST", "/core/reset"),
+    ("GET", "/core/backup-schedule"),
+    ("PUT", "/core/backup-schedule"),
 }
 
 
@@ -303,6 +334,10 @@ def test_rbac_matrix_report(request: pytest.FixtureRequest) -> None:
 
     mismatches = []
     for op, row in matrix.items():
+        if (op.method, op.path) in SUPERUSER_ONLY_PATHS:
+            # 403 est le resultat ATTENDU pour tous les roles sondes ici
+            # (aucun superuser) — cf. docstring de `SUPERUSER_ONLY_PATHS`.
+            continue
         is_exempt = (op.method, op.path) in EXPECTED_UNDECLARED_PATHS
         for role, code in row.items():
             if code == 422:

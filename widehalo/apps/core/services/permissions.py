@@ -156,6 +156,45 @@ def require_permission(codename: str) -> Callable[[Callable[..., Any]], Callable
     return decorator
 
 
+class _SuperuserGuardedView:
+    """Meme mecanisme (et meme raison d'etre, cf. docstring de
+    `_PermissionGuardedView`) que le garde de permission ci-dessus, mais
+    reserve au SUPERADMINISTRATEUR uniquement (`request.user.is_superuser`)
+    — jamais une permission Django/RBAC generique, qui n'attribue de
+    droits qu'a des GROUPES et laisserait donc passer `admin`/`direction`
+    des qu'un groupe la porte. A utiliser pour les operations qui doivent
+    rester hors de portee de TOUT role, meme de pilotage transverse (ex.
+    sauvegarde/restauration/reinitialisation d'un tenant, cf.
+    `apps.core.api_backup`)."""
+
+    def __init__(self, func: Callable[..., Any]) -> None:
+        functools.update_wrapper(self, func)
+        self._func = func
+
+    def __call__(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+        user = getattr(request, "auth", None) or getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return JsonResponse({"detail": _("authentification requise")}, status=401)
+        if not getattr(user, "is_superuser", False):
+            return JsonResponse({"detail": _("réservé au superadministrateur")}, status=403)
+        return self._func(request, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._func, name)
+
+
+def require_superuser(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorateur pour endpoint django-ninja : renvoie 401 si non
+    authentifie, 403 si authentifie mais `is_superuser` est faux — jamais
+    satisfait par une permission/role RBAC, meme `admin`/`direction`.
+    Meme regle d'ordre de decorateurs que `require_permission` (cf. sa
+    docstring) : `@router.get/post/...` reste l'exterieur,
+    `@require_superuser` l'interieur, juste au-dessus de `def`. Pas
+    d'argument (contrairement a `require_permission(codename)`) : usage
+    direct `@require_superuser`."""
+    return _SuperuserGuardedView(func)
+
+
 def user_role_codes(user: User) -> set[str]:
     return set(user.groups.values_list("name", flat=True))
 

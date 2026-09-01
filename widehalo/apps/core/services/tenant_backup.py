@@ -24,6 +24,17 @@ from apps.core.services.tenant_export import export_tenant_archive, import_tenan
 from apps.core.services.tenant_reset import reset_tenant_data
 
 
+def confirm_tenant_code(tenant: Tenant, confirmation: str) -> bool:
+    """Revalidation stricte, cote SERVEUR, de la saisie « tapez le code du
+    tenant pour confirmer » exigee avant restauration/reinitialisation
+    (operations irreversibles sans sauvegarde prealable, cf. plan) — une
+    verification uniquement cote client (JS) ne suffit jamais pour une
+    action destructrice de ce niveau. Compare au `code` (identifiant
+    stable, unique, jamais accentue) plutot qu'au `name` (raison sociale
+    libre, peut contenir accents/espaces/homonymes)."""
+    return confirmation.strip() == tenant.code
+
+
 def _archive_summary(archive_bytes: bytes) -> dict[str, int]:
     """Resume grossier (nombre de lignes par modele exporte), lu directement
     depuis l'archive plutot que reconstruit ailleurs — evite de reparser

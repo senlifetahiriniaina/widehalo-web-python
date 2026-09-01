@@ -571,18 +571,18 @@ CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES = ("admin", "direction")
 for _role in CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_users")
 
-# Chantier sauvegarde/restauration/reinitialisation : `core.manage_tenant_
-# backups` (declaree en `Meta.permissions` de `core.TenantDataOperation`,
-# le modele reellement mute par les 3 operations) garde la configuration de
-# planification ET le declenchement manuel de sauvegarde/restauration/
-# reinitialisation — meme patron exact que `core.manage_users` ci-dessus,
-# permission DEDIEE (jamais reutilise `core.manage_users`, cf. plan :
-# perimetre distinct malgre le meme role-set). Restreinte a
-# `admin`/`direction` uniquement : restauration/reinitialisation sont
-# irreversibles sans sauvegarde prealable, jamais un role "domaine cible".
-CUSTOM_PERMISSIONS_MANAGE_TENANT_BACKUPS_ROLES = ("admin", "direction")
-for _role in CUSTOM_PERMISSIONS_MANAGE_TENANT_BACKUPS_ROLES:
-    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_tenant_backups")
+# Chantier sauvegarde/restauration/reinitialisation : PAS de permission
+# personnalisee ici (contrairement au premier jet de ce chantier, corrige
+# apres coup par le commanditaire) — sauvegarde/restauration/
+# reinitialisation/planification sont reservees au SEUL
+# superadministrateur (`request.user.is_superuser`), jamais a un role
+# `admin`/`direction` via ce mecanisme RBAC generique (qui n'attribue des
+# droits qu'a des GROUPES : une permission classique ici aurait
+# automatiquement laisse passer `admin`/`direction`, ce qui n'est pas
+# voulu). Le garde reel vit directement dans les vues/endpoints
+# (`apps.core.api_backup`/`apps.core.views.backup_admin`), verifie
+# `is_superuser` sans intermediaire RBAC — cf. `apps.core.models.backup.
+# TenantDataOperation` pour le meme rappel.
 
 _DJANGO_ACTIONS = ("view", "add", "change")
 
