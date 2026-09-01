@@ -41,4 +41,8 @@ class Command(BaseCommand):
         # comptes deja crees, donc l'ordre importe.
         call_command("load_pcg2005", tenant=tenant.code)
         call_command("load_default_journals", tenant=tenant.code)
+        # Pipeline commercial par defaut (HubSpot, 7 etapes — cf. analyse
+        # comparative des 5 principaux CRM mondiaux) — meme convention
+        # `call_command` (jamais un import Python d'un module `crm`).
+        call_command("load_default_pipeline", tenant=tenant.code)
         self.stdout.write(self.style.SUCCESS(f"Tenant créé : {tenant.code} ({tenant.id})"))

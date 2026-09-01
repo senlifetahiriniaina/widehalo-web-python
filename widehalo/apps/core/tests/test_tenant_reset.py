@@ -14,6 +14,7 @@ from apps.core.models.user import User, UserTenantMembership
 from apps.core.services.smart_defaults import apply_country_defaults
 from apps.core.services.tenant_reset import reset_tenant_data
 from apps.core.tests.utils import use_tenant
+from apps.crm.models import CrmPipeline
 from apps.helpdesk.models import HlpTicketTypeCatalog
 
 pytestmark = pytest.mark.django_db
@@ -28,6 +29,7 @@ def _create_tenant_like_command(code: str) -> Tenant:
     call_command("load_ticket_type_catalog", tenant=tenant.code)
     call_command("load_pcg2005", tenant=tenant.code)
     call_command("load_default_journals", tenant=tenant.code)
+    call_command("load_default_pipeline", tenant=tenant.code)
     return tenant
 
 
@@ -36,9 +38,11 @@ def test_reset_with_reseed_matches_a_freshly_created_tenant() -> None:
     reference_accounts = AccAccount.all_objects.filter(tenant=reference).count()
     reference_journals = AccJournal.all_objects.filter(tenant=reference).count()
     reference_ticket_types = HlpTicketTypeCatalog.all_objects.filter(tenant=reference).count()
+    reference_pipelines = CrmPipeline.all_objects.filter(tenant=reference).count()
     assert reference_accounts > 0
     assert reference_journals > 0
     assert reference_ticket_types > 0
+    assert reference_pipelines == 1
 
     subject = _create_tenant_like_command("RESET-SUBJ")
     owner = User.objects.create_user(email="owner@reset.test", password="Str0ngPassw0rd!23")
@@ -59,6 +63,7 @@ def test_reset_with_reseed_matches_a_freshly_created_tenant() -> None:
     assert AccAccount.all_objects.filter(tenant=subject).count() == reference_accounts
     assert AccJournal.all_objects.filter(tenant=subject).count() == reference_journals
     assert HlpTicketTypeCatalog.all_objects.filter(tenant=subject).count() == reference_ticket_types
+    assert CrmPipeline.all_objects.filter(tenant=subject).count() == reference_pipelines
 
 
 def test_reset_preserves_tenant_user_and_membership() -> None:

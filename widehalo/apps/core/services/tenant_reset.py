@@ -70,8 +70,9 @@ def reset_tenant_data(
 ) -> dict[str, int]:
     """Vide toutes les donnees metier de `tenant`, puis (si `reseed=True`)
     rejoue la sequence de chargement par defaut d'un tenant neuf
-    (`apply_country_defaults` + PCG2005 + journaux + catalogue de tickets —
-    meme sequence exacte que `apps.core.management.commands.create_tenant`).
+    (`apply_country_defaults` + PCG2005 + journaux + catalogue de tickets +
+    pipeline commercial par defaut — meme sequence exacte que
+    `apps.core.management.commands.create_tenant`).
 
     `reseed=False` est reserve a l'usage interne de
     `tenant_backup.restore_tenant_from_archive` : la restauration reimporte
@@ -129,5 +130,6 @@ def reset_tenant_data(
             call_command("load_ticket_type_catalog", tenant=tenant.code)
             call_command("load_pcg2005", tenant=tenant.code)
             call_command("load_default_journals", tenant=tenant.code)
+            call_command("load_default_pipeline", tenant=tenant.code)
 
     return deleted_counts

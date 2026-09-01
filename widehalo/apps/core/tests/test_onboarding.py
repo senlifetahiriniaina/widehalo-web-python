@@ -215,6 +215,15 @@ def test_setup_company_creates_tenant_and_attaches_current_user() -> None:
         assert AccAccount.objects.filter(tenant=tenant).count() >= 54
         assert AccJournal.objects.filter(tenant=tenant).count() == 7
 
+    # Pipeline commercial par defaut (HubSpot, 7 etapes — cf. analyse
+    # comparative des 5 principaux CRM mondiaux) : jamais vide non plus pour
+    # une entreprise reelle initialisee via ce parcours.
+    from apps.crm.models import CrmPipeline, CrmStage
+
+    with use_tenant(tenant.id):
+        pipeline = CrmPipeline.objects.get(tenant=tenant, is_default=True)
+        assert CrmStage.objects.filter(tenant=tenant, pipeline=pipeline).count() == 7
+
     # L'amorçage d'instance est termine (plus de redirection vers /setup/) —
     # seul l'enrolement MFA (deja exige du role "admin" avant ce lot, cf.
     # etape 4, sans lien avec cette fonctionnalite) reste a faire ensuite.

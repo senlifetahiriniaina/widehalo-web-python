@@ -56,6 +56,22 @@ def test_create_tenant_command_preloads_chart_of_accounts_and_default_journals()
         assert cash_journal.default_account.code.startswith("530")
 
 
+def test_create_tenant_command_preloads_default_crm_pipeline() -> None:
+    """Un nouveau tenant a deja son pipeline commercial par defaut (HubSpot,
+    7 etapes — cf. analyse comparative des 5 principaux CRM mondiaux) sans
+    aucune action manuelle."""
+    from apps.crm.models import CrmPipeline, CrmStage
+
+    call_command(
+        "create_tenant", "--code", "MG-DEMO-CRM", "--name", "Demo Commercial", "--country", "MG"
+    )
+
+    tenant = Tenant.objects.get(code="MG-DEMO-CRM")
+    with use_tenant(tenant.id):
+        pipeline = CrmPipeline.objects.get(tenant=tenant, is_default=True)
+        assert CrmStage.objects.filter(tenant=tenant, pipeline=pipeline).count() == 7
+
+
 def test_unknown_country_leaves_tenant_defaults_unchanged() -> None:
     from apps.core.services.smart_defaults import apply_country_defaults
 
