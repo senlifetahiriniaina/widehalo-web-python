@@ -8,6 +8,9 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.db.uuid7 import uuid7
+from apps.core.models.base import BaseModel
+
+PREFERRED_LANGUAGE_CHOICES = [("fr", "Français"), ("en", "English")]
 
 
 class UserManager(DjangoUserManager["User"]):
@@ -52,7 +55,9 @@ class User(AbstractUser):
     username = None  # type: ignore[assignment]
     email = models.EmailField(_("adresse e-mail"), unique=True)
     phone = models.CharField(max_length=32, blank=True)
-    preferred_language = models.CharField(max_length=5, default="fr")
+    preferred_language = models.CharField(
+        max_length=5, choices=PREFERRED_LANGUAGE_CHOICES, default="fr"
+    )
     must_change_password = models.BooleanField(default=False)
     auth_provider = models.CharField(max_length=16, default="local")
     """Point d'extension pour un futur SSO OIDC (V2) : seul 'local' est
@@ -67,6 +72,15 @@ class User(AbstractUser):
         db_table = "core_user"
         verbose_name = _("utilisateur")
         verbose_name_plural = _("utilisateurs")
+        # UXR1 : `core.manage_users` (meme patron que `projects.
+        # bill_prjproject`, cf. `apps.core.services.rbac_policy`) garde le
+        # nouvel ecran admin (`apps.core.views.admin_users`) qui liste/edite
+        # TOUT utilisateur (roles, societes, changement d'e-mail via
+        # `services/email_change.py`) — restreint a `admin`/`direction`,
+        # jamais accorde via la matrice generique `ROLE_APP_PERMISSIONS`
+        # (qui ne couvre pas `core`, cf. RSK1-2/QLT1-2 dans ce meme
+        # registre pour le meme raisonnement).
+        permissions = [("manage_users", "Peut gérer les comptes utilisateurs")]
 
     def __str__(self) -> str:
         return self.email
@@ -85,3 +99,58 @@ class UserTenantMembership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} @ {self.tenant}"
+
+
+class UserEmailChangeRequest(BaseModel):
+    """UXR1 — confirmation d'un changement d'adresse e-mail par lien a
+    jeton envoye par e-mail (cf. `apps.core.services.email_change`), jamais
+    une ecriture directe de `User.email` depuis l'ecran admin
+    (`apps.core.views.admin_users.admin_user_edit`). Delibere : `email` est
+    `USERNAME_FIELD` (identite de connexion), le modifier sans verifier que
+    le destinataire possede reellement cette boite mail romprait
+    silencieusement l'acces au compte (faute de frappe, usurpation).
+
+    **Pas de `ReferenceMixin`** (consigne explicite du plan) : cette table
+    est un jeton de flux transitoire (24h), jamais un document metier
+    numerote/recherche par reference.
+
+    **`RLS_FORCE_FOR_OWNER = False`** : meme derogation, pour la meme
+    raison structurelle, que `apps.projects.models.PrjGuestAccess` (cf. sa
+    docstring et celle de `apps.core.management.commands.apply_rls`). La
+    vue publique `GET /account/confirm-email/<token>/` (cf. `config.urls`)
+    n'exige PAS de session authentifiee — le destinataire clique depuis sa
+    boite mail, potentiellement sans jamais s'etre connecte depuis ce
+    navigateur — donc AUCUN tenant n'est necessairement actif au moment de
+    resoudre le token (meme probleme de la poule et l'oeuf que le portail
+    invite PJ14). `confirm_email_change` (`services/email_change.py`)
+    utilise donc `UserEmailChangeRequest.all_objects.filter(token=...)`,
+    jamais le manager `objects` filtre par tenant.
+
+    **Rejet indiscernable** (token inconnu / deja confirme / expire) :
+    `confirm_email_change` renvoie `False` dans les 3 cas, jamais une
+    exception, meme discipline que `apps.projects.services.guest_portal.
+    resolve_guest_access`."""
+
+    RLS_FORCE_FOR_OWNER = False
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_change_requests")
+    new_email = models.EmailField()
+    token = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
+    requested_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Admin a l'origine du changement, ou None si l'utilisateur "
+        "a lui-meme demande le changement.",
+    )
+    expires_at = models.DateTimeField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "core_user_email_change_request"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} -> {self.new_email}"

@@ -558,6 +558,19 @@ for _role in _QLT_FULL_ROLES:
         }
     )
 
+# UXR1 (gestion des utilisateurs) : `core.manage_users` (declaree en
+# `Meta.permissions` de `core.User`) garde les 2 nouveaux ecrans admin
+# (`apps.core.views.admin_users.admin_user_list`/`admin_user_edit`) — meme
+# patron que `projects.bill_prjproject` ci-dessus. `core` n'apparait pas
+# dans `ROLE_APP_PERMISSIONS` (aucun role n'a jamais recu d'acces generique
+# a TOUT modele `core`, cf. RSK1-2/QLT1-2), donc cette permission
+# personnalisee est la SEULE porte d'entree de cet ecran. Restreinte a
+# `admin`/`direction` uniquement (pilotage transverse des comptes,
+# operation sensible — jamais un role "domaine cible").
+CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES = ("admin", "direction")
+for _role in CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_users")
+
 _DJANGO_ACTIONS = ("view", "add", "change")
 
 

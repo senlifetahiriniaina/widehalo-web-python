@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Utilisateurs" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Utilisateurs" %}</h1>
+</div>
+  {% include "components/_smart_table.html" %}
+{% endblock %}

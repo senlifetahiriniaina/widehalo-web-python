@@ -19,10 +19,18 @@
     <label>{% trans "Rôle(s)" %}</label>
     <input type="text" value="{{ role_codes|join:', ' }}" disabled>
   </div>
-  <div class="form-field">
-    <label>{% trans "Société" %}</label>
-    <input type="text" value="{{ current_tenant.name|default:'' }}" disabled>
-  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="tenant_id">{% trans "Société" %}</label>
+      <select id="tenant_id" name="tenant_id" onchange="this.form.submit()">
+        {% for membership in tenant_memberships %}
+          <option value="{{ membership.tenant_id }}" {% if current_tenant and membership.tenant_id == current_tenant.id %}selected{% endif %}>{{ membership.tenant.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button type="submit">{% trans "Changer de société" %}</button></noscript>
+  </form>
   <form method="post">
     {% csrf_token %}
     <div class="form-field">
@@ -39,7 +47,11 @@
     </div>
     <div class="form-field">
       <label for="preferred_language">{% trans "Langue préférée" %}</label>
-      <input id="preferred_language" type="text" name="preferred_language" value="{{ user.preferred_language }}" maxlength="5">
+      <select id="preferred_language" name="preferred_language">
+        {% for lang_code, lang_label in language_choices %}
+          <option value="{{ lang_code }}" {% if lang_code == user.preferred_language %}selected{% endif %}>{{ lang_label }}</option>
+        {% endfor %}
+      </select>
     </div>
     <button type="submit">{% trans "Enregistrer" %}</button>
   </form>

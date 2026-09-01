@@ -23,8 +23,9 @@ from django_otp import login as otp_login
 
 from apps.core.models.regulatory import CountryDefaultsProfile
 from apps.core.models.tenant import Tenant
-from apps.core.models.user import UserTenantMembership
+from apps.core.models.user import PREFERRED_LANGUAGE_CHOICES, UserTenantMembership
 from apps.core.services import mfa as mfa_service
+from apps.core.services.email_change import confirm_email_change
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.smart_defaults import apply_country_defaults
 
@@ -45,6 +46,18 @@ def login_view(request: HttpRequest) -> HttpResponse:
         return render(request, "login.html", {"error": True})
 
     return render(request, "login.html", {})
+
+
+def confirm_email_view(request: HttpRequest, token: str) -> HttpResponse:
+    """UXR1 — vue PUBLIQUE (pas de `@login_required` : le destinataire
+    clique depuis sa boite mail, potentiellement sans jamais s'etre
+    connecte depuis ce navigateur, cf. docstring de
+    `UserEmailChangeRequest`). Rend une page AUTONOME (comme `login.html`,
+    jamais `{% extends "base.html" %}`) : `base.html` suppose une session
+    (menu compte, recherche, sidebar) que cette vue n'a structurellement
+    jamais — meme choix deja fait par `login_view` pour la meme raison."""
+    success = confirm_email_change(token)
+    return render(request, "confirm_email.html", {"success": success})
 
 
 @login_required
@@ -92,20 +105,41 @@ def profile_view(request: HttpRequest) -> HttpResponse:
     Meme style manuel que `change_password_view` (pas de `forms.py`, pas de
     `django.contrib.messages` — jamais utilise dans ce depot). `email`
     reste affiche en lecture seule : c'est l'identite de connexion
-    (`USERNAME_FIELD`), la modifier necessiterait un flux de verification
-    dedie, hors perimetre de ce chantier. `preferred_language` reste un
-    simple champ texte : aucune liste de choix n'est definie nulle part
-    dans le code existant, ne pas en inventer une."""
+    (`USERNAME_FIELD`), la modifier passe desormais par l'ecran admin
+    (`apps.core.views.admin_users.admin_user_edit` -> `services/
+    email_change.py`), jamais depuis cet auto-service. `Rôle(s)` reste en
+    lecture seule (inchange, UXR1 ne touche pas ce point).
+
+    Deux formulaires distincts postent sur cette meme URL, distingues par
+    la presence de `tenant_id` (selecteur de societe) — le formulaire
+    profil (nom/prenom/telephone/langue) n'en porte jamais.
+
+    **Selecteur de societe (UXR1)** : `tenant_id` soumis n'est JAMAIS pris
+    tel quel — on verifie qu'une ligne `UserTenantMembership` (request.user,
+    ce tenant) existe reellement avant de positionner
+    `request.session["tenant_id"]` (jamais une auto-inscription implicite a
+    une societe dont l'utilisateur n'est pas deja membre)."""
     user = request.user
     errors: list[str] = []
     success = False
+
+    if request.method == "POST" and "tenant_id" in request.POST:
+        tenant_id = request.POST.get("tenant_id", "").strip()
+        membership_exists = UserTenantMembership.objects.filter(
+            user=user, tenant_id=tenant_id
+        ).exists()
+        if membership_exists:
+            request.session["tenant_id"] = tenant_id
+        return redirect("profile")
+
     if request.method == "POST":
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
         phone = request.POST.get("phone", "").strip()
-        preferred_language = request.POST.get("preferred_language", "").strip() or "fr"
-        if len(preferred_language) > 5:
-            errors.append(_("La langue préférée ne doit pas dépasser 5 caractères."))
+        preferred_language = request.POST.get("preferred_language", "").strip()
+        valid_languages = {code for code, _label in PREFERRED_LANGUAGE_CHOICES}
+        if preferred_language not in valid_languages:
+            errors.append(_("Langue préférée invalide."))
         if not errors:
             user.first_name = first_name
             user.last_name = last_name
@@ -121,6 +155,10 @@ def profile_view(request: HttpRequest) -> HttpResponse:
             "errors": errors,
             "success": success,
             "role_codes": sorted(user_role_codes(user)),
+            "language_choices": PREFERRED_LANGUAGE_CHOICES,
+            "tenant_memberships": UserTenantMembership.objects.filter(user=user).select_related(
+                "tenant"
+            ),
         },
     )
 

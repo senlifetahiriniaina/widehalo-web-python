@@ -51,5 +51,9 @@
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>
       <h3>{% trans "Support" %}</h3>
     </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'admin_user_list' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
+      <h3>{% trans "Utilisateurs" %}</h3>
+    </a>
   </div>
 {% endblock %}
