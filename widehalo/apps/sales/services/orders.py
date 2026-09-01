@@ -68,11 +68,24 @@ def create_order(
     salesperson: User | None = None,
     currency: str = "MGA",
     source_lead_id: UUID | None = None,
+    reference: str = "",
     **optional_fields: Any,
 ) -> SalesOrder:
     """Creation directe (sans devis prealable) — meme forme que
-    `quotations.create_quotation`."""
-    reference = next_reference(tenant, "CMD", timezone.now().year)
+    `quotations.create_quotation`, y compris le `reference` optionnel
+    modifiable (DT4, cf. sa docstring pour la discipline complete :
+    vide -> `next_reference()` inchange, renseigne -> unicite par tenant
+    revalidee explicitement, jamais de pre-remplissage "prochain numero
+    suggere" cote serveur)."""
+    reference = reference.strip()
+    if reference:
+        if SalesOrder.objects.filter(tenant=tenant, reference=reference).exists():
+            raise ValidationError(
+                _("Une commande avec la référence %(reference)s existe déjà.")
+                % {"reference": reference}
+            )
+    else:
+        reference = next_reference(tenant, "CMD", timezone.now().year)
     return SalesOrder.objects.create(
         tenant=tenant,
         reference=reference,

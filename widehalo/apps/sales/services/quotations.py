@@ -33,9 +33,30 @@ def create_quotation(
     salesperson: User | None = None,
     currency: str = "MGA",
     source_lead_id: UUID | None = None,
+    reference: str = "",
     **optional_fields: Any,
 ) -> SalesQuotation:
-    reference = next_reference(tenant, "DEVIS", timezone.now().year)
+    """Chantier "numero de document modifiable" (DT4) : `reference` reste
+    optionnel — vide (comportement par defaut, tous les appelants
+    existants), `next_reference()` s'applique inchange. Renseigne, la
+    valeur saisie est utilisee TELLE QUELLE apres verification d'unicite
+    par tenant (`ReferenceMixin.reference` n'a aucune contrainte d'unicite
+    en base, `db_index=True` seulement — cf. `apps.core.models.base` — donc
+    la collision doit etre revalidee explicitement ici). **Jamais** de
+    pre-remplissage cote serveur avec un "prochain numero suggere" :
+    `next_reference()` verrouille et incremente une sequence a chaque
+    appel, la consommer au simple chargement d'un formulaire jamais
+    soumis creerait des trous dans la numerotation — cette fonction n'est
+    donc appelee qu'ici, au moment reel de la creation."""
+    reference = reference.strip()
+    if reference:
+        if SalesQuotation.objects.filter(tenant=tenant, reference=reference).exists():
+            raise ValidationError(
+                _("Un devis avec la référence %(reference)s existe déjà.")
+                % {"reference": reference}
+            )
+    else:
+        reference = next_reference(tenant, "DEVIS", timezone.now().year)
     return SalesQuotation.objects.create(
         tenant=tenant,
         reference=reference,

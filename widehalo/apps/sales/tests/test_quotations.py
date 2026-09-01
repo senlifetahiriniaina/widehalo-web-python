@@ -51,6 +51,37 @@ def test_create_quotation_generates_sequenced_reference(sales_setup) -> None:
         assert quotation.currency == "MGA"
 
 
+def test_create_quotation_with_custom_reference_uses_it_as_is(sales_setup) -> None:
+    """DT4 : `reference` fourni et unique -> utilise tel quel, jamais
+    surcharge par `next_reference()`."""
+    tenant, _variant = sales_setup
+    with use_tenant(tenant.id):
+        quotation = create_quotation(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), reference="DEVIS-PERSO-01"
+        )
+        assert quotation.reference == "DEVIS-PERSO-01"
+
+
+def test_create_quotation_with_colliding_reference_raises(sales_setup) -> None:
+    """DT4 : `reference` fourni en collision avec un devis existant du meme
+    tenant -> `ValidationError` claire, rien de nouveau n'est cree."""
+    tenant, _variant = sales_setup
+    with use_tenant(tenant.id):
+        create_quotation(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), reference="DEVIS-DUP-01"
+        )
+        with pytest.raises(ValidationError):
+            create_quotation(
+                tenant=tenant,
+                partner_id=uuid.uuid4(),
+                date=dt.date.today(),
+                reference="DEVIS-DUP-01",
+            )
+        from apps.sales.models import SalesQuotation
+
+        assert SalesQuotation.objects.filter(reference="DEVIS-DUP-01").count() == 1
+
+
 def test_add_quotation_line_resolves_price_from_catalog(sales_setup) -> None:
     tenant, variant = sales_setup
     with use_tenant(tenant.id):

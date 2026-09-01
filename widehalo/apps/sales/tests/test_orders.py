@@ -51,6 +51,28 @@ def test_create_order_assigns_reference(orders_setup) -> None:
         assert order.state == SalesOrder.STATE_DRAFT
 
 
+def test_create_order_with_custom_reference_uses_it_as_is(orders_setup) -> None:
+    tenant, _user, partner = orders_setup
+    with use_tenant(tenant.id):
+        order = create_order(
+            tenant=tenant, partner_id=partner.id, date=dt.date.today(), reference="CMD-PERSO-01"
+        )
+        assert order.reference == "CMD-PERSO-01"
+
+
+def test_create_order_with_colliding_reference_raises(orders_setup) -> None:
+    tenant, _user, partner = orders_setup
+    with use_tenant(tenant.id):
+        create_order(
+            tenant=tenant, partner_id=partner.id, date=dt.date.today(), reference="CMD-DUP-01"
+        )
+        with pytest.raises(ValidationError):
+            create_order(
+                tenant=tenant, partner_id=partner.id, date=dt.date.today(), reference="CMD-DUP-01"
+            )
+        assert SalesOrder.objects.filter(reference="CMD-DUP-01").count() == 1
+
+
 def test_create_order_from_quotation_copies_lines(orders_setup) -> None:
     tenant, _user, partner = orders_setup
     with use_tenant(tenant.id):
