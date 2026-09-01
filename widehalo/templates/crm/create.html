@@ -8,10 +8,82 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}
-    <div class="form-field">
-      <label for="name">{% trans "Nom" %}</label>
-      <input id="name" type="text" name="name" required>
-    </div>
+
+    <fieldset class="form-field">
+      <legend>{% trans "Informations générales" %}</legend>
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="pipeline">{% trans "Pipeline" %}</label>
+        <select id="pipeline" name="pipeline">
+          <option value="">{% trans "— Pipeline par défaut —" %}</option>
+          {% for pipeline in pipelines %}
+            <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="team">{% trans "Équipe" %}</label>
+        <select id="team" name="team">
+          <option value="">{% trans "— Aucune —" %}</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}">{{ team.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="priority">{% trans "Priorité" %}</label>
+        <select id="priority" name="priority">
+          {% for value, label in priority_choices %}
+            <option value="{{ value }}" {% if value == "medium" %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="source">{% trans "Source" %}</label>
+        <input id="source" type="text" name="source">
+      </div>
+    </fieldset>
+
+    <fieldset class="form-field">
+      <legend>{% trans "Partenaire" %}</legend>
+      {% include "components/_partner_picker.html" with field_id="partner_id" display_id="partner_id_display" %}
+    </fieldset>
+
+    <fieldset class="form-field">
+      <legend>{% trans "Contact" %}</legend>
+      <div class="form-field">
+        <label for="contact_name">{% trans "Nom du contact" %}</label>
+        <input id="contact_name" type="text" name="contact_name">
+      </div>
+      <div class="form-field">
+        <label for="email">{% trans "E-mail" %}</label>
+        <input id="email" type="email" name="email">
+      </div>
+      <div class="form-field">
+        <label for="phone">{% trans "Téléphone" %}</label>
+        <input id="phone" type="text" name="phone">
+      </div>
+    </fieldset>
+
+    <fieldset class="form-field">
+      <legend>{% trans "Détails" %}</legend>
+      <div class="form-field">
+        <label for="expected_revenue_mga">{% trans "Montant attendu (MGA)" %}</label>
+        <input id="expected_revenue_mga" type="number" name="expected_revenue_mga" step="0.0001" min="0">
+      </div>
+      <div class="form-field">
+        <label for="expected_close_date">{% trans "Date de clôture prévue" %}</label>
+        <input id="expected_close_date" type="date" name="expected_close_date">
+      </div>
+      <div class="form-field">
+        <label for="description">{% trans "Description" %}</label>
+        <textarea id="description" name="description" rows="4"></textarea>
+      </div>
+    </fieldset>
+
     <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
   </form>
 {% endblock %}

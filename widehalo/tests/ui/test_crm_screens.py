@@ -39,6 +39,92 @@ def test_lead_create_screen(crm_screens_setup) -> None:
     assert response.status_code == 302
 
 
+def test_lead_create_screen_renders_enriched_form_with_partner_picker(crm_screens_setup) -> None:
+    client, _tenant, _lead = crm_screens_setup
+    response = client.get("/crm/new/")
+    assert response.status_code == 200
+    assert b'name="pipeline"' in response.content
+    assert b'name="team"' in response.content
+    assert b'name="priority"' in response.content
+    assert b'name="source"' in response.content
+    assert b'name="contact_name"' in response.content
+    assert b'name="email"' in response.content
+    assert b'name="phone"' in response.content
+    assert b'name="expected_revenue_mga"' in response.content
+    assert b'name="expected_close_date"' in response.content
+    assert b'name="description"' in response.content
+    # Composant reutilisable UXR3, embarque tel quel (champ cache partner_id).
+    assert b'id="partner_id"' in response.content
+    assert b"wh-partner-picker" in response.content
+
+
+def test_lead_create_screen_persists_all_enriched_fields(crm_screens_setup) -> None:
+    from apps.core.tests.utils import use_tenant
+    from apps.crm.models import CrmLead, CrmPipeline, CrmTeam
+    from apps.partners.models import Partner
+
+    client, tenant, _lead = crm_screens_setup
+    with use_tenant(tenant.id):
+        partner = Partner.objects.create(tenant=tenant, name="Client Textile SARL")
+        pipeline = CrmPipeline.objects.create(tenant=tenant, name="Grands comptes")
+        stage = pipeline.stages.model.objects.create(
+            tenant=tenant, pipeline=pipeline, code="new", name="Nouveau", sequence=1
+        )
+        team = CrmTeam.objects.create(tenant=tenant, name="Equipe Nord")
+
+    response = client.post(
+        "/crm/new/",
+        {
+            "name": "Opportunite enrichie",
+            "partner_id": str(partner.id),
+            "pipeline": str(pipeline.id),
+            "team": str(team.id),
+            "expected_revenue_mga": "1250000.5",
+            "expected_close_date": "2026-12-31",
+            "priority": "high",
+            "source": "salon-professionnel",
+            "contact_name": "Rako Andry",
+            "email": "rako@example.com",
+            "phone": "+261341234567",
+            "description": "Grosse commande d'uniformes.",
+        },
+    )
+    assert response.status_code == 302
+
+    with use_tenant(tenant.id):
+        lead = CrmLead.objects.get(name="Opportunite enrichie")
+        assert lead.partner_id == partner.id
+        assert lead.pipeline_id == pipeline.id
+        assert lead.stage_id == stage.id
+        assert lead.team_id == team.id
+        assert str(lead.expected_revenue_mga) == "1250000.5000"
+        assert lead.expected_close_date.isoformat() == "2026-12-31"
+        assert lead.priority == "high"
+        assert lead.source == "salon-professionnel"
+        assert lead.contact_name == "Rako Andry"
+        assert lead.email == "rako@example.com"
+        assert lead.phone == "+261341234567"
+        assert lead.description == "Grosse commande d'uniformes."
+
+
+def test_lead_create_screen_still_works_with_only_name(crm_screens_setup) -> None:
+    from apps.core.tests.utils import use_tenant
+    from apps.crm.models import CrmLead
+
+    client, tenant, _lead = crm_screens_setup
+    response = client.post("/crm/new/", {"name": "Opportunite minimale"})
+    assert response.status_code == 302
+
+    with use_tenant(tenant.id):
+        lead = CrmLead.objects.get(name="Opportunite minimale")
+        assert lead.partner_id is None
+        assert lead.priority == "medium"
+        assert lead.expected_revenue_mga == 0
+        assert lead.expected_close_date is None
+        assert lead.team_id is None
+        assert lead.description == ""
+
+
 def test_lead_detail_move_stage(crm_screens_setup) -> None:
     client, tenant, lead = crm_screens_setup
     with use_tenant(tenant.id):

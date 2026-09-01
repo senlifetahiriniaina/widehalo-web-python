@@ -5,6 +5,7 @@ activites, saisie rapide. Meme patron que `apps.accounting.views`."""
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import cast
 
@@ -16,7 +17,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.core.models.user import User
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.crm.models import CrmLead, CrmLostReason, CrmStage
+from apps.crm.models import CrmLead, CrmLostReason, CrmPipeline, CrmStage, CrmTeam
 from apps.crm.services.activities import lead_timeline, log_activity
 from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
 from apps.crm.services.leads import add_lead_line, create_lead_quick
@@ -116,10 +117,50 @@ def lead_create(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         try:
-            lead = create_lead_quick(tenant=tenant, name=request.POST.get("name", ""))
-        except ValueError as exc:
+            partner_id_raw = request.POST.get("partner_id", "").strip()
+            pipeline_id_raw = request.POST.get("pipeline", "").strip()
+            team_id_raw = request.POST.get("team", "").strip()
+            revenue_raw = request.POST.get("expected_revenue_mga", "").strip()
+            close_date_raw = request.POST.get("expected_close_date", "").strip()
+            priority = request.POST.get("priority", "").strip()
+
+            extra: dict[str, object] = {}
+            if team_id_raw:
+                extra["team_id"] = uuid.UUID(team_id_raw)
+            if revenue_raw:
+                extra["expected_revenue_mga"] = Decimal(revenue_raw)
+            if close_date_raw:
+                extra["expected_close_date"] = date.fromisoformat(close_date_raw)
+            if priority:
+                extra["priority"] = priority
+            for field in ("source", "contact_name", "email", "phone", "description"):
+                value = request.POST.get(field, "").strip()
+                if value:
+                    extra[field] = value
+
+            pipeline = (
+                get_object_or_404(CrmPipeline, id=pipeline_id_raw) if pipeline_id_raw else None
+            )
+
+            lead = create_lead_quick(
+                tenant=tenant,
+                name=request.POST.get("name", ""),
+                partner_id=uuid.UUID(partner_id_raw) if partner_id_raw else None,
+                pipeline=pipeline,
+                **extra,
+            )
+        except (ValueError, InvalidOperation) as exc:
             error = str(exc)
         else:
             return redirect("crm:detail", lead_id=lead.id)
 
-    return render(request, "crm/create.html", {"error": error})
+    return render(
+        request,
+        "crm/create.html",
+        {
+            "error": error,
+            "pipelines": CrmPipeline.objects.filter(tenant=tenant),
+            "teams": CrmTeam.objects.filter(tenant=tenant),
+            "priority_choices": CrmLead.PRIORITY_CHOICES,
+        },
+    )
