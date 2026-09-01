@@ -55,6 +55,10 @@
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
       <h3>{% trans "Utilisateurs" %}</h3>
     </a>
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'company_profile' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>
+      <h3>{% trans "Profil de l'entreprise" %}</h3>
+    </a>
     {% if user.is_superuser %}
     {% comment %}
     Chantier sauvegarde/restauration/reinitialisation : reserve au SEUL

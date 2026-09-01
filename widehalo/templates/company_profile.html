@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load static i18n %}
+{% block title %}{% trans "Profil de l'entreprise" %} — WideHalo{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Profil de l'entreprise" %}</h1>
+  </div>
+  <p>{% blocktrans %}Logo et coordonnées de la société, affichés en en-tête et en pied de page des documents PDF (devis, commandes...).{% endblocktrans %}</p>
+
+  {% if tenant_logo_data_uri %}
+    <p><img src="{{ tenant_logo_data_uri }}" alt="{% trans 'Logo actuel' %}" style="max-height:96px;"></p>
+  {% else %}
+    <p class="help">{% trans "Aucun logo téléversé pour le moment." %}</p>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="logo">{% trans "Logo" %}</label>
+      <input id="logo" type="file" name="logo" accept="image/*">
+    </div>
+    <div class="form-field">
+      <label for="address">{% trans "Adresse" %}</label>
+      <textarea id="address" name="address" rows="3">{{ tenant.address }}</textarea>
+    </div>
+    <div class="form-field">
+      <label for="phone">{% trans "Téléphone" %}</label>
+      <input id="phone" type="text" name="phone" value="{{ tenant.phone }}">
+    </div>
+    <div class="form-field">
+      <label for="email">{% trans "E-mail" %}</label>
+      <input id="email" type="email" name="email" value="{{ tenant.email }}">
+    </div>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-upload"></use></svg> {% trans "Enregistrer" %}</button>
+  </form>
+{% endblock %}

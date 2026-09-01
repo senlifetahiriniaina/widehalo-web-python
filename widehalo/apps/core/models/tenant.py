@@ -50,6 +50,22 @@ class Tenant(models.Model):
     # comptable OECFM ou de la DGI avant tout usage en production reelle.
     vat_opted_in = models.BooleanField(default=False)
 
+    # Chantier "profil de l'entreprise" (marque sur le PDF devis/commande,
+    # cf. plan) : aucun de ces 4 champs n'existait avant ce lot, seuls
+    # `name`/`nif` etaient presents. `logo` est un vrai `ImageField` DEDIE
+    # — pas une reutilisation du magasin polymorphe `core.Document` (qui,
+    # lui, rattache deja des archives de sauvegarde a ce meme `Tenant` via
+    # `content_object`, cf. `apps.core.services.tenant_backup`; resoudre
+    # "le dernier Document rattache au tenant" entrerait directement en
+    # collision avec ces archives) — deviation volontaire du patron
+    # `PrsEmployee`/photo (`apps.presence.models`, qui reutilise `Document`
+    # car aucune collision n'y est possible). Tous blank/null : additif,
+    # aucune donnee existante affectee.
+    logo = models.ImageField(upload_to="tenant_logos/", null=True, blank=True)
+    address = models.TextField(blank=True)
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.CharField(max_length=254, blank=True)
+
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="sandboxes"
