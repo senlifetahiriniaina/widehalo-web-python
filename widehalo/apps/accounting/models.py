@@ -92,6 +92,24 @@ class AccAccount(BaseModel):
         (FUNCTIONAL_AUTRE, "Autre"),
     ]
 
+    # UXR7 : les 5 codes secteur deja etablis dans ce depot (`apps.strategy.
+    # models.SECTOR_CHOICES`, repris a l'identique par `CatalogSectorSpec`
+    # sauf `import_export`, absent la-bas car hors perimetre de cette
+    # extension-ci) — jamais redefinis localement pour eviter toute derive
+    # orthographique entre modules.
+    SECTOR_TEXTILE = "textile"
+    SECTOR_LEATHER = "cuir"
+    SECTOR_AGRIFOOD = "agroalimentaire"
+    SECTOR_IMPORT_EXPORT = "import_export"
+    SECTOR_CRAFT = "artisanat"
+    SECTOR_CHOICES = [
+        (SECTOR_TEXTILE, "Textile"),
+        (SECTOR_LEATHER, "Cuir et maroquinerie"),
+        (SECTOR_AGRIFOOD, "Agroalimentaire"),
+        (SECTOR_IMPORT_EXPORT, "Import-export généraliste"),
+        (SECTOR_CRAFT, "Artisanat"),
+    ]
+
     code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     account_class = models.PositiveSmallIntegerField(help_text="Classe PCG, 1 a 7")
@@ -130,6 +148,16 @@ class AccAccount(BaseModel):
     # (chantier RG-QUALIF) — meme discipline que `partners.Partner.
     # is_placeholder`/`catalog.ProductVariant.is_placeholder`.
     is_placeholder = models.BooleanField(default=False)
+    # UXR7 : secteur d'activite auquel ce compte est specifique (matieres
+    # premieres/achats/sous-traitance propres a un metier) — vide/`None`
+    # pour un compte generique applicable a tout tenant, quel que soit son
+    # secteur (majorite des comptes de la fixture PCG2005). Chargement
+    # SANS filtrage par ce champ (cf. docstring de `chart_of_accounts.
+    # load_pcg2005`) : ce champ documente/etiquette les comptes, il ne
+    # pilote aucune logique de selection a la creation du tenant.
+    sector_code = models.CharField(  # noqa: DJ001 — null distingue "generique" de "" absent des choix
+        max_length=32, choices=SECTOR_CHOICES, null=True, blank=True
+    )
 
     class Meta:
         db_table = "acc_account"

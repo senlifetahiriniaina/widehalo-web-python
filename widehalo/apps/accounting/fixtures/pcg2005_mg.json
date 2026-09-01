@@ -43,5 +43,25 @@
 
   {"code": "701", "name": "Ventes de produits finis", "name_en": "Sales of finished goods", "account_class": 7, "type": "income", "is_current": true},
   {"code": "707", "name": "Ventes de marchandises", "name_en": "Sales of goods", "account_class": 7, "type": "income", "is_current": true},
-  {"code": "708", "name": "Produits des activités annexes", "name_en": "Other operating income", "account_class": 7, "type": "income", "is_current": true}
+  {"code": "708", "name": "Produits des activités annexes", "name_en": "Other operating income", "account_class": 7, "type": "income", "is_current": true},
+
+  {"code": "3111", "name": "Matières premières textiles", "name_en": "Textile raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "textile"},
+  {"code": "6011", "name": "Achats de matières premières textiles", "name_en": "Purchases of textile raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "textile"},
+  {"code": "6111", "name": "Sous-traitance façon textile", "name_en": "Textile subcontracted manufacturing", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "textile"},
+
+  {"code": "3112", "name": "Peaux et cuirs bruts", "name_en": "Raw hides and leather", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "cuir"},
+  {"code": "6012", "name": "Achats de cuirs et peaux", "name_en": "Purchases of leather and hides", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "cuir"},
+  {"code": "6112", "name": "Sous-traitance tannage", "name_en": "Subcontracted tanning", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "cuir"},
+
+  {"code": "3113", "name": "Matières premières agroalimentaires", "name_en": "Agrifood raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "agroalimentaire"},
+  {"code": "6013", "name": "Achats de matières premières agroalimentaires", "name_en": "Purchases of agrifood raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "agroalimentaire"},
+  {"code": "6023", "name": "Emballages alimentaires", "name_en": "Food packaging", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "agroalimentaire"},
+
+  {"code": "6081", "name": "Droits et taxes à l'importation", "name_en": "Import duties and taxes", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
+  {"code": "6241", "name": "Frais de transit et douane", "name_en": "Customs clearance and transit fees", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
+  {"code": "6221", "name": "Commissions d'importation", "name_en": "Import commissions", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
+
+  {"code": "3114", "name": "Matières premières artisanales", "name_en": "Craft raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "artisanat"},
+  {"code": "6014", "name": "Achats de matières premières artisanales", "name_en": "Purchases of craft raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "artisanat"},
+  {"code": "6113", "name": "Main d'œuvre artisanale sous-traitée", "name_en": "Subcontracted craft labor", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "artisanat"}
 ]
