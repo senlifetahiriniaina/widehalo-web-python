@@ -22,6 +22,7 @@ from apps.crm.services.activities import lead_timeline, log_activity
 from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
 from apps.crm.services.leads import add_lead_line, create_lead_quick
 from apps.crm.services.pipeline import move_lead_to_stage
+from apps.crm.services.pipelines import resolve_default_pipeline
 from apps.crm.services.scoping import scope_leads_for_user
 from apps.crm.services.scoring import compute_lead_score, whatsapp_contact_link
 
@@ -154,12 +155,14 @@ def lead_create(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("crm:detail", lead_id=lead.id)
 
+    default_pipeline = resolve_default_pipeline(tenant)
     return render(
         request,
         "crm/create.html",
         {
             "error": error,
             "pipelines": CrmPipeline.objects.filter(tenant=tenant),
+            "default_pipeline_id": default_pipeline.id if default_pipeline else None,
             "teams": CrmTeam.objects.filter(tenant=tenant),
             "priority_choices": CrmLead.PRIORITY_CHOICES,
         },

@@ -166,6 +166,26 @@ def test_lead_detail_add_line_shows_in_table(crm_screens_setup) -> None:
     assert b"Uniforme brode" in detail.content
 
 
+def test_lead_create_screen_preselects_tenant_default_pipeline(crm_screens_setup) -> None:
+    """Le pipeline marque `is_default=True` du tenant (fixture `crm_screens_setup`) doit
+    apparaitre deja selectionne dans le formulaire de creation d'opportunite, sans action de
+    l'utilisateur — verifie l'attribut `selected` sur la bonne `<option>`, et l'absence de
+    l'ancienne option vide "— Pipeline par defaut —"."""
+    client, tenant, _lead = crm_screens_setup
+    with use_tenant(tenant.id):
+        default_pipeline = CrmPipeline.objects.get(tenant=tenant, is_default=True)
+
+    response = client.get("/crm/new/")
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    expected_option = (
+        f'<option value="{default_pipeline.id}" selected>{default_pipeline.name}</option>'
+    )
+    assert expected_option in content
+    assert "Pipeline par défaut" not in content
+
+
 def test_lead_detail_line_above_discount_threshold_requires_approval(crm_screens_setup) -> None:
     from django.contrib.auth.models import Group
 

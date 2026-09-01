@@ -14,12 +14,11 @@ from apps.catalog.services.public import get_variant_price
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 from apps.crm.models import CrmLead, CrmLeadLine, CrmPipeline, CrmStage
+from apps.crm.services.pipelines import resolve_default_pipeline
 
 
 def _default_pipeline(tenant: Tenant) -> CrmPipeline:
-    pipeline = CrmPipeline.objects.filter(tenant=tenant, is_default=True).first()
-    if pipeline is None:
-        pipeline = CrmPipeline.objects.filter(tenant=tenant).first()
+    pipeline = resolve_default_pipeline(tenant)
     if pipeline is None:
         raise ValueError(_("Aucun pipeline configure pour ce tenant."))
     return pipeline

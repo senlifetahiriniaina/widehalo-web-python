@@ -17,12 +17,18 @@
       </div>
       <div class="form-field">
         <label for="pipeline">{% trans "Pipeline" %}</label>
-        <select id="pipeline" name="pipeline">
-          <option value="">{% trans "— Pipeline par défaut —" %}</option>
-          {% for pipeline in pipelines %}
-            <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
-          {% endfor %}
-        </select>
+        {% if pipelines %}
+          <select id="pipeline" name="pipeline">
+            {% for pipeline in pipelines %}
+              <option value="{{ pipeline.id }}" {% if pipeline.id == default_pipeline_id %}selected{% endif %}>{{ pipeline.name }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <p class="form-error">
+            {% trans "Aucun pipeline configuré pour cette société." %}
+            <a href="{% url 'crm:config_pipelines' %}">{% trans "Configurer un pipeline" %}</a>
+          </p>
+        {% endif %}
       </div>
       <div class="form-field">
         <label for="team">{% trans "Équipe" %}</label>

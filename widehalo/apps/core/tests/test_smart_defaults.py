@@ -72,6 +72,21 @@ def test_create_tenant_command_preloads_default_crm_pipeline() -> None:
         assert CrmStage.objects.filter(tenant=tenant, pipeline=pipeline).count() == 7
 
 
+def test_create_tenant_command_preloads_default_crm_lost_reasons() -> None:
+    """Un nouveau tenant a deja ses 7 motifs de perte d'opportunite par
+    defaut (cf. analyse comparative des motifs de perte des 5 principaux
+    CRM mondiaux) sans aucune action manuelle."""
+    from apps.crm.models import CrmLostReason
+
+    call_command(
+        "create_tenant", "--code", "MG-DEMO-LOST", "--name", "Demo Motifs Perte", "--country", "MG"
+    )
+
+    tenant = Tenant.objects.get(code="MG-DEMO-LOST")
+    with use_tenant(tenant.id):
+        assert CrmLostReason.objects.filter(tenant=tenant).count() == 7
+
+
 def test_unknown_country_leaves_tenant_defaults_unchanged() -> None:
     from apps.core.services.smart_defaults import apply_country_defaults
 

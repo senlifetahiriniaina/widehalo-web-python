@@ -52,6 +52,20 @@ DEFAULT_STAGES: tuple[tuple[str, str, int, int, bool, bool, bool], ...] = (
 )
 
 
+def resolve_default_pipeline(tenant: Tenant) -> CrmPipeline | None:
+    """Resout le pipeline « par defaut » d'un tenant sans jamais lever :
+    celui marque `is_default=True`, sinon le premier pipeline existant,
+    sinon `None`. Reutilisee a la fois par `apps.crm.services.leads::
+    create_lead_quick` (qui leve elle-meme si `None`) et par l'ecran de
+    creation d'opportunite (`crm:create`) pour presélectionner le
+    `<select>` de pipeline des l'ouverture de la page — meme logique,
+    jamais dupliquee."""
+    pipeline = CrmPipeline.objects.filter(tenant=tenant, is_default=True).first()
+    if pipeline is None:
+        pipeline = CrmPipeline.objects.filter(tenant=tenant).first()
+    return pipeline
+
+
 def ensure_default_pipeline(tenant: Tenant) -> CrmPipeline:
     """Reutilise le pipeline `is_default=True` deja present pour ce tenant
     s'il en existe deja un, sinon cree le pipeline HubSpot a 7 etapes

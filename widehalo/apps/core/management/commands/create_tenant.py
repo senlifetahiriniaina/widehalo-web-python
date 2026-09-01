@@ -45,4 +45,8 @@ class Command(BaseCommand):
         # comparative des 5 principaux CRM mondiaux) — meme convention
         # `call_command` (jamais un import Python d'un module `crm`).
         call_command("load_default_pipeline", tenant=tenant.code)
+        # Motifs de perte d'opportunite par defaut (7 categories metier —
+        # cf. analyse comparative des motifs de perte des 5 principaux CRM
+        # mondiaux) — meme convention `call_command`.
+        call_command("load_default_lost_reasons", tenant=tenant.code)
         self.stdout.write(self.style.SUCCESS(f"Tenant créé : {tenant.code} ({tenant.id})"))
