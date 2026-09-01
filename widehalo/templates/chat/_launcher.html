@@ -1,0 +1,56 @@
+{% load i18n %}
+{% comment %}
+Contenu de la popup du bouton flottant de messagerie (FAB, base.html) —
+charge en HTMX a chaque ouverture (`hx-get` sur le bouton lui-meme).
+Deux sections : (a) canaux existants de l'utilisateur, simples liens vers
+l'ecran complet `/chat/<id>/` (jamais de messagerie temps reelle
+reimplementee ici) ; (b) « Nouvelle conversation » — recherche instantanee
+d'un correspondant (tenant-scopee, cf. `chat_launcher_users`) + premier
+message, soumis en un seul POST HTMX vers `chat_launcher_start`.
+{% endcomment %}
+<div class="wh-launcher">
+  <section class="wh-launcher-section">
+    <h3>{% trans "Vos conversations" %}</h3>
+    <ul class="wh-launcher-channels">
+      {% for channel in channels %}
+        <li><a href="/chat/{{ channel.id }}/">{{ channel.title|default:channel.get_kind_display }}</a></li>
+      {% empty %}
+        <li class="wh-launcher-empty">{% trans "Aucune conversation pour l'instant." %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="wh-launcher-section">
+    <h3>{% trans "Nouvelle conversation" %}</h3>
+    <form
+      hx-post="{% url 'chat:launcher_start' %}"
+      hx-swap="none"
+      x-data="{ otherUserId: '' }"
+    >
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="wh-launcher-user-search">{% trans "Avec" %}</label>
+        <input
+          id="wh-launcher-user-search"
+          type="search"
+          name="q"
+          autocomplete="off"
+          placeholder="{% trans 'Rechercher une personne…' %}"
+          hx-get="{% url 'chat:launcher_users' %}"
+          hx-trigger="keyup changed delay:300ms, focus"
+          hx-target="#wh-launcher-user-results"
+          hx-swap="innerHTML"
+        >
+        <div id="wh-launcher-user-results" class="wh-launcher-user-results"></div>
+        <input type="hidden" name="other_user_id" x-model="otherUserId" required>
+      </div>
+      <div class="form-field">
+        <label for="wh-launcher-body">{% trans "Premier message" %}</label>
+        <textarea id="wh-launcher-body" name="body" rows="3" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" :disabled="!otherUserId">
+        {% trans "Démarrer la conversation" %}
+      </button>
+    </form>
+  </section>
+</div>

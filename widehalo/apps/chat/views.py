@@ -14,7 +14,14 @@ from apps.chat.services.messaging import (
     post_message,
 )
 from apps.core.models.tenant import Tenant
-from apps.core.models.user import User
+from apps.core.models.user import User, UserTenantMembership
+
+
+def _resolve_tenant_id(request: HttpRequest) -> str:
+    """Meme idiome de resolution de tenant courant que le reste du depot
+    (ex. `apps.core.views.pages.instant_search_fragment`) : en-tete
+    `X-Tenant-Id` (appels HTMX/API) sinon session (navigation classique)."""
+    return request.headers.get("X-Tenant-Id") or request.session.get("tenant_id") or ""
 
 
 @login_required
@@ -59,18 +66,94 @@ def chat_home(request: HttpRequest, channel_id: str | None = None) -> HttpRespon
 @login_required
 def chat_new_conversation(request: HttpRequest) -> HttpResponse:
     """Action « Nouvelle conversation » : choix d'un autre utilisateur puis
-    `get_or_create_direct_channel()`, redirection vers le canal cree."""
+    `get_or_create_direct_channel()`, redirection vers le canal cree.
+
+    **Correctif de bug reel (UXR2)** : la liste des correspondants
+    proposes est desormais scopee au tenant courant (via
+    `UserTenantMembership`), au lieu de `User.objects.exclude(...)` qui
+    proposait tout utilisateur de la base entiere, tous tenants confondus."""
     user = cast(User, request.user)
+    tenant_id = _resolve_tenant_id(request)
 
     if request.method == "POST":
         other_user = get_object_or_404(User, id=request.POST.get("other_user_id"))
-        tenant_id = request.headers.get("X-Tenant-Id") or request.session.get("tenant_id") or ""
         tenant = get_object_or_404(Tenant, id=tenant_id)
         channel = get_or_create_direct_channel(tenant=tenant, participants=[user, other_user])
         return redirect("chat:channel", channel_id=channel.id)
 
-    other_users = User.objects.exclude(id=user.id)
+    other_users = (
+        User.objects.filter(
+            tenant_memberships__tenant_id=tenant_id,
+        )
+        .exclude(id=user.id)
+        .distinct()
+    )
     return render(request, "chat/new_conversation.html", {"other_users": other_users})
+
+
+@login_required
+def chat_launcher(request: HttpRequest) -> HttpResponse:
+    """Contenu de la popup lancee par le bouton flottant (`whModal()`,
+    `base.html`) : liste des canaux existants de l'utilisateur (meme
+    requete condensee que `chat_home`) + formulaire « Nouvelle
+    conversation » (recherche instantanee tenant-scopee + premier
+    message), sans jamais reimplementer la messagerie temps reelle a
+    l'interieur de la popup — celle-ci reste sur `/chat/<id>/`."""
+    user = cast(User, request.user)
+    channels = ChatChannel.objects.filter(memberships__user=user).distinct()
+    return render(request, "chat/_launcher.html", {"channels": channels})
+
+
+@login_required
+def chat_launcher_users(request: HttpRequest) -> HttpResponse:
+    """Recherche instantanee (HTMX, meme patron que `instant_search_fragment`)
+    d'un correspondant pour « Nouvelle conversation » depuis la popup —
+    tenant-scopee via `UserTenantMembership` (jamais tous les utilisateurs
+    de la base, meme correctif que `chat_new_conversation` ci-dessus)."""
+    user = cast(User, request.user)
+    tenant_id = _resolve_tenant_id(request)
+    query = request.GET.get("q", "").strip()
+
+    memberships = (
+        UserTenantMembership.objects.filter(tenant_id=tenant_id)
+        .exclude(user=user)
+        .select_related("user")
+    )
+    if query:
+        memberships = memberships.filter(user__email__icontains=query)
+
+    other_users = [membership.user for membership in memberships[:20]]
+    return render(request, "chat/_launcher_users.html", {"other_users": other_users})
+
+
+@login_required
+def chat_launcher_start(request: HttpRequest) -> HttpResponse:
+    """Action de soumission de la popup : cree/retrouve le canal direct
+    (`get_or_create_direct_channel`, desormais idempotent, cf. correctif
+    UXR2) ET poste le premier message dans le meme appel HTMX, puis
+    demande au navigateur de naviguer vers l'ecran complet `/chat/<id>/`
+    via l'en-tete `HX-Redirect` (deja natif htmx, ferme la popup de facto
+    puisque la page change)."""
+    user = cast(User, request.user)
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    tenant_id = _resolve_tenant_id(request)
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    other_user = get_object_or_404(
+        User.objects.filter(tenant_memberships__tenant=tenant),
+        id=request.POST.get("other_user_id"),
+    )
+
+    channel = get_or_create_direct_channel(tenant=tenant, participants=[user, other_user])
+
+    body = request.POST.get("body", "").strip()
+    if body:
+        post_message(channel=channel, sender=user, body=body)
+
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = f"/chat/{channel.id}/"
+    return response
 
 
 @login_required

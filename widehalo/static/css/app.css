@@ -681,6 +681,88 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   margin-top: var(--spacing-lg);
 }
 
+/* ============== Lanceur de messagerie (FAB, UXR2) ============== */
+.wh-fab {
+  position: fixed;
+  right: var(--spacing-lg);
+  bottom: var(--spacing-lg);
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: var(--r-pill);
+  border: none;
+  background: var(--accent-brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  z-index: var(--z-nav);
+}
+
+.wh-fab:hover {
+  background: var(--accent-brand-hover);
+}
+
+.wh-fab .ic {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.wh-launcher-modal {
+  max-width: 32rem;
+}
+
+.wh-launcher-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing);
+}
+
+.wh-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--fg-3);
+}
+
+.wh-launcher-section + .wh-launcher-section {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.wh-launcher-channels,
+.wh-launcher-user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.wh-launcher-empty {
+  color: var(--fg-3);
+}
+
+.wh-launcher-user-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.wh-launcher-user-option:hover {
+  background: var(--bg-sunken);
+}
+
 /* ============== Toasts (UI1-3) ============== */
 .wh-toast-container {
   position: fixed;

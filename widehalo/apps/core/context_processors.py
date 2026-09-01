@@ -1,11 +1,57 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.http import HttpRequest
 
 from apps.core.models.tenant import Tenant
 from apps.core.services.permissions import user_role_codes
+from apps.core.services.rbac_policy import CUSTOM_PERMISSIONS, ROLE_APP_PERMISSIONS
 
 _ADMIN_ROLE_CODES = {"admin", "direction"}
+
+# Les 17 app labels reels des liens « Modules metier » de la sidebar (cf.
+# `templates/base.html`), tels qu'ils apparaissent verbatim dans les cles de
+# `ROLE_APP_PERMISSIONS`. `RiskItem` (18e lien, "Registre des risques") vit
+# dans l'app `core` (cf. `rbac_policy.py`, section RSK1-2) — `core`
+# n'apparait jamais comme cle de `ROLE_APP_PERMISSIONS` (aucun role n'a
+# d'acces generique a TOUS les modeles `core`), donc ce lien est
+# special-case ci-dessous via `_RISK_MENU_KEY`/`_RISK_PERMISSION_CODENAME`
+# plutot que traite comme un app label ordinaire.
+_MODULE_APP_LABELS: tuple[str, ...] = (
+    "accounting",
+    "crm",
+    "logistics",
+    "mrp",
+    "patronage",
+    "presence",
+    "purchase",
+    "sales",
+    "stocks",
+    "payroll",
+    "reporting",
+    "feasibility",
+    "projects",
+    "helpdesk",
+    "strategy",
+    "financing",
+    "automation",
+)
+_RISK_MENU_KEY = "risks"
+_RISK_PERMISSION_CODENAME = "core.view_riskitem"
+
+# Les 7 groupes accordeon de la sidebar (cle utilisee par `menuGroup(key)`,
+# cf. static/js/ui_patterns.js), chacun associe aux app labels/cles
+# `visible_app_labels` de ses liens.
+_MENU_GROUPS: dict[str, tuple[str, ...]] = {
+    "pour-tous": ("reporting", "strategy", "helpdesk"),
+    "commercial": ("crm", "sales", "feasibility"),
+    "achats-logistique": ("purchase", "stocks", "logistics"),
+    "production": ("mrp", "patronage"),
+    "finance-pilotage": ("accounting", "financing", "automation"),
+    "rh": ("presence", "payroll"),
+    "projets-risques": ("projects", _RISK_MENU_KEY),
+}
 
 
 def tenant(request: HttpRequest) -> dict[str, Tenant | None]:
@@ -23,21 +69,70 @@ def tenant(request: HttpRequest) -> dict[str, Tenant | None]:
     return {"current_tenant": Tenant.objects.first()}
 
 
-def account(request: HttpRequest) -> dict[str, bool]:
-    """Expose `is_admin_user` a tous les templates (chantier menu compte
-    utilisateur / section Administration signale par l'utilisateur) —
-    permet a `base.html` de conditionner l'affichage de la section
-    Administration (gatee admin/direction/superutilisateur) sans dupliquer
+def _visible_app_labels(user: Any) -> frozenset[str]:
+    """Calcule les cles (app labels ordinaires + `_RISK_MENU_KEY`) des 18
+    liens « Modules metier » auxquels `user` a acces — `is_superuser` voit
+    tout ; sinon, au moins un des roles de l'utilisateur doit porter
+    `"view"` dans `ROLE_APP_PERMISSIONS[role].get(app_label, set())` (le
+    lien risques est special-case via `CUSTOM_PERMISSIONS`, cf. commentaire
+    de module ci-dessus). Retourne toujours un frozenset propre (jamais
+    d'exception), y compris vide pour un visiteur anonyme."""
+    if not user.is_authenticated:
+        return frozenset()
+    if user.is_superuser:
+        return frozenset((*_MODULE_APP_LABELS, _RISK_MENU_KEY))
+
+    roles = user_role_codes(user)
+    visible = {
+        app_label
+        for app_label in _MODULE_APP_LABELS
+        if any("view" in ROLE_APP_PERMISSIONS.get(role, {}).get(app_label, set()) for role in roles)
+    }
+    if any(_RISK_PERMISSION_CODENAME in CUSTOM_PERMISSIONS.get(role, set()) for role in roles):
+        visible.add(_RISK_MENU_KEY)
+    return frozenset(visible)
+
+
+def account(request: HttpRequest) -> dict[str, Any]:
+    """Expose `is_admin_user` (chantier menu compte utilisateur / section
+    Administration) et, depuis UXR2, `visible_app_labels`/`visible_groups`
+    a tous les templates — permet a `base.html` de conditionner
+    l'affichage de la section Administration ainsi que des 18 liens/7
+    groupes accordeon « Modules metier » (filtrage RBAC N1) sans dupliquer
     ce calcul dans chaque vue.
 
     Meme idiome que le reste du depot pour verifier un role depuis du HTML
     classique (`user_role_codes(user) & {...}`, deja utilise par
     `apps/payroll/views.py`/`apps/sales/views.py`/`apps/ai/views.py`) —
     jamais `require_permission()` (django-ninja uniquement). Retourne
-    toujours `False` proprement (jamais d'exception) pour un visiteur
-    anonyme."""
+    toujours des valeurs vides proprement (jamais d'exception) pour un
+    visiteur anonyme ou sans tenant."""
     user = request.user
+    visible_app_labels = _visible_app_labels(user)
+    visible_groups = {
+        key: any(label in visible_app_labels for label in labels)
+        for key, labels in _MENU_GROUPS.items()
+    }
+    # `visible_group_keys` (frozenset des SEULES cles vraies) : les cles de
+    # groupe contiennent des tirets ("achats-logistique", ...) que la
+    # notation pointee des templates Django ne sait pas parser
+    # (`{% if dict.cle-avec-tiret %}` leve `TemplateSyntaxError`) — `base.
+    # html` teste donc `"cle" in visible_group_keys` plutot que `visible_
+    # groups.cle`. `visible_groups` (dict[str, bool]) reste expose tel que
+    # specifie (utilisable directement par les tests).
+    visible_group_keys = frozenset(key for key, is_visible in visible_groups.items() if is_visible)
+
     if not user.is_authenticated:
-        return {"is_admin_user": False}
+        return {
+            "is_admin_user": False,
+            "visible_app_labels": visible_app_labels,
+            "visible_groups": visible_groups,
+            "visible_group_keys": visible_group_keys,
+        }
     is_admin = bool(user_role_codes(user) & _ADMIN_ROLE_CODES) or user.is_superuser
-    return {"is_admin_user": is_admin}
+    return {
+        "is_admin_user": is_admin,
+        "visible_app_labels": visible_app_labels,
+        "visible_groups": visible_groups,
+        "visible_group_keys": visible_group_keys,
+    }
