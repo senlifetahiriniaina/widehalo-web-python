@@ -76,6 +76,12 @@ def test_reset_with_reseed_matches_a_freshly_created_tenant() -> None:
     assert CrmPipeline.all_objects.filter(tenant=subject).count() == reference_pipelines
     assert CrmLostReason.all_objects.filter(tenant=subject).count() == reference_lost_reasons
     assert ProductTemplate.all_objects.filter(tenant=subject).count() == reference_products
+    # Reinitialisation d'une entreprise : les produits du catalogue par
+    # defaut recharges restent marques non vendables, meme apres un reseed.
+    default_catalog_products = ProductTemplate.all_objects.filter(
+        tenant=subject, reference__startswith="CAT-"
+    )
+    assert not default_catalog_products.filter(is_sellable=True).exists()
 
 
 def test_reset_preserves_tenant_user_and_membership() -> None:

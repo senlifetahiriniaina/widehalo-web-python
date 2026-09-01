@@ -38,6 +38,10 @@ def test_load_default_product_catalog_creates_thirty_templates() -> None:
         # depuis le prix de vente indicatif export UE du document source).
         for template in ProductTemplate.objects.filter(tenant=tenant):
             assert template.base_price_mga > 0
+            # Les produits du catalogue par defaut auto-charges sont
+            # marques non vendables -- un administrateur les rebascule
+            # explicitement une fois leur fiche verifiee/completee.
+            assert template.is_sellable is False
 
 
 def test_load_default_product_catalog_is_idempotent() -> None:

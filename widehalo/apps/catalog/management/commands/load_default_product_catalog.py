@@ -93,6 +93,7 @@ class Command(BaseCommand):
                         "category": category,
                         "base_uom": pcs,
                         "base_price_mga": row["base_price_mga"],
+                        "is_sellable": False,
                     },
                 )
                 if was_created:
