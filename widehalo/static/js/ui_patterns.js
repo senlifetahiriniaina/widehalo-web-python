@@ -47,6 +47,24 @@
  *    localStorage — c'est une consequence de la page courante, pas un
  *    choix persistant de l'utilisateur), sans jamais refermer un autre
  *    groupe deja ouvert manuellement.
+ *
+ * 5. `lineItems(initial)` : lignes de saisie dynamiques (chantier refonte
+ *    creation devis/commande, DT6) — premier usage d'Alpine `x-for` sur
+ *    des CHAMPS DE SAISIE dans ce depot (le seul precedent, la liste de
+ *    toasts de `templates/base.html`, est en lecture seule). Le tableau
+ *    `lines` est rendu cote gabarit avec des noms de champs indexes
+ *    (`:name="'variant_id_' + index"`, etc. — jamais un blob JSON cache,
+ *    la vue Django lit ces champs avec une simple boucle `while`, cf.
+ *    `apps.sales.views._parse_lines_from_post`). Chaque ligne porte une
+ *    `key` = compteur incremental JAMAIS reutilise (pas l'index) pour que
+ *    `:key` Alpine reste stable meme apres suppression d'une ligne
+ *    intermediaire — reutiliser l'index re-attribuerait la `key` d'une
+ *    ligne supprimee a la ligne suivante, ce qu'Alpine confondrait avec
+ *    "meme ligne, contenu modifie" au lieu de "ligne differente".
+ *    `lineTotal(line)` est un APERCU client-side pur (`qty * unit_price`),
+ *    jamais autoritaire — `null` tant que `unit_price` n'est pas
+ *    renseigne manuellement (le vrai `subtotal` vient de la cascade de
+ *    prix cote serveur, connu seulement apres creation).
  */
 function readMenuGroupState(key) {
   try {
@@ -121,6 +139,31 @@ document.addEventListener("alpine:init", () => {
       this._resolve = null;
     },
   });
+
+  Alpine.data("lineItems", () => ({
+    lines: [],
+    _nextKey: 0,
+    init() {
+      this.addLine();
+    },
+    _makeLine() {
+      return { key: this._nextKey++, variant_id: "", description: "", qty: "1", unit_price: "" };
+    },
+    addLine() {
+      this.lines.push(this._makeLine());
+    },
+    removeLine(index) {
+      if (this.lines.length <= 1) return;
+      this.lines.splice(index, 1);
+    },
+    lineTotal(line) {
+      if (line.unit_price === "" || line.unit_price === null) return null;
+      const qty = parseFloat(line.qty);
+      const unitPrice = parseFloat(line.unit_price);
+      if (Number.isNaN(qty) || Number.isNaN(unitPrice)) return null;
+      return (qty * unitPrice).toFixed(2);
+    },
+  }));
 
   Alpine.store("toast", {
     items: [],

@@ -285,3 +285,199 @@ def test_config_recurrences_screen_renders(sales_screens_setup) -> None:
     client, *_ = sales_screens_setup
     response = client.get("/sales/config/recurrences/")
     assert response.status_code == 200
+
+
+def test_quotation_create_screen_renders_reference_payment_term_and_incoterm_fields(
+    sales_screens_setup,
+) -> None:
+    """DT6 : les 3 nouveaux champs d'en-tete sont bien presents sur l'ecran
+    de creation (reference optionnelle, conditions de paiement, incoterm)."""
+    client, *_ = sales_screens_setup
+    response = client.get("/sales/new/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert 'name="reference"' in content
+    assert 'name="payment_term_id"' in content
+    assert 'name="incoterm"' in content
+    assert 'x-data="lineItems()"' in content
+    assert "variant_id_' + index" in content
+
+
+def test_quotation_create_with_custom_reference_and_multiple_lines_in_one_post(
+    sales_screens_setup,
+) -> None:
+    """DT6/DT7 : 2 lignes catalogue + 1 hors catalogue creees en un seul
+    POST, avec numero personnalise, conditions de paiement et incoterm."""
+    from apps.accounting.models import AccPaymentTerm
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+    from apps.sales.models import SalesQuotation, SalesQuotationLine
+
+    client, tenant, *_ = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-ML", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant,
+            name="Casquette",
+            base_uom=uom,
+            base_price_mga=Decimal("5000"),
+            is_sellable=True,
+        )
+        variant1 = ProductVariant.objects.create(tenant=tenant, template=template)
+        variant2 = ProductVariant.objects.create(tenant=tenant, template=template)
+        term = AccPaymentTerm.objects.create(tenant=tenant, name="30 jours")
+
+    response = client.post(
+        "/sales/new/",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "reference": "DEVIS-ML-01",
+            "payment_term_id": str(term.id),
+            "incoterm": "FOB",
+            "variant_id_0": str(variant1.id),
+            "qty_0": "2",
+            "variant_id_1": str(variant2.id),
+            "qty_1": "3",
+            "unit_price_1": "1234.5",
+            "description_2": "Ligne hors catalogue",
+            "qty_2": "1",
+            "unit_price_2": "999",
+        },
+    )
+    assert response.status_code == 302
+
+    with use_tenant(tenant.id):
+        quotation = SalesQuotation.objects.get(reference="DEVIS-ML-01")
+        assert str(quotation.payment_term_id) == str(term.id)
+        assert quotation.incoterm == "FOB"
+        lines = list(SalesQuotationLine.objects.filter(quotation=quotation).order_by("sequence"))
+        assert len(lines) == 3
+        assert lines[0].variant_id == variant1.id
+        assert lines[0].unit_price == Decimal("5000")  # cascade prix catalogue
+        assert lines[1].unit_price == Decimal("1234.5000")
+        assert lines[2].is_custom is True
+        assert lines[2].description == "Ligne hors catalogue"
+
+
+def test_quotation_create_ignores_entirely_empty_lines(sales_screens_setup) -> None:
+    """DT6 : aucune ligne n'est obligatoire — un formulaire soumis sans
+    aucune ligne renseignee cree bien un devis vide (comportement header-
+    only deja garanti par le test de non-regression existant)."""
+    from apps.sales.models import SalesQuotation
+
+    client, tenant, *_ = sales_screens_setup
+    response = client.post(
+        "/sales/new/",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "variant_id_0": "",
+            "description_0": "",
+            "qty_0": "",
+        },
+    )
+    assert response.status_code == 302
+    with use_tenant(tenant.id):
+        quotation = SalesQuotation.objects.latest("created_at")
+        assert quotation.lines.count() == 0
+
+
+def test_quotation_create_with_invalid_line_rolls_back_entire_transaction(
+    sales_screens_setup,
+) -> None:
+    """DT6/DT7 : une ligne invalide au milieu (produit non vendable) fait
+    echouer TOUTE la transaction — aucun devis, aucune ligne creee."""
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+    from apps.sales.models import SalesQuotation
+
+    client, tenant, *_ = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-NS3", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        non_sellable_template = ProductTemplate.objects.create(
+            tenant=tenant, name="Composant interne 3", base_uom=uom, is_sellable=False
+        )
+        non_sellable_variant = ProductVariant.objects.create(
+            tenant=tenant, template=non_sellable_template
+        )
+        before_count = SalesQuotation.objects.filter(is_active=True).count()
+
+    response = client.post(
+        "/sales/new/",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "reference": "DEVIS-ROLLBACK-01",
+            "description_0": "Ligne valide hors catalogue",
+            "qty_0": "1",
+            "unit_price_0": "1000",
+            "variant_id_1": str(non_sellable_variant.id),
+            "qty_1": "1",
+        },
+    )
+    assert response.status_code == 200  # re-rendu avec erreur, pas de redirect
+    assert b"pas vendable" in response.content.lower()
+
+    with use_tenant(tenant.id):
+        assert SalesQuotation.objects.filter(is_active=True).count() == before_count
+        assert not SalesQuotation.objects.filter(reference="DEVIS-ROLLBACK-01").exists()
+
+
+def test_order_create_screen_renders_reference_payment_term_and_incoterm_select(
+    sales_screens_setup,
+) -> None:
+    """DT6 : l'incoterm devient un vrai <select> (auparavant un input texte
+    libre)."""
+    client, *_ = sales_screens_setup
+    response = client.get("/sales/orders/new/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert 'name="reference"' in content
+    assert 'name="payment_term_id"' in content
+    assert '<select id="incoterm" name="incoterm">' in content
+
+
+def test_order_create_with_multiple_lines_in_one_post(sales_screens_setup) -> None:
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+    from apps.sales.models import SalesOrder, SalesOrderLine
+
+    client, tenant, *_ = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-MLO", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant,
+            name="Veste",
+            base_uom=uom,
+            base_price_mga=Decimal("20000"),
+            is_sellable=True,
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+    response = client.post(
+        "/sales/orders/new/",
+        {
+            "partner_id": str(uuid.uuid4()),
+            "date": str(dt.date.today()),
+            "reference": "CMD-ML-01",
+            "incoterm": "CIF",
+            "variant_id_0": str(variant.id),
+            "qty_0": "4",
+            "description_1": "Ligne hors catalogue",
+            "qty_1": "2",
+            "unit_price_1": "500",
+        },
+    )
+    assert response.status_code == 302
+
+    with use_tenant(tenant.id):
+        order = SalesOrder.objects.get(reference="CMD-ML-01")
+        assert order.incoterm == "CIF"
+        lines = list(SalesOrderLine.objects.filter(order=order).order_by("sequence"))
+        assert len(lines) == 2
+        assert lines[0].unit_price == Decimal("20000")
+        assert lines[1].is_custom is True

@@ -666,6 +666,25 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
    parent. */
 .form-field input[type="date"] { align-self: flex-start; width: auto; }
 
+/* Chantier "refonte creation devis/commande" (DT6) : lignes de saisie
+   dynamiques (Alpine `x-for`, `lineItems()` de ui_patterns.js) rendues
+   dans un `<table class="smart-table line-items-table">`. Les
+   `input`/`select` heritent deja du style global (`input, select,
+   textarea` plus haut) — ces regles se contentent de les rendre compacts
+   dans un `<td>` (largeur pleine cellule, pas de marge de `.form-field`
+   qui ne s'applique pas ici) et de styler le bouton de suppression de
+   ligne (memes tokens de couleur danger que `.form-error`). */
+.line-items-table td { padding: 4px; vertical-align: top; }
+.line-items-table input, .line-items-table select { width: 100%; margin: 0; }
+.btn-remove-line {
+  background: transparent;
+  border: 1px solid var(--color-danger-border);
+  color: var(--danger-fg);
+  padding: 0.35rem;
+  border-radius: var(--r-md);
+}
+.btn-remove-line:hover { background: var(--danger-bg); }
+
 .form-error {
   color: var(--danger-fg);
   background: var(--danger-bg);

@@ -8,16 +8,18 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal, InvalidOperation
-from typing import cast
+from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
+from apps.accounting.services.public import list_payment_terms
 from apps.catalog.services.public import (
     get_variant_reference,
     is_variant_sellable,
@@ -95,6 +97,73 @@ def quotation_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _resolve_line(variant_id_raw: str, description_raw: str) -> dict[str, Any]:
+    """Une ligne de devis/commande vient soit d'un produit CATALOGUE
+    (`variant_id` pose), soit d'une ligne hors catalogue (`is_custom`).
+    Cote serveur, un `variant_id` n'est JAMAIS accepte tel quel — revalide
+    contre `catalog.services.public.is_variant_sellable` avant de creer la
+    ligne (le filtrage du selecteur cote ecran reste contournable par un
+    POST direct).
+
+    Parametre plutot qu'appele directement sur `request.POST` (DT6,
+    chantier "lignes multiples en un seul POST") : reutilise a l'identique
+    par `_resolve_line_from_post` (action `add_line` deja existante de
+    l'ecran de detail, comportement inchange) **et** par
+    `_parse_lines_from_post` (nouveau parseur multi-lignes des ecrans de
+    creation) — la seule difference entre les deux appelants est D'OU
+    viennent `variant_id_raw`/`description_raw` (champs `variant_id`/
+    `description` uniques vs. champs indexes `variant_id_{i}`/
+    `description_{i}`)."""
+    variant_id_raw = (variant_id_raw or "").strip()
+    if variant_id_raw:
+        variant_id = uuid.UUID(variant_id_raw)
+        if not is_variant_sellable(variant_id):
+            raise ValidationError(_("Ce produit n'est pas vendable."))
+        description = description_raw or get_variant_reference(variant_id)
+        return {"variant_id": variant_id, "description": description, "is_custom": False}
+    return {"description": description_raw or "", "is_custom": True}
+
+
+def _resolve_line_from_post(post) -> dict[str, Any]:
+    return _resolve_line(post.get("variant_id") or "", post.get("description") or "")
+
+
+def _parse_optional_uuid(raw: str) -> uuid.UUID | None:
+    raw = (raw or "").strip()
+    return uuid.UUID(raw) if raw else None
+
+
+def _parse_lines_from_post(post) -> list[dict[str, Any]]:
+    """DT6 : lignes multiples en un seul POST — champs a noms indexes
+    (`variant_id_0`, `description_0`, `qty_0`, `unit_price_0`, ... `_1`,
+    `_2`...) plutot qu'un formset Django (aucun precedent dans ce depot) ou
+    un blob JSON cache (les noms indexes restent lisibles ici avec une
+    simple boucle `while`, sans dependance a `json.loads`). Boucle tant que
+    `variant_id_{i}` OU `description_{i}` est present dans le POST (une
+    ligne peut n'avoir que l'un des deux selon catalogue/hors catalogue),
+    ignore silencieusement toute ligne entierement vide (aucune ligne
+    n'est obligatoire sur ces ecrans de creation) — `sequence` attribue
+    dans l'ordre des lignes reellement retenues (jamais l'index `i` brut,
+    qui compterait aussi les lignes vides ignorees)."""
+    lines: list[dict[str, Any]] = []
+    i = 0
+    while f"variant_id_{i}" in post or f"description_{i}" in post:
+        variant_id_raw = post.get(f"variant_id_{i}", "")
+        description_raw = post.get(f"description_{i}", "")
+        if not variant_id_raw.strip() and not description_raw.strip():
+            i += 1
+            continue
+        qty_raw = (post.get(f"qty_{i}", "") or "").strip()
+        unit_price_raw = (post.get(f"unit_price_{i}", "") or "").strip()
+        line = _resolve_line(variant_id_raw, description_raw)
+        line["qty"] = Decimal(qty_raw) if qty_raw else Decimal(1)
+        line["unit_price"] = Decimal(unit_price_raw) if unit_price_raw else None
+        line["sequence"] = len(lines)
+        lines.append(line)
+        i += 1
+    return lines
+
+
 @login_required
 def quotation_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
@@ -103,36 +172,34 @@ def quotation_create(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         try:
-            quotation = create_quotation(
-                tenant=tenant,
-                partner_id=uuid.UUID(request.POST.get("partner_id", "")),
-                date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
-                salesperson=user,
-                contact=request.POST.get("contact", ""),
-            )
-        except (ValidationError, ValueError) as exc:
+            with transaction.atomic():
+                quotation = create_quotation(
+                    tenant=tenant,
+                    partner_id=uuid.UUID(request.POST.get("partner_id", "")),
+                    date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
+                    salesperson=user,
+                    contact=request.POST.get("contact", ""),
+                    reference=request.POST.get("reference", ""),
+                    payment_term_id=_parse_optional_uuid(request.POST.get("payment_term_id", "")),
+                    incoterm=request.POST.get("incoterm", ""),
+                )
+                for line in _parse_lines_from_post(request.POST):
+                    add_quotation_line(quotation, **line)
+        except (ValidationError, InvalidOperation, ValueError) as exc:
             error = _error_message(exc)
         else:
             return redirect("sales:quotation_detail", quotation_id=quotation.id)
 
-    return render(request, "sales/quotation_create.html", {"error": error})
-
-
-def _resolve_line_from_post(post) -> dict:
-    """Une ligne de devis/commande vient soit d'un produit CATALOGUE
-    (`variant_id` pose), soit d'une ligne hors catalogue (`is_custom`).
-    Cote serveur, un `variant_id` n'est JAMAIS accepte tel quel — revalide
-    contre `catalog.services.public.is_variant_sellable` avant de creer la
-    ligne (le filtrage du selecteur cote ecran, cf.
-    `_partner_picker`-like, reste contournable par un POST direct)."""
-    variant_id_raw = (post.get("variant_id") or "").strip()
-    if variant_id_raw:
-        variant_id = uuid.UUID(variant_id_raw)
-        if not is_variant_sellable(variant_id):
-            raise ValidationError(_("Ce produit n'est pas vendable."))
-        description = post.get("description") or get_variant_reference(variant_id)
-        return {"variant_id": variant_id, "description": description, "is_custom": False}
-    return {"description": post.get("description", ""), "is_custom": True}
+    return render(
+        request,
+        "sales/quotation_create.html",
+        {
+            "error": error,
+            "payment_terms": list_payment_terms(tenant),
+            "sellable_variants": list_sellable_variants(),
+            "incoterm_choices": SalesQuotation.INCOTERM_CHOICES,
+        },
+    )
 
 
 _QUOTATION_ACTIONS = {
@@ -221,21 +288,35 @@ def order_create(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         try:
-            order = create_order(
-                tenant=tenant,
-                partner_id=uuid.UUID(request.POST.get("partner_id", "")),
-                date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
-                salesperson=user,
-                contact=request.POST.get("contact", ""),
-                is_export=bool(request.POST.get("is_export")),
-                incoterm=request.POST.get("incoterm", ""),
-            )
-        except (ValidationError, ValueError) as exc:
+            with transaction.atomic():
+                order = create_order(
+                    tenant=tenant,
+                    partner_id=uuid.UUID(request.POST.get("partner_id", "")),
+                    date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
+                    salesperson=user,
+                    contact=request.POST.get("contact", ""),
+                    reference=request.POST.get("reference", ""),
+                    payment_term_id=_parse_optional_uuid(request.POST.get("payment_term_id", "")),
+                    is_export=bool(request.POST.get("is_export")),
+                    incoterm=request.POST.get("incoterm", ""),
+                )
+                for line in _parse_lines_from_post(request.POST):
+                    add_order_line(order, **line)
+        except (ValidationError, InvalidOperation, ValueError) as exc:
             error = _error_message(exc)
         else:
             return redirect("sales:order_detail", order_id=order.id)
 
-    return render(request, "sales/order_create.html", {"error": error})
+    return render(
+        request,
+        "sales/order_create.html",
+        {
+            "error": error,
+            "payment_terms": list_payment_terms(tenant),
+            "sellable_variants": list_sellable_variants(),
+            "incoterm_choices": SalesOrder.INCOTERM_CHOICES,
+        },
+    )
 
 
 _ORDER_ACTIONS = {
