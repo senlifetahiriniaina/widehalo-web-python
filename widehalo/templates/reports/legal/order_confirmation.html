@@ -1,0 +1,32 @@
+{% extends "reports/_base.html" %}
+{% block title %}Confirmation de commande / Order confirmation {{ order.reference }}{% endblock %}
+{% block document_title %}Confirmation de commande / Order confirmation{% endblock %}
+{% block header_meta %}
+  <p>{{ order.reference }}</p>
+  <p>Date : {{ order.date }}</p>
+  <p>Statut / State : {{ order.get_state_display }}</p>
+{% endblock %}
+{% block content %}
+  <p>Partenaire / Partner : {{ order.partner_id }}</p>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qte / Qty</th>
+        <th>Prix unitaire / Unit price</th>
+        <th>Sous-total / Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in order.lines.all %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty }}</td>
+          <td>{{ line.unit_price }}</td>
+          <td>{{ line.subtotal }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>Total / Total : {{ order.amount_total }} {{ order.currency }}</p>
+{% endblock %}

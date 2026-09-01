@@ -63,55 +63,47 @@ def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str 
 
 
 def quotation_pdf(quotation: SalesQuotation) -> bytes:
-    """SAL-DEVIS — PDF bilingue minimal (meme patron que
-    `mrp.services.reports.order_pdf`/ACC-FAC)."""
+    """SAL-DEVIS — migre du HTML inline historique (Lot 2) vers le gabarit
+    partage `templates/reports/_base.html` (RPT-3, meme patron que
+    `delivery_note_pdf` ci-dessous) pour le chantier "marque d'entreprise
+    sur le PDF devis/commande" : injecte desormais `tenant`/
+    `tenant_logo_data_uri` au contexte, ce qui fait automatiquement
+    apparaitre le logo/nom/adresse en en-tete et les coordonnees en pied de
+    page (rendus par `_base.html`, jamais recalcules ici). Regression
+    visuelle assumee et documentee (cf. plan) : le PDF change d'apparence,
+    memes donnees deja rendues (reference, partenaire, lignes, totaux)."""
+    from django.template.loader import render_to_string
     from weasyprint import HTML
 
-    lines_html = "".join(
-        f"<tr><td>{line.description}</td><td>{line.qty}</td><td>{line.unit_price}</td>"
-        f"<td>{line.subtotal}</td></tr>"
-        for line in quotation.lines.all()
+    from apps.core.services.branding import get_tenant_logo_data_uri
+
+    html = render_to_string(
+        "reports/legal/quotation.html",
+        {
+            "quotation": quotation,
+            "tenant": quotation.tenant,
+            "tenant_logo_data_uri": get_tenant_logo_data_uri(quotation.tenant),
+        },
     )
-    html = f"""
-    <html><head><meta charset="utf-8"></head><body>
-      <h1>Devis / Quotation {quotation.reference}</h1>
-      <p>Partenaire / Partner : {quotation.partner_id}</p>
-      <p>Date : {quotation.date}</p>
-      <table border="1" cellspacing="0" cellpadding="4">
-        <thead><tr><th>Description</th><th>Qte</th><th>Prix unitaire</th>
-        <th>Sous-total</th></tr></thead>
-        <tbody>{lines_html}</tbody>
-      </table>
-      <p>Total / Total : {quotation.amount_total} {quotation.currency}</p>
-    </body></html>
-    """
     result: bytes = HTML(string=html).write_pdf()
     return result
 
 
 def order_confirmation_pdf(order: SalesOrder) -> bytes:
-    """SAL-BC — confirmation de commande, meme patron que `quotation_pdf`."""
+    """SAL-BC — meme migration que `quotation_pdf` ci-dessus."""
+    from django.template.loader import render_to_string
     from weasyprint import HTML
 
-    lines_html = "".join(
-        f"<tr><td>{line.description}</td><td>{line.qty}</td><td>{line.unit_price}</td>"
-        f"<td>{line.subtotal}</td></tr>"
-        for line in order.lines.all()
+    from apps.core.services.branding import get_tenant_logo_data_uri
+
+    html = render_to_string(
+        "reports/legal/order_confirmation.html",
+        {
+            "order": order,
+            "tenant": order.tenant,
+            "tenant_logo_data_uri": get_tenant_logo_data_uri(order.tenant),
+        },
     )
-    html = f"""
-    <html><head><meta charset="utf-8"></head><body>
-      <h1>Confirmation de commande / Order confirmation {order.reference}</h1>
-      <p>Partenaire / Partner : {order.partner_id}</p>
-      <p>Date : {order.date}</p>
-      <p>Statut / State : {order.get_state_display()}</p>
-      <table border="1" cellspacing="0" cellpadding="4">
-        <thead><tr><th>Description</th><th>Qte</th><th>Prix unitaire</th>
-        <th>Sous-total</th></tr></thead>
-        <tbody>{lines_html}</tbody>
-      </table>
-      <p>Total / Total : {order.amount_total} {order.currency}</p>
-    </body></html>
-    """
     result: bytes = HTML(string=html).write_pdf()
     return result
 

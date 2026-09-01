@@ -1,0 +1,31 @@
+{% extends "reports/_base.html" %}
+{% block title %}Devis / Quotation {{ quotation.reference }}{% endblock %}
+{% block document_title %}Devis / Quotation{% endblock %}
+{% block header_meta %}
+  <p>{{ quotation.reference }}</p>
+  <p>Date : {{ quotation.date }}</p>
+{% endblock %}
+{% block content %}
+  <p>Partenaire / Partner : {{ quotation.partner_id }}</p>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qte / Qty</th>
+        <th>Prix unitaire / Unit price</th>
+        <th>Sous-total / Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in quotation.lines.all %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td>{{ line.qty }}</td>
+          <td>{{ line.unit_price }}</td>
+          <td>{{ line.subtotal }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>Total / Total : {{ quotation.amount_total }} {{ quotation.currency }}</p>
+{% endblock %}

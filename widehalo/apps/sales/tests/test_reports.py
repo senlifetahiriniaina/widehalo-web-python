@@ -78,6 +78,41 @@ def test_report_sal_bc_pdf_contains_order_content(sales_setup) -> None:
     assert "Pantalon toile" in text
 
 
+def test_report_sal_devis_pdf_shows_tenant_name_and_address_when_set(sales_setup) -> None:
+    """Chantier "marque d'entreprise sur le PDF" (DT3) : le nom/l'adresse du
+    tenant, renseignes via l'ecran "Profil de l'entreprise", apparaissent
+    desormais en en-tete du PDF SAL-DEVIS — rendus par
+    `templates/reports/_base.html`, jamais recalcules dans le gabarit
+    `quotation.html`."""
+    tenant, variant = sales_setup
+    with use_tenant(tenant.id):
+        tenant.name = "Atelier Textile SARL"
+        tenant.address = "Lot II M 12, Antananarivo"
+        tenant.save(update_fields=["name", "address"])
+        quotation = create_quotation(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        add_quotation_line(
+            quotation, variant_id=variant.id, description="T-Shirt coton bio", qty=Decimal(10)
+        )
+        pdf_bytes = quotation_pdf(quotation)
+
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    assert "Atelier Textile SARL" in text
+    assert "Antananarivo" in text
+
+
+def test_report_sal_bc_pdf_never_breaks_without_a_logo(sales_setup) -> None:
+    """Absence de logo (cas normal, largement majoritaire) : le PDF
+    SAL-BC continue de se rendre normalement, aucune exception."""
+    tenant, variant = sales_setup
+    with use_tenant(tenant.id):
+        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        add_order_line(order, variant_id=variant.id, description="Pantalon toile", qty=Decimal(5))
+        pdf_bytes = order_confirmation_pdf(order)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
 def test_rows_to_bytes_xlsx_round_trip_for_order_lines(sales_setup) -> None:
     """Aller-retour `openpyxl` deja exerce pour `purchase`/`mrp`/`patronage`
     mais jamais pour `sales` (T8) — `rows_to_bytes` est une copie du meme
