@@ -16,6 +16,7 @@ from typing import cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.files.uploadedfile import UploadedFile
+from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
@@ -29,6 +30,7 @@ from apps.core.services.tenant_backup import (
     restore_tenant_from_archive,
 )
 from apps.core.services.tenant_reset import reset_tenant_data
+from apps.core.views.smart_table import DEFAULT_PAGE_SIZE
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -88,11 +90,30 @@ def backup_list(request: HttpRequest) -> HttpResponse:
             )
             return redirect("backup_list")
 
-    operations = TenantDataOperation.objects.filter(tenant=tenant).order_by("-created_at")
+    all_operations = TenantDataOperation.objects.filter(tenant=tenant).order_by("-created_at")
+    paginator = Paginator(all_operations, DEFAULT_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    # Le <select> de restauration doit toujours pouvoir proposer N'IMPORTE
+    # QUELLE sauvegarde reussie, pas seulement celles de la page affichee —
+    # requete separee, volontairement non paginee (cf. plan « page de liste
+    # complete des sauvegardes »).
+    restorable_backups = TenantDataOperation.objects.filter(
+        tenant=tenant,
+        operation_type=TenantDataOperation.TYPE_BACKUP,
+        status=TenantDataOperation.STATUS_SUCCESS,
+        document__isnull=False,
+    ).order_by("-created_at")
+
     return render(
         request,
         "backup_list.html",
-        {"tenant": tenant, "operations": operations, "errors": errors},
+        {
+            "tenant": tenant,
+            "operations": page_obj,
+            "restorable_backups": restorable_backups,
+            "errors": errors,
+        },
     )
 
 

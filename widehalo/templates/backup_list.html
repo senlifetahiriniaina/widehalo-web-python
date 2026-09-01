@@ -43,6 +43,16 @@
     </tbody>
   </table>
 
+  <nav class="pagination" aria-label="{% trans 'Pagination' %}">
+    {% if operations.has_previous %}
+      <a href="?page={{ operations.previous_page_number }}">{% trans "Précédent" %}</a>
+    {% endif %}
+    <span>{% blocktrans with num=operations.number total=operations.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
+    {% if operations.has_next %}
+      <a href="?page={{ operations.next_page_number }}">{% trans "Suivant" %}</a>
+    {% endif %}
+  </nav>
+
   <h2>{% trans "Restaurer depuis une archive" %}</h2>
   <p>{% blocktrans %}Écrase les données actuelles de cette société avec le contenu de l'archive choisie — action irréversible sans sauvegarde préalable.{% endblocktrans %}</p>
   <form method="post" enctype="multipart/form-data">
@@ -52,10 +62,8 @@
       <label for="restore_document_id">{% trans "Sauvegarde existante" %}</label>
       <select id="restore_document_id" name="document_id">
         <option value="">{% trans "— choisir —" %}</option>
-        {% for operation in operations %}
-          {% if operation.document_id %}
-            <option value="{{ operation.document_id }}">{{ operation.created_at }}</option>
-          {% endif %}
+        {% for backup in restorable_backups %}
+          <option value="{{ backup.document_id }}">{{ backup.created_at }}</option>
         {% endfor %}
       </select>
     </div>

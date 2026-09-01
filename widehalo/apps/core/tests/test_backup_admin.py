@@ -10,11 +10,12 @@ from bs4 import BeautifulSoup
 from django.test import Client
 from django_otp.oath import totp
 
-from apps.core.models.backup import TenantBackupSchedule
+from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services import mfa as mfa_service
-from apps.core.tests.utils import grant_role
+from apps.core.tests.factories import DocumentFactory, TenantDataOperationFactory
+from apps.core.tests.utils import grant_role, use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -107,6 +108,70 @@ def test_schedule_screen_renders_and_updates() -> None:
     schedule = TenantBackupSchedule.all_objects.get(tenant=tenant)
     assert schedule.frequency == "weekly"
     assert schedule.retention_count == 4
+
+
+def test_backup_list_paginates_and_restore_select_lists_every_backup() -> None:
+    """La table de sauvegardes doit rester paginee (20/page, meme taille
+    que SmartTable) quand l'historique s'allonge, mais le <select> de
+    restauration doit toujours proposer TOUTES les sauvegardes reussies,
+    pas seulement celles de la page affichee — cf. plan « page de liste
+    complete des sauvegardes »."""
+
+    tenant = Tenant.objects.create(code="BKUI-PAGE", name="Backup UI Pagination")
+    client = _superuser_client(tenant, "bkui-page@example.com")
+
+    with use_tenant(tenant.id):
+        for i in range(25):
+            document = DocumentFactory(tenant=tenant, sha256=f"{i:064d}")
+            TenantDataOperationFactory(tenant=tenant, document=document)
+
+    page1 = client.get("/backups/")
+    assert page1.status_code == 200
+    soup1 = BeautifulSoup(page1.content, "html.parser")
+    rows1 = soup1.find("table").find("tbody").find_all("tr")
+    assert len(rows1) == 20
+    # Le lien de telechargement reste present sur chaque ligne de la page.
+    assert len(soup1.find_all("a", href=lambda h: h and "/download/" in h)) == 20
+    assert "Page 1 sur 2" in page1.content.decode()
+
+    page2 = client.get("/backups/?page=2")
+    assert page2.status_code == 200
+    soup2 = BeautifulSoup(page2.content, "html.parser")
+    rows2 = soup2.find("table").find("tbody").find_all("tr")
+    assert len(rows2) == 5
+
+    # Le <select> de restauration liste les 25 sauvegardes, pas seulement
+    # les 20 de la premiere page.
+    select = soup1.find("select", {"id": "restore_document_id"})
+    assert len(select.find_all("option")) == 25 + 1  # +1 pour "— choisir —"
+
+
+def test_restore_select_omits_failed_or_documentless_operations() -> None:
+    tenant = Tenant.objects.create(code="BKUI-RESTSEL", name="Backup UI Restore Select")
+    client = _superuser_client(tenant, "bkui-restsel@example.com")
+
+    with use_tenant(tenant.id):
+        document = DocumentFactory(tenant=tenant)
+        TenantDataOperationFactory(tenant=tenant, document=document)
+        TenantDataOperationFactory(
+            tenant=tenant, document=None, status=TenantDataOperation.STATUS_SUCCESS
+        )
+        TenantDataOperationFactory(
+            tenant=tenant,
+            document=DocumentFactory(tenant=tenant),
+            status=TenantDataOperation.STATUS_FAILED,
+        )
+        TenantDataOperationFactory(
+            tenant=tenant,
+            document=DocumentFactory(tenant=tenant),
+            operation_type=TenantDataOperation.TYPE_RESTORE,
+        )
+
+    response = client.get("/backups/")
+    soup = BeautifulSoup(response.content, "html.parser")
+    select = soup.find("select", {"id": "restore_document_id"})
+    # Seule la sauvegarde reussie avec document doit apparaitre (+ l'option vide).
+    assert len(select.find_all("option")) == 2
 
 
 def test_settings_hub_card_only_shown_to_superuser() -> None:
