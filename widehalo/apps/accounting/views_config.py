@@ -225,6 +225,16 @@ def config_payment_terms(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         try:
+            value_type = request.POST.get("value_type", AccPaymentTermLine.VALUE_TYPE_BALANCE)
+            raw_value = request.POST.get("value", "").strip()
+            if value_type == AccPaymentTermLine.VALUE_TYPE_BALANCE:
+                value = None
+            else:
+                if not raw_value:
+                    raise ValidationError(
+                        _("Une valeur (pourcentage ou montant) est requise pour ce type.")
+                    )
+                value = Decimal(raw_value)
             term = AccPaymentTerm.objects.create(
                 tenant=tenant,
                 name=request.POST.get("name", ""),
@@ -233,10 +243,11 @@ def config_payment_terms(request: HttpRequest) -> HttpResponse:
                 tenant=tenant,
                 term=term,
                 sequence=0,
-                value_type=request.POST.get("value_type", AccPaymentTermLine.VALUE_TYPE_BALANCE),
+                value_type=value_type,
+                value=value,
                 days=int(request.POST.get("days") or 0),
             )
-        except (ValidationError, ValueError, IntegrityError) as exc:
+        except (ValidationError, ValueError, InvalidOperation, IntegrityError) as exc:
             error = str(exc)
 
     payment_terms = AccPaymentTerm.objects.filter(tenant=tenant).prefetch_related("lines")

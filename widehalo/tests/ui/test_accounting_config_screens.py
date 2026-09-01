@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 from apps.accounting.models import (
@@ -151,4 +152,46 @@ def test_config_payment_terms_create(config_screens_setup) -> None:
     with use_tenant(tenant.id):
         term = AccPaymentTerm.objects.get(name="30 jours net")
         assert term.lines.count() == 1
-        assert term.lines.first().days == 30
+        line = term.lines.first()
+        assert line.days == 30
+        assert line.value is None
+
+
+def test_config_payment_terms_create_percent_persists_value(config_screens_setup) -> None:
+    client, tenant = config_screens_setup
+    response = client.post(
+        "/accounting/config/payment-terms/",
+        {"name": "30% a 30 jours", "value_type": "percent", "value": "30", "days": "30"},
+    )
+    assert response.status_code == 200
+    with use_tenant(tenant.id):
+        term = AccPaymentTerm.objects.get(name="30% a 30 jours")
+        line = term.lines.first()
+        assert line.value_type == "percent"
+        assert line.value == Decimal("30")
+
+
+def test_config_payment_terms_create_fixed_persists_value(config_screens_setup) -> None:
+    client, tenant = config_screens_setup
+    response = client.post(
+        "/accounting/config/payment-terms/",
+        {"name": "Acompte fixe", "value_type": "fixed", "value": "50000", "days": "0"},
+    )
+    assert response.status_code == 200
+    with use_tenant(tenant.id):
+        term = AccPaymentTerm.objects.get(name="Acompte fixe")
+        line = term.lines.first()
+        assert line.value_type == "fixed"
+        assert line.value == Decimal("50000")
+
+
+def test_config_payment_terms_percent_without_value_shows_error(config_screens_setup) -> None:
+    client, tenant = config_screens_setup
+    response = client.post(
+        "/accounting/config/payment-terms/",
+        {"name": "Sans valeur", "value_type": "percent", "days": "30"},
+    )
+    assert response.status_code == 200
+    assert b"requise" in response.content
+    with use_tenant(tenant.id):
+        assert not AccPaymentTerm.objects.filter(name="Sans valeur").exists()

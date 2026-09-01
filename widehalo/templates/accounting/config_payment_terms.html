@@ -20,7 +20,7 @@
           <td>{{ term.name }}</td>
           <td>
             {% for line in term.lines.all %}
-              {{ line.get_value_type_display }} — {{ line.days }} {% trans "jours" %}{% if not forloop.last %}; {% endif %}
+              {{ line.get_value_type_display }}{% if line.value is not None %} ({{ line.value }}{% if line.value_type == "percent" %}%{% else %} Ar{% endif %}){% endif %} — {{ line.days }} {% trans "jours" %}{% if not forloop.last %}; {% endif %}
             {% empty %}
               —
             {% endfor %}
@@ -34,7 +34,7 @@
 
   <h2>{% trans "Nouvelle condition de paiement" %}</h2>
   <p class="hint">{% trans "Simplifie a une seule ligne (le détail multi-lignes reste accessible via l'api)." %}</p>
-  <form method="post">
+  <form method="post" x-data="{ valueType: 'percent' }">
     {% csrf_token %}
     <div class="form-field">
       <label for="name">{% trans "Nom" %}</label>
@@ -42,11 +42,15 @@
     </div>
     <div class="form-field">
       <label for="value_type">{% trans "Type de valeur" %}</label>
-      <select id="value_type" name="value_type" required>
+      <select id="value_type" name="value_type" x-model="valueType" required>
         {% for value, label in value_type_choices %}
           <option value="{{ value }}">{{ label }}</option>
         {% endfor %}
       </select>
+    </div>
+    <div class="form-field" x-show="valueType !== 'balance'" x-cloak>
+      <label for="value" x-text="valueType === 'percent' ? '{% trans "Pourcentage (%)" %}' : '{% trans "Montant (Ar)" %}'"></label>
+      <input id="value" type="number" name="value" step="0.0001" min="0">
     </div>
     <div class="form-field">
       <label for="days">{% trans "Jours" %}</label>
