@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from apps.chat.models import ChatChannel, ChatChannelMembership, ChatMessage
 from apps.chat.services.messaging import (
     MAX_ATTACHMENT_SIZE,
+    get_or_create_direct_channel,
     is_channel_member,
     post_message,
 )
@@ -69,6 +70,51 @@ def test_get_or_create_document_channel_is_idempotent(tenant_and_users) -> None:
         channel = ChatChannel.objects.get(id=channel_id_1)
         assert is_channel_member(channel, alice)
         assert is_channel_member(channel, bob)
+
+
+def test_get_or_create_direct_channel_is_idempotent(tenant_and_users) -> None:
+    """Correctif de bug reel (UXR2) : `get_or_create_direct_channel`
+    retrouve desormais le canal direct existant entre les 2 memes
+    participants au lieu d'en creer un nouveau a chaque appel — sinon
+    chaque « nouvelle conversation » avec la meme personne creerait un
+    doublon (cf. `get_or_create_document_channel`, qui applique deja cette
+    discipline de recherche prealable)."""
+    tenant, alice, bob = tenant_and_users
+    with use_tenant(tenant.id):
+        channel_1 = get_or_create_direct_channel(tenant=tenant, participants=[alice, bob])
+        channel_2 = get_or_create_direct_channel(tenant=tenant, participants=[alice, bob])
+
+        assert channel_1.id == channel_2.id
+        assert ChatChannel.objects.filter(tenant=tenant, kind=ChatChannel.KIND_DIRECT).count() == 1
+        member_ids = set(
+            ChatChannelMembership.objects.filter(channel=channel_1).values_list(
+                "user_id", flat=True
+            )
+        )
+        assert member_ids == {alice.id, bob.id}
+
+
+def test_get_or_create_direct_channel_participant_order_does_not_matter(tenant_and_users) -> None:
+    tenant, alice, bob = tenant_and_users
+    with use_tenant(tenant.id):
+        channel_1 = get_or_create_direct_channel(tenant=tenant, participants=[alice, bob])
+        channel_2 = get_or_create_direct_channel(tenant=tenant, participants=[bob, alice])
+
+        assert channel_1.id == channel_2.id
+
+
+def test_get_or_create_direct_channel_distinct_pair_gets_its_own_channel(
+    tenant_and_users,
+) -> None:
+    tenant, alice, bob = tenant_and_users
+    with use_tenant(tenant.id):
+        carol = User.objects.create_user(email="carol@example.com", password="Str0ngPassw0rd!23")
+
+        channel_ab = get_or_create_direct_channel(tenant=tenant, participants=[alice, bob])
+        channel_ac = get_or_create_direct_channel(tenant=tenant, participants=[alice, carol])
+
+        assert channel_ab.id != channel_ac.id
+        assert ChatChannel.objects.filter(tenant=tenant, kind=ChatChannel.KIND_DIRECT).count() == 2
 
 
 def test_non_member_is_not_a_channel_member(tenant_and_users) -> None:

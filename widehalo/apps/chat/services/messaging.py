@@ -4,6 +4,7 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
+from django.db.models import Count, Q
 from django.utils.translation import gettext as _
 
 from apps.chat.models import ChatChannel, ChatChannelMembership, ChatMessage
@@ -63,6 +64,33 @@ def post_message(
 
 
 def get_or_create_direct_channel(*, tenant: Tenant, participants: list[User]) -> ChatChannel:
+    """Retrouve (ou cree) le canal direct entre exactement le meme jeu de
+    participants — meme discipline de recherche prealable que
+    `get_or_create_document_channel` (services/public.py) : sans cette
+    recherche, chaque appel repete (ex. depuis le lanceur de conversation)
+    creerait un nouveau canal en doublon avec les 2 memes personnes."""
+    participant_ids = {user.id for user in participants}
+
+    existing = (
+        ChatChannel.objects.filter(
+            tenant=tenant,
+            kind=ChatChannel.KIND_DIRECT,
+            memberships__user_id__in=participant_ids,
+        )
+        .annotate(
+            matching_members=Count(
+                "memberships",
+                filter=Q(memberships__user_id__in=participant_ids),
+                distinct=True,
+            ),
+            total_members=Count("memberships", distinct=True),
+        )
+        .filter(matching_members=len(participant_ids), total_members=len(participant_ids))
+        .first()
+    )
+    if existing is not None:
+        return existing
+
     channel = ChatChannel.objects.create(tenant=tenant, kind=ChatChannel.KIND_DIRECT)
     for user in participants:
         ChatChannelMembership.objects.create(tenant=tenant, channel=channel, user=user)
