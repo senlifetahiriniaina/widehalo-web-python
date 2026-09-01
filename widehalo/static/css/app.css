@@ -654,6 +654,18 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   border-color: var(--color-danger-border);
 }
 
+/* Chantier "champs date largeur fixe" : `.form-field` est un flex-column
+   sans `align-items` declare, donc le defaut flexbox `align-items:
+   stretch` etire tout enfant direct (dont un `<input type="date">`) a
+   100% de la largeur du conteneur. Cause identique sur les 39 templates
+   de ce depot utilisant `type="date"` (meme structure de wrapper
+   `.form-field` partout) — une seule regle ciblee ici les corrige tous
+   d'un coup, sans toucher un seul template. `width: auto` restaure la
+   largeur intrinseque du champ (celle de son contenu `jj/mm/aaaa`),
+   `align-self: flex-start` l'empeche de re-etre etire par le flex-column
+   parent. */
+.form-field input[type="date"] { align-self: flex-start; width: auto; }
+
 .form-error {
   color: var(--danger-fg);
   background: var(--danger-bg);
