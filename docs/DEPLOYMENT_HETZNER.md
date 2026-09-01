@@ -282,32 +282,57 @@ code standard.
 
 ## 10. Sauvegarde
 
+Deux mécanismes complémentaires, à des granularités différentes — l'un ne
+remplace pas l'autre :
+
+### 10.1. Sauvegarde en libre-service par société (applicatif)
+
+Le mécanisme d'export/import applicatif par tenant
+(`apps.core.services.tenant_export`, `export_tenant_archive()`/
+`import_tenant_archive()`) est désormais réellement exposé à l'utilisateur
+final — chantier « sauvegarde/restauration en libre-service, planification
+des sauvegardes, réinitialisation des données d'une entreprise » clôturé.
+Il est réservé au **superadministrateur** (`is_superuser`) uniquement,
+jamais aux rôles `admin`/`direction` :
+
+- **Écrans** (menu Administration → « Sauvegarde et restauration », visible
+  uniquement pour un superadministrateur) : liste des opérations passées,
+  déclenchement manuel d'une sauvegarde, téléchargement d'une archive
+  existante, upload d'une archive externe et restauration, réinitialisation
+  complète des données d'une société — les deux dernières actions exigent la
+  saisie exacte du code de la société, revérifiée côté serveur.
+- **API** : `GET/POST /api/v1/core/backups`, `POST /api/v1/core/backups/restore`,
+  `POST /api/v1/core/reset`, `GET/PUT /api/v1/core/backup-schedule`.
+- **Planification** : `manage.py run_tenant_backups` déclenche les
+  sauvegardes planifiées (fréquence/rétention configurées par société,
+  écran « Planification des sauvegardes ») arrivées à échéance. **Aucun
+  cron n'est enregistré automatiquement par l'application** (même
+  convention que tous les autres jobs planifiés de ce dépôt, ex.
+  `run_sales_recurrences`) — c'est à l'opérateur d'invoquer cette commande
+  périodiquement via un ordonnanceur externe (cron système du VM, ou une
+  entrée de service planifiée côté Docker) :
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec web python manage.py run_tenant_backups
+  ```
+
+Les archives produites sont stockées comme n'importe quel `core.Document`
+(déduplication SHA-256, bascule locale/S3 déjà prévue par `STORAGES`) — pas
+de mécanisme de stockage séparé à sauvegarder ou faire évoluer à part.
+
+### 10.2. Sauvegarde du volume Postgres (infrastructure)
+
 La base Postgres est persistée dans le volume nommé `db_data` (survit à un
-`docker compose down` sans `-v`). Un mécanisme d'export/import applicatif par
-tenant existe déjà dans ce dépôt (`apps.core.services.tenant_export`,
-`export_tenant_archive()`/`import_tenant_archive()`) mais n'est exposé
-aujourd'hui que comme fonction de service, pas encore comme commande
-`manage.py` dédiée — invocable en attendant via `manage.py shell` :
-
-```bash
-docker compose -f docker-compose.prod.yml exec web python manage.py shell -c "
-from apps.core.models.tenant import Tenant
-from apps.core.services.tenant_export import export_tenant_archive
-tenant = Tenant.objects.get(code='DEMO')
-open('/app/backup.zip', 'wb').write(export_tenant_archive(tenant))
-"
-docker compose -f docker-compose.prod.yml cp web:/app/backup.zip ./backup.zip
-```
-
-**Note** : l'audit/durcissement de bout en bout de ce mécanisme (format
-d'archive rétro-compatible entre versions, restauration testée, et l'ajout
-d'une vraie commande `manage.py export_tenant`/`import_tenant`) est un
-chantier séparé déjà identifié dans le plan du projet, pas encore clôturé à
-la date de rédaction de ce document — à traiter avant de se reposer
-exclusivement sur ce mécanisme pour un plan de sauvegarde de production.
-En attendant, une sauvegarde régulière du volume `db_data` (`pg_dump`
-planifié, copié hors du VM) reste la garantie la plus simple et la plus
-éprouvée.
+`docker compose down` sans `-v`). Une sauvegarde régulière de ce volume
+(`pg_dump` planifié, copié hors du VM) **reste recommandée**, indépendamment
+du mécanisme applicatif ci-dessus : c'est une couche de secours plus
+grossière (toute la base, tous les tenants, un seul geste de restauration)
+qui protège aussi contre une corruption ou une perte touchant le mécanisme
+applicatif lui-même (ex. le stockage `core.Document` sous-jacent). Les deux
+mécanismes sont complémentaires, pas substituables l'un à l'autre :
+sauvegarde par société pour un usage courant en libre-service (restauration
+ciblée sans intervention d'un opérateur infrastructure), `pg_dump` du volume
+pour une reprise après sinistre complète.
 
 ## 11. Dépannage rapide
 
