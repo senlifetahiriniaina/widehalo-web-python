@@ -12,7 +12,7 @@ from django.test import Client
 from django_otp.oath import totp
 
 from apps.core.models.tenant import Tenant
-from apps.core.models.user import User
+from apps.core.models.user import User, UserTenantMembership
 from apps.core.services import mfa as mfa_service
 
 pytestmark = pytest.mark.django_db
@@ -117,6 +117,50 @@ def test_profile_update_never_changes_email(collaborateur_user: User) -> None:
 
     collaborateur_user.refresh_from_db()
     assert collaborateur_user.email == original_email
+
+
+# --- UXR1 : selecteur de societe active -------------------------------
+
+
+def test_profile_tenant_switch_accepts_a_real_membership(
+    collaborateur_user: User, _existing_tenant: Tenant
+) -> None:
+    other_tenant = Tenant.objects.create(code="ACCOUNT-MENU-T2", name="Deuxieme societe")
+    UserTenantMembership.objects.create(user=collaborateur_user, tenant=other_tenant)
+    UserTenantMembership.objects.create(user=collaborateur_user, tenant=_existing_tenant)
+
+    client = _logged_in_client(collaborateur_user)
+    response = client.post("/profile/", {"tenant_id": str(other_tenant.id)})
+    assert response.status_code == 302
+
+    assert client.session["tenant_id"] == str(other_tenant.id)
+
+
+def test_profile_tenant_switch_rejects_a_tenant_the_user_is_not_a_member_of(
+    collaborateur_user: User,
+) -> None:
+    foreign_tenant = Tenant.objects.create(code="ACCOUNT-MENU-FOREIGN", name="Societe etrangere")
+    # collaborateur_user n'a AUCUNE ligne UserTenantMembership vers foreign_tenant.
+    client = _logged_in_client(collaborateur_user)
+    original_session_tenant = client.session.get("tenant_id")
+
+    response = client.post("/profile/", {"tenant_id": str(foreign_tenant.id)})
+    assert response.status_code == 302
+
+    # jamais positionne : ni le tenant etranger, ni une auto-inscription implicite.
+    assert client.session.get("tenant_id") == original_session_tenant
+    assert client.session.get("tenant_id") != str(foreign_tenant.id)
+
+
+def test_profile_screen_offers_only_memberships_of_current_user(
+    collaborateur_user: User, _existing_tenant: Tenant
+) -> None:
+    UserTenantMembership.objects.create(user=collaborateur_user, tenant=_existing_tenant)
+    client = _logged_in_client(collaborateur_user)
+
+    response = client.get("/profile/")
+    assert response.status_code == 200
+    assert _existing_tenant.name.encode() in response.content
 
 
 # --- Garde admin sur /settings/ --------------------------------------------

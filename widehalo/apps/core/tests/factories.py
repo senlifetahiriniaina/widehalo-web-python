@@ -12,6 +12,7 @@ quels, sans forcer une relation qui n'existe pas dans le modele reel."""
 from __future__ import annotations
 
 import datetime
+import secrets
 import uuid
 
 import factory
@@ -31,7 +32,7 @@ from apps.core.models.search import SearchDocument
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
 from apps.core.models.ui import SavedTableView
-from apps.core.models.user import User, UserTenantMembership
+from apps.core.models.user import User, UserEmailChangeRequest, UserTenantMembership
 from apps.core.models.workflow import (
     ApprovalDelegation,
     ApprovalRequest,
@@ -90,6 +91,23 @@ class UserTenantMembershipFactory(factory.django.DjangoModelFactory):
     user = factory.SubFactory(UserFactory)
     tenant = factory.SubFactory(TenantFactory)
     is_default = True
+
+
+class UserEmailChangeRequestFactory(factory.django.DjangoModelFactory):
+    """UXR1 — `token` genere via `secrets.token_urlsafe`, meme discipline
+    que `PrjGuestAccessFactory` (jamais une sequence previsible)."""
+
+    class Meta:
+        model = UserEmailChangeRequest
+
+    tenant = factory.SubFactory(TenantFactory)
+    user = factory.SubFactory(UserFactory)
+    new_email = factory.Sequence(lambda n: f"nouveladresse{n}@example.com")
+    token = factory.LazyFunction(lambda: secrets.token_urlsafe(32))
+    requested_by = factory.SubFactory(UserFactory)
+    expires_at = factory.LazyFunction(
+        lambda: datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=24)
+    )
 
 
 class SavedTableViewFactory(factory.django.DjangoModelFactory):
