@@ -1,0 +1,22 @@
+{% extends "reports/_base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block document_title %}{{ company_name|default:"WideHalo" }}{% endblock %}
+{% block header_meta %}
+  <p>{{ title }}</p>
+{% endblock %}
+{% block content %}
+  <table class="report-table">
+    <thead>
+      <tr>
+        {% for label in column_labels %}<th>{{ label }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

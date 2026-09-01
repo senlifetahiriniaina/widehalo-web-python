@@ -11,15 +11,14 @@
     <input id="smart-table-search-{{ dom_id }}" type="search" name="q" value="{{ query }}"
            placeholder="{% trans 'Rechercher…' %}" aria-label="{% trans 'Rechercher' %}">
     <button type="submit" class="btn-sm">{% trans "Filtrer" %}</button>
-    <label for="smart-table-page-size-{{ dom_id }}" class="sr-only">{% trans "Lignes par page" %}</label>
-    <select id="smart-table-page-size-{{ dom_id }}" name="page_size"
-            onchange="this.form.requestSubmit()">
-      {% for size in page_size_options %}
-        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
-      {% endfor %}
-    </select>
-    <a class="btn btn-secondary btn-sm"
-       href="?{% smart_table_query query=query export='csv' %}">{% trans "Exporter CSV" %}</a>
+    <div class="smart-table-export-links">
+      <a class="btn btn-secondary btn-sm"
+         href="?{% smart_table_query query=query export='csv' %}">{% trans "Exporter CSV" %}</a>
+      <a class="btn btn-secondary btn-sm"
+         href="?{% smart_table_query query=query export='xlsx' %}">{% trans "Exporter XLSX" %}</a>
+      <a class="btn btn-secondary btn-sm"
+         href="?{% smart_table_query query=query export='pdf' %}">{% trans "Exporter PDF" %}</a>
+    </div>
   </form>
 
   <div class="panel-body">
@@ -27,7 +26,7 @@
       <thead>
         <tr>
           {% for column in columns %}
-            <th scope="col" {% if sort == column.key %}aria-sort="ascending"{% endif %}>
+            <th scope="col" {% if column.format|is_numeric_column_format %}class="col-num"{% endif %} {% if sort == column.key %}aria-sort="ascending"{% endif %}>
               <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=column.key page_size=page_size %}"
                  hx-target="#{{ dom_id }}"
                  hx-select="#{{ dom_id }}"
@@ -43,7 +42,7 @@
         {% for row in page_obj %}
           <tr>
             {% for column in columns %}
-              <td>
+              <td {% if column.format|is_numeric_column_format %}class="col-num"{% endif %}>
                 {% if forloop.first and row_url_name %}
                   <a href="{{ row|reverse_with_pk:row_url_name }}">{{ row|getattr:column.key|smart_table_format:column.format }}</a>
                 {% else %}
@@ -59,17 +58,38 @@
     </table>
 
     <nav class="pagination" aria-label="{% trans 'Pagination' %}">
-      {% if page_obj.has_previous %}
-        <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=sort page_size=page_size page=page_obj.previous_page_number %}"
-           hx-target="#{{ dom_id }}" hx-select="#{{ dom_id }}"
-           hx-swap="outerHTML" hx-push-url="true">{% trans "Précédent" %}</a>
-      {% endif %}
-      <span>{% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
-      {% if page_obj.has_next %}
-        <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=sort page_size=page_size page=page_obj.next_page_number %}"
-           hx-target="#{{ dom_id }}" hx-select="#{{ dom_id }}"
-           hx-swap="outerHTML" hx-push-url="true">{% trans "Suivant" %}</a>
-      {% endif %}
+      <div class="pagination-controls">
+        {% if page_obj.has_previous %}
+          <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=sort page_size=page_size page=page_obj.previous_page_number %}"
+             hx-target="#{{ dom_id }}" hx-select="#{{ dom_id }}"
+             hx-swap="outerHTML" hx-push-url="true">{% trans "Précédent" %}</a>
+        {% endif %}
+        <span>{% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}Page {{ num }} sur {{ total }}{% endblocktrans %}</span>
+        {% if page_obj.has_next %}
+          <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=sort page_size=page_size page=page_obj.next_page_number %}"
+             hx-target="#{{ dom_id }}" hx-select="#{{ dom_id }}"
+             hx-swap="outerHTML" hx-push-url="true">{% trans "Suivant" %}</a>
+        {% endif %}
+      </div>
+      <form class="pagination-page-size"
+            hx-get="{{ request.path }}"
+            hx-target="#{{ dom_id }}"
+            hx-select="#{{ dom_id }}"
+            hx-swap="outerHTML"
+            hx-push-url="true">
+        <input type="hidden" name="q" value="{{ query }}">
+        {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+        {% for hidden_key in hidden_columns %}
+          <input type="hidden" name="hide" value="{{ hidden_key }}">
+        {% endfor %}
+        <label for="smart-table-page-size-{{ dom_id }}" class="sr-only">{% trans "Lignes par page" %}</label>
+        <select id="smart-table-page-size-{{ dom_id }}" name="page_size"
+                onchange="this.form.requestSubmit()">
+          {% for size in page_size_options %}
+            <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </form>
     </nav>
   </div>
 </div>

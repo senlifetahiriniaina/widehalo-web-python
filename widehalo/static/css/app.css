@@ -604,7 +604,29 @@ table.smart-table th a:focus-visible {
   align-items: center;
 }
 
-.pagination { display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing); }
+.smart-table-export-links {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+}
+
+table.smart-table th.col-num,
+table.smart-table td.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing);
+}
+
+.pagination-controls { display: flex; align-items: center; gap: var(--spacing-sm); }
+
+.pagination-page-size { display: flex; align-items: center; }
 
 /* ============== Formulaires ============== */
 .form-field { margin-bottom: var(--spacing); display: flex; flex-direction: column; gap: 0.25rem; }

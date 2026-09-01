@@ -27,7 +27,7 @@ COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="name", label="Nom"),
     Column(key="base_price_mga", label="Prix catalogue (MGA)", searchable=False, format="mga"),
-    Column(key="is_sellable", label="Vendable", searchable=False),
+    Column(key="is_sellable", label="Vendable", searchable=False, format="bool"),
 ]
 
 

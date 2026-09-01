@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
+from apps.catalog.models import ProductTemplate, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
@@ -130,3 +133,100 @@ def test_htmx_pagination_next_page_returns_real_page_two_content() -> None:
     assert body2.count("HTX-") == 5
     # Le contenu de la page 2 est reellement different de la page 1.
     assert body1 != body2
+
+
+def test_page_size_selector_lives_next_to_pagination_not_in_the_toolbar() -> None:
+    client, tenant = _logged_in_client()
+    with use_tenant(tenant.id):
+        Partner.objects.create(tenant=tenant, name="Solo", reference="SOLO-0001")
+
+    response = client.get("/partners/")
+    body = response.content.decode()
+    pagination_idx = body.index('class="pagination"')
+    select_idx = body.index('name="page_size"')
+    toolbar_idx = body.index('class="smart-table-toolbar')
+    # Le selecteur de taille de page apparait dans le bloc <nav
+    # class="pagination">, jamais dans la barre d'outils du haut.
+    assert select_idx > pagination_idx
+    export_links_idx = body.index("Exporter CSV")
+    assert toolbar_idx < export_links_idx < select_idx
+
+
+def test_xlsx_export_returns_a_valid_workbook() -> None:
+    client, tenant = _logged_in_client()
+    with use_tenant(tenant.id):
+        Partner.objects.create(tenant=tenant, name="XlsxPartner", reference="XLS-0001")
+
+    response = client.get("/partners/", {"export": "xlsx"})
+    assert (
+        response["Content-Type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response["Content-Disposition"] == 'attachment; filename="partners.list.xlsx"'
+    assert response.content.startswith(b"PK")  # signature ZIP/XLSX
+
+
+def test_pdf_export_returns_a_pdf_with_company_header_and_widehalo_footer() -> None:
+    client, tenant = _logged_in_client()
+    with use_tenant(tenant.id):
+        Partner.objects.create(tenant=tenant, name="PdfPartner", reference="PDF-0001")
+
+    response = client.get("/partners/", {"export": "pdf"})
+    assert response["Content-Type"] == "application/pdf"
+    assert response["Content-Disposition"] == 'attachment; filename="partners.list.pdf"'
+    assert response.content.startswith(b"%PDF")
+
+    from io import BytesIO
+
+    import pdfplumber
+
+    with pdfplumber.open(BytesIO(response.content)) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    # Entete = nom de l'entreprise (tenant), pied de page = "WideHalo".
+    assert tenant.name in text
+    assert "WideHalo" in text
+
+
+def test_money_column_is_right_aligned() -> None:
+    """Prix catalogue (format="mga") doit porter la classe CSS
+    d'alignement a droite — jamais le texte brut Decimal sans separateur."""
+    client, tenant = _logged_in_client()
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PCS", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        ProductTemplate.objects.create(
+            tenant=tenant,
+            name="Test",
+            reference="PT-0001",
+            base_price_mga=Decimal("98610.0000"),
+            base_uom=uom,
+        )
+
+    response = client.get("/catalog/templates/")
+    body = response.content.decode()
+    # format_mga() utilise deliberement une espace insecable (\xa0) comme
+    # separateur de milliers (cf. sa docstring) — jamais une espace normale.
+    assert "98\xa0610\xa0Ar" in body
+    assert 'class="col-num"' in body
+
+
+def test_boolean_column_renders_oui_non_not_python_bool() -> None:
+    client, tenant = _logged_in_client()
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PCS2", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        ProductTemplate.objects.create(
+            tenant=tenant, name="Sellable", reference="PT-0002", is_sellable=True, base_uom=uom
+        )
+        ProductTemplate.objects.create(
+            tenant=tenant, name="Internal", reference="PT-0003", is_sellable=False, base_uom=uom
+        )
+
+    response = client.get("/catalog/templates/")
+    body = response.content.decode()
+    assert "Oui" in body
+    assert "Non" in body
+    assert ">True<" not in body
+    assert ">False<" not in body

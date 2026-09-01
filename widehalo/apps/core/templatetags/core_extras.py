@@ -8,6 +8,7 @@ from django.http import QueryDict
 from django.urls import reverse
 
 from apps.core.utils.formatting import COLUMN_FORMATTERS
+from apps.core.views.smart_table import NUMERIC_COLUMN_FORMATS
 from apps.core.views.smart_table import smart_table_dom_id as _smart_table_dom_id
 
 register = template.Library()
@@ -27,6 +28,15 @@ def smart_table_dom_id(table_key: str) -> str:
     point de verite pour l'id HTML/CSS-safe derive de `table_key`, jamais
     recalcule independamment cote template."""
     return _smart_table_dom_id(table_key)
+
+
+@register.filter(name="is_numeric_column_format")
+def is_numeric_column_format(format_key: str | None) -> bool:
+    """Indique si `format_key` (`Column.format`) designe une colonne
+    numerique (montant...) — pilote l'alignement a droite de la colonne
+    cote template (`_smart_table.html`), sans jamais coder en dur un nom de
+    format par module."""
+    return bool(format_key) and format_key in NUMERIC_COLUMN_FORMATS
 
 
 @register.filter(name="smart_table_format")

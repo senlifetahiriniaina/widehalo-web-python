@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 DISPLAY_TIMEZONE = ZoneInfo(getattr(settings, "DISPLAY_TIME_ZONE", "Indian/Antananarivo"))
 
@@ -30,12 +31,21 @@ def _format_mga_column(value: Any) -> str:
     return format_mga(Decimal(str(value)))
 
 
+def _format_bool_column(value: Any) -> str:
+    """Affiche un booleen en "Oui"/"Non" plutot que la representation
+    Python brute (`True`/`False`, jamais traduite ni localisee)."""
+    return str(_("Oui")) if bool(value) else str(_("Non"))
+
+
 # Registre extensible de formateurs de colonne SmartTable (`Column.format`,
 # cf. `apps/core/views/smart_table.py`) — un futur format s'ajoute par une
 # entree ici, jamais par un `if column.format == "..."` code en dur dans le
-# template partage par ~198 ecrans de liste.
+# template partage par ~198 ecrans de liste. Chaque format numerique
+# (montant...) est aussi utilise cote template pour aligner la colonne a
+# droite (`smart_table.py::NUMERIC_COLUMN_FORMATS`).
 COLUMN_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "mga": _format_mga_column,
+    "bool": _format_bool_column,
 }
 
 

@@ -15,14 +15,29 @@ from django.core.paginator import Paginator
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 
+from apps.core.models.tenant import Tenant
 from apps.core.models.ui import SavedTableView
 from apps.core.models.user import User
 from apps.core.services.export import export_queryset
 from apps.core.services.permissions import user_role_codes
+from apps.core.utils.formatting import COLUMN_FORMATTERS
 
 ALLOWED_PAGE_SIZES = (25, 50, 100)
 DEFAULT_PAGE_SIZE = 25
+EXPORT_FORMATS = ("csv", "xlsx", "pdf")
+
+# Formats de colonne consideres numeriques — alignes a droite cote template
+# (`_smart_table.html`), jamais code en dur par module (ex. "bool" reste
+# aligne a gauche, ce n'est pas un montant).
+NUMERIC_COLUMN_FORMATS = frozenset({"mga"})
+
+_EXPORT_CONTENT_TYPES = {
+    "csv": "text/csv",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pdf": "application/pdf",
+}
 
 
 def smart_table_dom_id(table_key: str) -> str:
@@ -56,6 +71,63 @@ def visible_saved_views(user: User, table_key: str) -> QuerySet[SavedTableView]:
     return SavedTableView.objects.filter(table_key=table_key).filter(
         Q(owner=user) | Q(shared_with_role__in=user_role_codes(user))
     )
+
+
+def _humanize_table_key(table_key: str) -> str:
+    """Derive un titre lisible depuis `table_key` (ex. "catalog.templates"
+    -> "Catalog templates") pour l'entete des exports PDF — un libelle
+    exact par ecran n'est pas fourni par les ~198 appelants existants,
+    cette derivation automatique reste meilleure qu'un titre absent."""
+    words = re.split(r"[._-]+", table_key)
+    return " ".join(w.capitalize() for w in words if w)
+
+
+def _format_export_cell(row: Any, column: Column) -> str:
+    value = getattr(row, column.key, "")
+    if column.format:
+        formatter = COLUMN_FORMATTERS.get(column.format)
+        if formatter is not None:
+            try:
+                return str(formatter(value))
+            except (ValueError, TypeError):
+                pass
+    return "" if value is None else str(value)
+
+
+def _export_response(
+    request: HttpRequest,
+    *,
+    export_format: str,
+    table_key: str,
+    columns: list[Column],
+    queryset: QuerySet[Any],
+) -> HttpResponse:
+    filename = f"{table_key}.{export_format}"
+    if export_format in ("csv", "xlsx"):
+        field_names = [c.key for c in columns]
+        payload = export_queryset(queryset, field_names, format=export_format)
+    else:
+        # PDF : reutilise le gabarit partage `reports/_base.html` (entete +
+        # pied de page "WideHalo" deja normalises pour tout rapport de ce
+        # depot) — jamais une mise en page ad hoc par ecran.
+        company = Tenant.objects.first()
+        rows = [[_format_export_cell(row, column) for column in columns] for row in queryset]
+        html = render_to_string(
+            "reports/smart_table_export.html",
+            {
+                "title": _humanize_table_key(table_key),
+                "company_name": company.name if company else "",
+                "column_labels": [c.label for c in columns],
+                "rows": rows,
+            },
+        )
+        from weasyprint import HTML
+
+        payload = HTML(string=html).write_pdf()
+
+    response = HttpResponse(payload, content_type=_EXPORT_CONTENT_TYPES[export_format])
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) -> QuerySet[Any]:
@@ -92,12 +164,15 @@ def smart_table_response(
     queryset = _apply_search(queryset, columns, query)
     queryset = queryset.order_by(sort) if sort else queryset.order_by("-created_at")
 
-    if request.GET.get("export") == "csv":
-        field_names = [c.key for c in columns]
-        csv_bytes = export_queryset(queryset, field_names, format="csv")
-        response = HttpResponse(csv_bytes, content_type="text/csv")
-        response["Content-Disposition"] = f'attachment; filename="{table_key}.csv"'
-        return response
+    export_format = request.GET.get("export")
+    if export_format in EXPORT_FORMATS:
+        return _export_response(
+            request,
+            export_format=export_format,
+            table_key=table_key,
+            columns=columns,
+            queryset=queryset,
+        )
 
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page_number)
