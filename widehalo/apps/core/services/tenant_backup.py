@@ -172,7 +172,21 @@ def run_due_tenant_backups() -> list[TenantDataOperation]:
     commande `manage.py run_tenant_backups`, elle-meme SANS cron
     auto-enregistre (decision actee — c'est a l'operateur cron systeme/
     Docker de l'invoquer periodiquement, meme convention que tous les jobs
-    planifies deja existants de ce depot)."""
+    planifies deja existants de ce depot).
+
+    **Boucle `Tenant.objects.all()` + `activate_tenant` par tenant**
+    (jamais un `TenantBackupSchedule.all_objects.filter(...)` global) —
+    `Tenant` n'est pas lui-meme tenant-scope (pas de RLS dessus), mais
+    `TenantBackupSchedule` L'EST : la policy RLS Postgres
+    (`tenant_id = current_setting('app.tenant_id')`) s'applique a TOUTE
+    requete, y compris via `all_objects` (qui ne contourne que le
+    filtrage cote Django, jamais la RLS **base de donnees**, cf.
+    docstring de `apps.core.management.commands.apply_rls`) — une requete
+    inter-tenant sur cette table ne verrait donc, au mieux, que les lignes
+    du DERNIER tenant active (au pire, rien du tout hors de tout
+    contexte). Meme discipline que tous les jobs planifies soeurs
+    (`run_sales_recurrences`...) : boucle les tenants un par un, active
+    le contexte AVANT toute lecture de leurs donnees."""
     from dateutil.relativedelta import relativedelta
 
     from apps.core.tenant_context import activate_tenant
@@ -185,14 +199,14 @@ def run_due_tenant_backups() -> list[TenantDataOperation]:
 
     now = timezone.now()
     operations: list[TenantDataOperation] = []
-    due_schedules = TenantBackupSchedule.all_objects.filter(
-        is_active=True, next_run_at__lte=now
-    ).select_related("tenant")
-    for schedule in due_schedules:
-        with activate_tenant(schedule.tenant_id):
-            operation = create_tenant_backup(
-                schedule.tenant, trigger=TenantDataOperation.TRIGGER_SCHEDULED
-            )
+    for tenant in Tenant.objects.all():
+        with activate_tenant(tenant.id):
+            schedule = TenantBackupSchedule.objects.filter(
+                is_active=True, next_run_at__lte=now
+            ).first()
+            if schedule is None:
+                continue
+            operation = create_tenant_backup(tenant, trigger=TenantDataOperation.TRIGGER_SCHEDULED)
             operations.append(operation)
             schedule.last_run_at = now
             schedule.next_run_at = now + step_by_frequency[schedule.frequency]
