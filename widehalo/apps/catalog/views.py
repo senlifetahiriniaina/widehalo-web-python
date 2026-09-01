@@ -26,6 +26,7 @@ from apps.core.views.tenant_web import resolve_tenant
 COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="name", label="Nom"),
+    Column(key="category", label="Catégorie", searchable=False),
     Column(key="base_price_mga", label="Prix catalogue (MGA)", searchable=False, format="mga"),
     Column(key="is_sellable", label="Vendable", searchable=False, format="bool"),
 ]
@@ -33,7 +34,7 @@ COLUMNS = [
 
 @login_required
 def template_list(request: HttpRequest) -> HttpResponse:
-    queryset = ProductTemplate.objects.filter(is_active=True)
+    queryset = ProductTemplate.objects.filter(is_active=True).select_related("category")
     return smart_table_response(
         request,
         table_key="catalog.templates",

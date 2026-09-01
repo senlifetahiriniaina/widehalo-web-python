@@ -53,6 +53,23 @@ def test_template_list_renders(catalog_screens_setup) -> None:
     assert response.status_code == 200
 
 
+def test_template_list_shows_category_column(catalog_screens_setup) -> None:
+    from apps.catalog.models import Category
+
+    client, tenant, template, _color = catalog_screens_setup
+    with use_tenant(tenant.id):
+        family = Category.objects.create(tenant=tenant, name="Vetements")
+        subfamily = Category.objects.create(tenant=tenant, name="Hauts", parent=family)
+        template.category = subfamily
+        template.save(update_fields=["category"])
+
+    response = client.get("/catalog/templates/")
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Catégorie" in body
+    assert "Hauts" in body
+
+
 def test_template_detail_renders(catalog_screens_setup) -> None:
     client, _tenant, template, _color = catalog_screens_setup
     response = client.get(f"/catalog/templates/{template.id}/")
