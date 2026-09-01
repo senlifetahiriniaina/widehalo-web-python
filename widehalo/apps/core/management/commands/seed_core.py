@@ -73,6 +73,14 @@ class Command(BaseCommand):
         # tenant+code) — utile aux futures campagnes Schemathesis/demo qui
         # exerceraient les endpoints helpdesk.
         call_command("load_ticket_type_catalog", tenant=tenant_code)
+        # Plan comptable PCG 2005 (generique + sectoriel, cf. UXR7) et 7
+        # journaux comptables par defaut — idempotents, utiles aux futures
+        # campagnes Schemathesis/demo qui exerceraient les endpoints
+        # comptables. PCG charge AVANT les journaux : `load_default_journals`
+        # resout `default_account` (BQ/CAI) par prefixe de code parmi les
+        # comptes deja crees, donc l'ordre importe.
+        call_command("load_pcg2005", tenant=tenant_code)
+        call_command("load_default_journals", tenant=tenant_code)
 
         call_command("load_roles")
 

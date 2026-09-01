@@ -163,6 +163,14 @@ def setup_company_view(request: HttpRequest) -> HttpResponse:
             # `create_tenant.py`/`seed_core.py` (aucune dependance Python
             # declaree vers `helpdesk`).
             call_command("load_ticket_type_catalog", tenant=tenant.code)
+            # Plan comptable PCG 2005 (generique + sectoriel, cf. UXR7) et 7
+            # journaux comptables par defaut — jamais vides pour un nouveau
+            # tenant, meme convention `call_command` que ci-dessus. PCG
+            # charge AVANT les journaux : `load_default_journals` resout
+            # `default_account` (BQ/CAI) par prefixe de code parmi les
+            # comptes deja crees, donc l'ordre importe.
+            call_command("load_pcg2005", tenant=tenant.code)
+            call_command("load_default_journals", tenant=tenant.code)
             UserTenantMembership.objects.create(user=request.user, tenant=tenant, is_default=True)
             request.session["tenant_id"] = str(tenant.id)
             return redirect("dashboard")
