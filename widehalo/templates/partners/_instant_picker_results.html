@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+Fragment de resultats de `apps/partners/views.py::partner_instant_picker`
+(UXR3) — swappe dans le `<ul data-partner-picker-results>` de
+`components/_partner_picker.html`. Chaque `<li>` porte `data-partner-id`/
+`data-partner-name`, lus par le gestionnaire de clic delegue defini dans
+`static/js/ui_patterns.js` pour peupler le champ cache/le texte affiche
+du picker appelant.
+{% endcomment %}
+{% for partner in partners %}
+<li data-partner-id="{{ partner.id }}" data-partner-name="{{ partner.name }}">
+  {{ partner.name }}{% if partner.nif %} — {{ partner.nif }}{% endif %}
+</li>
+{% empty %}
+<li class="wh-partner-picker-empty">{% trans "Aucun partenaire trouvé." %}</li>
+{% endfor %}

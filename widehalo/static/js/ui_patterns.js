@@ -152,6 +152,61 @@ document.body.addEventListener("wh-toast", (event) => {
 });
 
 /*
+ * Picker partenaire reutilisable (`components/_partner_picker.html`,
+ * UXR3) : deux gestionnaires vanilla JS delegues au document, pour que
+ * le composant fonctionne quel que soit le nombre d'instances presentes
+ * sur une meme page, sans configuration cote appelant au-dela des ids
+ * `field_id`/`display_id` passes a l'include.
+ *
+ * 1. Clic sur un resultat de recherche (`<li data-partner-id
+ *    data-partner-name>`, fragment rendu par
+ *    `apps/partners/views.py::partner_instant_picker`) : peuple le champ
+ *    cache et le texte affiche identifies par les attributs
+ *    `data-field-id`/`data-display-id` du conteneur `<ul
+ *    data-partner-picker-results>` le plus proche.
+ * 2. Evenement `wh-partner-created` (declenche par htmx via l'en-tete
+ *    `HX-Trigger` que renvoie `partner_create_wizard` en mode
+ *    `?embed=1` a l'issue de l'etape 2) : meme peuplement, puis fermeture
+ *    de la `whModal()` englobante (`data-wh-partner-picker-modal`) —
+ *    identifiee en remontant depuis `event.target` (l'evenement HX-Trigger
+ *    est dispatche sur l'element swappe par htmx, qui bouillonne jusqu'au
+ *    document en traversant necessairement le wrapper de la modale).
+ */
+document.body.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-partner-id]");
+  if (!item) return;
+  const container = item.closest("[data-partner-picker-results]");
+  if (!container) return;
+  populatePartnerPicker(container.dataset.fieldId, container.dataset.displayId, {
+    partner_id: item.dataset.partnerId,
+    partner_name: item.dataset.partnerName,
+  });
+  container.innerHTML = "";
+});
+
+document.body.addEventListener("wh-partner-created", (event) => {
+  const detail = event.detail || {};
+  const modal = event.target.closest("[data-wh-partner-picker-modal]");
+  if (!modal) return;
+  populatePartnerPicker(modal.dataset.fieldId, modal.dataset.displayId, detail);
+  if (window.Alpine && typeof Alpine.$data === "function") {
+    const scope = Alpine.$data(modal);
+    if (scope && typeof scope.hide === "function") scope.hide();
+  }
+});
+
+function populatePartnerPicker(fieldId, displayId, detail) {
+  if (fieldId && detail.partner_id) {
+    const field = document.getElementById(fieldId);
+    if (field) field.value = detail.partner_id;
+  }
+  if (displayId && detail.partner_name) {
+    const display = document.getElementById(displayId);
+    if (display) display.textContent = detail.partner_name;
+  }
+}
+
+/*
  * Fil d'ariane calcule cote client (chantier UI signale par l'utilisateur
  * apres test reel de l'interface). Zero modification des ~200 templates :
  * derive uniquement de deux sources deja presentes sur chaque page rendue

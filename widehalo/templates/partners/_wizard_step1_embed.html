@@ -1,0 +1,11 @@
+{% load i18n %}
+{% comment %}
+Etape 1 de l'assistant de creation de partenaire, en mode `?embed=1` :
+fragment nu (aucun `{% extends %}`), swappe dans le corps d'une
+`whModal()` par `components/_partner_picker.html` (UXR3). Contrairement
+a `wizard_step1.html` (page complete), jamais servi hors d'une modale.
+{% endcomment %}
+<div class="page-head">
+  <h1>{% trans "Nouveau partenaire" %} — {% trans "Étape 1 sur 2" %}</h1>
+</div>
+{% include "partners/_wizard_form.html" with embed=True %}

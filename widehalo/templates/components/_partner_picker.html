@@ -1,0 +1,67 @@
+{% load i18n %}
+{% comment %}
+Composant transversal reutilisable (UXR3) : recherche instantanee de
+partenaire + creation via popup, sans dupliquer la logique de recherche
+ni celle de l'assistant de creation. Consommateurs prevus : creation
+d'opportunite CRM (UXR4), devis/commande de vente (UXR5) — jamais
+cable a un ecran metier depuis ce sous-chantier lui-meme.
+
+Parametres de contexte (obligatoires) :
+  - field_id      : id du champ cache qui recevra l'UUID du partenaire
+                     choisi (aussi son `name` de soumission — le formulaire
+                     englobant lit ce champ comme n'importe quel <input>).
+  - display_id    : id du <span> qui affichera le nom du partenaire choisi.
+
+Parametres de contexte (optionnels) :
+  - initial_partner_id   : UUID pre-rempli (edition d'un enregistrement
+                            existant referencant deja un partenaire).
+  - initial_partner_name : nom affiche correspondant.
+
+Exemple d'inclusion :
+  {% include "components/_partner_picker.html" with field_id="partner_id" display_id="partner_id_display" %}
+
+Le formulaire englobant n'a rien d'autre a faire : il lit `field_id` (ex.
+`partner_id`) comme un champ POST normal a la soumission.
+{% endcomment %}
+<div class="wh-partner-picker" id="partner-picker-{{ field_id }}">
+  <div class="form-field">
+    <label for="partner-picker-search-{{ field_id }}">{% trans "Partenaire" %}</label>
+    <input
+      type="text"
+      id="partner-picker-search-{{ field_id }}"
+      name="q"
+      autocomplete="off"
+      placeholder="{% trans 'Rechercher un partenaire…' %}"
+      hx-get="{% url 'partners:instant_picker' %}"
+      hx-trigger="keyup changed delay:300ms, search"
+      hx-target="#partner-picker-results-{{ field_id }}"
+      hx-swap="innerHTML">
+    <ul
+      id="partner-picker-results-{{ field_id }}"
+      class="wh-partner-picker-results"
+      data-partner-picker-results
+      data-field-id="{{ field_id }}"
+      data-display-id="{{ display_id }}"></ul>
+    <p class="help">
+      {% trans "Sélectionné :" %}
+      <span id="{{ display_id }}" class="wh-partner-picker-display">{{ initial_partner_name|default:"" }}</span>
+    </p>
+    <input type="hidden" id="{{ field_id }}" name="{{ field_id }}" value="{{ initial_partner_id|default:'' }}">
+  </div>
+
+  <div x-data="whModal()" data-wh-partner-picker-modal data-field-id="{{ field_id }}" data-display-id="{{ display_id }}">
+    <button type="button" class="btn btn-secondary"
+            @click="show()"
+            hx-get="{% url 'partners:wizard' %}?embed=1"
+            hx-target="#partner-picker-wizard-{{ field_id }}"
+            hx-swap="innerHTML">
+      {% trans "+ Nouveau partenaire" %}
+    </button>
+    <div class="wh-modal-overlay" x-show="open" x-cloak @click.self="hide()" @keydown.escape.window="hide()">
+      <div class="wh-modal" role="dialog" aria-modal="true" aria-label="{% trans 'Nouveau partenaire' %}">
+        <button type="button" class="wh-modal-close" @click="hide()" aria-label="{% trans 'Fermer' %}">&times;</button>
+        <div id="partner-picker-wizard-{{ field_id }}"></div>
+      </div>
+    </div>
+  </div>
+</div>

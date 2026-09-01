@@ -7,6 +7,7 @@ app_name = "partners"
 urlpatterns = [
     path("", views.partner_list, name="list"),
     path("new/", views.partner_create_wizard, name="wizard"),
+    path("instant-picker/", views.partner_instant_picker, name="instant_picker"),
     path("duplicates/", views.duplicate_alert_list, name="duplicates"),
     path("merge/", views.partner_merge, name="merge"),
     path("imports/", views_imports.imports_partners, name="imports"),

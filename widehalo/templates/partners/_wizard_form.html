@@ -1,0 +1,26 @@
+{% load i18n %}
+{% comment %}
+Corps du formulaire d'etape 1 de l'assistant de creation de partenaire,
+factorise pour etre inclus a l'identique par la page complete
+(`wizard_step1.html`) et par le fragment nu servi en mode `?embed=1`
+(`_wizard_step1_embed.html`, consomme par `components/_partner_picker.html`
+— UXR3). Le flag `embed` (booleen de contexte, absent = False) est
+reporte dans le query string du `hx-post` pour que la vue sache, a
+l'etape 2 egalement, qu'elle doit repondre par l'evenement
+`wh-partner-created` plutot que par une redirection pleine page.
+{% endcomment %}
+<form hx-post="{% url 'partners:wizard' %}{% if embed %}?embed=1{% endif %}" hx-target="#wizard-container" hx-swap="innerHTML">
+  <div id="wizard-container">
+    {% csrf_token %}
+    <input type="hidden" name="step" value="1">
+    <div class="form-field">
+      <label for="name">{% trans "Nom" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="nif">{% trans "NIF" %}</label>
+      <input id="nif" type="text" name="nif">
+    </div>
+    <button type="submit">{% trans "Suivant" %}</button>
+  </div>
+</form>

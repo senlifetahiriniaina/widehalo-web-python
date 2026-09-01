@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal, InvalidOperation
 from typing import cast
 
@@ -190,8 +191,23 @@ def partner_merge(request: HttpRequest) -> HttpResponse:
 def partner_create_wizard(request: HttpRequest) -> HttpResponse:
     """Assistant multi-etapes (composant transversal) : etape 1 (identite),
     etape 2 (roles + plafond credit) — chaque etape est un fragment HTMX,
-    aucune page complete n'est rechargee entre les deux."""
+    aucune page complete n'est rechargee entre les deux.
+
+    **Mode `?embed=1` (UXR3)** : consomme par `components/_partner_picker.html`
+    quand l'assistant est ouvert dans une `whModal()` plutot que sur sa
+    propre page. Les deux etapes rendent alors des fragments nus (jamais
+    `{% extends "base.html" %}`) et, a l'issue de l'etape 2, la vue ne
+    redirige plus vers `partners:detail` — elle repond par un corps vide
+    portant un en-tete `HX-Trigger: wh-partner-created` (id + nom du
+    partenaire cree), evenement DOM ecoute par `static/js/ui_patterns.js`
+    pour peupler le champ cache/le texte affiche du picker appelant puis
+    fermer la modale (`whModal.hide()`). Le flag `embed` transite via le
+    query string du `hx-post` du formulaire d'etape 1 (lui-meme regenere
+    a l'etape 1 selon que la requete initiale portait `?embed=1`), donc
+    aucun etat de session supplementaire n'est necessaire pour le porter
+    jusqu'a l'etape 2."""
     step = request.GET.get("step") or request.POST.get("step") or "1"
+    embed = request.GET.get("embed") == "1" or request.POST.get("embed") == "1"
 
     if request.method == "POST" and step == "2":
         tenant = _resolve_tenant(request)
@@ -209,6 +225,18 @@ def partner_create_wizard(request: HttpRequest) -> HttpResponse:
         )
         request.session.pop("wizard_partner_name", None)
         request.session.pop("wizard_partner_nif", None)
+
+        if embed:
+            response = HttpResponse("")
+            response["HX-Trigger"] = json.dumps(
+                {
+                    "wh-partner-created": {
+                        "partner_id": str(partner.id),
+                        "partner_name": partner.name,
+                    }
+                }
+            )
+            return response
         return redirect("partners:detail", partner_id=partner.id)
 
     if request.method == "POST" and step == "1":
@@ -216,7 +244,23 @@ def partner_create_wizard(request: HttpRequest) -> HttpResponse:
         request.session["wizard_partner_nif"] = request.POST.get("nif", "")
         return render(request, "partners/wizard_step2.html", {})
 
+    if embed:
+        return render(request, "partners/_wizard_step1_embed.html", {"embed": True})
     return render(request, "partners/wizard_step1.html", {})
+
+
+@login_required
+def partner_instant_picker(request: HttpRequest) -> HttpResponse:
+    """Endpoint leger de recherche instantanee (fragment HTML), consomme
+    par `components/_partner_picker.html` (UXR3) — futurs consommateurs :
+    creation d'opportunite CRM (UXR4), devis/commandes de vente (UXR5).
+
+    Tenant-scope automatiquement via `Partner.objects` (`TenantManager`,
+    cf. `apps/core/models/base.py`) : aucun filtre `tenant=` explicite
+    necessaire ni possible a contourner depuis la query string."""
+    query = request.GET.get("q", "")
+    partners = Partner.objects.filter(is_active=True, name__icontains=query).order_by("name")[:20]
+    return render(request, "partners/_instant_picker_results.html", {"partners": partners})
 
 
 def _resolve_tenant(request: HttpRequest) -> Tenant:
