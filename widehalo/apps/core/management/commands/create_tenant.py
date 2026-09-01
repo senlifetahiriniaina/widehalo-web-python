@@ -33,4 +33,12 @@ class Command(BaseCommand):
         # (verifie contre `test_module_boundaries.py`, qui ne scanne que les
         # imports AST reels).
         call_command("load_ticket_type_catalog", tenant=tenant.code)
+        # Plan comptable PCG 2005 (generique + sectoriel, cf. UXR7) et 7
+        # journaux comptables par defaut — jamais vides pour un nouveau
+        # tenant, meme convention `call_command` que le catalogue helpdesk
+        # ci-dessus. PCG charge AVANT les journaux : `load_default_journals`
+        # resout `default_account` (BQ/CAI) par prefixe de code parmi les
+        # comptes deja crees, donc l'ordre importe.
+        call_command("load_pcg2005", tenant=tenant.code)
+        call_command("load_default_journals", tenant=tenant.code)
         self.stdout.write(self.style.SUCCESS(f"Tenant créé : {tenant.code} ({tenant.id})"))

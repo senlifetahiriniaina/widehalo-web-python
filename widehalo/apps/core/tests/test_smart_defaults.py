@@ -35,6 +35,27 @@ def test_create_tenant_command_preloads_helpdesk_ticket_type_catalog() -> None:
         assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
 
 
+def test_create_tenant_command_preloads_chart_of_accounts_and_default_journals() -> None:
+    """Un nouveau tenant a deja son plan comptable (generique + sectoriel)
+    et ses 7 journaux par defaut sans aucune action manuelle (UXR7)."""
+    from apps.accounting.models import AccAccount, AccJournal
+
+    call_command(
+        "create_tenant", "--code", "MG-DEMO-ACC", "--name", "Demo Accounting", "--country", "MG"
+    )
+
+    tenant = Tenant.objects.get(code="MG-DEMO-ACC")
+    with use_tenant(tenant.id):
+        assert AccAccount.objects.filter(tenant=tenant).count() >= 54
+        assert AccJournal.objects.filter(tenant=tenant).count() == 7
+        bank_journal = AccJournal.objects.get(tenant=tenant, code="BQ")
+        assert bank_journal.default_account is not None
+        assert bank_journal.default_account.code.startswith("512")
+        cash_journal = AccJournal.objects.get(tenant=tenant, code="CAI")
+        assert cash_journal.default_account is not None
+        assert cash_journal.default_account.code.startswith("530")
+
+
 def test_unknown_country_leaves_tenant_defaults_unchanged() -> None:
     from apps.core.services.smart_defaults import apply_country_defaults
 

@@ -206,6 +206,15 @@ def test_setup_company_creates_tenant_and_attaches_current_user() -> None:
     with use_tenant(tenant.id):
         assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
 
+    # Meme convention : le plan comptable (generique + sectoriel) et les 7
+    # journaux comptables par defaut sont deja la, sans aucune action
+    # manuelle (UXR7).
+    from apps.accounting.models import AccAccount, AccJournal
+
+    with use_tenant(tenant.id):
+        assert AccAccount.objects.filter(tenant=tenant).count() >= 54
+        assert AccJournal.objects.filter(tenant=tenant).count() == 7
+
     # L'amorçage d'instance est termine (plus de redirection vers /setup/) —
     # seul l'enrolement MFA (deja exige du role "admin" avant ce lot, cf.
     # etape 4, sans lien avec cette fonctionnalite) reste a faire ensuite.

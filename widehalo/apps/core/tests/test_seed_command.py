@@ -48,3 +48,17 @@ def test_seed_core_preloads_helpdesk_ticket_type_catalog() -> None:
     tenant = Tenant.objects.get(code="SEEDCORE3")
     with use_tenant(tenant.id):
         assert HlpTicketTypeCatalog.objects.filter(tenant=tenant).count() > 30
+
+
+def test_seed_core_preloads_chart_of_accounts_and_default_journals() -> None:
+    """Un nouveau tenant a deja son plan comptable (generique + sectoriel)
+    et ses 7 journaux par defaut sans aucune action manuelle (UXR7)."""
+    from apps.accounting.models import AccAccount, AccJournal
+    from apps.core.tests.utils import use_tenant
+
+    call_command("seed_core", "--tenant-code=SEEDCORE4")
+
+    tenant = Tenant.objects.get(code="SEEDCORE4")
+    with use_tenant(tenant.id):
+        assert AccAccount.objects.filter(tenant=tenant).count() >= 54
+        assert AccJournal.objects.filter(tenant=tenant).count() == 7

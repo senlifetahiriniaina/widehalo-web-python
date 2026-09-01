@@ -25,7 +25,16 @@ reste du plan comptable :
   vs administrative n'est pas encore distinguee analytiquement) ; `autre`
   n'est utilise pour aucun compte de la fixture V1. Ce choix « tout ce qui
   n'est pas clairement production/distribution va en administration » est
-  une simplification assumee, a affiner avec un vrai expert-comptable."""
+  une simplification assumee, a affiner avec un vrai expert-comptable.
+
+Depuis UXR7, la fixture porte aussi ~15 comptes sectoriels (3 par secteur,
+`AccAccount.sector_code` renseigne : textile/cuir/agroalimentaire/
+import_export/artisanat, matiere premiere/achat/sous-traitance-ou-poste
+specifique) en plus des 39 comptes generiques existants (`sector_code` vide).
+**Meme reserve OECFM que le reste de cette fixture** : ce contenu sectoriel
+est lui aussi indicatif, non valide par un expert-comptable ni un expert
+sectoriel independant — a ne jamais presenter comme une nomenclature
+sectorielle faisant autorite."""
 
 from __future__ import annotations
 
@@ -35,7 +44,7 @@ from typing import Any
 
 from django.utils.translation import gettext as _
 
-from apps.accounting.models import AccAccount
+from apps.accounting.models import AccAccount, AccJournal
 from apps.core.models.tenant import Tenant
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg.json"
@@ -56,7 +65,18 @@ def _read_fixture() -> list[dict[str, Any]]:
 
 def load_pcg2005(tenant: Tenant) -> int:
     """Cree les comptes du plan PCG 2005 pour ce tenant. Idempotent : un
-    compte dont le code existe deja pour ce tenant n'est pas recree."""
+    compte dont le code existe deja pour ce tenant n'est pas recree.
+
+    Charge **tous** les comptes de la fixture, generiques ET sectoriels
+    (`sector_code` renseigne), sans aucun filtrage par secteur — decision
+    disclosed (UXR7) : ce depot n'a nulle part de notion de "secteur du
+    tenant" a laquelle rattacher un filtre (`catalog.CatalogSectorSpec` est
+    porte par variante produit, `strategy.StgSectorBenchmark` par code
+    sectoriel generique du referentiel — ni l'un ni l'autre n'est un
+    attribut de `Tenant`). Charger quelques comptes sectoriels en trop pour
+    un tenant qui ne les utilisera jamais est sans risque (comptes inactifs
+    de fait, desactivables manuellement) ; filtrer a tort en excluant un
+    compte dont un tenant aurait eu besoin serait pire."""
     existing_codes = set(AccAccount.objects.filter(tenant=tenant).values_list("code", flat=True))
 
     created = 0
@@ -71,6 +91,7 @@ def load_pcg2005(tenant: Tenant) -> int:
             type=entry["type"],
             is_current=entry.get("is_current", True),
             functional_destination=entry.get("functional_destination", ""),
+            sector_code=entry.get("sector_code") or None,
         )
         created += 1
 
@@ -97,3 +118,61 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
         type=AccAccount.TYPE_ASSET,
         is_placeholder=True,
     )
+
+
+# UXR7 : un journal par type d'`AccJournal.TYPE_CHOICES`, code -> (type,
+# libelle, prefixe de compte par defaut a resoudre defensivement). Prefixes
+# alignes sur la numerotation PCG 2005 REELLEMENT presente dans
+# `pcg2005_mg.json` (compte "512" Banques, compte "530" Caisse) — pas sur le
+# "571" generique parfois cite ailleurs pour la caisse, absent de cette
+# fixture. `None` = aucun compte par defaut resolu a ce stade (VTE/ACH/OD/
+# PAI/STK) : simplification disclosed, coherente avec le reste du depot —
+# a configurer manuellement via `config_journals` si un tenant en a besoin.
+_DEFAULT_JOURNALS: list[tuple[str, str, str, str | None]] = [
+    ("VTE", AccJournal.TYPE_SALE, "Journal des ventes", None),
+    ("ACH", AccJournal.TYPE_PURCHASE, "Journal des achats", None),
+    ("BQ", AccJournal.TYPE_BANK, "Journal de banque", "512"),
+    ("CAI", AccJournal.TYPE_CASH, "Journal de caisse", "530"),
+    ("OD", AccJournal.TYPE_MISC, "Operations diverses", None),
+    ("PAI", AccJournal.TYPE_PAYROLL, "Journal de paie", None),
+    ("STK", AccJournal.TYPE_STOCK, "Journal de stock", None),
+]
+
+
+def ensure_default_journals(tenant: Tenant) -> int:
+    """Cree les 7 journaux comptables par defaut de ce tenant (un par
+    `AccJournal.TYPE_CHOICES`) — idempotent par `code`, meme discipline que
+    `load_pcg2005` : un journal dont le code existe deja pour ce tenant
+    n'est pas recree, et cette fonction n'est jamais appelee avant que le
+    plan comptable ne soit charge (`load_pcg2005` doit tourner en premier,
+    cf. les 3 points d'appel de creation de tenant) puisque `BQ`/`CAI`
+    tentent de resoudre defensivement un `default_account` par prefixe de
+    code (`512*` banque, `530*` caisse) parmi les comptes deja crees pour ce
+    tenant — aucune exception levee si rien ne correspond, `default_account`
+    reste simplement `None`. Les 5 autres journaux (ventes/achats/operations
+    diverses/paie/stock) n'ont pas de compte par defaut evident a ce niveau
+    (simplification disclosed) et restent `default_account=None`."""
+    existing_codes = set(AccJournal.objects.filter(tenant=tenant).values_list("code", flat=True))
+
+    created = 0
+    for code, journal_type, name, account_prefix in _DEFAULT_JOURNALS:
+        if code in existing_codes:
+            continue
+        default_account = None
+        if account_prefix is not None:
+            default_account = (
+                AccAccount.objects.filter(tenant=tenant, code__startswith=account_prefix)
+                .order_by("code")
+                .first()
+            )
+        AccJournal.objects.create(
+            tenant=tenant,
+            code=code,
+            name=name,
+            type=journal_type,
+            default_account=default_account,
+            sequence_prefix=code,
+        )
+        created += 1
+
+    return created
