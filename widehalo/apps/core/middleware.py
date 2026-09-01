@@ -66,6 +66,13 @@ ONBOARDING_EXEMPT_PATH_PREFIXES = (
     "/change-password/",
     "/setup/",
     "/__debug__/",
+    # UXR1 : lien de confirmation d'e-mail (`confirm_email_view`, vue
+    # PUBLIQUE) — le destinataire peut cliquer depuis sa boite mail avec
+    # une session existante mais incomplete (mot de passe temporaire pas
+    # encore change, aucune societe encore parametree) ; cette page doit
+    # rester atteignable dans tous les cas, meme discipline que les 2
+    # exemptions ci-dessus.
+    "/account/",
 )
 
 
@@ -120,6 +127,7 @@ EXEMPT_PATH_PREFIXES = (
     "/change-password/",
     "/setup/",
     "/__debug__/",
+    "/account/",  # UXR1 : meme raison que dans ONBOARDING_EXEMPT_PATH_PREFIXES.
 )
 
 

@@ -204,6 +204,16 @@ CHANNEL_LAYERS = {
 
 PASSWORD_RESET_TIMEOUT = 3600  # 1h, exigence normative du cahier des charges
 
+# UXR1 : base absolue pour un lien de confirmation envoye par e-mail
+# (`apps.core.services.email_change.request_email_change`) — aucune
+# variable Django `SITE_URL`/equivalente n'existait avant ce chantier (seul
+# `WIDEHALO_DOMAIN`, cf. .env.example, pilote Caddy/le certificat TLS, sans
+# jamais etre lu par le code applicatif). `SITE_URL` par defaut sur
+# `http://localhost:8000` (dev) ; en production, exposer
+# `SITE_URL=https://app.widehalo.cloud` via .env (memes valeurs que
+# `WIDEHALO_DOMAIN`, prefixees du schema).
+SITE_URL = env.str("SITE_URL", default="http://localhost:8000")
+
 # --- JWT (ninja-jwt, etape 4) ---
 NINJA_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),

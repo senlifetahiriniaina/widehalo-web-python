@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from django.conf import settings
 from django.db import models
@@ -8,7 +8,15 @@ from django.utils import timezone
 
 from apps.core.context import get_current_tenant_id
 from apps.core.db.uuid7 import uuid7
-from apps.core.models.user import User
+
+if TYPE_CHECKING:
+    # Import differe (type-checking uniquement) : `apps.core.models.user`
+    # importe desormais `BaseModel` depuis ce module (nouveau
+    # `UserEmailChangeRequest`, cf. sa docstring) — un import de tete
+    # classique ici creerait un cycle d'import reel (`base` <-> `user`).
+    # `from __future__ import annotations` (deja en tete de fichier) rend
+    # cette annotation paresseuse, donc jamais evaluee a l'execution.
+    from apps.core.models.user import User
 
 _M = TypeVar("_M", bound=models.Model)
 

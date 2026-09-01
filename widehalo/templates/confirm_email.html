@@ -1,0 +1,35 @@
+{% load i18n static %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% trans "Confirmation d'e-mail" %} — WideHalo</title>
+  {% comment %}
+  Meme trio app.css/tokens.css/fonts.css, dans le meme ordre, que
+  login.html — cette vue est PUBLIQUE (pas de `@login_required`, cf.
+  docstring de `apps.core.views.auth_web.confirm_email_view`) et rend une
+  page autonome, jamais `{% extends "base.html" %}` (qui suppose une
+  session : menu compte, recherche, sidebar).
+  {% endcomment %}
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <main style="max-width:400px; margin:4rem auto;">
+    <a class="logo-row" href="/dashboard/" style="justify-content:center;">
+      <img src="{% static 'img/logo-mark.svg' %}" alt="" width="28" height="28">
+      <span class="wordmark">WideHalo</span>
+    </a>
+    {% if success %}
+      <h1>{% trans "Adresse e-mail confirmée" %}</h1>
+      <p role="status">{% trans "Votre nouvelle adresse e-mail a été confirmée. Vous pouvez désormais vous connecter avec celle-ci." %}</p>
+    {% else %}
+      <h1>{% trans "Lien invalide" %}</h1>
+      <p role="alert">{% trans "Ce lien de confirmation est invalide, déjà utilisé, ou a expiré." %}</p>
+    {% endif %}
+    <p><a href="{% url 'login' %}">{% trans "Aller à la connexion" %}</a></p>
+  </main>
+  <footer class="app-footer">WideHalo</footer>
+</body>
+</html>
