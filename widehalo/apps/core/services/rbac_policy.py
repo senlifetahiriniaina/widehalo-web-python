@@ -571,6 +571,19 @@ CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES = ("admin", "direction")
 for _role in CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_users")
 
+# Chantier sauvegarde/restauration/reinitialisation : `core.manage_tenant_
+# backups` (declaree en `Meta.permissions` de `core.TenantDataOperation`,
+# le modele reellement mute par les 3 operations) garde la configuration de
+# planification ET le declenchement manuel de sauvegarde/restauration/
+# reinitialisation — meme patron exact que `core.manage_users` ci-dessus,
+# permission DEDIEE (jamais reutilise `core.manage_users`, cf. plan :
+# perimetre distinct malgre le meme role-set). Restreinte a
+# `admin`/`direction` uniquement : restauration/reinitialisation sont
+# irreversibles sans sauvegarde prealable, jamais un role "domaine cible".
+CUSTOM_PERMISSIONS_MANAGE_TENANT_BACKUPS_ROLES = ("admin", "direction")
+for _role in CUSTOM_PERMISSIONS_MANAGE_TENANT_BACKUPS_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_tenant_backups")
+
 _DJANGO_ACTIONS = ("view", "add", "change")
 
 

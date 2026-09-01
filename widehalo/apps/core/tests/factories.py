@@ -20,6 +20,7 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 
 from apps.core.models.audit import AuditLog
+from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
@@ -292,6 +293,27 @@ class QltInspectionFactory(factory.django.DjangoModelFactory):
     passed = True
     inspector = factory.SubFactory(UserFactory)
     inspected_at = factory.LazyFunction(lambda: datetime.datetime.now(tz=datetime.UTC))
+
+
+class TenantBackupScheduleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = TenantBackupSchedule
+
+    tenant = factory.SubFactory(TenantFactory)
+    frequency = TenantBackupSchedule.FREQUENCY_DAILY
+    retention_count = 5
+    is_active = True
+
+
+class TenantDataOperationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = TenantDataOperation
+
+    tenant = factory.SubFactory(TenantFactory)
+    operation_type = TenantDataOperation.TYPE_BACKUP
+    status = TenantDataOperation.STATUS_SUCCESS
+    trigger = TenantDataOperation.TRIGGER_MANUAL
+    summary = factory.LazyFunction(dict)
 
 
 class ApprovalDelegationFactory(factory.django.DjangoModelFactory):

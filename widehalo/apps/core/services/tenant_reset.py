@@ -27,6 +27,8 @@ from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.utils.translation import gettext as _
 
+from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
+from apps.core.models.document import Document
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
 from apps.core.services.object_remap import iter_concrete_basemodel_subclasses
@@ -40,7 +42,27 @@ if TYPE_CHECKING:
 # et leurs appartenances de societe (`UserTenantMembership`) — decision
 # actee : on conserve le tenant et ses utilisateurs/roles, seules les
 # donnees METIER sont supprimees.
-_EXCLUDED_MODELS = {Tenant, User, UserTenantMembership}
+#
+# `Document`/`TenantDataOperation`/`TenantBackupSchedule` sont exclus pour
+# la MEME raison (bookkeeping du socle, pas une donnee metier saisie par
+# l'utilisateur), avec une justification supplementaire et imperative,
+# propre a ce mecanisme : `tenant_backup.restore_tenant_from_archive`
+# appelle `reset_tenant_data(reseed=False)` PUIS cree son
+# `TenantDataOperation` final en referencant le `Document` source de la
+# restauration — si `reset_tenant_data` effacait ce `Document` au passage
+# (comme n'importe quelle autre donnee tenant-scopee), la restauration se
+# detruirait elle-meme sa propre source avant meme d'avoir fini, et toute
+# reinitialisation effacerait du meme coup l'historique d'audit qui ne
+# devient utile qu'APRES l'operation (on veut pouvoir consulter, apres un
+# reset, qu'un reset a bien eu lieu — pas seulement avant).
+_EXCLUDED_MODELS = {
+    Tenant,
+    User,
+    UserTenantMembership,
+    Document,
+    TenantDataOperation,
+    TenantBackupSchedule,
+}
 
 
 def reset_tenant_data(

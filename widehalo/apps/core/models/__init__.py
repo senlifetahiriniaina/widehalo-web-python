@@ -1,4 +1,5 @@
 from apps.core.models.audit import AuditLog
+from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
@@ -30,6 +31,8 @@ __all__ = [
     "ReferenceMixin",
     "TenantManager",
     "AuditLog",
+    "TenantBackupSchedule",
+    "TenantDataOperation",
     "Document",
     "EventLog",
     "IdempotencyKey",
