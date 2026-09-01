@@ -1,0 +1,22 @@
+{% load i18n %}
+{% comment %}
+Resultats de recherche instantanee d'un correspondant (tenant-scopee, cf.
+`chat_launcher_users`) — chaque resultat est un bouton qui peuple le champ
+cache `other_user_id` du formulaire englobant (`x-data` porte par
+`_launcher.html`, deja present dans le DOM au moment du swap — Alpine
+reinitialise automatiquement les elements ajoutes via son
+MutationObserver, aucun script supplementaire requis ici).
+{% endcomment %}
+<ul class="wh-launcher-user-list">
+  {% for other_user in other_users %}
+    <li>
+      <button
+        type="button"
+        class="wh-launcher-user-option"
+        @click="otherUserId = '{{ other_user.id }}'; $el.closest('form').querySelector('#wh-launcher-user-search').value = '{{ other_user.email|escapejs }}'; $el.closest('.wh-launcher-user-results').innerHTML = ''"
+      >{{ other_user.get_full_name|default:other_user.email }}</button>
+    </li>
+  {% empty %}
+    <li class="wh-launcher-empty">{% trans "Aucune personne trouvée." %}</li>
+  {% endfor %}
+</ul>
