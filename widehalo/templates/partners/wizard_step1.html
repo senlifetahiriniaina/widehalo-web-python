@@ -5,19 +5,5 @@
 <div class="page-head">
   <h1>{% trans "Nouveau partenaire" %} — {% trans "Étape 1 sur 2" %}</h1>
 </div>
-  <form hx-post="{% url 'partners:wizard' %}" hx-target="#wizard-container" hx-swap="innerHTML">
-    <div id="wizard-container">
-      {% csrf_token %}
-      <input type="hidden" name="step" value="1">
-      <div class="form-field">
-        <label for="name">{% trans "Nom" %}</label>
-        <input id="name" type="text" name="name" required>
-      </div>
-      <div class="form-field">
-        <label for="nif">{% trans "NIF" %}</label>
-        <input id="nif" type="text" name="nif">
-      </div>
-      <button type="submit">{% trans "Suivant" %}</button>
-    </div>
-  </form>
+{% include "partners/_wizard_form.html" %}
 {% endblock %}
