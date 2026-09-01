@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ study.name }} — {% trans "Lignes" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ study.name }}</h1>
+</div>
+  {% include "components/_wizard_steps.html" %}
+
+  <p>{% trans "Référence" %}: {{ study.reference }}</p>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Produits de l'étude" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Produit" %}</th>
+        <th>{% trans "Quantité hypothèse" %}</th>
+        <th>{% trans "Prix unitaire (MGA)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.hypothetical_spec.name|default:line.variant_id|default:"-" }}</td>
+          <td>{{ line.assumed_qty }}</td>
+          <td>{{ line.assumed_unit_price_mga }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune ligne pour l'instant." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>{% trans "Ajouter un produit (réel ou hypothétique)" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="variant_id">{% trans "Variante catalogue (UUID, si existante)" %}</label>
+      <input id="variant_id" type="text" name="variant_id">
+    </div>
+    <div class="form-field">
+      <label for="hypothetical_name">{% trans "Nom du produit hypothétique (sinon)" %}</label>
+      <input id="hypothetical_name" type="text" name="hypothetical_name">
+    </div>
+    <div class="form-field">
+      <label for="assumed_qty">{% trans "Quantité hypothèse" %}</label>
+      <input id="assumed_qty" type="text" name="assumed_qty" value="1">
+    </div>
+    <div class="form-field">
+      <label for="assumed_unit_price_mga">{% trans "Prix unitaire hypothèse (MGA)" %}</label>
+      <input id="assumed_unit_price_mga" type="text" name="assumed_unit_price_mga" value="0">
+    </div>
+    <button type="submit">{% trans "Ajouter" %}</button>
+  </form>
+
+  <p>
+    {% if lines %}
+      <a href="{% url 'feasibility:wizard_step3' study_id=study.id %}" class="button">{% trans "Continuer" %}</a>
+    {% else %}
+      <span class="button-disabled" aria-disabled="true" title="{% trans "Ajoutez au moins une ligne pour continuer" %}">{% trans "Continuer" %}</span>
+    {% endif %}
+  </p>
+{% endblock %}

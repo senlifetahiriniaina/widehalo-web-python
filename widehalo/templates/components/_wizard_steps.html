@@ -1,0 +1,20 @@
+{% load i18n %}
+{# Bandeau de progression generique pour un assistant multi-etapes.
+   Parametres attendus dans le contexte d'inclusion :
+   - wizard_current_step (int, 1-indexe)
+   - wizard_steps (liste de libelles, ex. ["En-tête", "Lignes", "Simulation"])
+   Reutilise pour UXR6 (assistant de creation d'etude de faisabilite) ; le
+   patron reste generique pour un futur assistant, cf. plan. #}
+<nav class="wizard-steps" aria-label="{% trans "Étapes" %}">
+  <ol>
+    {% for label in wizard_steps %}
+      {% with step_number=forloop.counter %}
+        <li class="wizard-step{% if step_number == wizard_current_step %} wizard-step-current{% elif step_number < wizard_current_step %} wizard-step-done{% endif %}"
+            {% if step_number == wizard_current_step %}aria-current="step"{% endif %}>
+          <span class="wizard-step-number">{{ step_number }}</span>
+          <span class="wizard-step-label">{{ label }}</span>
+        </li>
+      {% endwith %}
+    {% endfor %}
+  </ol>
+</nav>

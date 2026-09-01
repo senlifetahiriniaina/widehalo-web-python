@@ -5,6 +5,7 @@
 <div class="page-head">
   <h1>{% trans "Nouvelle étude de faisabilité" %}</h1>
 </div>
+  {% include "components/_wizard_steps.html" %}
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <form method="post">
     {% csrf_token %}

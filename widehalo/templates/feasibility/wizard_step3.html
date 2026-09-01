@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ study.name }} — {% trans "Simulation" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ study.name }}</h1>
+</div>
+  {% include "components/_wizard_steps.html" %}
+
+  <p>{% trans "Référence" %}: {{ study.reference }}</p>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Simulation et revue" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Produit" %}</th>
+        <th>{% trans "Quantité hypothèse" %}</th>
+        <th>{% trans "Prix unitaire (MGA)" %}</th>
+        <th>{% trans "Coût total (MGA)" %}</th>
+        <th>{% trans "CA hypothèse (MGA)" %}</th>
+        <th>{% trans "Marge %" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+        <tr>
+          <td>{{ line.hypothetical_spec.name|default:line.variant_id|default:"-" }}</td>
+          <td>{{ line.assumed_qty }}</td>
+          <td>{{ line.assumed_unit_price_mga }}</td>
+          <td>{{ line.total_cost_mga }}</td>
+          <td>{{ line.total_revenue_mga }}</td>
+          <td>{{ line.computed_margin_pct }}%</td>
+          <td>
+            <form method="post" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="simulate_line">
+              <input type="hidden" name="line_id" value="{{ line.id }}">
+              <button type="submit">{% trans "Simuler" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p>
+    {% trans "Coût total étude" %}: {{ total_cost_mga }} MGA —
+    {% trans "CA hypothèse total" %}: {{ total_revenue_mga }} MGA
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="complete">
+    <button type="submit">{% trans "Terminer" %}</button>
+  </form>
+{% endblock %}
