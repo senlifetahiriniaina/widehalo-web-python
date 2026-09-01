@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Réinitialiser les données" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Réinitialiser les données de cette société" %}</h1>
+</div>
+  <p role="alert">{% blocktrans %}Cette action supprime TOUTES les données métier de cette société (comptabilité, catalogue, partenaires, ventes, achats, stocks…) et recharge un plan comptable, des journaux et un catalogue de tickets vierges — comme une société tout juste créée. Les comptes utilisateurs et leurs rôles sont conservés. Cette action est IRRÉVERSIBLE : sauvegardez d'abord si vous souhaitez pouvoir revenir en arrière.{% endblocktrans %}</p>
+
+  {% for error in errors %}<p class="form-error" role="alert">{{ error }}</p>{% endfor %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="reset_confirm">{% blocktrans with code=tenant.code %}Tapez « {{ code }} » pour confirmer{% endblocktrans %}</label>
+      <input id="reset_confirm" type="text" name="confirm" required>
+    </div>
+    <button type="submit" class="btn-danger">{% trans "Réinitialiser définitivement" %}</button>
+    <a href="{% url 'backup_list' %}">{% trans "Annuler" %}</a>
+  </form>
+{% endblock %}

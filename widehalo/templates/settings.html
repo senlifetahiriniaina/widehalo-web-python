@@ -55,5 +55,17 @@
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
       <h3>{% trans "Utilisateurs" %}</h3>
     </a>
+    {% if user.is_superuser %}
+    {% comment %}
+    Chantier sauvegarde/restauration/reinitialisation : reserve au SEUL
+    superadministrateur (`user.is_superuser`), jamais `is_admin_user`
+    (qui couvre aussi admin/direction) — decision actee explicitement par
+    le commanditaire, cf. `apps.core.views.backup_admin`.
+    {% endcomment %}
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'backup_list' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-download"></use></svg>
+      <h3>{% trans "Sauvegarde et restauration" %}</h3>
+    </a>
+    {% endif %}
   </div>
 {% endblock %}

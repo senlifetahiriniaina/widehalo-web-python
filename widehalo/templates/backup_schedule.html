@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Planification des sauvegardes" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Planification des sauvegardes" %}</h1>
+</div>
+  {% for error in errors %}<p class="form-error" role="alert">{{ error }}</p>{% endfor %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="frequency">{% trans "Fréquence" %}</label>
+      <select id="frequency" name="frequency">
+        {% for code, label in schedule.FREQUENCY_CHOICES %}
+          <option value="{{ code }}" {% if code == schedule.frequency %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="retention_count">{% trans "Nombre de sauvegardes conservées (vide = toutes)" %}</label>
+      <input id="retention_count" type="number" min="1" name="retention_count" value="{% if schedule.retention_count %}{{ schedule.retention_count }}{% endif %}">
+    </div>
+    <div class="form-field">
+      <label>
+        <input type="checkbox" name="is_active" {% if schedule.is_active %}checked{% endif %}>
+        {% trans "Planification active" %}
+      </label>
+    </div>
+    <button type="submit">{% trans "Enregistrer" %}</button>
+    <a href="{% url 'backup_list' %}">{% trans "Annuler" %}</a>
+  </form>
+
+  <p>{% blocktrans %}Cette planification n'est appliquée que lorsque la commande <code>manage.py run_tenant_backups</code> est invoquée périodiquement (cron système/Docker) — aucune tâche automatique n'est enregistrée par l'application elle-même.{% endblocktrans %}</p>
+{% endblock %}

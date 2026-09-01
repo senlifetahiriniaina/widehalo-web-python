@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.core.views import dashboard, pages, quality, risk
+from apps.core.views import backup_admin, dashboard, pages, quality, risk
 
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
@@ -8,6 +8,14 @@ urlpatterns = [
     path("search/instant/", pages.instant_search_fragment, name="instant_search"),
     path("documents/", pages.documents_list, name="documents"),
     path("settings/", pages.settings_page, name="settings"),
+    path("backups/", backup_admin.backup_list, name="backup_list"),
+    path(
+        "backups/<uuid:document_id>/download/",
+        backup_admin.backup_download,
+        name="backup_download",
+    ),
+    path("backups/schedule/", backup_admin.backup_schedule_view, name="backup_schedule"),
+    path("backups/reset/", backup_admin.reset_company_data, name="reset_company_data"),
     path("risks/", risk.risk_list, name="risk_list"),
     path("risks/new/", risk.risk_create, name="risk_create"),
     path("risks/<uuid:risk_id>/", risk.risk_detail, name="risk_detail"),
