@@ -23,7 +23,7 @@ def get_tenant_logo_data_uri(tenant: Tenant) -> str | None:
     casser le rendu d'un PDF qui consomme ce gap."""
     if not tenant.logo:
         return None
-    content_type = mimetypes.guess_type(tenant.logo.name)[0] or "image/png"
+    content_type = mimetypes.guess_type(tenant.logo.name or "")[0] or "image/png"
     tenant.logo.open("rb")
     try:
         encoded = base64.b64encode(tenant.logo.read()).decode("ascii")

@@ -62,7 +62,9 @@ def admin_client(tenant: Tenant) -> Client:
 
 
 def test_company_profile_refuses_non_admin_role(tenant: Tenant) -> None:
-    user = User.objects.create_user(email="collab-profile@example.com", password="Str0ngPassw0rd!23")
+    user = User.objects.create_user(
+        email="collab-profile@example.com", password="Str0ngPassw0rd!23"
+    )
     group, _ = Group.objects.get_or_create(name="collaborateur")
     user.groups.add(group)
     client = _logged_in_client(user, tenant)
@@ -77,7 +79,9 @@ def test_company_profile_allows_admin_role(admin_client: Client) -> None:
 
 
 def test_company_profile_allows_superuser_without_admin_group(tenant: Tenant) -> None:
-    user = User.objects.create_superuser(email="super-profile@example.com", password="Str0ngPassw0rd!23")
+    user = User.objects.create_superuser(
+        email="super-profile@example.com", password="Str0ngPassw0rd!23"
+    )
     client = _logged_in_client(user, tenant)
     _complete_mfa(client, user)
 
@@ -88,7 +92,11 @@ def test_company_profile_allows_superuser_without_admin_group(tenant: Tenant) ->
 def test_company_profile_updates_address_phone_email(admin_client: Client, tenant: Tenant) -> None:
     response = admin_client.post(
         "/settings/company-profile/",
-        {"address": "Lot II M 12 Antananarivo", "phone": "+261 34 00 000 00", "email": "contact@example.com"},
+        {
+            "address": "Lot II M 12 Antananarivo",
+            "phone": "+261 34 00 000 00",
+            "email": "contact@example.com",
+        },
     )
     assert response.status_code == 302
 
