@@ -24,6 +24,7 @@ from apps.accounting.models import (
     AccJournal,
     AccLandedCostBatch,
     AccMove,
+    AccPaymentTerm,
     AccPeriod,
 )
 from apps.accounting.services.public import (
@@ -33,6 +34,7 @@ from apps.accounting.services.public import (
     create_supplier_invoice_from_source,
     get_budget_variance_for_analytic_account,
     get_treasury_forecast_summary,
+    list_payment_terms,
 )
 from apps.accounting.tests.factories import (
     AccAccountFactory,
@@ -598,3 +600,20 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_ac
         )
 
         assert result is None
+
+
+def test_list_payment_terms_returns_primitives_ordered_by_name(public_setup) -> None:
+    """DT5 (gap accounting pour `sales`) : `list_payment_terms` ne renvoie
+    que des primitives (id/name), jamais un objet `AccPaymentTerm` Django —
+    regle de couplage n1."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccPaymentTerm.objects.create(tenant=tenant, name="60 jours fin de mois")
+        AccPaymentTerm.objects.create(tenant=tenant, name="Comptant")
+        inactive = AccPaymentTerm.objects.create(tenant=tenant, name="Terme archive")
+        inactive.soft_delete()
+
+        result = list_payment_terms(tenant)
+
+    assert [row["name"] for row in result] == ["60 jours fin de mois", "Comptant"]
+    assert all(isinstance(row, dict) for row in result)

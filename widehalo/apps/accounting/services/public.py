@@ -39,6 +39,7 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccJournal,
     AccMove,
+    AccPaymentTerm,
     AccPeriod,
 )
 from apps.accounting.services.budgets import _actual_amount
@@ -695,3 +696,23 @@ def count_unpaid_customer_invoices() -> int:
         move_type=AccMove.TYPE_CUSTOMER_INVOICE,
         invoice_state__in=[AccMove.INVOICE_STATE_VALIDATED, AccMove.INVOICE_STATE_PAID_PARTIALLY],
     ).count()
+
+
+def list_payment_terms(tenant: Tenant) -> list[dict[str, Any]]:
+    """Gap ajoute par le chantier "creation devis/commande enrichie" de
+    `sales` (DT5) : `sales` declare deja `accounting` en dependance de
+    module (`apps.sales.module.MODULE.dependencies`), donc l'ajout de ce
+    seul gap ne necessite aucun changement de `module.py`. Retourne des
+    primitives uniquement (`id`/`name`) — jamais un `AccPaymentTerm`
+    Django, meme discipline que tous les autres gaps de ce fichier (`sales`
+    ne fait jamais de FK Django vers `apps.accounting`, regle de couplage
+    n1). `AccPaymentTerm` reste purement informatif cote `sales`
+    (`SalesQuotation.payment_term_id`/`SalesOrder.payment_term_id` : aucune
+    application reelle des echeances en `sales`, hors perimetre de ce
+    chantier)."""
+    return [
+        {"id": row["id"], "name": row["name"]}
+        for row in AccPaymentTerm.objects.filter(tenant=tenant, is_active=True)
+        .order_by("name")
+        .values("id", "name")
+    ]
