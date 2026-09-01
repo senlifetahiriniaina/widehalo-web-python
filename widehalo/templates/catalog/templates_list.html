@@ -1,9 +1,15 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% trans "Catalogue" %} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{% trans "Catalogue" %}</h1>
 </div>
+  <p>
+    <a href="{% url 'catalog:template_create' %}" class="btn-primary">
+      <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg>
+      {% trans "Nouveau produit" %}
+    </a>
+  </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

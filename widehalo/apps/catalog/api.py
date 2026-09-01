@@ -32,6 +32,11 @@ class TemplateIn(Schema):
     base_uom_id: str
     category_id: str | None = None
     base_price_mga: Decimal = Decimal(0)
+    is_sellable: bool = True
+
+
+class TemplateSellableIn(Schema):
+    is_sellable: bool
 
 
 class VariantAttributesIn(Schema):
@@ -59,6 +64,7 @@ def _serialize_template(template: ProductTemplate) -> dict:
         "reference": template.reference,
         "name": template.name,
         "base_price_mga": str(template.base_price_mga),
+        "is_sellable": template.is_sellable,
     }
 
 
@@ -95,7 +101,17 @@ def create_template(request, payload: TemplateIn):
         base_uom=base_uom,
         category=category,
         base_price_mga=payload.base_price_mga,
+        is_sellable=payload.is_sellable,
     )
+    return _serialize_template(template)
+
+
+@router.post("/catalog/templates/{template_id}/sellable")
+@require_permission("catalog.change_producttemplate")
+def set_template_sellable(request, template_id: str, payload: TemplateSellableIn):
+    template = get_object_or_404(ProductTemplate, id=template_id)
+    template.is_sellable = payload.is_sellable
+    template.save(update_fields=["is_sellable"])
     return _serialize_template(template)
 
 

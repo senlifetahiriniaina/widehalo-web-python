@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Nouveau produit" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Nouveau produit" %}</h1>
+</div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if not subfamilies %}
+    <p class="form-error">
+      {% trans "Aucune sous-famille disponible — créez d'abord une catégorie enfant (sous-famille) depuis" %}
+      <a href="{% url 'catalog:config_categories' %}">{% trans "Paramètres > Catégories" %}</a>.
+    </p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="name">{% trans "Nom du produit" %}</label>
+      <input id="name" type="text" name="name" required>
+    </div>
+    <div class="form-field">
+      <label for="category_id">{% trans "Sous-famille (chaque produit est classé dans une sous-famille du catalogue)" %}</label>
+      <select id="category_id" name="category_id" required>
+        <option value="">—</option>
+        {% for category, label in subfamilies %}
+          <option value="{{ category.id }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="base_uom_id">{% trans "Unité de base" %}</label>
+      <select id="base_uom_id" name="base_uom_id" required>
+        <option value="">—</option>
+        {% for uom in uoms %}
+          <option value="{{ uom.id }}">{{ uom.code }} — {{ uom.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="base_price_mga">{% trans "Prix catalogue (MGA)" %}</label>
+      <input id="base_price_mga" type="number" name="base_price_mga" step="0.0001" value="0">
+    </div>
+    <div class="form-field">
+      <label for="is_sellable">
+        <input id="is_sellable" type="checkbox" name="is_sellable" checked>
+        {% trans "Vendable" %}
+      </label>
+    </div>
+    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+  </form>
+{% endblock %}

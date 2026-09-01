@@ -511,6 +511,46 @@ button.btn-danger:hover, .btn-danger:hover { background: var(--red-600); }
   margin-left: 0.25rem;
 }
 
+/* ============== Bouton bascule (toggle) ==============
+   Bouton submit stylise en pilule commutable — jamais un vrai
+   `<input type="checkbox">` visuel, cf. demande explicite. Le formulaire
+   qui l'entoure porte la vraie valeur (champ cache), ce bouton POST une
+   fois cliqué pour inverser l'etat cote serveur. */
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--fg-2);
+  padding: 4px 4px 4px var(--spacing-sm);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-500);
+  cursor: pointer;
+}
+.toggle-btn .toggle-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--border-subtle);
+  transition: background 120ms ease;
+}
+.toggle-btn .toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-canvas);
+  transition: transform 120ms ease;
+}
+.toggle-btn.is-on { background: var(--success-bg); color: var(--success-fg); }
+.toggle-btn.is-on .toggle-track { background: var(--success-fg); }
+.toggle-btn.is-on .toggle-thumb { transform: translateX(16px); }
+
 /* ============== Tableaux (SmartTable) ============== */
 table.smart-table {
   width: 100%;

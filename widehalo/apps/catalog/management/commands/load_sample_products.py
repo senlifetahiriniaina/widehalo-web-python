@@ -91,6 +91,11 @@ class Command(BaseCommand):
                         "category": category,
                         "base_uom": pcs,
                         "base_price_mga": row["base_price_mga"],
+                        # Un composant/trim (categorie "Composants") n'est
+                        # jamais vendu tel quel, seulement consomme par une
+                        # nomenclature MRP — jamais vendable, contrairement
+                        # aux produits finis (haut/bas du corps, lambas...).
+                        "is_sellable": row["category"] != "Composants",
                     },
                 )
                 if was_created:

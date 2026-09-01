@@ -73,13 +73,22 @@
     </tbody>
   </table>
 
-  <h3>{% trans "Ajouter une ligne hors catalogue" %}</h3>
+  <h3>{% trans "Ajouter une ligne" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_line">
     <div class="form-field">
-      <label for="description">{% trans "Description" %}</label>
-      <input id="description" type="text" name="description" required>
+      <label for="variant_id">{% trans "Produit du catalogue (seuls les produits vendables sont proposes)" %}</label>
+      <select id="variant_id" name="variant_id">
+        <option value="">{% trans "— Ligne hors catalogue —" %}</option>
+        {% for variant in sellable_variants %}
+          <option value="{{ variant.id }}">{{ variant.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="description">{% trans "Description (hors catalogue uniquement)" %}</label>
+      <input id="description" type="text" name="description">
     </div>
     <div class="form-field">
       <label for="qty">{% trans "Quantité" %}</label>

@@ -11,19 +11,23 @@ from django.utils.translation import gettext as _
 from apps.catalog.models import (
     Attribute,
     CatalogSectorSpec,
+    Category,
     PriceListItem,
     ProductSupplierInfo,
     ProductTemplate,
     ProductVariant,
+    UnitOfMeasure,
 )
 from apps.catalog.services.sector_specs import create_sector_spec
 from apps.catalog.services.variants import generate_variants, set_variant_attributes
 from apps.core.views.smart_table import Column, smart_table_response
+from apps.core.views.tenant_web import resolve_tenant
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="name", label="Nom"),
     Column(key="base_price_mga", label="Prix catalogue (MGA)", searchable=False),
+    Column(key="is_sellable", label="Vendable", searchable=False),
 ]
 
 
@@ -40,6 +44,65 @@ def template_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _category_label(category: Category) -> str:
+    """Le catalogue est organise en famille (categorie racine) / sous-
+    famille (categorie enfant, cf. `Category.parent` deja generique) —
+    chaque produit cree DOIT etre range dans une sous-famille (jamais
+    directement sous une famille racine), donc le selecteur du formulaire
+    de creation n'affiche que les categories qui ONT un parent, avec le
+    libelle complet "Famille > Sous-famille" pour lever toute ambiguite."""
+    if category.parent_id:
+        return f"{category.parent.name} > {category.name}"
+    return category.name
+
+
+@login_required
+def template_create(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    subfamilies = (
+        Category.objects.filter(tenant=tenant, is_active=True, parent__isnull=False)
+        .select_related("parent")
+        .order_by("parent__name", "name")
+    )
+    uoms = UnitOfMeasure.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    error = None
+
+    if request.method == "POST":
+        try:
+            category = subfamilies.get(id=request.POST.get("category_id"))
+            base_uom = uoms.get(id=request.POST.get("base_uom_id"))
+            template = ProductTemplate.objects.create(
+                tenant=tenant,
+                name=request.POST.get("name", ""),
+                category=category,
+                base_uom=base_uom,
+                base_price_mga=request.POST.get("base_price_mga") or 0,
+                is_sellable=bool(request.POST.get("is_sellable")),
+            )
+        except Category.DoesNotExist:
+            error = _(
+                "Sous-famille introuvable — chaque produit doit être rangé "
+                "dans une sous-famille du catalogue (créez-en une depuis "
+                "Paramètres > Catégories si nécessaire)."
+            )
+        except UnitOfMeasure.DoesNotExist:
+            error = _("Unité de base introuvable.")
+        except (ValidationError, ValueError) as exc:
+            error = str(exc)
+        else:
+            return redirect("catalog:template_detail", template_id=template.id)
+
+    return render(
+        request,
+        "catalog/template_create.html",
+        {
+            "subfamilies": [(c, _category_label(c)) for c in subfamilies],
+            "uoms": uoms,
+            "error": error,
+        },
+    )
+
+
 @login_required
 def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
     template = get_object_or_404(ProductTemplate, id=template_id)
@@ -48,7 +111,10 @@ def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
     if request.method == "POST":
         action = request.POST.get("action")
         try:
-            if action == "generate_variants":
+            if action == "toggle_sellable":
+                template.is_sellable = not template.is_sellable
+                template.save(update_fields=["is_sellable"])
+            elif action == "generate_variants":
                 attribute_ids = request.POST.getlist("attribute_ids")
                 set_variant_attributes(template, attribute_ids)
                 generate_variants(template)

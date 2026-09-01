@@ -16,7 +16,13 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext as _
 
+from apps.catalog.services.public import (
+    get_variant_reference,
+    is_variant_sellable,
+    list_sellable_variants,
+)
 from apps.core.models.user import User
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
@@ -112,6 +118,23 @@ def quotation_create(request: HttpRequest) -> HttpResponse:
     return render(request, "sales/quotation_create.html", {"error": error})
 
 
+def _resolve_line_from_post(post) -> dict:
+    """Une ligne de devis/commande vient soit d'un produit CATALOGUE
+    (`variant_id` pose), soit d'une ligne hors catalogue (`is_custom`).
+    Cote serveur, un `variant_id` n'est JAMAIS accepte tel quel — revalide
+    contre `catalog.services.public.is_variant_sellable` avant de creer la
+    ligne (le filtrage du selecteur cote ecran, cf.
+    `_partner_picker`-like, reste contournable par un POST direct)."""
+    variant_id_raw = (post.get("variant_id") or "").strip()
+    if variant_id_raw:
+        variant_id = uuid.UUID(variant_id_raw)
+        if not is_variant_sellable(variant_id):
+            raise ValidationError(_("Ce produit n'est pas vendable."))
+        description = post.get("description") or get_variant_reference(variant_id)
+        return {"variant_id": variant_id, "description": description, "is_custom": False}
+    return {"description": post.get("description", ""), "is_custom": True}
+
+
 _QUOTATION_ACTIONS = {
     "send": lambda quotation, _post: send_quotation(quotation),
     "accept": lambda quotation, _post: accept_quotation(quotation),
@@ -133,11 +156,10 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
             if action == "add_line":
                 add_quotation_line(
                     quotation,
-                    description=post.get("description", ""),
                     qty=Decimal(post.get("qty") or "1"),
                     unit_price=Decimal(post.get("unit_price")) if post.get("unit_price") else None,
-                    is_custom=True,
                     sequence=quotation.lines.count(),
+                    **_resolve_line_from_post(post),
                 )
             elif action == "convert_to_order":
                 new_order = create_order_from_quotation(quotation)
@@ -159,6 +181,7 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
             "quotation": quotation,
             "lines": quotation.lines.all(),
             "can_see_margin": _can_see_margin(user),
+            "sellable_variants": list_sellable_variants(),
             "error": error,
         },
     )
@@ -240,12 +263,11 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             if action == "add_line":
                 add_order_line(
                     order,
-                    description=post.get("description", ""),
                     qty=Decimal(post.get("qty") or "1"),
                     unit_price=Decimal(post.get("unit_price")) if post.get("unit_price") else None,
-                    is_custom=True,
                     billing_policy=post.get("billing_policy", "on_ordered_qty"),
                     sequence=order.lines.count(),
+                    **_resolve_line_from_post(post),
                 )
             elif action == "invoice":
                 invoice_order(order, user)
@@ -270,6 +292,7 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "order": order,
             "lines": order.lines.all(),
             "can_see_margin": _can_see_margin(user),
+            "sellable_variants": list_sellable_variants(),
             "error": error,
         },
     )

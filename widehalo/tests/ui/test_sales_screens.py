@@ -182,6 +182,76 @@ def test_order_detail_cancel_requires_reason(sales_screens_setup) -> None:
         assert order.state == "cancelled"
 
 
+def test_quotation_add_line_rejects_non_sellable_variant(sales_screens_setup) -> None:
+    """Un produit dont `ProductTemplate.is_sellable` est False ne doit
+    jamais pouvoir etre ajoute a un devis, meme en POSTant directement
+    (contourne le filtrage du selecteur cote ecran)."""
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+
+    client, tenant, _user, quotation, _order = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-NS", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Composant interne", base_uom=uom, is_sellable=False
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+    response = client.post(
+        f"/sales/{quotation.id}/",
+        {"action": "add_line", "variant_id": str(variant.id), "qty": "1"},
+    )
+    assert response.status_code == 200  # re-rendu avec erreur, pas de redirect
+    assert b"pas vendable" in response.content.lower()
+
+
+def test_quotation_add_line_accepts_sellable_variant(sales_screens_setup) -> None:
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+    from apps.sales.models import SalesQuotationLine
+
+    client, tenant, _user, quotation, _order = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-S", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Veste hi-vis", base_uom=uom, is_sellable=True
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+    response = client.post(
+        f"/sales/{quotation.id}/",
+        {"action": "add_line", "variant_id": str(variant.id), "qty": "1"},
+    )
+    assert response.status_code == 302
+    with use_tenant(tenant.id):
+        assert SalesQuotationLine.objects.filter(
+            quotation=quotation, variant_id=variant.id, is_custom=False
+        ).exists()
+
+
+def test_order_add_line_rejects_non_sellable_variant(sales_screens_setup) -> None:
+    from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+
+    client, tenant, _user, _quotation, order = sales_screens_setup
+    with use_tenant(tenant.id):
+        uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-NS2", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Composant interne 2", base_uom=uom, is_sellable=False
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+    response = client.post(
+        f"/sales/orders/{order.id}/",
+        {"action": "add_line", "variant_id": str(variant.id), "qty": "1"},
+    )
+    assert response.status_code == 200
+    assert b"pas vendable" in response.content.lower()
+
+
 def test_margin_column_hidden_for_plain_commercial_screen(sales_screens_setup) -> None:
     """RG-SAL-5 volet ecran (cf. `apps/sales/tests/test_margin_masking.py`
     pour la couverture complete role-par-role) : sans role de pilotage, la

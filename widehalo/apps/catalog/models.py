@@ -149,6 +149,16 @@ class ProductTemplate(BaseModel, ReferenceMixin):
     variant_attributes = models.ManyToManyField(Attribute, blank=True, related_name="templates")
     base_price_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
 
+    # Le catalogue est organise en parent (`ProductTemplate`) / fils
+    # (`ProductVariant`, cf. ci-dessous) — cette case a cocher indique si
+    # LE PRODUIT (au niveau du parent, pas variante par variante) peut
+    # etre vendu a un client, par opposition a un composant/matiere interne
+    # (ex. les "trims" de `sample_products_by_family.json` — zip, bouton,
+    # doublure — jamais vendus tels quels, seulement consommes par une
+    # nomenclature MRP). Defaut `True` : un produit cree normalement est
+    # vendable, sauf indication contraire explicite.
+    is_sellable = models.BooleanField(default=True)
+
     class Meta:
         db_table = "catalog_product_template"
 

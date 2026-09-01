@@ -10,6 +10,15 @@
   <p>{% trans "Unité de base" %}: {{ template.base_uom }}</p>
   <p>{% trans "Prix catalogue" %}: {{ template.base_price_mga }} MGA</p>
 
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="toggle_sellable">
+    <button type="submit" class="toggle-btn{% if template.is_sellable %} is-on{% endif %}">
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      {% if template.is_sellable %}{% trans "Vendable" %}{% else %}{% trans "Non vendable" %}{% endif %}
+    </button>
+  </form>
+
   <h2>{% trans "Variantes" %}</h2>
   <table class="smart-table">
     <thead>

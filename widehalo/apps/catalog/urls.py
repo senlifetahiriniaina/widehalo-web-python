@@ -6,6 +6,7 @@ app_name = "catalog"
 
 urlpatterns = [
     path("templates/", views.template_list, name="template_list"),
+    path("templates/new/", views.template_create, name="template_create"),
     path("templates/<uuid:template_id>/", views.template_detail, name="template_detail"),
     path("textile-converter/", views.textile_converter, name="textile_converter"),
     path("config/", views_config.config_index, name="config_index"),

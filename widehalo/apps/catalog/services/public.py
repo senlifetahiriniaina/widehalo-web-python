@@ -50,6 +50,42 @@ def get_variant_id_by_reference(reference: str) -> UUID | None:
     return variant_id
 
 
+def is_variant_sellable(variant_id: Any) -> bool:
+    """Le catalogue est organise en parent (`ProductTemplate`, porteur de
+    `is_sellable`) / fils (`ProductVariant`) — un module metier qui
+    resout une ligne de devis/facture/commande depuis un `variant_id`
+    doit toujours revalider ce champ COTE SERVEUR avant de creer la
+    ligne (jamais se fier uniquement au filtrage du selecteur cote
+    ecran, qui reste contournable par un POST direct). Retourne `False`,
+    jamais une exception, si la variante n'existe pas — un `variant_id`
+    inconnu n'est de toute facon jamais vendable."""
+    variant = ProductVariant.objects.filter(id=variant_id).select_related("template").first()
+    if variant is None:
+        return False
+    is_sellable: bool = variant.template.is_sellable
+    return is_sellable
+
+
+def list_sellable_variants() -> list[dict[str, Any]]:
+    """Alimente les selecteurs de produit des ecrans de devis/facture/
+    commande (`sales`/`accounting`) — ne renvoie QUE les variantes dont le
+    `ProductTemplate` parent est marque `is_sellable=True` (jamais un
+    composant/matiere interne, ex. les "trims" de la fixture de
+    demonstration). Primitives uniquement (jamais l'objet ORM, regle de
+    couplage n°1)."""
+    variants = ProductVariant.objects.filter(
+        is_active=True, template__is_sellable=True, template__is_active=True
+    ).select_related("template")
+    return [
+        {
+            "id": str(variant.id),
+            "reference": variant.reference,
+            "label": f"{variant.reference} — {variant.template.name}",
+        }
+        for variant in variants
+    ]
+
+
 def ensure_default_variant(tenant: Tenant) -> UUID:
     """Enveloppe publique de `apps.catalog.services.defaults.
     ensure_default_variant` — seule surface autorisee pour un autre module
