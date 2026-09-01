@@ -21,12 +21,22 @@
 </head>
 <body>
   <header class="report-header">
-    {# Bloc marque d'entreprise (chantier en-tete/pied de page PDF) : rendu
-       uniquement si l'appelant passe `tenant`/`tenant_logo_data_uri` au
-       contexte (ex. `apps.core.services.branding.get_tenant_logo_data_uri`)
-       — absent du contexte, ces variables sont simplement fausses en
-       Django template, donc aucune regression pour un appelant existant
-       qui n'a pas encore ete migre. #}
+    {% comment %}
+    Bloc marque d'entreprise (chantier en-tete/pied de page PDF) : rendu
+    uniquement si l'appelant passe `tenant`/`tenant_logo_data_uri` au
+    contexte (ex. `apps.core.services.branding.get_tenant_logo_data_uri`)
+    — absent du contexte, ces variables sont simplement fausses en Django
+    template, donc aucune regression pour un appelant existant qui n'a pas
+    encore ete migre. NB : `{# ... #}` (comme utilise initialement ici)
+    NE supporte PAS les commentaires multi-lignes en Django (le `.` de son
+    regex interne ne matche pas les sauts de ligne) — il avait fuite tel
+    quel dans le HTML rendu, jusque dans un PDF WeasyPrint reel qui n'a pas
+    de moteur JS pour l'ignorer silencieusement (cf. test de non-
+    regression `tests/ui/test_smart_table.py::
+    test_pdf_export_returns_a_pdf_with_company_header_and_widehalo_footer`,
+    qui a attrape ce bug avant tout commit). `{% comment %}` est le seul
+    tag Django qui supporte un commentaire multi-ligne.
+    {% endcomment %}
     <div class="report-header-company">
       {% if tenant_logo_data_uri %}<img class="report-logo" src="{{ tenant_logo_data_uri }}" alt="{{ tenant.name }}">{% endif %}
       {% if tenant %}
