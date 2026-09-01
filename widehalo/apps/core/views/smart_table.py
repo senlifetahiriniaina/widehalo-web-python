@@ -7,6 +7,7 @@ page complete »."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -20,7 +21,24 @@ from apps.core.models.user import User
 from apps.core.services.export import export_queryset
 from apps.core.services.permissions import user_role_codes
 
-DEFAULT_PAGE_SIZE = 20
+ALLOWED_PAGE_SIZES = (25, 50, 100)
+DEFAULT_PAGE_SIZE = 25
+
+
+def smart_table_dom_id(table_key: str) -> str:
+    """Derive un id HTML/CSS-safe depuis `table_key` (chaine a points type
+    ``"catalog.templates"``) — SEULE fonction faisant autorite pour cette
+    derivation, reutilisee cote template via le filtre `smart_table_dom_id`
+    (`core_extras.py`). Ne renomme JAMAIS `table_key` lui-meme : cette valeur
+    reste stockee telle quelle dans `SavedTableView.table_key` (scope des
+    vues sauvegardees) — seule sa representation HTML derivee change ici.
+
+    Correctif systemique : un point non echappe dans un selecteur CSS
+    (`#smart-table-catalog.templates`) est interprete comme
+    `id=smart-table-catalog` + `class=templates`, jamais comme un id
+    contenant un point litteral — ce qui cassait silencieusement recherche/
+    tri/pagination HTMX sur la quasi-totalite des ~198 ecrans de liste."""
+    return "smart-table-" + re.sub(r"[^a-zA-Z0-9_-]", "-", table_key)
 
 
 @dataclass
@@ -28,6 +46,7 @@ class Column:
     key: str
     label: str
     searchable: bool = True
+    format: str | None = None
 
 
 def visible_saved_views(user: User, table_key: str) -> QuerySet[SavedTableView]:
@@ -63,6 +82,13 @@ def smart_table_response(
     hidden = set(request.GET.getlist("hide"))
     page_number = request.GET.get("page", "1")
 
+    try:
+        page_size = int(request.GET.get("page_size", DEFAULT_PAGE_SIZE))
+    except (TypeError, ValueError):
+        page_size = DEFAULT_PAGE_SIZE
+    if page_size not in ALLOWED_PAGE_SIZES:
+        page_size = DEFAULT_PAGE_SIZE
+
     queryset = _apply_search(queryset, columns, query)
     queryset = queryset.order_by(sort) if sort else queryset.order_by("-created_at")
 
@@ -73,7 +99,7 @@ def smart_table_response(
         response["Content-Disposition"] = f'attachment; filename="{table_key}.csv"'
         return response
 
-    paginator = Paginator(queryset, DEFAULT_PAGE_SIZE)
+    paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page_number)
 
     visible_columns = [c for c in columns if c.key not in hidden]
@@ -90,6 +116,8 @@ def smart_table_response(
         "page_obj": page_obj,
         "query": query,
         "sort": sort,
+        "page_size": page_size,
+        "page_size_options": ALLOWED_PAGE_SIZES,
         "saved_views": saved_views,
         **(page_context or {}),
     }

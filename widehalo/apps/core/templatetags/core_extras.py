@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from decimal import InvalidOperation
 from typing import Any
 
 from django import template
+from django.http import QueryDict
 from django.urls import reverse
+
+from apps.core.utils.formatting import COLUMN_FORMATTERS
+from apps.core.views.smart_table import smart_table_dom_id as _smart_table_dom_id
 
 register = template.Library()
 
@@ -14,6 +19,62 @@ def get_attribute(obj: Any, key: str) -> Any:
     composant SmartTable, dont les colonnes sont declarees comme de simples
     chaines cote vue)."""
     return getattr(obj, key, "")
+
+
+@register.filter(name="smart_table_dom_id")
+def smart_table_dom_id(table_key: str) -> str:
+    """Re-exporte `apps.core.views.smart_table.smart_table_dom_id` — seul
+    point de verite pour l'id HTML/CSS-safe derive de `table_key`, jamais
+    recalcule independamment cote template."""
+    return _smart_table_dom_id(table_key)
+
+
+@register.filter(name="smart_table_format")
+def smart_table_format(value: Any, format_key: str | None) -> Any:
+    """Applique le formateur enregistre sous `format_key` dans
+    `COLUMN_FORMATTERS` (ex. "mga") — passthrough si `format_key` est vide/
+    non enregistre, jamais une erreur 500 sur un ecran de liste partage par
+    ~198 ecrans en cas de valeur malformee."""
+    if not format_key:
+        return value
+    formatter = COLUMN_FORMATTERS.get(format_key)
+    if formatter is None:
+        return value
+    try:
+        return formatter(value)
+    except (InvalidOperation, TypeError, ValueError):
+        return value
+
+
+@register.simple_tag(name="smart_table_query")
+def smart_table_query(
+    query: str = "",
+    hide: Any = None,
+    sort: str = "",
+    page_size: Any = None,
+    page: Any = None,
+    export: str | None = None,
+) -> str:
+    """Construit une chaine de requete correctement encodee pour les liens
+    HTMX de SmartTable (recherche/tri/pagination/export), en preservant
+    explicitement `q`/`hide`/`sort`/`page_size` selon le lien — remplace les
+    concatenations manuelles `?...&q={{ query }}` qui perdaient
+    silencieusement les colonnes masquees/le tri actif en paginant, et
+    n'echappaient jamais `query`."""
+    qd = QueryDict(mutable=True)
+    if query:
+        qd["q"] = query
+    if hide:
+        qd.setlist("hide", list(hide))
+    if sort:
+        qd["sort"] = sort
+    if page_size is not None:
+        qd["page_size"] = str(page_size)
+    if page is not None:
+        qd["page"] = str(page)
+    if export:
+        qd["export"] = export
+    return qd.urlencode()
 
 
 @register.filter(name="dict_get")

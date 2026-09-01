@@ -111,8 +111,9 @@ def test_schedule_screen_renders_and_updates() -> None:
 
 
 def test_backup_list_paginates_and_restore_select_lists_every_backup() -> None:
-    """La table de sauvegardes doit rester paginee (20/page, meme taille
-    que SmartTable) quand l'historique s'allonge, mais le <select> de
+    """La table de sauvegardes doit rester paginee (25/page, meme taille par
+    defaut que SmartTable — cf. chantier de correction systemique
+    SmartTable) quand l'historique s'allonge, mais le <select> de
     restauration doit toujours proposer TOUTES les sauvegardes reussies,
     pas seulement celles de la page affichee — cf. plan « page de liste
     complete des sauvegardes »."""
@@ -121,7 +122,7 @@ def test_backup_list_paginates_and_restore_select_lists_every_backup() -> None:
     client = _superuser_client(tenant, "bkui-page@example.com")
 
     with use_tenant(tenant.id):
-        for i in range(25):
+        for i in range(30):
             document = DocumentFactory(tenant=tenant, sha256=f"{i:064d}")
             TenantDataOperationFactory(tenant=tenant, document=document)
 
@@ -129,9 +130,9 @@ def test_backup_list_paginates_and_restore_select_lists_every_backup() -> None:
     assert page1.status_code == 200
     soup1 = BeautifulSoup(page1.content, "html.parser")
     rows1 = soup1.find("table").find("tbody").find_all("tr")
-    assert len(rows1) == 20
+    assert len(rows1) == 25
     # Le lien de telechargement reste present sur chaque ligne de la page.
-    assert len(soup1.find_all("a", href=lambda h: h and "/download/" in h)) == 20
+    assert len(soup1.find_all("a", href=lambda h: h and "/download/" in h)) == 25
     assert "Page 1 sur 2" in page1.content.decode()
 
     page2 = client.get("/backups/?page=2")
@@ -140,10 +141,10 @@ def test_backup_list_paginates_and_restore_select_lists_every_backup() -> None:
     rows2 = soup2.find("table").find("tbody").find_all("tr")
     assert len(rows2) == 5
 
-    # Le <select> de restauration liste les 25 sauvegardes, pas seulement
-    # les 20 de la premiere page.
+    # Le <select> de restauration liste les 30 sauvegardes, pas seulement
+    # les 25 de la premiere page.
     select = soup1.find("select", {"id": "restore_document_id"})
-    assert len(select.find_all("option")) == 25 + 1  # +1 pour "— choisir —"
+    assert len(select.find_all("option")) == 30 + 1  # +1 pour "— choisir —"
 
 
 def test_restore_select_omits_failed_or_documentless_operations() -> None:
