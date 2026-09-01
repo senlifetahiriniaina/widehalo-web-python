@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Modifier" %} {{ target_user.email }} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Modifier l'utilisateur" %}</h1>
+</div>
+  {% if email_change_pending %}
+    <p role="status">{% blocktrans %}Un e-mail de confirmation a été envoyé à la nouvelle adresse. L'adresse actuelle reste active tant que le lien n'a pas été confirmé (valable 24h).{% endblocktrans %}</p>
+  {% endif %}
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="email">{% trans "Adresse e-mail" %}</label>
+      <input id="email" type="email" name="email" value="{{ target_user.email }}" required>
+    </div>
+    <div class="form-field">
+      <label for="first_name">{% trans "Prénom" %}</label>
+      <input id="first_name" type="text" name="first_name" value="{{ target_user.first_name }}">
+    </div>
+    <div class="form-field">
+      <label for="last_name">{% trans "Nom" %}</label>
+      <input id="last_name" type="text" name="last_name" value="{{ target_user.last_name }}">
+    </div>
+    <div class="form-field">
+      <label for="phone">{% trans "Téléphone" %}</label>
+      <input id="phone" type="text" name="phone" value="{{ target_user.phone }}">
+    </div>
+    <div class="form-field">
+      <label for="preferred_language">{% trans "Langue préférée" %}</label>
+      <select id="preferred_language" name="preferred_language">
+        {% for lang_code, lang_label in language_choices %}
+          <option value="{{ lang_code }}" {% if lang_code == target_user.preferred_language %}selected{% endif %}>{{ lang_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <fieldset class="form-field">
+      <legend>{% trans "Rôles" %}</legend>
+      {% for group in all_groups %}
+        <label>
+          <input type="checkbox" name="groups" value="{{ group.id }}" {% if group.id in user_group_ids %}checked{% endif %}>
+          {{ group.name }}
+        </label>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="form-field">
+      <legend>{% trans "Sociétés" %}</legend>
+      {% for tenant in all_tenants %}
+        <label>
+          <input type="checkbox" name="tenants" value="{{ tenant.id }}" {% if tenant.id in user_tenant_ids %}checked{% endif %}>
+          {{ tenant.name }}
+        </label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">{% trans "Enregistrer" %}</button>
+    <a href="{% url 'admin_user_list' %}">{% trans "Annuler" %}</a>
+  </form>
+{% endblock %}

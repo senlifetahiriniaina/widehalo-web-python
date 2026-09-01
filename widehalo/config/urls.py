@@ -1,5 +1,7 @@
+from apps.core.views.admin_users import admin_user_edit, admin_user_list
 from apps.core.views.auth_web import (
     change_password_view,
+    confirm_email_view,
     login_view,
     logout_view,
     mfa_view,
@@ -23,6 +25,12 @@ urlpatterns = [
     path("profile/", profile_view, name="profile"),
     path("setup/", setup_company_view, name="setup_company"),
     path("mfa/", mfa_view, name="mfa"),
+    # UXR1 : lien de confirmation d'e-mail (vue PUBLIQUE, cf. docstring de
+    # `confirm_email_view`) — hors `apps.core.urls` (dont toutes les
+    # entrees supposent une session), au meme niveau que `login/`.
+    path("account/confirm-email/<str:token>/", confirm_email_view, name="confirm_email"),
+    path("users/", admin_user_list, name="admin_user_list"),
+    path("users/<uuid:user_id>/edit/", admin_user_edit, name="admin_user_edit"),
     path("", include("apps.core.urls")),
     path("partners/", include("apps.partners.urls")),
     path("catalog/", include("apps.catalog.urls")),
