@@ -230,6 +230,14 @@ def test_setup_company_creates_tenant_and_attaches_current_user() -> None:
     with use_tenant(tenant.id):
         assert CrmLostReason.objects.filter(tenant=tenant).count() == 7
 
+    # Catalogue par defaut des produits (30 EPI/vetements techniques
+    # fabricables a Madagascar, Volet 2 du document source) : jamais vide
+    # pour une entreprise reelle initialisee via ce parcours.
+    from apps.catalog.models import ProductTemplate
+
+    with use_tenant(tenant.id):
+        assert ProductTemplate.objects.filter(tenant=tenant).count() == 30
+
     # L'amorçage d'instance est termine (plus de redirection vers /setup/) —
     # seul l'enrolement MFA (deja exige du role "admin" avant ce lot, cf.
     # etape 4, sans lien avec cette fonctionnalite) reste a faire ensuite.

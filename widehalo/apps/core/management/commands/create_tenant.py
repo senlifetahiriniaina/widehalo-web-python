@@ -49,4 +49,18 @@ class Command(BaseCommand):
         # cf. analyse comparative des motifs de perte des 5 principaux CRM
         # mondiaux) — meme convention `call_command`.
         call_command("load_default_lost_reasons", tenant=tenant.code)
+        # Referentiel matieres/normes/personnalisation (LIFE MDG) puis
+        # catalogue par defaut de 30 EPI/vetements techniques fabricables a
+        # Madagascar (Volet 2 du document source, perimetre coupe-couture-
+        # ennoblissement) — meme convention `call_command`. Ordre impose :
+        # matieres et normes AVANT le catalogue produit (resolution
+        # material_code/standard_codes), personnalisation apres les
+        # matieres (dependance d'ordre deja documentee dans son propre
+        # docstring). Jamais les fixtures de demonstration
+        # (`load_sample_products`/`load_sector_certifications`), qui
+        # restent hors de l'initialisation reelle d'un tenant.
+        call_command("load_material_references", tenant=tenant.code)
+        call_command("load_epi_standards", tenant=tenant.code)
+        call_command("load_customization_options", tenant=tenant.code)
+        call_command("load_default_product_catalog", tenant=tenant.code)
         self.stdout.write(self.style.SUCCESS(f"Tenant créé : {tenant.code} ({tenant.id})"))

@@ -87,6 +87,21 @@ def test_create_tenant_command_preloads_default_crm_lost_reasons() -> None:
         assert CrmLostReason.objects.filter(tenant=tenant).count() == 7
 
 
+def test_create_tenant_command_preloads_default_product_catalog() -> None:
+    """Un nouveau tenant a deja son catalogue par defaut de 30 EPI/vetements
+    techniques fabricables a Madagascar (Volet 2 du document source,
+    perimetre coupe-couture-ennoblissement) sans aucune action manuelle."""
+    from apps.catalog.models import ProductTemplate
+
+    call_command(
+        "create_tenant", "--code", "MG-DEMO-CAT", "--name", "Demo Catalogue", "--country", "MG"
+    )
+
+    tenant = Tenant.objects.get(code="MG-DEMO-CAT")
+    with use_tenant(tenant.id):
+        assert ProductTemplate.objects.filter(tenant=tenant).count() == 30
+
+
 def test_unknown_country_leaves_tenant_defaults_unchanged() -> None:
     from apps.core.services.smart_defaults import apply_country_defaults
 

@@ -132,5 +132,9 @@ def reset_tenant_data(
             call_command("load_default_journals", tenant=tenant.code)
             call_command("load_default_pipeline", tenant=tenant.code)
             call_command("load_default_lost_reasons", tenant=tenant.code)
+            call_command("load_material_references", tenant=tenant.code)
+            call_command("load_epi_standards", tenant=tenant.code)
+            call_command("load_customization_options", tenant=tenant.code)
+            call_command("load_default_product_catalog", tenant=tenant.code)
 
     return deleted_counts

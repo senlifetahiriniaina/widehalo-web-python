@@ -8,6 +8,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.accounting.models import AccAccount, AccJournal
+from apps.catalog.models import ProductTemplate
 from apps.core.models.risk import CATEGORY_OTHER, RiskItem
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
@@ -31,6 +32,10 @@ def _create_tenant_like_command(code: str) -> Tenant:
     call_command("load_default_journals", tenant=tenant.code)
     call_command("load_default_pipeline", tenant=tenant.code)
     call_command("load_default_lost_reasons", tenant=tenant.code)
+    call_command("load_material_references", tenant=tenant.code)
+    call_command("load_epi_standards", tenant=tenant.code)
+    call_command("load_customization_options", tenant=tenant.code)
+    call_command("load_default_product_catalog", tenant=tenant.code)
     return tenant
 
 
@@ -41,11 +46,13 @@ def test_reset_with_reseed_matches_a_freshly_created_tenant() -> None:
     reference_ticket_types = HlpTicketTypeCatalog.all_objects.filter(tenant=reference).count()
     reference_pipelines = CrmPipeline.all_objects.filter(tenant=reference).count()
     reference_lost_reasons = CrmLostReason.all_objects.filter(tenant=reference).count()
+    reference_products = ProductTemplate.all_objects.filter(tenant=reference).count()
     assert reference_accounts > 0
     assert reference_journals > 0
     assert reference_ticket_types > 0
     assert reference_pipelines == 1
     assert reference_lost_reasons == 7
+    assert reference_products == 30
 
     subject = _create_tenant_like_command("RESET-SUBJ")
     owner = User.objects.create_user(email="owner@reset.test", password="Str0ngPassw0rd!23")
@@ -68,6 +75,7 @@ def test_reset_with_reseed_matches_a_freshly_created_tenant() -> None:
     assert HlpTicketTypeCatalog.all_objects.filter(tenant=subject).count() == reference_ticket_types
     assert CrmPipeline.all_objects.filter(tenant=subject).count() == reference_pipelines
     assert CrmLostReason.all_objects.filter(tenant=subject).count() == reference_lost_reasons
+    assert ProductTemplate.all_objects.filter(tenant=subject).count() == reference_products
 
 
 def test_reset_preserves_tenant_user_and_membership() -> None:
@@ -94,6 +102,7 @@ def test_reset_without_reseed_skips_default_loading() -> None:
     assert AccAccount.all_objects.filter(tenant=tenant).count() == 0
     assert AccJournal.all_objects.filter(tenant=tenant).count() == 0
     assert HlpTicketTypeCatalog.all_objects.filter(tenant=tenant).count() == 0
+    assert ProductTemplate.all_objects.filter(tenant=tenant).count() == 0
 
 
 # Garde-fou « aucun progres » (mirroring `import_tenant_archive`) : aucun cas

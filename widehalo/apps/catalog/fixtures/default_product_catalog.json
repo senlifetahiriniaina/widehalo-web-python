@@ -1,0 +1,291 @@
+[
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-01",
+    "name": "Veste hi-vis classe 3 softshell",
+    "base_price_mga": "493050",
+    "material_code": "PES",
+    "weight_gsm": 320,
+    "standard_codes": ["EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 95,00. Taux approximatif documente EUR->MGA ~5190 (derive du SMIG malgache 2024 cite par le document source, 262680 Ar = 50,60 EUR)."
+  },
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-02",
+    "name": "Pantalon hi-vis classe 2",
+    "base_price_mga": "249120",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 270,
+    "standard_codes": ["EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 48,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-03",
+    "name": "Gilet hi-vis classe 2",
+    "base_price_mga": "131318",
+    "material_code": "PES",
+    "weight_gsm": 135,
+    "standard_codes": ["EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : GBP 22,00. Taux approximatif documente GBP->EUR ~1,15 puis EUR->MGA ~5190 (soit GBP->MGA ~5969)."
+  },
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-04",
+    "name": "Combinaison hi-vis classe 3",
+    "base_price_mga": "404820",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 267,
+    "standard_codes": ["EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 78,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-05",
+    "name": "Parka hi-vis hiver",
+    "base_price_mga": "700650",
+    "material_code": "PES",
+    "standard_codes": ["EN-ISO-20471", "EN-343"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 135,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Haute visibilite",
+    "code": "CAT-HIVIS-06",
+    "name": "Casquette/bonnet hi-vis",
+    "base_price_mga": "72660",
+    "material_code": "PES",
+    "standard_codes": ["EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 14,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-01",
+    "name": "Combinaison FR antistatique multinorme",
+    "base_price_mga": "934200",
+    "material_code": "MODACRYLIQUE",
+    "weight_gsm": 335,
+    "standard_codes": ["EN-ISO-11612", "EN-1149-5"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 180,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-02",
+    "name": "Veste FR antistatique",
+    "base_price_mga": "622800",
+    "material_code": "MODACRYLIQUE",
+    "weight_gsm": 320,
+    "standard_codes": ["EN-ISO-11612", "EN-1149-5"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 120,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-03",
+    "name": "Pantalon FR antistatique",
+    "base_price_mga": "337350",
+    "material_code": "COTON",
+    "weight_gsm": 340,
+    "standard_codes": ["EN-ISO-11612", "EN-1149-5"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 65,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-04",
+    "name": "Combinaison hi-vis FR multinorme",
+    "base_price_mga": "1012050",
+    "material_code": "MODACRYLIQUE",
+    "weight_gsm": 310,
+    "standard_codes": ["EN-ISO-11612", "EN-1149-5", "EN-ISO-20471"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 195,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-05",
+    "name": "Parka impermeable anti-flamme",
+    "base_price_mga": "1089900",
+    "material_code": "MODACRYLIQUE",
+    "standard_codes": ["EN-343", "EN-ISO-11612", "EN-1149-5"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 210,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-06",
+    "name": "Veste soudeur",
+    "base_price_mga": "363300",
+    "material_code": "COTON",
+    "weight_gsm": 350,
+    "standard_codes": ["EN-ISO-11611"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 70,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-07",
+    "name": "Sous-vetement ignifuge base layer",
+    "base_price_mga": "208915",
+    "material_code": "MODACRYLIQUE",
+    "weight_gsm": 200,
+    "standard_codes": ["EN-ISO-11612"],
+    "notes": "Prix indicatif export UE 2025-2026 : GBP 35,00. Taux approximatif documente GBP->EUR ~1,15 puis EUR->MGA ~5190 (soit GBP->MGA ~5969)."
+  },
+  {
+    "category": "Ignifuge et antistatique multinorme",
+    "code": "CAT-FR-08",
+    "name": "Chemise de travail FR",
+    "base_price_mga": "217980",
+    "material_code": "COTON",
+    "weight_gsm": 200,
+    "standard_codes": ["EN-ISO-11612"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 42,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Pluie et intemperies techniques",
+    "code": "CAT-RAIN-01",
+    "name": "Veste de pluie imper-respirante",
+    "base_price_mga": "285450",
+    "material_code": "PES",
+    "standard_codes": ["EN-343"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 55,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Pluie et intemperies techniques",
+    "code": "CAT-RAIN-02",
+    "name": "Pantalon de pluie",
+    "base_price_mga": "197220",
+    "material_code": "PES",
+    "standard_codes": ["EN-343"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 38,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Pluie et intemperies techniques",
+    "code": "CAT-RAIN-03",
+    "name": "Parka 3-en-1 impermeable",
+    "base_price_mga": "447675",
+    "material_code": "PES",
+    "standard_codes": ["EN-343"],
+    "notes": "Prix indicatif export UE 2025-2026 : GBP 75,00. Taux approximatif documente GBP->EUR ~1,15 puis EUR->MGA ~5190 (soit GBP->MGA ~5969)."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-01",
+    "name": "Combinaison/bleu de travail polycoton",
+    "base_price_mga": "207600",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 267,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 40,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-02",
+    "name": "Pantalon de travail multipoches",
+    "base_price_mga": "181650",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 290,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 35,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-03",
+    "name": "Pantalon a poches holster",
+    "base_price_mga": "167132",
+    "material_code": "POLYCOTON",
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : GBP 28,00. Taux approximatif documente GBP->EUR ~1,15 puis EUR->MGA ~5190 (soit GBP->MGA ~5969)."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-04",
+    "name": "Cotte a bretelles salopette",
+    "base_price_mga": "233550",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 245,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 45,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-05",
+    "name": "Veste de travail",
+    "base_price_mga": "249120",
+    "material_code": "POLYCOTON",
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 48,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-06",
+    "name": "Veste softshell non hi-vis",
+    "base_price_mga": "321780",
+    "material_code": "PES",
+    "weight_gsm": 300,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 62,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Vetements de travail generiques",
+    "code": "CAT-WORK-07",
+    "name": "Parka de travail hiver",
+    "base_price_mga": "493050",
+    "material_code": "PES",
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 95,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Maille et bonneterie",
+    "code": "CAT-KNIT-01",
+    "name": "Polo de travail",
+    "base_price_mga": "93420",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 200,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 18,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Maille et bonneterie",
+    "code": "CAT-KNIT-02",
+    "name": "T-shirt de travail jersey coton",
+    "base_price_mga": "56706",
+    "material_code": "COTON",
+    "weight_gsm": 180,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : GBP 9,50. Taux approximatif documente GBP->EUR ~1,15 puis EUR->MGA ~5190 (soit GBP->MGA ~5969)."
+  },
+  {
+    "category": "Maille et bonneterie",
+    "code": "CAT-KNIT-03",
+    "name": "Sweat-shirt/polaire de travail",
+    "base_price_mga": "166080",
+    "material_code": "MOLLETON",
+    "weight_gsm": 300,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 32,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Accessoires techniques textiles",
+    "code": "CAT-ACC-01",
+    "name": "Cagoule/passe-montagne ignifuge",
+    "base_price_mga": "114180",
+    "material_code": "MODACRYLIQUE",
+    "weight_gsm": 200,
+    "standard_codes": ["EN-ISO-11612"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 22,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Accessoires techniques textiles",
+    "code": "CAT-ACC-02",
+    "name": "Manchon anti-coupure tricote",
+    "base_price_mga": "62280",
+    "standard_codes": ["EN-388"],
+    "notes": "Fibre HPPE non presente dans le referentiel materiaux charge (materials_reference_mg.json) -- material_code volontairement omis plutot que devine. Prix indicatif export UE 2025-2026 : EUR 12,00. Taux approximatif documente EUR->MGA ~5190."
+  },
+  {
+    "category": "Accessoires techniques textiles",
+    "code": "CAT-ACC-03",
+    "name": "Tablier de travail/veste de cuisine textile",
+    "base_price_mga": "98610",
+    "material_code": "POLYCOTON",
+    "weight_gsm": 230,
+    "standard_codes": ["EN-ISO-13688"],
+    "notes": "Prix indicatif export UE 2025-2026 : EUR 19,00. Taux approximatif documente EUR->MGA ~5190."
+  }
+]
