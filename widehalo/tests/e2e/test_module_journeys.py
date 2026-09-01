@@ -127,7 +127,16 @@ def test_sales_quotation_journey(logged_in_page, live_server, e2e_tenant_and_use
     prealable requise contrairement a `accounting`/`mrp`."""
     page = logged_in_page
     page.goto(f"{live_server.url}/sales/new/")
-    page.fill("#partner_id", str(uuid.uuid4()))
+    # `#partner_id` est le champ cache du composant reutilisable
+    # `_partner_picker.html` (UXR3/UXR5) : jamais rempli via l'UI de recherche
+    # instantanee dans ce parcours (deja couverte par les tests dedies
+    # UXR3/UXR5), seule la valeur finale soumise au formulaire nous
+    # interesse ici — on la pose directement, comme le ferait une vraie
+    # selection de partenaire dans le picker.
+    page.evaluate(
+        "(value) => { document.querySelector('#partner_id').value = value; }",
+        str(uuid.uuid4()),
+    )
     page.fill("#date", "2026-01-10")
     page.click("button[type=submit]")
     page.wait_for_url(f"{live_server.url}/sales/**")
