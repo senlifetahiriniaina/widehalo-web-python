@@ -15,7 +15,6 @@ import zipfile
 from collections.abc import Callable
 from typing import Any
 
-from django.apps import apps as django_apps
 from django.contrib.contenttypes.models import ContentType
 from django.core import serializers
 from django.db import IntegrityError, transaction
@@ -23,9 +22,12 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.core.db.uuid7 import uuid7
-from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
-from apps.core.services.object_remap import regenerate_secret_token_fields, remap_all_references
+from apps.core.services.object_remap import (
+    iter_concrete_basemodel_subclasses,
+    regenerate_secret_token_fields,
+    remap_all_references,
+)
 from apps.core.tenant_context import activate_tenant
 
 FORMAT_VERSION = 1
@@ -63,12 +65,7 @@ def export_tenant_archive(tenant: Tenant) -> bytes:
         exported_labels: list[str] = []
 
         with activate_tenant(tenant.id):
-            for model in django_apps.get_models():
-                if not (isinstance(model, type) and issubclass(model, BaseModel)):
-                    continue
-                if model._meta.abstract or ".tests." in model.__module__:
-                    continue
-
+            for model in iter_concrete_basemodel_subclasses():
                 queryset = model.all_objects.filter(tenant=tenant)
                 if not queryset.exists():
                     continue

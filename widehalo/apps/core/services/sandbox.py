@@ -19,16 +19,15 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from django.apps import apps as django_apps
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.core.db.uuid7 import uuid7
-from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
 from apps.core.services.object_remap import (
     IdRemap,
+    iter_concrete_basemodel_subclasses,
     regenerate_secret_token_fields,
     remap_all_references,
 )
@@ -69,11 +68,7 @@ def clone_tenant_to_sandbox(source: Tenant, expires_in_days: int = DEFAULT_EXPIR
     # les ecrire — les deux contextes ne peuvent pas etre actifs a la fois.
     rows_by_model = {}
     with activate_tenant(source.id):
-        for model in django_apps.get_models():
-            if not (isinstance(model, type) and issubclass(model, BaseModel)):
-                continue
-            if model._meta.abstract or ".tests." in model.__module__:
-                continue
+        for model in iter_concrete_basemodel_subclasses():
             rows_by_model[model] = list(model.all_objects.filter(tenant=source))
 
     # Premiere passe : attribue le nouvel id de chaque clone et construit
@@ -144,11 +139,11 @@ def purge_expired_sandboxes() -> int:
 
     for sandbox in expired:
         with activate_tenant(sandbox.id):
-            for model in django_apps.get_models():
-                if not (isinstance(model, type) and issubclass(model, BaseModel)):
-                    continue
-                if model._meta.abstract:
-                    continue
+            # `iter_concrete_basemodel_subclasses` exclut aussi les modeles
+            # `*.tests.*` (le filtre d'origine ici ne le faisait pas —
+            # incoherence mineure preexistante corrigee en meme temps que
+            # cette factorisation, cf. plan/rapport de chantier).
+            for model in iter_concrete_basemodel_subclasses():
                 model.all_objects.filter(tenant=sandbox).delete()
         sandbox.delete()
 

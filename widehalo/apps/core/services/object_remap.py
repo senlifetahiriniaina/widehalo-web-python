@@ -17,11 +17,29 @@ au lieu de deux copies potentiellement divergentes."""
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterator
 from typing import Any
 
+from django.apps import apps as django_apps
 from django.contrib.contenttypes.models import ContentType
 
 from apps.core.models.base import BaseModel
+
+
+def iter_concrete_basemodel_subclasses() -> Iterator[type[BaseModel]]:
+    """Enumere les sous-classes concretes (non abstraites, hors modeles de
+    test) de `BaseModel` — utilise par `tenant_export`/`sandbox`/
+    `tenant_reset` pour parcourir systematiquement toutes les entites
+    tenant-scopees. Extrait ici (3e consommateur) plutot que duplique une
+    3e fois de plus, meme discipline que le reste de ce module (cf.
+    docstring de tete de fichier)."""
+    for model in django_apps.get_models():
+        if not (isinstance(model, type) and issubclass(model, BaseModel)):
+            continue
+        if model._meta.abstract or ".tests." in model.__module__:
+            continue
+        yield model
+
 
 # `(label_modele, str(ancien_id)) -> nouvel_id` — `label_modele` est soit
 # `app_label.model` (cote export/import, derive de `ContentType`), soit
