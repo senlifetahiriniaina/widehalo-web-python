@@ -8,6 +8,7 @@ import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
+from apps.partners.services.onboarding import create_partner
 from apps.sales.services.orders import add_order_line, create_order
 from apps.sales.services.quotations import add_quotation_line, create_quotation
 from django.test import Client
@@ -50,6 +51,34 @@ def test_quotation_create_screen(sales_screens_setup) -> None:
     assert response.status_code == 302
 
 
+def test_quotation_create_screen_embeds_partner_picker(sales_screens_setup) -> None:
+    """UXR5 : le champ UUID brut est remplace par le composant UXR3
+    (recherche + creation via popup), pas par un simple champ texte."""
+    client, *_ = sales_screens_setup
+    response = client.get("/sales/new/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "wh-partner-picker" in content
+    assert 'name="partner_id"' in content
+    assert 'id="partner_id_display"' in content
+    assert "/partners/instant-picker/" in content
+    assert "/partners/new/?embed=1" in content
+    assert "Partenaire (UUID)" not in content
+
+
+def test_quotation_create_screen_via_partner_picker_field(sales_screens_setup) -> None:
+    """Bout en bout : un partenaire choisi via le picker (simule en postant
+    le meme nom/valeur de champ que produirait le hidden input du
+    composant) cree bien un devis reel."""
+    client, tenant, *_ = sales_screens_setup
+    with use_tenant(tenant.id):
+        partner = create_partner(tenant=tenant, name="Picker Client SARL", roles=["client"])
+    response = client.post(
+        "/sales/new/", {"partner_id": str(partner.id), "date": str(dt.date.today())}
+    )
+    assert response.status_code == 302
+
+
 def test_quotation_detail_send_accept_convert_flow(sales_screens_setup) -> None:
     client, tenant, _user, quotation, _order = sales_screens_setup
 
@@ -83,6 +112,33 @@ def test_order_create_screen(sales_screens_setup) -> None:
     client, *_ = sales_screens_setup
     response = client.post(
         "/sales/orders/new/", {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())}
+    )
+    assert response.status_code == 302
+
+
+def test_order_create_screen_embeds_partner_picker(sales_screens_setup) -> None:
+    """UXR5 : meme traitement que le devis pour l'ecran de creation de
+    commande."""
+    client, *_ = sales_screens_setup
+    response = client.get("/sales/orders/new/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "wh-partner-picker" in content
+    assert 'name="partner_id"' in content
+    assert 'id="partner_id_display"' in content
+    assert "/partners/instant-picker/" in content
+    assert "/partners/new/?embed=1" in content
+    assert "Partenaire (UUID)" not in content
+
+
+def test_order_create_screen_via_partner_picker_field(sales_screens_setup) -> None:
+    """Bout en bout : un partenaire choisi via le picker cree bien une
+    commande reelle."""
+    client, tenant, *_ = sales_screens_setup
+    with use_tenant(tenant.id):
+        partner = create_partner(tenant=tenant, name="Picker Order SARL", roles=["client"])
+    response = client.post(
+        "/sales/orders/new/", {"partner_id": str(partner.id), "date": str(dt.date.today())}
     )
     assert response.status_code == 302
 
