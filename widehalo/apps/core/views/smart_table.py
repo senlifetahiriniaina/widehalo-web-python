@@ -13,10 +13,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, cast
 
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 
 from apps.core.models.tenant import Tenant
@@ -24,6 +25,7 @@ from apps.core.models.ui import SavedTableView
 from apps.core.models.user import User
 from apps.core.services.permissions import user_role_codes
 from apps.core.utils.formatting import COLUMN_FORMATTERS
+from apps.core.views.tenant_web import resolve_tenant
 
 ALLOWED_PAGE_SIZES = (25, 50, 100)
 DEFAULT_PAGE_SIZE = 25
@@ -63,6 +65,23 @@ class Column:
     label: str
     searchable: bool = True
     format: str | None = None
+
+
+@dataclass
+class BulkAction:
+    """Action de masse (Sprint 2 / L1, cf. docs/planning/2026-refonte-ux-sprints.md
+    §5) — case a cocher par ligne + case "tout selectionner", jamais recolte
+    en JS : un `<form method="post">` natif porte les ids coches
+    (`name="ids"`), soumis vers `url` via le bouton correspondant
+    (`formaction`) — fonctionne sans JavaScript (A.10 du cahier des
+    charges, progressive enhancement), Alpine se contente d'activer/
+    desactiver les boutons selon le nombre coche."""
+
+    key: str
+    label: str
+    url: str
+    confirm: str | None = None
+    danger: bool = False
 
 
 def visible_saved_views(user: User, table_key: str) -> QuerySet[SavedTableView]:
@@ -171,6 +190,7 @@ def smart_table_response(
     queryset: QuerySet[Any],
     page_template: str,
     page_context: dict[str, Any] | None = None,
+    bulk_actions: list[BulkAction] | None = None,
 ) -> HttpResponse:
     query = request.GET.get("q", "")
     sort = request.GET.get("sort", "")
@@ -217,6 +237,7 @@ def smart_table_response(
         "page_size": page_size,
         "page_size_options": ALLOWED_PAGE_SIZES,
         "saved_views": saved_views,
+        "bulk_actions": bulk_actions or [],
         **(page_context or {}),
     }
 
@@ -224,3 +245,40 @@ def smart_table_response(
     if getattr(request, "htmx", False):
         return render(request, fragment, context)
     return render(request, page_template, context)
+
+
+@login_required
+def save_current_view(request: HttpRequest) -> HttpResponse:
+    """Enregistre l'etat courant d'un SmartTable (recherche/tri/colonnes
+    masquees) en `SavedTableView` — ferme la boucle CRUD signalee manquante
+    au Sprint 2 (L1) : le moteur de lecture des vues sauvegardees existait
+    deja (`visible_saved_views`), aucune UI ne permettait d'en creer une.
+    Mapping deliberement minimal (pas de filtres par champ, qui n'existent
+    pas encore cote SmartTable — seulement la recherche texte globale) :
+    `filters` = `{"q": ...}`, `columns` = colonnes masquees (pas visibles :
+    coherent avec `hide=` de la querystring, la liste des colonnes
+    disponibles evolue avec le code, pas avec la vue sauvegardee)."""
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    table_key = request.POST.get("table_key", "")
+    name = request.POST.get("name", "").strip()
+    if not table_key or not name:
+        return HttpResponse(status=400)
+
+    SavedTableView.objects.update_or_create(
+        tenant=resolve_tenant(request),
+        owner=cast(User, request.user),
+        table_key=table_key,
+        name=name,
+        defaults={
+            "columns": request.POST.getlist("hide"),
+            "filters": {"q": request.POST.get("q", "")},
+            "sort": request.POST.get("sort", ""),
+        },
+    )
+
+    next_url = request.POST.get("next", "")
+    if next_url.startswith("/"):
+        return redirect(next_url)
+    return redirect("dashboard")

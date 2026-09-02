@@ -21,10 +21,69 @@
     </div>
   </form>
 
-  <div class="panel-body">
-    <table class="smart-table">
+  {% comment %}
+  Vues sauvegardees (Sprint 2 / L1, cf. docs/planning/2026-refonte-ux-sprints.md
+  §5) : la lecture (`visible_saved_views`) existait deja, seule cette UI de
+  selection/enregistrement manquait. Mapping minimal : `sort`/`hide` (colonnes
+  masquees)/`filters.q` (recherche texte) -- pas de filtres par champ, qui
+  n'existent pas encore cote SmartTable.
+  {% endcomment %}
+  <div class="smart-table-saved-views panel-head">
+    {% if saved_views %}
+      <label for="smart-table-saved-view-{{ dom_id }}" class="sr-only">{% trans "Vue sauvegardée" %}</label>
+      <select id="smart-table-saved-view-{{ dom_id }}"
+              onchange="if(this.value){window.location.search = this.value}">
+        <option value="">{% trans "Vues sauvegardées…" %}</option>
+        {% for view in saved_views %}
+          <option value="{% smart_table_query query=view.filters.q hide=view.columns sort=view.sort %}">{{ view.name }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    <form method="post" action="{% url 'smart_table_save_view' %}" class="smart-table-save-view-form">
+      {% csrf_token %}
+      <input type="hidden" name="table_key" value="{{ table_key }}">
+      <input type="hidden" name="q" value="{{ query }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      {% for hidden_key in hidden_columns %}<input type="hidden" name="hide" value="{{ hidden_key }}">{% endfor %}
+      <input type="hidden" name="next" value="{{ request.path }}?{{ request.GET.urlencode }}">
+      <label for="smart-table-save-view-name-{{ dom_id }}" class="sr-only">{% trans "Nom de la vue" %}</label>
+      <input id="smart-table-save-view-name-{{ dom_id }}" type="text" name="name"
+             placeholder="{% trans 'Enregistrer la vue sous…' %}" required>
+      <button type="submit" class="btn btn-secondary btn-sm">{% trans "Enregistrer" %}</button>
+    </form>
+  </div>
+
+  <div class="panel-body" {% if bulk_actions %}x-data="{ count: 0 }"{% endif %}>
+    {% if bulk_actions %}
+      <div class="smart-table-bulk-bar" :class="count ? 'is-active' : ''">
+        <span x-text="count + ' {% trans "sélectionné(s)" %}'"></span>
+        {% for action in bulk_actions %}
+          {# Formulaire natif (pas hx-post) : les actions de masse fonctionnent
+             sans JavaScript (A.10 du cahier des charges) -- hx-confirm ne
+             s'applique qu'aux requetes declenchees par htmx, jamais a une
+             soumission de formulaire classique, d'ou confirm() natif ici. #}
+          <button type="submit" form="bulk-form-{{ dom_id }}" formaction="{{ action.url }}"
+                  name="__bulk_action" value="{{ action.key }}"
+                  class="btn btn-sm {% if action.danger %}btn-danger{% else %}btn-secondary{% endif %}"
+                  :disabled="count === 0"
+                  {% if action.confirm %}onclick="return confirm('{{ action.confirm|escapejs }}')"{% endif %}>
+            {{ action.label }}
+          </button>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <form id="bulk-form-{{ dom_id }}" method="post"></form>
+    <table class="smart-table{% if bulk_actions %} smart-table-selectable{% endif %}">
       <thead>
         <tr>
+          {% if bulk_actions %}
+            <th scope="col" class="col-select">
+              <label class="sr-only" for="smart-table-select-all-{{ dom_id }}">{% trans "Tout sélectionner" %}</label>
+              <input type="checkbox" id="smart-table-select-all-{{ dom_id }}"
+                     form="bulk-form-{{ dom_id }}"
+                     @change="$el.closest('.panel-body').querySelectorAll('input[name=ids]').forEach(cb => cb.checked = $el.checked); count = $el.checked ? $el.closest('.panel-body').querySelectorAll('input[name=ids]').length : 0">
+            </th>
+          {% endif %}
           {% for column in columns %}
             <th scope="col" {% if column.format|is_numeric_column_format %}class="col-num"{% endif %} {% if sort == column.key %}aria-sort="ascending"{% endif %}>
               <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=column.key page_size=page_size %}"
@@ -41,6 +100,14 @@
       <tbody>
         {% for row in page_obj %}
           <tr>
+            {% if bulk_actions %}
+              <td class="col-select">
+                <label class="sr-only" for="smart-table-row-{{ dom_id }}-{{ row.id }}">{% trans "Sélectionner cette ligne" %}</label>
+                <input type="checkbox" id="smart-table-row-{{ dom_id }}-{{ row.id }}"
+                       name="ids" value="{{ row.id }}" form="bulk-form-{{ dom_id }}"
+                       @change="count = $el.closest('.panel-body').querySelectorAll('input[name=ids]:checked').length">
+              </td>
+            {% endif %}
             {% for column in columns %}
               <td {% if column.format|is_numeric_column_format %}class="col-num"{% endif %}>
                 {% if forloop.first and row_url_name %}
@@ -52,7 +119,7 @@
             {% endfor %}
           </tr>
         {% empty %}
-          <tr><td colspan="{{ columns|length }}">{% trans "Aucun résultat." %}</td></tr>
+          <tr><td colspan="{% if bulk_actions %}{{ columns|length|add:1 }}{% else %}{{ columns|length }}{% endif %}">{% trans "Aucun résultat." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

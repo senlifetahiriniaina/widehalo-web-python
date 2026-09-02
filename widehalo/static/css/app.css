@@ -636,6 +636,59 @@ table.smart-table td.col-num {
   font-variant-numeric: tabular-nums;
 }
 
+/* Actions de masse (Sprint 2 / L1, cf. docs/planning/2026-refonte-ux-sprints.md
+   §5) : colonne de cases a cocher figee (sticky) -- toujours visible meme
+   sur un tableau large qui defile horizontalement. */
+table.smart-table th.col-select,
+table.smart-table td.col-select {
+  width: 2.5rem;
+  text-align: center;
+  position: sticky;
+  left: 0;
+  background: inherit;
+}
+table.smart-table thead th.col-select { background: var(--bg-sunken); }
+table.smart-table tbody td.col-select { background: var(--bg-canvas); }
+table.smart-table tbody tr:hover td.col-select { background: var(--bg-sunken); }
+
+.smart-table-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 0.5rem 0.85rem;
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--fs-13);
+  color: var(--fg-3);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+.smart-table-bulk-bar.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  color: var(--fg-1);
+}
+
+.smart-table-saved-views {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-sm);
+}
+.smart-table-save-view-form {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+  margin-left: auto;
+}
+.smart-table-save-view-form input[type="text"] {
+  min-width: 12rem;
+}
+
 .pagination {
   display: flex;
   align-items: center;

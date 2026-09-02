@@ -1,12 +1,17 @@
 from django.urls import path
 
-from apps.core.views import backup_admin, dashboard, pages, quality, risk
+from apps.core.views import backup_admin, dashboard, pages, quality, risk, smart_table
 
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
     path("search/", pages.search_page, name="search"),
     path("search/instant/", pages.instant_search_fragment, name="instant_search"),
     path("documents/", pages.documents_list, name="documents"),
+    path(
+        "documents/bulk-archive/",
+        pages.documents_bulk_archive,
+        name="documents_bulk_archive",
+    ),
     path("settings/", pages.settings_page, name="settings"),
     path(
         "settings/design-system/",
@@ -15,6 +20,11 @@ urlpatterns = [
     ),
     path("settings/company-profile/", pages.company_profile_view, name="company_profile"),
     path("settings/shell/toggle/", pages.toggle_shell, name="toggle_shell"),
+    path(
+        "smart-table/save-view/",
+        smart_table.save_current_view,
+        name="smart_table_save_view",
+    ),
     path("launchpad/", pages.launchpad, name="launchpad"),
     path("notifications/bell/", pages.notifications_bell_fragment, name="notifications_bell"),
     path(

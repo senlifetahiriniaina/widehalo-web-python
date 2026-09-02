@@ -5,6 +5,7 @@ from typing import cast
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -14,7 +15,7 @@ from apps.core.models.user import User
 from apps.core.services.branding import get_tenant_logo_data_uri
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.search import global_search
-from apps.core.views.smart_table import Column, smart_table_response
+from apps.core.views.smart_table import BulkAction, Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 
 _ADMIN_ROLE_CODES = {"admin", "direction"}
@@ -43,14 +44,38 @@ def instant_search_fragment(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def documents_list(request: HttpRequest) -> HttpResponse:
-    queryset = Document.objects.all()
+    queryset = Document.objects.filter(is_active=True)
     return smart_table_response(
         request,
         table_key="core.documents",
         columns=DOCUMENT_COLUMNS,
         queryset=queryset,
         page_template="documents.html",
+        # Preuve d'usage de l'action de masse (Sprint 2 / L1, cf.
+        # docs/planning/2026-refonte-ux-sprints.md §5) : reutilise
+        # `BaseModel.soft_delete()` (deja existant), pas de nouvelle
+        # logique d'archivage inventee pour ce lot.
+        bulk_actions=[
+            BulkAction(
+                key="archive",
+                label=_("Archiver la sélection"),
+                url=reverse("documents_bulk_archive"),
+                confirm=_("Archiver les documents sélectionnés ?"),
+                danger=True,
+            )
+        ],
     )
+
+
+@login_required
+def documents_bulk_archive(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    ids = request.POST.getlist("ids")
+    user = cast(User, request.user)
+    for document in Document.objects.filter(id__in=ids):
+        document.soft_delete(by=user)
+    return redirect("documents")
 
 
 @login_required
