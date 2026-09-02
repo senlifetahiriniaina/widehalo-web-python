@@ -1,6 +1,7 @@
 from apps.core.models.audit import AuditLog
 from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
+from apps.core.models.chatter import ChatterMessage
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
@@ -33,6 +34,7 @@ __all__ = [
     "AuditLog",
     "TenantBackupSchedule",
     "TenantDataOperation",
+    "ChatterMessage",
     "Document",
     "EventLog",
     "IdempotencyKey",

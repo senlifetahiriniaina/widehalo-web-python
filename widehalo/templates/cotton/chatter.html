@@ -1,0 +1,23 @@
+{% load i18n %}
+{% comment %}
+Chatter (fil de discussion generique : messages + notes internes) --
+A.7/A.11 du cahier des charges refonte UX, Sprint 3 / L2 (cf.
+docs/planning/2026-refonte-ux-sprints.md §5). Charge son contenu en
+HTMX au montage de la page (paiement initial minimal, coherent avec le
+budget reseau faible -- A.10 du cahier des charges) plutot que d'etre
+rendu directement, pour rester un seul point de verite (le fragment
+`components/_chatter.html`, aussi utilise pour le rafraichissement apres
+envoi d'un message).
+
+Usage (l'appelant a deja resolu ces 3 chaines, ex. depuis
+apps.core.services.chatter -- ou simplement `instance._meta.app_label`/
+`instance._meta.model_name`/`instance.pk`) :
+  <c-chatter app_label="sales" model="salesorder" object_id="{{ order.id }}" />
+{% endcomment %}
+<c-vars app_label="" model="" object_id="" />
+
+<div class="chatter-panel"
+     hx-get="{% url 'chatter_thread' app_label model object_id %}"
+     hx-trigger="load" hx-swap="outerHTML">
+  <p class="chatter-loading">{% trans "Chargement du fil…" %}</p>
+</div>

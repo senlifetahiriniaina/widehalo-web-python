@@ -109,4 +109,11 @@
     </div>
     <button type="submit">{% trans "Ajouter" %}</button>
   </form>
+
+  <section class="panel" style="margin-top: var(--spacing-lg);">
+    <div class="panel-head"><h2>{% trans "Fil de discussion" %}</h2></div>
+    <div class="panel-body">
+      <c-chatter app_label="{{ chatter_app_label }}" model="{{ chatter_model }}" object_id="{{ chatter_object_id }}" />
+    </div>
+  </section>
 {% endblock %}

@@ -96,3 +96,29 @@ def test_notifications_bell_fragment_returns_unread_count() -> None:
     assert badge is not None
     assert badge.get_text(strip=True) == "1"
     assert "hidden" not in badge.get("class", [])
+
+
+def test_notifications_bell_renders_contextual_action_link() -> None:
+    """Notification contextuelle avec action (Sprint 3 / L2, cf.
+    docs/planning/2026-refonte-ux-sprints.md §5) : convention
+    payload.action_url/action_label."""
+    from apps.core.models.notification import Notification
+
+    tenant = Tenant.objects.create(code="SHELL-6", name="Shell Tenant 6")
+    user = User.objects.create_user(email="shell6@example.com", password="Str0ngPassw0rd!23")
+    Notification.objects.create(
+        tenant_id=tenant.id,
+        user=user,
+        notification_type="sales.order_confirmed",
+        payload={
+            "message": "Commande confirmée",
+            "action_url": "/sales/orders/abc/",
+            "action_label": "Voir la commande",
+        },
+    )
+    client = _login_with_tenant(tenant, user)
+
+    soup = BeautifulSoup(client.get("/notifications/bell/").content, "html.parser")
+    action_link = soup.find("a", href="/sales/orders/abc/")
+    assert action_link is not None
+    assert action_link.get_text(strip=True) == "Voir la commande"

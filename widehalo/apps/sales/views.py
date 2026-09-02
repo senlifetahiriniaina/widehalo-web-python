@@ -375,5 +375,12 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "can_see_margin": _can_see_margin(user),
             "sellable_variants": list_sellable_variants(),
             "error": error,
+            # Chatter (Sprint 3 / L2, cf.
+            # docs/planning/2026-refonte-ux-sprints.md §5) : premiere
+            # utilisation reelle du composant <c-chatter>, cf.
+            # templates/cotton/chatter.html.
+            "chatter_app_label": order._meta.app_label,
+            "chatter_model": order._meta.model_name,
+            "chatter_object_id": str(order.id),
         },
     )

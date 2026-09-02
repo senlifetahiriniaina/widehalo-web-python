@@ -22,6 +22,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -55,7 +56,18 @@ def _notify_salesperson(order: SalesOrder, notification_type: str, message: str)
     dispatch_notification(
         user=order.salesperson,
         notification_type=notification_type,
-        payload={"order_id": str(order.id), "reference": order.reference, "message": message},
+        payload={
+            "order_id": str(order.id),
+            "reference": order.reference,
+            "message": message,
+            # Notification contextuelle avec action (Sprint 3 / L2, cf.
+            # docs/planning/2026-refonte-ux-sprints.md §5, A.11 du cahier
+            # des charges) : premier appelant reel de la convention
+            # action_url/action_label lue par
+            # templates/components/_notification_bell.html.
+            "action_url": reverse("sales:order_detail", args=[order.id]),
+            "action_label": _("Voir la commande"),
+        },
         tenant_id=str(order.tenant_id),
     )
 

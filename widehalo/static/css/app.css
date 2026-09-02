@@ -1048,3 +1048,78 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Chatter (Sprint 3 / L2, cf. docs/planning/2026-refonte-ux-sprints.md
+   §5) : classes generiques (pas Tailwind) pour fonctionner a l'identique
+   sur les ecrans legacy et le nouveau shell -- tailwind.css est charge
+   globalement (base.html) mais ce composant reste independant du design
+   system utilise par l'ecran hote. */
+.chatter-panel, .chatter { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.chatter-loading, .chatter-empty {
+  color: var(--fg-3);
+  font-size: var(--fs-13);
+  padding: var(--spacing-sm) 0;
+}
+.chatter-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.chatter-message {
+  padding: var(--spacing-sm);
+  border-radius: var(--r-md);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+}
+.chatter-message-note {
+  background: var(--amber-50);
+  border-color: var(--amber-200);
+}
+.chatter-message-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--fs-12);
+  color: var(--fg-3);
+  margin-bottom: 2px;
+}
+.chatter-message-meta strong { color: var(--fg-1); }
+.chatter-badge-note {
+  background: var(--amber-200);
+  color: var(--amber-700);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-600);
+}
+.chatter-message p { margin: 0; font-size: var(--fs-14); white-space: pre-wrap; }
+.chatter-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--spacing-sm);
+}
+.chatter-compose textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+.chatter-compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+.chatter-note-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-13);
+  color: var(--fg-2);
+}

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.core.views import backup_admin, dashboard, pages, quality, risk, smart_table
+from apps.core.views import backup_admin, chatter, dashboard, pages, quality, risk, smart_table
 
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
@@ -24,6 +24,11 @@ urlpatterns = [
         "smart-table/save-view/",
         smart_table.save_current_view,
         name="smart_table_save_view",
+    ),
+    path(
+        "chatter/<str:app_label>/<str:model>/<str:object_id>/",
+        chatter.chatter_thread,
+        name="chatter_thread",
     ),
     path("launchpad/", pages.launchpad, name="launchpad"),
     path("notifications/bell/", pages.notifications_bell_fragment, name="notifications_bell"),

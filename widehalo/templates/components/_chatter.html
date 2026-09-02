@@ -1,0 +1,33 @@
+{% load i18n %}
+{% with dom_id="chatter-"|add:chatter_app_label|add:"-"|add:chatter_model|add:"-"|add:chatter_object_id %}
+<div id="{{ dom_id }}" class="chatter">
+  <ul class="chatter-thread">
+    {% for msg in messages_thread %}
+      <li class="chatter-message{% if msg.is_note %} chatter-message-note{% endif %}">
+        <div class="chatter-message-meta">
+          <strong>{{ msg.author.get_full_name|default:msg.author.email }}</strong>
+          <span>{{ msg.created_at }}</span>
+          {% if msg.is_note %}<span class="chatter-badge-note">{% trans "Note interne" %}</span>{% endif %}
+        </div>
+        <p>{{ msg.body|linebreaksbr }}</p>
+      </li>
+    {% empty %}
+      <li class="chatter-empty">{% trans "Aucun message pour l’instant." %}</li>
+    {% endfor %}
+  </ul>
+  <form class="chatter-compose"
+        hx-post="{% url 'chatter_thread' chatter_app_label chatter_model chatter_object_id %}"
+        hx-target="#{{ dom_id }}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <label class="sr-only" for="{{ dom_id }}-body">{% trans "Message" %}</label>
+    <textarea id="{{ dom_id }}-body" name="body" rows="2"
+              placeholder="{% trans 'Écrire un message…' %}" required></textarea>
+    <div class="chatter-compose-actions">
+      <label class="chatter-note-toggle">
+        <input type="checkbox" name="is_note"> {% trans "Note interne" %}
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm">{% trans "Envoyer" %}</button>
+    </div>
+  </form>
+</div>
+{% endwith %}
