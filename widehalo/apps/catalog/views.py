@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -105,6 +106,46 @@ def template_create(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _variant_matrix(
+    template: ProductTemplate, variants: list[ProductVariant]
+) -> dict[str, Any] | None:
+    """Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
+    docs/planning/2026-refonte-ux-sprints.md §5 -- "grille editable
+    tailles (colonnes) × couleurs (lignes)") : ne s'applique que si le
+    template a EXACTEMENT 2 attributs generateurs (le cas general — au-
+    dela, une matrice 2D n'a plus de sens, la liste plate reste
+    utilisee). Retourne `None` sinon, jamais une grille partielle/fausse."""
+    generator_attributes = list(template.variant_attributes.all())
+    if len(generator_attributes) != 2:
+        return None
+
+    row_attr, col_attr = generator_attributes
+    row_values = list(row_attr.values.all())
+    col_values = list(col_attr.values.all())
+
+    cells: dict[tuple[Any, Any], ProductVariant] = {}
+    for variant in variants:
+        value_ids = {v.attribute_id: v.id for v in variant.attribute_values.all()}
+        row_value_id = value_ids.get(row_attr.id)
+        col_value_id = value_ids.get(col_attr.id)
+        if row_value_id is not None and col_value_id is not None:
+            cells[(row_value_id, col_value_id)] = variant
+
+    return {
+        "row_attribute": row_attr,
+        "col_attribute": col_attr,
+        "row_values": row_values,
+        "col_values": col_values,
+        "rows": [
+            {
+                "value": row_value,
+                "cells": [cells.get((row_value.id, col_value.id)) for col_value in col_values],
+            }
+            for row_value in row_values
+        ],
+    }
+
+
 @login_required
 def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
     template = get_object_or_404(ProductTemplate, id=template_id)
@@ -173,8 +214,14 @@ def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
         else:
             return redirect("catalog:template_detail", template_id=template.id)
 
-    variants = template.variants.filter(is_active=True).prefetch_related(
-        "attribute_values", "textile_spec", "sector_spec", "supplier_infos"
+    variants = list(
+        template.variants.filter(is_active=True).prefetch_related(
+            "attribute_values",
+            "attribute_values__attribute",
+            "textile_spec",
+            "sector_spec",
+            "supplier_infos",
+        )
     )
     price_items = PriceListItem.objects.filter(variant__template=template).select_related(
         "price_list", "variant"
@@ -187,6 +234,7 @@ def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
         {
             "template": template,
             "variants": variants,
+            "variant_matrix": _variant_matrix(template, variants),
             "price_items": price_items,
             "attributes": attributes,
             "current_attribute_ids": {a.id for a in template.variant_attributes.all()},

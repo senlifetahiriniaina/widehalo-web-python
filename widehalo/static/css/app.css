@@ -1123,3 +1123,17 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   font-size: var(--fs-13);
   color: var(--fg-2);
 }
+
+/* Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
+   docs/planning/2026-refonte-ux-sprints.md §5). */
+table.variant-matrix th[scope="row"] {
+  background: var(--bg-sunken);
+  font-weight: var(--fw-600);
+  text-align: left;
+}
+table.variant-matrix td a {
+  color: var(--success-fg);
+  font-weight: var(--fw-700);
+  text-decoration: none;
+}
+.variant-matrix-empty { color: var(--fg-4); }

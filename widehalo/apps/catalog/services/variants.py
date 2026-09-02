@@ -12,6 +12,7 @@ from apps.catalog.models import (
     ProductTemplate,
     ProductVariant,
 )
+from apps.catalog.services.barcodes import assign_ean13
 from apps.core.services.sequences import next_reference
 
 
@@ -57,6 +58,10 @@ def generate_variants(template: ProductTemplate) -> list[ProductVariant]:
             tenant=template.tenant, template=template, reference=reference
         )
         variant.attribute_values.set(combination)
+        # T1 refonte UX (Sprint 4 / L3) : code-barres EAN-13/GTIN genere
+        # automatiquement a la creation, jamais une etape manuelle
+        # separee -- cf. apps.catalog.services.barcodes.
+        assign_ean13(variant)
         created.append(variant)
 
     if created:

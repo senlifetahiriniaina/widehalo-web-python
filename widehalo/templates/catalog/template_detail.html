@@ -20,27 +20,67 @@
   </form>
 
   <h2>{% trans "Variantes" %}</h2>
+  {% if variant_matrix %}
+    {# Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
+       docs/planning/2026-refonte-ux-sprints.md §5) : n'apparait que si le
+       gabarit a exactement 2 attributs generateurs -- sinon la liste
+       plate ci-dessous reste utilisee (aucune grille 2D partielle/fausse
+       affichee). #}
+    <div class="panel-body" style="overflow-x:auto;">
+      <table class="smart-table variant-matrix">
+        <caption class="sr-only">
+          {% blocktrans with row=variant_matrix.row_attribute.name col=variant_matrix.col_attribute.name %}Matrice {{ row }} × {{ col }}{% endblocktrans %}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ variant_matrix.row_attribute.name }} \ {{ variant_matrix.col_attribute.name }}</th>
+            {% for col_value in variant_matrix.col_values %}
+              <th scope="col" class="col-num">{{ col_value.value }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in variant_matrix.rows %}
+            <tr>
+              <th scope="row">{{ row.value.value }}</th>
+              {% for cell in row.cells %}
+                <td class="col-num">
+                  {% if cell %}
+                    <a href="#variant-{{ cell.id }}" title="{{ cell.reference }}{% if cell.ean13 %} — {{ cell.ean13 }}{% endif %}">✓</a>
+                  {% else %}
+                    <span class="variant-matrix-empty" aria-label="{% trans 'Combinaison non générée' %}">—</span>
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
   <table class="smart-table">
     <thead>
       <tr>
         <th>{% trans "Référence" %}</th>
         <th>{% trans "Valeurs d'attributs" %}</th>
+        <th>{% trans "Code-barres EAN-13" %}</th>
         <th>{% trans "Actif" %}</th>
       </tr>
     </thead>
     <tbody>
       {% for variant in variants %}
-        <tr>
+        <tr id="variant-{{ variant.id }}">
           <td>{{ variant.reference }}</td>
           <td>
             {% for value in variant.attribute_values.all %}
               {{ value }}{% if not forloop.last %}, {% endif %}
             {% endfor %}
           </td>
+          <td>{{ variant.ean13|default:"—" }}</td>
           <td>{{ variant.is_active|yesno:"Oui,Non" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="3">{% trans "Aucune variante générée." %}</td></tr>
+        <tr><td colspan="4">{% trans "Aucune variante générée." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

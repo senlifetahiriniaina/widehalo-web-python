@@ -98,6 +98,36 @@ def test_template_detail_sellable_toggle_button(catalog_screens_setup) -> None:
     assert b'class="toggle-btn is-on"' not in response.content
 
 
+def test_template_detail_shows_size_color_matrix_after_generation(
+    catalog_screens_setup,
+) -> None:
+    """Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
+    docs/planning/2026-refonte-ux-sprints.md §5) : absente tant qu'aucune
+    variante n'est generee, presente (avec les valeurs en tetes de ligne/
+    colonne) une fois 2 attributs generateurs fixes."""
+    from apps.catalog.services.variants import generate_variants, set_variant_attributes
+
+    client, tenant, template, color = catalog_screens_setup
+
+    response = client.get(f"/catalog/templates/{template.id}/")
+    assert b"variant-matrix" not in response.content
+
+    with use_tenant(tenant.id):
+        size = Attribute.objects.create(tenant=tenant, name="Taille")
+        AttributeValue.objects.create(tenant=tenant, attribute=size, value="S")
+        AttributeValue.objects.create(tenant=tenant, attribute=size, value="M")
+        set_variant_attributes(template, [color.id, size.id])
+        generate_variants(template)
+
+    response = client.get(f"/catalog/templates/{template.id}/")
+    body = response.content.decode()
+    assert "variant-matrix" in body
+    assert "Rouge" in body
+    assert "Bleu" in body
+    assert ">S<" in body
+    assert ">M<" in body
+
+
 def test_template_create_requires_a_subfamily(catalog_screens_setup) -> None:
     """Chaque produit doit etre classe dans une sous-famille (categorie
     ENFANT, cf. `Category.parent`) — jamais directement sous une famille

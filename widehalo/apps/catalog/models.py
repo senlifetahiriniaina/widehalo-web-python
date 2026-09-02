@@ -176,6 +176,13 @@ class ProductVariant(BaseModel, ReferenceMixin):
     # RG-QUALIF) — meme discipline que `partners.Partner.is_placeholder`.
     is_placeholder = models.BooleanField(default=False)
 
+    # Code-barres EAN-13/GTIN par variante (T1 refonte UX, Sprint 4 / L3,
+    # cf. docs/planning/2026-refonte-ux-sprints.md §5) — assigne par
+    # `apps.catalog.services.barcodes.assign_ean13`, jamais saisi a la
+    # main (checksum GS1 calcule). Vide tant qu'aucune variante n'a ete
+    # generee/codee (variantes historiques anterieures a ce chantier).
+    ean13 = models.CharField(max_length=13, blank=True, db_index=True)
+
     class Meta:
         db_table = "catalog_product_variant"
 

@@ -45,6 +45,28 @@ def test_two_variant_attributes_is_accepted(template_with_attributes) -> None:
         assert template.variant_attributes.count() == MAX_VARIANT_GENERATING_ATTRIBUTES
 
 
+def test_8x6_style_generates_48_skus_with_unique_ean13(template_with_attributes) -> None:
+    """Critere d'acceptation T1 du cahier des charges refonte UX ("creer
+    un style 8 tailles × 6 couleurs genere 48 SKU") + code-barres EAN-13
+    genere automatiquement par variante (Sprint 4 / L3, cf.
+    docs/planning/2026-refonte-ux-sprints.md §5)."""
+    tenant, template, color, size = template_with_attributes
+    with use_tenant(tenant.id):
+        for i in range(6):
+            AttributeValue.objects.create(tenant=tenant, attribute=color, value=f"couleur-{i}")
+        for i in range(8):
+            AttributeValue.objects.create(tenant=tenant, attribute=size, value=f"taille-{i}")
+        set_variant_attributes(template, [color.id, size.id])
+
+        variants = generate_variants(template)
+
+        assert len(variants) == 48
+        assert template.variants.count() == 48
+        ean_codes = {v.ean13 for v in variants}
+        assert len(ean_codes) == 48
+        assert all(len(code) == 13 and code.isdigit() for code in ean_codes)
+
+
 def test_56_combinations_are_rejected(template_with_attributes) -> None:
     tenant, template, color, size = template_with_attributes
     with use_tenant(tenant.id):

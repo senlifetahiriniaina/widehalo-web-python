@@ -21,6 +21,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from apps.core.models.audit import AuditLog
 from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
+from apps.core.models.chatter import ChatterMessage
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
 from apps.core.models.idempotency import IdempotencyKey
@@ -141,6 +142,17 @@ class AuditLogFactory(factory.django.DjangoModelFactory):
     action = AuditLog.ACTION_OTHER
     changes = factory.LazyFunction(dict)
     metadata = factory.LazyFunction(dict)
+
+
+class ChatterMessageFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = ChatterMessage
+
+    tenant = factory.SubFactory(TenantFactory)
+    content_type = factory.LazyFunction(lambda: ContentType.objects.get_for_model(Tenant))
+    object_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
+    author = factory.SubFactory(UserFactory)
+    body = factory.Sequence(lambda n: f"Message {n}")
 
 
 class EventLogFactory(factory.django.DjangoModelFactory):
