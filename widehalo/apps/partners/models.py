@@ -29,6 +29,11 @@ class Partner(BaseModel, ReferenceMixin):
 
     credit_limit_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
 
+    @property
+    def roles_display(self) -> str:
+        labels = dict(self.ROLE_CHOICES)
+        return ", ".join(labels.get(role, role) for role in self.roles) or "—"
+
     # Partenaire generique cree par
     # `apps.partners.services.defaults.ensure_default_partner` quand un
     # import n'a pas identifie avec certitude le partenaire reel (chantier

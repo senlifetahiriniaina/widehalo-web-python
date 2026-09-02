@@ -15,7 +15,9 @@
       <p>{% trans "Référence" %}: {{ partner.reference }}</p>
       <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
       <p>{% trans "Plafond crédit" %}: {{ partner.credit_limit_mga }} MGA</p>
-      <p><a href="{% url 'partners:edit' partner.id %}">{% trans "Modifier" %}</a></p>
+      {% if perms.partners.change_partner %}
+        <p><a href="{% url 'partners:edit' partner.id %}">{% trans "Modifier" %}</a></p>
+      {% endif %}
 
       <h2>{% trans "Documents" %}</h2>
       <ul>

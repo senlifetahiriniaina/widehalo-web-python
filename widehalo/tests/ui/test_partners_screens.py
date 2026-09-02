@@ -8,6 +8,8 @@ from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.partners.models import DuplicateAlert
 from apps.partners.services.onboarding import create_partner
+from django.contrib.auth.models import Group
+from django.core.management import call_command
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -90,6 +92,14 @@ def test_merge_rejects_identical_primary_and_duplicate() -> None:
 def test_partner_edit_updates_credit_limit() -> None:
     tenant = Tenant.objects.create(code="UI-EDT", name="UI Edit Tenant")
     user = User.objects.create_user(email="ui-edt@example.com", password="Str0ngPassw0rd!23")
+    call_command("load_roles")
+    # `commercial` porte `partners.change_partner` sans exiger de MFA
+    # (contrairement a `admin`/`direction`/`comptable`/`rh`,
+    # `settings.CORE_MFA_REQUIRED_ROLES`) — un compte MFA non verifie serait
+    # redirige vers `/mfa/` par `MFAEnforcementMiddleware` avant meme
+    # d'atteindre la vue, ce qui ferait echouer ce test sans rapport avec
+    # la logique testee ici.
+    user.groups.add(Group.objects.get(name="commercial"))
     client = _login_with_tenant(tenant, user)
 
     with use_tenant(tenant.id):
@@ -111,3 +121,21 @@ def test_partner_edit_updates_credit_limit() -> None:
         assert partner.name == "Editable SARL Renommee"
         assert partner.credit_limit_mga == Decimal("150000")
         assert set(partner.roles) == {"client", "supplier"}
+
+
+def test_partner_edit_forbidden_without_change_permission() -> None:
+    tenant = Tenant.objects.create(code="UI-EDT2", name="UI Edit Tenant 2")
+    user = User.objects.create_user(email="ui-edt2@example.com", password="Str0ngPassw0rd!23")
+    client = _login_with_tenant(tenant, user)
+
+    with use_tenant(tenant.id):
+        partner = create_partner(tenant=tenant, name="Forbidden SARL", roles=["client"])
+
+    response = client.get(f"/partners/{partner.id}/edit/")
+    assert response.status_code == 403
+
+    response = client.post(
+        f"/partners/{partner.id}/edit/",
+        {"name": "Should Not Change", "roles": ["client"], "credit_limit_mga": "1"},
+    )
+    assert response.status_code == 403

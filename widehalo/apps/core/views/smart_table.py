@@ -7,6 +7,8 @@ page complete »."""
 
 from __future__ import annotations
 
+import csv
+import io
 import re
 from dataclasses import dataclass
 from typing import Any, cast
@@ -20,7 +22,6 @@ from django.template.loader import render_to_string
 from apps.core.models.tenant import Tenant
 from apps.core.models.ui import SavedTableView
 from apps.core.models.user import User
-from apps.core.services.export import export_queryset
 from apps.core.services.permissions import user_role_codes
 from apps.core.utils.formatting import COLUMN_FORMATTERS
 
@@ -103,15 +104,37 @@ def _export_response(
     queryset: QuerySet[Any],
 ) -> HttpResponse:
     filename = f"{table_key}.{export_format}"
-    if export_format in ("csv", "xlsx"):
-        field_names = [c.key for c in columns]
-        payload = export_queryset(queryset, field_names, format=export_format)
+    field_names = [c.key for c in columns]
+    # Construit les lignes via `getattr` (comme le rendu de cellule normal du
+    # tableau, `_format_export_cell`) plutot que `queryset.values(*field_names)`
+    # — une colonne appuyee sur une `@property` de modele (ex.
+    # `Partner.roles_display`, jamais un vrai champ de requete) ferait
+    # echouer `.values()` avec un `FieldError` a l'export, alors que le
+    # rendu HTML de la meme colonne fonctionne deja sans probleme.
+    rows = [[_format_export_cell(row, column) for column in columns] for row in queryset]
+
+    if export_format == "csv":
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(field_names)
+        writer.writerows(rows)
+        payload: bytes = buffer.getvalue().encode("utf-8")
+    elif export_format == "xlsx":
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(field_names)
+        for row in rows:
+            sheet.append(row)
+        buffer_bytes = io.BytesIO()
+        workbook.save(buffer_bytes)
+        payload = buffer_bytes.getvalue()
     else:
         # PDF : reutilise le gabarit partage `reports/_base.html` (entete +
         # pied de page "WideHalo" deja normalises pour tout rapport de ce
         # depot) — jamais une mise en page ad hoc par ecran.
         company = Tenant.objects.first()
-        rows = [[_format_export_cell(row, column) for column in columns] for row in queryset]
         html = render_to_string(
             "reports/smart_table_export.html",
             {

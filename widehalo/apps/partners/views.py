@@ -28,7 +28,7 @@ from apps.partners.services.onboarding import create_partner
 COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="name", label="Nom"),
-    Column(key="nif", label="NIF"),
+    Column(key="roles_display", label="Rôles", searchable=False),
     Column(key="credit_limit_mga", label="Plafond credit (MGA)", searchable=False),
 ]
 
@@ -36,12 +36,14 @@ COLUMNS = [
 @login_required
 def partner_list(request: HttpRequest) -> HttpResponse:
     queryset = Partner.objects.filter(is_active=True)
+    can_edit = request.user.has_perm("partners.change_partner")
     return smart_table_response(
         request,
         table_key="partners.list",
         columns=COLUMNS,
         queryset=queryset,
         page_template="partners/list.html",
+        page_context={"row_url_name": "partners:edit" if can_edit else None},
     )
 
 
@@ -96,6 +98,9 @@ def partner_edit(request: HttpRequest, partner_id: str) -> HttpResponse:
     le patron deja utilise ailleurs (ex. `apps.accounting.views`) —
     `full_clean()` + `save()` sur l'instance recuperee, entoure d'un
     try/except `ValidationError`."""
+    if not request.user.has_perm("partners.change_partner"):
+        return HttpResponse(status=403)
+
     partner = get_object_or_404(Partner, id=partner_id)
     error = None
 
