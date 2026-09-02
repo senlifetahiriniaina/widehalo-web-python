@@ -69,7 +69,7 @@ def tenant(request: HttpRequest) -> dict[str, Tenant | None]:
     return {"current_tenant": Tenant.objects.first()}
 
 
-def _visible_app_labels(user: Any) -> frozenset[str]:
+def visible_app_labels_for(user: Any) -> frozenset[str]:
     """Calcule les cles (app labels ordinaires + `_RISK_MENU_KEY`) des 18
     liens « Modules metier » auxquels `user` a acces — `is_superuser` voit
     tout ; sinon, au moins un des roles de l'utilisateur doit porter
@@ -108,7 +108,7 @@ def account(request: HttpRequest) -> dict[str, Any]:
     toujours des valeurs vides proprement (jamais d'exception) pour un
     visiteur anonyme ou sans tenant."""
     user = request.user
-    visible_app_labels = _visible_app_labels(user)
+    visible_app_labels = visible_app_labels_for(user)
     visible_groups = {
         key: any(label in visible_app_labels for label in labels)
         for key, labels in _MENU_GROUPS.items()
@@ -122,12 +122,22 @@ def account(request: HttpRequest) -> dict[str, Any]:
     # specifie (utilisable directement par les tests).
     visible_group_keys = frozenset(key for key, is_visible in visible_groups.items() if is_visible)
 
+    # Bascule de shell (Sprint 1 / L0 de la refonte UX, cf.
+    # docs/planning/2026-refonte-ux-sprints.md) : strangler pattern au
+    # niveau du shell applicatif — un utilisateur qui active la nouvelle
+    # interface (session, cf. `apps.core.views.pages.toggle_shell`) la
+    # garde sur toute la navigation jusqu'a desactivation explicite.
+    # Legacy par defaut (`False`) : aucun utilisateur n'est bascule
+    # automatiquement.
+    use_new_shell = bool(request.session.get("use_new_shell", False))
+
     if not user.is_authenticated:
         return {
             "is_admin_user": False,
             "visible_app_labels": visible_app_labels,
             "visible_groups": visible_groups,
             "visible_group_keys": visible_group_keys,
+            "use_new_shell": use_new_shell,
         }
     is_admin = bool(user_role_codes(user) & _ADMIN_ROLE_CODES) or user.is_superuser
     return {
@@ -135,4 +145,5 @@ def account(request: HttpRequest) -> dict[str, Any]:
         "visible_app_labels": visible_app_labels,
         "visible_groups": visible_groups,
         "visible_group_keys": visible_group_keys,
+        "use_new_shell": use_new_shell,
     }

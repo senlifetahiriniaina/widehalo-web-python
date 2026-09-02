@@ -1,0 +1,29 @@
+{% load i18n %}
+{# Fragment recharge par polling HTMX (cf. c-shell) et par
+   notifications_bell_fragment/notification_mark_read -- toujours le
+   meme fragment, jamais de reload complet. #}
+<span id="notif-count" hx-swap-oob="true"
+      class="badge badge-error badge-sm absolute -top-1 -right-1{% if not unread_count %} hidden{% endif %}">
+  {{ unread_count }}
+</span>
+<ul class="menu p-0">
+  {% for n in notifications %}
+    <li>
+      <div class="flex items-start gap-2 {% if not n.read_at %}font-semibold{% endif %}"
+           {% if not n.read_at %}
+           hx-post="{% url 'notification_mark_read' n.id %}"
+           hx-target="#notif-dropdown"
+           hx-swap="innerHTML"
+           {% endif %}>
+        <span class="w-2 h-2 rounded-full mt-1.5 shrink-0 {% if not n.read_at %}bg-primary{% else %}bg-transparent{% endif %}" aria-hidden="true"></span>
+        <span class="flex flex-col">
+          <span class="text-sm">{{ n.notification_type }}</span>
+          {% if n.payload.message %}<span class="text-xs text-base-content/60 font-normal">{{ n.payload.message }}</span>{% endif %}
+          <span class="text-xs text-base-content/40 font-normal">{{ n.created_at }}</span>
+        </span>
+      </div>
+    </li>
+  {% empty %}
+    <li class="text-sm text-base-content/60 px-2 py-3">{% trans "Aucune notification." %}</li>
+  {% endfor %}
+</ul>

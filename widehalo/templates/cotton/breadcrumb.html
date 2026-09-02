@@ -1,0 +1,28 @@
+{% load i18n %}
+{% comment %}
+Fil d'Ariane -- A.7 du cahier des charges refonte UX (App > Liste >
+Enregistrement).
+
+Usage :
+  <c-breadcrumb :items="breadcrumb_items" />
+  -- ou directement en slot pour un fil simple :
+  <c-breadcrumb>
+    <a href="/dashboard/">Accueil</a> <span>/</span> Style ST-0042
+  </c-breadcrumb>
+{% endcomment %}
+<c-vars items="" />
+
+<nav aria-label="{% translate 'Fil d’Ariane' %}" class="text-sm text-base-content/70 flex items-center gap-1.5 flex-wrap">
+  {% if items %}
+    {% for item in items %}
+      {% if not forloop.first %}<span aria-hidden="true">/</span>{% endif %}
+      {% if item.url and not forloop.last %}
+        <a href="{{ item.url }}" class="hover:text-base-content hover:underline">{{ item.label }}</a>
+      {% else %}
+        <span class="text-base-content" aria-current="page">{{ item.label }}</span>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    {{ slot }}
+  {% endif %}
+</nav>

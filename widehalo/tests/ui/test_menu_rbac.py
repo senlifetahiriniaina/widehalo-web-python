@@ -70,7 +70,7 @@ def test_magasinier_does_not_see_crm_or_accounting_links() -> None:
 def test_admin_sees_all_module_links_it_is_granted_by_the_rbac_matrix() -> None:
     """Role `admin` : tous les liens dont `ROLE_APP_PERMISSIONS["admin"]`
     porte effectivement `"view"` restent presents, plus le registre des
-    risques (special-case `CUSTOM_PERMISSIONS`, cf. `_visible_app_labels`).
+    risques (special-case `CUSTOM_PERMISSIONS`, cf. `visible_app_labels_for`).
 
     Note : `ROLE_APP_PERMISSIONS["admin"]` ne porte PAS de cle `"payroll"`
     (ni `"direction"` d'ailleurs) — seul `rh` (+ "view" pour `resp_

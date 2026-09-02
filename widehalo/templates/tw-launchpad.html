@@ -1,0 +1,68 @@
+{% load i18n static %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% trans "Accueil" %} — WideHalo</title>
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
+  <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
+</head>
+<body>
+<c-shell>
+  <div class="max-w-6xl mx-auto flex flex-col gap-8">
+    <div>
+      <h1 class="text-2xl font-semibold text-base-content">{% trans "Bonjour" %}{% if user.get_full_name %}, {{ user.get_full_name }}{% endif %}</h1>
+      <p class="text-base-content/60">{% trans "Votre launchpad WideHalo — accès rapide à vos applications." %}</p>
+    </div>
+
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Aperçu" %}</h2>
+      <div class="flex flex-wrap gap-3">
+        {% for kpi in kpis %}
+          <c-kpi-tile label="{{ kpi.label }}" value="{{ kpi.value }}" tone="{{ kpi.tone }}" href="{{ kpi.href }}" />
+        {% endfor %}
+      </div>
+      <p class="text-xs text-base-content/40 mt-2">{% trans "D’autres indicateurs par rôle (OF en retard, lots proches DLC…) arrivent avec les lots métier (L3-L5)." %}</p>
+    </section>
+
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Vos applications" %}</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {% if "crm" in visible_app_labels %}<c-launchpad-tile label="{% trans 'CRM' %}" href="/crm/">C</c-launchpad-tile>{% endif %}
+        {% if "sales" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Ventes' %}" href="/sales/">V</c-launchpad-tile>{% endif %}
+        {% if "feasibility" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Études de faisabilité' %}" href="/feasibility/">É</c-launchpad-tile>{% endif %}
+        {% if "purchase" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Achats' %}" href="/purchase/">A</c-launchpad-tile>{% endif %}
+        {% if "stocks" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Stocks' %}" href="/stocks/">S</c-launchpad-tile>{% endif %}
+        {% if "logistics" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Logistique' %}" href="/logistics/">L</c-launchpad-tile>{% endif %}
+        {% if "mrp" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Production' %}" href="/mrp/">P</c-launchpad-tile>{% endif %}
+        {% if "patronage" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Patronage' %}" href="/patronage/">P</c-launchpad-tile>{% endif %}
+        {% if "accounting" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Comptabilité' %}" href="/accounting/">C</c-launchpad-tile>{% endif %}
+        {% if "financing" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Financement' %}" href="/financing/">F</c-launchpad-tile>{% endif %}
+        {% if "automation" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Automatisation' %}" href="/automation/">A</c-launchpad-tile>{% endif %}
+        {% if "presence" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Présence' %}" href="/presence/">P</c-launchpad-tile>{% endif %}
+        {% if "payroll" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Paie' %}" href="/payroll/">P</c-launchpad-tile>{% endif %}
+        {% if "reporting" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Rapports' %}" href="/reporting/">R</c-launchpad-tile>{% endif %}
+        {% if "strategy" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Stratégie et pilotage' %}" href="/strategy/">S</c-launchpad-tile>{% endif %}
+        {% if "helpdesk" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Support et suivi opérationnel' %}" href="/helpdesk/">S</c-launchpad-tile>{% endif %}
+        {% if "projects" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Gestion de projets' %}" href="/projects/">P</c-launchpad-tile>{% endif %}
+        {% if "risks" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Registre des risques' %}" href="/risks/">R</c-launchpad-tile>{% endif %}
+        <c-launchpad-tile label="{% trans 'Partenaires' %}" href="/partners/">P</c-launchpad-tile>
+        <c-launchpad-tile label="{% trans 'Catalogue' %}" href="/catalog/templates/">C</c-launchpad-tile>
+        <c-launchpad-tile label="{% trans 'Documents' %}" href="/documents/">D</c-launchpad-tile>
+        {% if is_admin_user %}<c-launchpad-tile label="{% trans 'Administration' %}" href="{% url 'settings' %}">A</c-launchpad-tile>{% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Favoris" %}</h2>
+      <div class="card bg-base-100 border border-dashed border-base-300 p-6 text-center text-sm text-base-content/50">
+        {% trans "Vous n’avez pas encore d’écran favori — la personnalisation utilisateur arrive avec le lot L6." %}
+      </div>
+    </section>
+  </div>
+</c-shell>
+</body>
+</html>

@@ -200,6 +200,23 @@
         <ul x-show="open" x-cloak class="account-menu-dropdown">
           <li><a href="{% url 'profile' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Voir le profil" %}</a></li>
           <li><a href="{% url 'change_password' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lock"></use></svg>{% trans "Modifier le mot de passe" %}</a></li>
+          {% if current_tenant and not use_new_shell %}
+          <li class="account-menu-sep"></li>
+          <li>
+            {# Sprint 1 / L0 refonte UX (strangler pattern, cf.
+               docs/planning/2026-refonte-ux-sprints.md) : point d'entree
+               volontaire vers le nouveau shell, jamais bascule
+               automatiquement. #}
+            <form method="post" action="{% url 'toggle_shell' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'launchpad' %}">
+              <button type="submit" class="account-menu-link-button">
+                <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
+                {% trans "Essayer la nouvelle interface (bêta)" %}
+              </button>
+            </form>
+          </li>
+          {% endif %}
           <li class="account-menu-sep"></li>
           <li><a href="{% url 'logout' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-log-out"></use></svg>{% trans "Se déconnecter" %}</a></li>
         </ul>

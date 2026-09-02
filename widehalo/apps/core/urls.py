@@ -14,6 +14,14 @@ urlpatterns = [
         name="design_system_preview",
     ),
     path("settings/company-profile/", pages.company_profile_view, name="company_profile"),
+    path("settings/shell/toggle/", pages.toggle_shell, name="toggle_shell"),
+    path("launchpad/", pages.launchpad, name="launchpad"),
+    path("notifications/bell/", pages.notifications_bell_fragment, name="notifications_bell"),
+    path(
+        "notifications/<uuid:notification_id>/read/",
+        pages.notification_mark_read,
+        name="notification_mark_read",
+    ),
     path("backups/", backup_admin.backup_list, name="backup_list"),
     path(
         "backups/<uuid:document_id>/download/",

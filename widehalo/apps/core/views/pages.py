@@ -5,8 +5,11 @@ from typing import cast
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.core.models.document import Document
+from apps.core.models.notification import Notification
 from apps.core.models.user import User
 from apps.core.services.branding import get_tenant_logo_data_uri
 from apps.core.services.permissions import user_role_codes
@@ -108,3 +111,123 @@ def company_profile_view(request: HttpRequest) -> HttpResponse:
         "company_profile.html",
         {"tenant": tenant, "tenant_logo_data_uri": get_tenant_logo_data_uri(tenant)},
     )
+
+
+@login_required
+def toggle_shell(request: HttpRequest) -> HttpResponse:
+    """Bascule le shell applicatif legacy <-> nouveau (Sprint 1 / L0 de la
+    refonte UX, strangler pattern — cf.
+    docs/planning/2026-refonte-ux-sprints.md §5). Stocke en session (par
+    utilisateur, pas par ecran pour l'instant : la granularite par ecran
+    viendra avec la migration reelle des lots L3-L9) ; redirige vers `next`
+    si fourni et local, sinon vers le referrer, sinon le tableau de bord —
+    jamais d'open redirect vers un domaine externe."""
+    request.session["use_new_shell"] = not bool(request.session.get("use_new_shell", False))
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
+    referer = request.META.get("HTTP_REFERER", "")
+    if referer.startswith(request.build_absolute_uri("/")):
+        return redirect(referer)
+    return redirect("dashboard")
+
+
+@login_required
+def launchpad(request: HttpRequest) -> HttpResponse:
+    """Launchpad par role (tuiles statiques + dynamiques + KPI, favoris,
+    taches recentes — A.7 du cahier des charges refonte UX). Premier ecran
+    entierement construit sur le nouveau shell (`<c-shell>`), volontairement
+    additif : ne remplace pas `/dashboard/` (qui reste sur l'ancien shell
+    tant que L1/L2 n'ont pas livre le moteur de vues et le chatter dont le
+    tableau de bord existant a besoin pour migrer proprement).
+
+    Favoris/taches recentes : personnalisation utilisateur reelle (L6,
+    `user_preference`) pas encore construite — affiches ici comme
+    emplacements vides plutot que simules, pour ne jamais mentir sur l'etat
+    du produit.
+
+    Reutilise les 3 compteurs KPI deja construits pour l'ancien tableau de
+    bord (`apps.core.views.dashboard.dashboard`) plutot que d'en refaire
+    des variantes — memes fonctions publiques, deja tenant-scopees par
+    RLS, aucune nouvelle requete inventee pour ce lot.
+
+    Chaque tuile KPI est gardee par `visible_app_labels_for` (meme calcul
+    RBAC que le menu/launchpad legacy) : un role sans acces a `crm` ne
+    doit jamais voir la tuile "Opportunites CRM ouvertes", meme si elle
+    ne fait qu'un COUNT() sans exposer de donnee individuelle — regression
+    RBAC reelle detectee par `tests/ui/test_shell_toggle.py::
+    test_launchpad_shows_only_role_visible_apps` avant ce correctif."""
+    from apps.accounting.services.public import count_unpaid_customer_invoices
+    from apps.core.context_processors import visible_app_labels_for
+    from apps.crm.services.public import count_open_opportunities
+    from apps.sales.services.public import count_orders_pending_confirmation
+
+    user = cast(User, request.user)
+    visible = visible_app_labels_for(user)
+    unread_notifications = Notification.objects.filter(user=user, read_at__isnull=True).count()
+    kpis = []
+    if "accounting" in visible:
+        kpis.append(
+            {
+                "label": _("Factures clients non soldées"),
+                "value": count_unpaid_customer_invoices(),
+                "href": "/accounting/",
+                "tone": "warning",
+            }
+        )
+    if "crm" in visible:
+        kpis.append(
+            {
+                "label": _("Opportunités CRM ouvertes"),
+                "value": count_open_opportunities(),
+                "href": "/crm/",
+                "tone": "neutral",
+            }
+        )
+    if "sales" in visible:
+        kpis.append(
+            {
+                "label": _("Commandes en attente de confirmation"),
+                "value": count_orders_pending_confirmation(),
+                "href": "/sales/",
+                "tone": "neutral",
+            }
+        )
+    kpis.append(
+        {
+            "label": _("Notifications non lues"),
+            "value": unread_notifications,
+            "href": "#",
+            "tone": "success" if not unread_notifications else "warning",
+        }
+    )
+    return render(request, "tw-launchpad.html", {"kpis": kpis})
+
+
+@login_required
+def notifications_bell_fragment(request: HttpRequest) -> HttpResponse:
+    """Cloche de notifications (compteur live via polling HTMX — A.7 du
+    cahier des charges). Vue Django classique (pas django-ninja) : le
+    fragment est charge par la session du navigateur comme le reste du
+    shell, alors que `apps.core.api_notifications` sert un public JWT
+    distinct (mobile/IA) — meme partition que le reste du depot entre
+    endpoints HTMX et API publique (cf. docs/planning/ECART_ARCHITECTURE.md
+    §3)."""
+    user = cast(User, request.user)
+    notifications = Notification.objects.filter(user=user).order_by("-created_at")[:10]
+    unread_count = Notification.objects.filter(user=user, read_at__isnull=True).count()
+    return render(
+        request,
+        "components/_notification_bell.html",
+        {"notifications": notifications, "unread_count": unread_count},
+    )
+
+
+@login_required
+def notification_mark_read(request: HttpRequest, notification_id: str) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    Notification.objects.filter(id=notification_id, user=cast(User, request.user)).update(
+        read_at=timezone.now()
+    )
+    return notifications_bell_fragment(request)

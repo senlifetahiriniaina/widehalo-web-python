@@ -110,3 +110,36 @@
    des classes Tailwind qui n'y existent pas). */
 @source "../../templates/cotton/**/*.html";
 @source "../../apps/**/templates/**/tw-*.html";
+@source "../../templates/tw-*.html";
+
+/* Habillage minimal du fragment de resultats de recherche instantanee
+   (templates/components/_instant_search_results.html, HTML nu reutilise
+   tel quel par la command palette du nouveau shell -- cf. cotton/shell.html)
+   : classes non applicables car le fragment n'a pas de classes Tailwind
+   propres, seulement une balise <ul> generique. Portee strictement au
+   conteneur .cp-results pour ne rien affecter d'autre. */
+.cp-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+}
+.cp-results li {
+  margin: 0;
+}
+.cp-results li a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md, 0.5rem);
+  font-size: 0.875rem;
+  color: inherit;
+  text-decoration: none;
+}
+.cp-results li a:hover,
+.cp-results li a:focus-visible {
+  background-color: var(--color-base-200, #f7f8fb);
+}
+.cp-results li:not(:has(a)) {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--slate-500, #6b7488);
+}

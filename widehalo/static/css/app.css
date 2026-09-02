@@ -323,6 +323,26 @@ table.smart-table td,
   font-size: var(--fs-13);
 }
 .account-menu-dropdown li a:hover { background: var(--bg-app); text-decoration: none; }
+/* Meme rendu que .account-menu-dropdown li a ci-dessus, pour l'entree
+   "Essayer la nouvelle interface" (un <button> de formulaire POST, pas un
+   <a>, cf. templates/base.html -- toggle du shell via CSRF plutot qu'un
+   lien GET). */
+.account-menu-link-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 6px var(--spacing-sm);
+  border: 0;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--fg-1);
+  font-size: var(--fs-13);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.account-menu-link-button:hover { background: var(--bg-app); }
 .account-menu-dropdown .account-menu-sep {
   height: 1px;
   margin: var(--spacing-xs) 0;

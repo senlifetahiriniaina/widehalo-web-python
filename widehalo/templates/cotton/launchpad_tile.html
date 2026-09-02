@@ -1,0 +1,18 @@
+{% comment %}
+Tuile de navigation du launchpad (statique, pas de compteur) -- A.7 du
+cahier des charges. Pour une tuile a compteur/KPI, voir <c-kpi-tile>.
+
+Usage :
+  <c-launchpad-tile label="Ventes" href="/sales/" />
+{% endcomment %}
+<c-vars label="" href="#" />
+
+<a
+  href="{{ href }}"
+  class="card bg-base-100 border border-base-300 shadow-sm hover:shadow-md hover:border-primary/40 transition-all p-4 flex items-center gap-3 min-w-[160px]"
+>
+  <span class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0" aria-hidden="true">
+    {{ slot }}
+  </span>
+  <span class="font-medium text-base-content">{{ label }}</span>
+</a>

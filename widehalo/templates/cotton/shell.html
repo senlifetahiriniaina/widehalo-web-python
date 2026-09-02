@@ -1,0 +1,138 @@
+{% load i18n static %}
+{% comment %}
+Shell applicatif de la refonte UX (Sprint 1 / L0, cf.
+docs/planning/2026-refonte-ux-sprints.md §5) -- barre superieure (app
+switcher, recherche globale en command palette, notifications, menu
+utilisateur) + fil d'Ariane, inspire HubSpot/Odoo/SAP Fiori (A.7 du
+cahier des charges). Contenu de page en slot.
+
+Usage :
+  <c-shell :breadcrumb_items="breadcrumb_items">
+    ... contenu de la page ...
+  </c-shell>
+
+Reutilise `visible_app_labels`/`visible_groups`/`visible_group_keys`
+(context processor `apps.core.context_processors.account`, deja calcules
+pour la sidebar legacy dans templates/base.html) -- memes groupes/liens,
+pas de nouvelle logique RBAC.
+{% endcomment %}
+<c-vars breadcrumb_items="" />
+
+<div
+  class="min-h-screen flex flex-col bg-base-200"
+  x-data="{ paletteOpen: false, appSwitcherOpen: false }"
+  @keydown.window="if ((($event.metaKey || $event.ctrlKey) && $event.key === 'k')) { $event.preventDefault(); paletteOpen = true; $nextTick(() => $refs.paletteInput.focus()); }"
+  @keydown.escape.window="paletteOpen = false"
+>
+  <header class="navbar bg-base-100 border-b border-base-300 px-3 sm:px-4 gap-2 min-h-14">
+    <div class="flex items-center gap-2 shrink-0">
+      <div class="dropdown" x-data="{}">
+        <button type="button" class="btn btn-ghost btn-sm px-2" @click="appSwitcherOpen = !appSwitcherOpen" aria-label="{% trans 'Applications' %}" aria-haspopup="true" :aria-expanded="appSwitcherOpen.toString()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
+        <div x-show="appSwitcherOpen" x-cloak @click.outside="appSwitcherOpen = false"
+             class="absolute z-30 mt-2 w-80 rounded-box bg-base-100 border border-base-300 shadow-lg p-3">
+          <p class="text-xs font-semibold text-base-content/60 uppercase tracking-wide px-1 mb-2">{% trans "Applications" %}</p>
+          <div class="grid grid-cols-3 gap-1">
+            <a href="{% url 'launchpad' %}" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              {% trans "Accueil" %}
+            </a>
+            {% if "crm" in visible_app_labels %}<a href="/crm/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "CRM" %}</a>{% endif %}
+            {% if "sales" in visible_app_labels %}<a href="/sales/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Ventes" %}</a>{% endif %}
+            {% if "purchase" in visible_app_labels %}<a href="/purchase/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Achats" %}</a>{% endif %}
+            {% if "stocks" in visible_app_labels %}<a href="/stocks/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Stocks" %}</a>{% endif %}
+            {% if "logistics" in visible_app_labels %}<a href="/logistics/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Logistique" %}</a>{% endif %}
+            {% if "mrp" in visible_app_labels %}<a href="/mrp/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Production" %}</a>{% endif %}
+            {% if "patronage" in visible_app_labels %}<a href="/patronage/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Patronage" %}</a>{% endif %}
+            {% if "accounting" in visible_app_labels %}<a href="/accounting/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Comptabilité" %}</a>{% endif %}
+            {% if "financing" in visible_app_labels %}<a href="/financing/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Financement" %}</a>{% endif %}
+            {% if "presence" in visible_app_labels %}<a href="/presence/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Présence" %}</a>{% endif %}
+            {% if "payroll" in visible_app_labels %}<a href="/payroll/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Paie" %}</a>{% endif %}
+            {% if "reporting" in visible_app_labels %}<a href="/reporting/" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Rapports" %}</a>{% endif %}
+            {% if is_admin_user %}<a href="{% url 'settings' %}" class="flex flex-col items-center gap-1 rounded-lg p-2 text-center hover:bg-base-200 text-xs">{% trans "Administration" %}</a>{% endif %}
+          </div>
+        </div>
+      </div>
+      <a href="{% url 'launchpad' %}" class="flex items-center gap-2">
+        <img src="{% static 'img/logo-mark.svg' %}" alt="" width="22" height="22">
+        <span class="font-semibold hidden sm:inline">WideHalo</span>
+      </a>
+    </div>
+
+    <div class="flex-1 min-w-0 px-1">
+      <c-breadcrumb :items="breadcrumb_items" />
+    </div>
+
+    <button type="button" class="btn btn-ghost btn-sm gap-2 text-base-content/60 hidden sm:flex" @click="paletteOpen = true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span>{% trans "Rechercher…" %}</span>
+      <kbd class="kbd kbd-xs">⌘K</kbd>
+    </button>
+    <button type="button" class="btn btn-ghost btn-sm sm:hidden" @click="paletteOpen = true" aria-label="{% trans 'Rechercher' %}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
+
+    <div class="dropdown dropdown-end" x-data="{ open: false }">
+      <button type="button" class="btn btn-ghost btn-sm relative" @click="open = !open" aria-label="{% trans 'Notifications' %}" aria-haspopup="true" :aria-expanded="open.toString()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span id="notif-count" class="badge badge-error badge-sm absolute -top-1 -right-1 hidden" hx-get="{% url 'notifications_bell' %}" hx-trigger="load, every 30s" hx-target="#notif-dropdown" hx-swap="innerHTML"></span>
+      </button>
+      <div x-show="open" x-cloak @click.outside="open = false" id="notif-dropdown" class="absolute right-0 z-30 mt-2 w-80 rounded-box bg-base-100 border border-base-300 shadow-lg max-h-96 overflow-y-auto">
+        <div class="p-3 text-sm text-base-content/60">{% trans "Chargement…" %}</div>
+      </div>
+    </div>
+
+    <div class="dropdown dropdown-end" x-data="{ open: false }">
+      <button type="button" class="btn btn-ghost btn-sm gap-2" @click="open = !open" aria-haspopup="true" :aria-expanded="open.toString()">
+        <div class="avatar placeholder">
+          <div class="bg-primary text-primary-content rounded-full w-7">
+            <span class="text-xs">{{ user.get_full_name|default:user.email|slice:":1"|upper }}</span>
+          </div>
+        </div>
+        <span class="hidden md:inline text-sm">{{ user.get_full_name|default:user.email }}</span>
+      </button>
+      <ul x-show="open" x-cloak @click.outside="open = false" class="menu absolute right-0 z-30 mt-2 w-56 rounded-box bg-base-100 border border-base-300 shadow-lg p-2">
+        <li><a href="{% url 'profile' %}">{% trans "Voir le profil" %}</a></li>
+        <li><a href="{% url 'change_password' %}">{% trans "Modifier le mot de passe" %}</a></li>
+        <li class="menu-title text-xs pt-2">{% trans "Interface" %}</li>
+        <li>
+          <form method="post" action="{% url 'toggle_shell' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="w-full text-left">{% trans "Revenir à l’ancienne interface" %}</button>
+          </form>
+        </li>
+        <li class="menu-title text-xs pt-2 border-t border-base-300 mt-1">{% trans "Compte" %}</li>
+        <li><a href="{% url 'logout' %}">{% trans "Se déconnecter" %}</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <div x-show="paletteOpen" x-cloak class="fixed inset-0 z-40 bg-black/40 flex items-start justify-center pt-24 px-4" @click.self="paletteOpen = false">
+    <div class="w-full max-w-lg rounded-box bg-base-100 border border-base-300 shadow-xl overflow-hidden">
+      <div class="flex items-center gap-2 border-b border-base-300 px-3 py-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="text-base-content/40 shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input
+          type="search"
+          name="q"
+          x-ref="paletteInput"
+          class="input input-ghost w-full focus:outline-none px-0"
+          placeholder="{% trans 'Rechercher une entité, une action…' %}"
+          autocomplete="off"
+          aria-label="{% trans 'Recherche globale' %}"
+          hx-get="{% url 'instant_search' %}"
+          hx-trigger="keyup changed delay:300ms, search"
+          hx-target="#palette-results"
+          hx-swap="innerHTML"
+        >
+        <kbd class="kbd kbd-xs shrink-0">Esc</kbd>
+      </div>
+      <div id="palette-results" class="cp-results max-h-96 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <main id="main-content" class="flex-1 p-4 sm:p-6">
+    {{ slot }}
+  </main>
+</div>

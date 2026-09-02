@@ -72,6 +72,19 @@ def test_dashboard_declares_a_language() -> None:
     assert soup.html.get("lang")
 
 
+def test_launchpad_is_accessible() -> None:
+    """Nouveau shell (Sprint 1 / L0 de la refonte UX, cf.
+    docs/planning/2026-refonte-ux-sprints.md) : meme garde-fou que les
+    ecrans legacy ci-dessus — app switcher/cloche/palette de recherche
+    sont des controles icone-seule, doivent tous porter un `aria-label`."""
+    client, _tenant = _logged_in_client()
+    soup = BeautifulSoup(client.get("/launchpad/").content, "html.parser")
+    assert soup.html is not None
+    assert soup.html.get("lang")
+    _assert_all_fields_labelled(soup, "launchpad")
+    _assert_icon_only_controls_have_accessible_name(soup, "launchpad")
+
+
 def test_login_page_inputs_all_have_labels() -> None:
     soup = BeautifulSoup(Client().get("/login/").content, "html.parser")
     _assert_all_fields_labelled(soup, "login")
