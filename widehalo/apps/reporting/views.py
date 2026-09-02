@@ -107,7 +107,15 @@ def schedules_index(request: HttpRequest) -> HttpResponse:
     with activate_tenant(tenant.id):
         schedules = RptSchedule.objects.all()
         reports = [r for r in list_registered_reports() if request.user.has_perm(r.permission)]
-    return render(request, "reporting/schedules.html", {"schedules": schedules, "reports": reports})
+    context = {"schedules": schedules, "reports": reports}
+    # Meme discipline que `apps.core.views.smart_table.smart_table_response` :
+    # une requete htmx (form scoped sur `#schedules-container`) ne doit
+    # jamais recevoir la page complete (`{% extends "base.html" %}`), sous
+    # peine d'injecter une seconde coquille (sidebar/topbar) imbriquee dans
+    # celle deja affichee.
+    if getattr(request, "htmx", False):
+        return render(request, "reporting/_schedules_container.html", context)
+    return render(request, "reporting/schedules.html", context)
 
 
 @login_required

@@ -110,6 +110,40 @@ def test_schedules_index_get_and_post(setup) -> None:
     assert b"Hebdo ecran" in list_response.content
 
 
+def test_schedules_index_htmx_post_returns_a_bare_fragment_not_the_full_page(setup) -> None:
+    """Correctif : le formulaire de `schedules.html` est scope sur
+    `#schedules-container` (`hx-target`) plutot que sur `body` — une
+    requete htmx doit donc recevoir uniquement ce fragment, jamais la page
+    complete (`{% extends "base.html" %}`), sous peine d'injecter une
+    seconde coquille (sidebar/topbar) imbriquee dans celle deja affichee.
+    Meme discipline que `apps.core.views.smart_table.smart_table_response`."""
+    tenant, user = setup
+    client = _login_client(user, "Str0ngPassw0rd!23", tenant)
+
+    htmx_response = client.post(
+        "/reporting/schedules/",
+        {
+            "code": "RPT-TEST-VIEW",
+            "name": "Hebdo htmx",
+            "frequency": "weekly",
+            "format": "json",
+        },
+        HTTP_HX_REQUEST="true",
+    )
+    assert htmx_response.status_code == 200
+    htmx_body = htmx_response.content.decode()
+    assert "Hebdo htmx" in htmx_body
+    assert "app-shell" not in htmx_body
+    assert "<aside" not in htmx_body.lower()
+    assert "<html" not in htmx_body.lower()
+
+    full_page_response = client.get("/reporting/schedules/")
+    assert full_page_response.status_code == 200
+    full_page_body = full_page_response.content.decode()
+    assert "<html" in full_page_body.lower()
+    assert "Hebdo htmx" in full_page_body
+
+
 def test_schedule_toggle_flips_enabled_state(setup) -> None:
     tenant, user = setup
     client = _login_client(user, "Str0ngPassw0rd!23", tenant)

@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -237,7 +238,18 @@ def partner_create_wizard(request: HttpRequest) -> HttpResponse:
                 }
             )
             return response
-        return redirect("partners:detail", partner_id=partner.id)
+        # Ce POST est declenche par le `hx-post`/`hx-target="#wizard-container"`
+        # du formulaire d'etape 1, toujours actif a l'etape 2. Une redirection
+        # Django classique (302 + `Location`) serait suivie par htmx AU SEIN
+        # de la meme requete AJAX, injectant la page complete de la fiche
+        # detail (elle-meme `{% extends "base.html" %}`) dans
+        # `#wizard-container` — une coquille (sidebar/topbar) imbriquee dans
+        # celle deja affichee. `HX-Redirect` force au contraire une vraie
+        # navigation du navigateur, meme patron deja utilise par
+        # `apps.chat.views` pour la creation de conversation.
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = reverse("partners:detail", args=[partner.id])
+        return response
 
     if request.method == "POST" and step == "1":
         request.session["wizard_partner_name"] = request.POST.get("name", "")

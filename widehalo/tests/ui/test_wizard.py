@@ -31,7 +31,16 @@ def test_two_step_wizard_creates_a_partner_without_full_page_reload() -> None:
         {"step": "2", "roles": ["client"], "credit_limit_mga": "50000"},
         HTTP_X_TENANT_ID=str(tenant.id),
     )
-    assert step2.status_code == 302
+    # Correctif : ce POST est declenche par le `hx-post`/`hx-target=
+    # "#wizard-container"` du formulaire d'etape 1, toujours actif. Une
+    # redirection Django classique (302 + `Location`) serait suivie par
+    # htmx AU SEIN de la meme requete AJAX, injectant la page complete de
+    # la fiche detail (elle-meme `{% extends "base.html" %}`) dans
+    # `#wizard-container` — une coquille (sidebar/topbar) imbriquee dans
+    # celle deja affichee. `HX-Redirect` force au contraire une vraie
+    # navigation du navigateur.
+    assert step2.status_code == 204
+    assert "HX-Redirect" in step2.headers
 
     with use_tenant(tenant.id):
         assert Partner.objects.filter(name="Wizard Partner").exists()

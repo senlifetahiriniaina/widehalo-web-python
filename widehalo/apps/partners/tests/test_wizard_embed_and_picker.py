@@ -147,20 +147,46 @@ def test_wizard_embed_completion_creates_partner_and_triggers_event() -> None:
         assert partner.roles == ["client"]
 
 
-def test_wizard_non_embed_completion_still_redirects_to_detail() -> None:
+def test_wizard_non_embed_completion_uses_hx_redirect_not_a_django_redirect() -> None:
+    """Correctif : l'etape 2 est soumise par le `hx-post`/`hx-target=
+    "#wizard-container"` du formulaire d'etape 1, toujours actif. Une
+    redirection Django classique (302 + `Location`) serait suivie par
+    htmx AU SEIN de la meme requete AJAX, injectant la page complete de
+    la fiche detail (elle-meme `{% extends "base.html" %}`) dans
+    `#wizard-container` — une coquille (sidebar/topbar) imbriquee dans
+    celle deja affichee. `HX-Redirect` force au contraire une vraie
+    navigation du navigateur, jamais un corps de reponse contenant une
+    seconde coquille complete."""
     tenant = Tenant.objects.create(code="UXR3-E4", name="Tenant Embed 4")
     user = User.objects.create_user(
         email="uxr3-non-embed-complete@example.com", password="Str0ngPassw0rd!23"
     )
     client = _login_with_tenant(tenant, user)
 
-    client.post("/partners/new/", {"step": "1", "name": "Zeta SARL"})
-    response = client.post(
-        "/partners/new/", {"step": "2", "roles": ["client"], "credit_limit_mga": "0"}
+    client.post(
+        "/partners/new/",
+        {"step": "1", "name": "Zeta SARL"},
+        HTTP_HX_REQUEST="true",
     )
-    assert response.status_code == 302
-    assert response.url.startswith("/partners/")
+    response = client.post(
+        "/partners/new/",
+        {"step": "2", "roles": ["client"], "credit_limit_mga": "0"},
+        HTTP_HX_REQUEST="true",
+    )
+    assert response.status_code == 204
     assert "HX-Trigger" not in response.headers
+    assert "HX-Redirect" in response.headers
+    assert response.headers["HX-Redirect"].startswith("/partners/")
+
+    with use_tenant(tenant.id):
+        partner = Partner.objects.get(name="Zeta SARL")
+    assert response.headers["HX-Redirect"] == f"/partners/{partner.id}/"
+
+    # Garde-fou explicite anti-regression : le corps de la reponse ne doit
+    # jamais contenir de coquille complete (sidebar/topbar), meme partielle.
+    body = response.content.decode()
+    assert "app-shell" not in body
+    assert "<aside" not in body.lower()
 
 
 def test_partner_picker_component_renders_with_given_field_and_display_ids() -> None:
