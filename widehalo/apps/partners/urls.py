@@ -18,4 +18,9 @@ urlpatterns = [
     ),
     path("<uuid:partner_id>/", views.partner_detail, name="detail"),
     path("<uuid:partner_id>/edit/", views.partner_edit, name="edit"),
+    path(
+        "<uuid:partner_id>/assign-account/",
+        views.partner_assign_account,
+        name="assign_account",
+    ),
 ]

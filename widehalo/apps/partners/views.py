@@ -22,6 +22,7 @@ from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.partners.models import DuplicateAlert, Partner
+from apps.partners.services.accounts import assign_partner_account
 from apps.partners.services.merge import merge_partners
 from apps.partners.services.onboarding import create_partner
 
@@ -126,6 +127,32 @@ def partner_edit(request: HttpRequest, partner_id: str) -> HttpResponse:
         "partners/edit.html",
         {"partner": partner, "error": error, "role_choices": Partner.ROLE_CHOICES},
     )
+
+
+@login_required
+def partner_assign_account(request: HttpRequest, partner_id: str) -> HttpResponse:
+    """POST-only : assigne le compte comptable d'un partenaire pour un
+    role donne (chantier "fiche partenaire a onglets par role", PT3) —
+    gardee par `accounting.manage_partneraccountassignment` (comptable/
+    admin/direction uniquement, jamais `partners.change_partner`, cf.
+    `apps.core.services.rbac_policy.
+    CUSTOM_PERMISSIONS_MANAGE_PARTNER_ACCOUNT_ROLES`). Le formulaire lui
+    meme (selecteurs role/compte par onglet) arrive en PT12 — cette vue
+    est deja fonctionnelle, appelable directement."""
+    if not request.user.has_perm("accounting.manage_partneraccountassignment"):
+        return HttpResponse(status=403)
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    partner = get_object_or_404(Partner, id=partner_id)
+    user = cast(User, request.user)
+    role = request.POST.get("role", "")
+    account_id = request.POST.get("account_id", "")
+
+    if role and account_id:
+        assign_partner_account(partner.tenant, partner, role, account_id, user)
+
+    return redirect("partners:detail", partner_id=partner.id)
 
 
 @login_required
