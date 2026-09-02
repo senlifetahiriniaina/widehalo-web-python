@@ -345,6 +345,19 @@ class LogServiceProvider(BaseModel):
     type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_CARRIER)
     contact_phone = models.CharField(max_length=32, blank=True)
     contact_email = models.EmailField(blank=True)
+    # PT8 (chantier "fiche partenaire a onglets par role") : jusqu'ici
+    # `LogServiceProvider` etait un annuaire totalement autonome, jamais
+    # relie a `apps.partners.models.Partner` (aucun champ de ce module ne
+    # referencait un partenaire, verifie en lisant ce fichier avant
+    # d'ecrire quoi que ce soit — deviation par rapport au plan qui
+    # supposait un champ deja existant du style `carrier_partner_id`).
+    # Ajoute nullable, sans migration de donnees (memes discipline que
+    # `catalog.ProductSupplierInfo.priority`/`origin`/`min_qty`, PU2) :
+    # les prestataires existants restent `None` jusqu'a rattachement
+    # manuel a un `Partner` (role `carrier`) depuis l'onglet
+    # "Transporteur". UUID nu, JAMAIS une FK Django vers
+    # `apps.partners.models.Partner` (regle de couplage n°1).
+    partner_id = models.UUIDField(null=True, blank=True)
     # LOG6/API-6 : secret partage pour verifier la signature HMAC des
     # webhooks entrants de ce transporteur (`services/webhooks.py`) —
     # aucun mecanisme de signature HMAC generalise n'existait ailleurs

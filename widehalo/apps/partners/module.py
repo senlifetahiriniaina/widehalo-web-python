@@ -21,8 +21,21 @@ from apps.core.module import ModuleSpec
 # `apps.mrp.services.public.list_subcontract_orders_for_partner`/
 # `get_supplier_score`/`list_supplier_evaluations` — jamais un import de
 # `apps.mrp.models`.
+#
+# "logistics" ajoute par PT8 du meme chantier : l'onglet "Transporteur"
+# consomme `apps.logistics.services.public.list_shipments_for_partner` —
+# jamais un import de `apps.logistics.models`.
 MODULE = ModuleSpec(
     name="partners",
-    dependencies=("core", "chat", "accounting", "catalog", "purchase", "sales", "mrp"),
+    dependencies=(
+        "core",
+        "chat",
+        "accounting",
+        "catalog",
+        "purchase",
+        "sales",
+        "mrp",
+        "logistics",
+    ),
     verbose_name="Partenaires",
 )
