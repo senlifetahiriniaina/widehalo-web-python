@@ -25,6 +25,11 @@ from apps.core.module import ModuleSpec
 # "logistics" ajoute par PT8 du meme chantier : l'onglet "Transporteur"
 # consomme `apps.logistics.services.public.list_shipments_for_partner` —
 # jamais un import de `apps.logistics.models`.
+#
+# "financing" ajoute par PT9 du meme chantier : l'onglet "Banque"
+# consomme `apps.financing.services.public.
+# list_loan_applications_for_bank_partner`/`list_credocs_for_bank_partner`
+# — jamais un import de `apps.financing.models`.
 MODULE = ModuleSpec(
     name="partners",
     dependencies=(
@@ -36,6 +41,7 @@ MODULE = ModuleSpec(
         "sales",
         "mrp",
         "logistics",
+        "financing",
     ),
     verbose_name="Partenaires",
 )
