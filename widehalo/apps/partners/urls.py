@@ -23,4 +23,14 @@ urlpatterns = [
         views.partner_assign_account,
         name="assign_account",
     ),
+    path(
+        "<uuid:partner_id>/contacts/new/",
+        views.partner_contact_create,
+        name="contact_create",
+    ),
+    path(
+        "<uuid:partner_id>/contacts/<uuid:contact_id>/",
+        views.partner_contact_edit,
+        name="contact_edit",
+    ),
 ]

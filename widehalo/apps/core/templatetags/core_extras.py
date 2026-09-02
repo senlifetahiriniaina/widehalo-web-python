@@ -97,6 +97,16 @@ def dict_get(mapping: Any, key: str) -> Any:
     return mapping.get(key, "")
 
 
+@register.filter(name="humanize_field")
+def humanize_field(field_key: str) -> str:
+    """Transforme un nom de champ technique (`credit_limit_mga`) en un
+    libelle lisible generique (`Credit limit mga`) pour l'affichage du
+    diff d'audit (`components/_side_panel.html`, PT11) — reste
+    volontairement generique (pas de registre de libelles par modele) car
+    ce composant est partage par plusieurs ecrans de detail."""
+    return field_key.replace("_", " ").capitalize()
+
+
 @register.filter(name="reverse_with_pk")
 def reverse_with_pk(row: Any, url_name: str) -> str:
     """Resout l'URL de detail d'une ligne SmartTable (`row_url_name` passe

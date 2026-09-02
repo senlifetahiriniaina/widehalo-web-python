@@ -8,13 +8,31 @@ accounting...). Contexte attendu, tous optionnels :
     le formulaire est affiche)
   - chat_channel_id : si fourni, lien vers la messagerie contextuelle
 {% endcomment %}
-{% load i18n %}
+{% load i18n core_extras %}
 <aside class="side-panel">
   {% if audit_entries is not None %}
     <h2>{% trans "Audit" %}</h2>
     <ul>
       {% for entry in audit_entries %}
-        <li>{{ entry.action }} — {{ entry.created_at }}</li>
+        <li>
+          {{ entry.action }} — {{ entry.created_at }}
+          {% if entry.actor %}({{ entry.actor }}){% endif %}
+          {% if entry.changes %}
+            <ul>
+              {% for field, delta in entry.changes.items %}
+                <li>
+                  {{ field|humanize_field }}:
+                  {% if delta.added is not None or delta.removed is not None %}
+                    {% if delta.added %}+{{ delta.added|join:", " }}{% endif %}
+                    {% if delta.removed %} −{{ delta.removed|join:", " }}{% endif %}
+                  {% else %}
+                    {{ delta.before }} → {{ delta.after }}
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </li>
       {% empty %}
         <li>{% trans "Aucune entrée." %}</li>
       {% endfor %}

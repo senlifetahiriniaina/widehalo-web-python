@@ -46,12 +46,21 @@ def update_contact(
     return contact
 
 
+def delete_contact(contact: PartnerContact) -> None:
+    """Soft-delete (`BaseModel.soft_delete()`, jamais un DELETE SQL) —
+    ecran de gestion des contacts (chantier "fiche partenaire a onglets
+    par role", PT12)."""
+    contact.soft_delete()
+
+
 def list_contacts(partner: Partner, *, role: str = "") -> list[PartnerContact]:
     """Contacts pertinents pour un onglet donne : un contact `role=""` est
     general (visible sur tous les onglets), un contact `role=<code>` n'est
     visible que sur l'onglet correspondant. `role=""` en argument renvoie
     tous les contacts (onglet General)."""
-    queryset = partner.contacts.all().order_by("-is_primary", "full_name")
+    # `is_active=True` explicite (PT12) : `delete_contact()` fait un
+    # soft-delete, jamais retire par `TenantManager` par defaut.
+    queryset = partner.contacts.filter(is_active=True).order_by("-is_primary", "full_name")
     if not role:
         return list(queryset)
     return [c for c in queryset if c.role in ("", role)]

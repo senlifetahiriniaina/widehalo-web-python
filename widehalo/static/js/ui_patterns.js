@@ -107,6 +107,16 @@ document.addEventListener("alpine:init", () => {
     },
   }));
 
+  Alpine.data("tabs", (defaultTab) => ({
+    active: defaultTab,
+    select(tab) {
+      this.active = tab;
+    },
+    isActive(tab) {
+      return this.active === tab;
+    },
+  }));
+
   Alpine.data("whModal", (initiallyOpen = false) => ({
     open: initiallyOpen,
     show() {

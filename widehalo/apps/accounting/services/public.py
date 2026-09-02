@@ -767,9 +767,14 @@ def list_partner_role_accounts(partner_id: UUID) -> list[dict[str, Any]]:
     """Tous les comptes deja assignes a ce partenaire, un par role — deja
     tenant-scope par `AccPartnerRoleAccount.objects` (TenantManager/RLS),
     aucun parametre `tenant` necessaire (meme discipline que
-    `count_unpaid_customer_invoices` ci-dessus)."""
+    `count_unpaid_customer_invoices` ci-dessus). `id` (pk de
+    `AccPartnerRoleAccount` lui-meme, pas du compte) ajoute pour PT11 :
+    seul moyen pour `partners` de retrouver les entrees `AuditLog`
+    rattachees a ces mappings sans jamais importer
+    `apps.accounting.models`."""
     return [
         {
+            "id": row.id,
             "role": row.role,
             "account_id": row.account_id,
             "account_code": row.account.code,

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n core_extras %}
 {% block title %}{{ partner.name }} — WideHalo{% endblock %}
 {% block content %}
   <div class="workflow-banner">
@@ -7,36 +7,211 @@
     {% if partner.is_active %}{% trans "Actif" %}{% else %}{% trans "Archive" %}{% endif %}
   </div>
 
-  <div class="two-col">
+  <div class="two-col" x-data="tabs('general')">
     <div class="col-main">
       <div class="page-head">
         <h1>{{ partner.name }}</h1>
       </div>
-      <p>{% trans "Référence" %}: {{ partner.reference }}</p>
-      <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
-      <p>{% trans "Plafond crédit" %}: {{ partner.credit_limit_mga }} MGA</p>
-      {% if perms.partners.change_partner %}
-        <p><a href="{% url 'partners:edit' partner.id %}">{% trans "Modifier" %}</a></p>
-      {% endif %}
 
-      <h2>{% trans "Documents" %}</h2>
-      <ul>
-        {% for document in documents %}
-          <li>{{ document.original_name }}</li>
-        {% empty %}
-          <li>{% trans "Aucun document." %}</li>
+      <div class="tab-strip" role="tablist">
+        <button type="button" role="tab" @click="select('general')" :aria-selected="isActive('general')">
+          {% trans "Général" %}
+        </button>
+        {% for role in partner.roles %}
+          <button type="button" role="tab" @click="select('{{ role }}')" :aria-selected="isActive('{{ role }}')">
+            {{ role_labels|dict_get:role }}
+          </button>
         {% endfor %}
-      </ul>
-      <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <label for="document-upload">{% trans "Ajouter un document" %}</label>
-        <input id="document-upload" type="file" name="document" required>
-        <button type="submit">{% trans "Envoyer" %}</button>
-      </form>
+        <button type="button" role="tab" @click="select('audit')" :aria-selected="isActive('audit')">
+          {% trans "Audit" %}
+        </button>
+      </div>
+
+      <section x-show="isActive('general')">
+        <p>{% trans "Référence" %}: {{ partner.reference }}</p>
+        <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
+        <p>{% trans "Rôles" %}: {{ partner.roles_display }}</p>
+        <p>{% trans "Plafond crédit" %}: {{ partner.credit_limit_mga }} MGA</p>
+        {% if perms.partners.change_partner %}
+          <p><a href="{% url 'partners:edit' partner.id %}">{% trans "Modifier" %}</a></p>
+        {% endif %}
+
+        <h2>{% trans "Contacts" %}</h2>
+        <ul>
+          {% for contact in general_contacts %}
+            <li>
+              {{ contact.full_name }}
+              {% if contact.title %}— {{ contact.title }}{% endif %}
+              {% if contact.email %}— {{ contact.email }}{% endif %}
+              {% if contact.phone %}— {{ contact.phone }}{% endif %}
+              {% if contact.is_primary %} ({% trans "principal" %}){% endif %}
+              {% if perms.partners.change_partner %}
+                <form method="post" action="{% url 'partners:contact_edit' partner.id contact.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete">
+                  <button type="submit" class="btn btn-sm btn-danger">{% trans "Supprimer" %}</button>
+                </form>
+              {% endif %}
+            </li>
+          {% empty %}
+            <li>{% trans "Aucun contact." %}</li>
+          {% endfor %}
+        </ul>
+        {% if perms.partners.change_partner %}
+          <form method="post" action="{% url 'partners:contact_create' partner.id %}">
+            {% csrf_token %}
+            <div class="form-field">
+              <label for="contact-full-name">{% trans "Nom du contact" %}</label>
+              <input id="contact-full-name" type="text" name="full_name" required>
+            </div>
+            <div class="form-field">
+              <label for="contact-role">{% trans "Rôle (vide = tous les onglets)" %}</label>
+              <select id="contact-role" name="role">
+                <option value="">{% trans "Général" %}</option>
+                {% for role_value, role_label in role_choices %}
+                  <option value="{{ role_value }}">{{ role_label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="contact-title">{% trans "Fonction" %}</label>
+              <input id="contact-title" type="text" name="title">
+            </div>
+            <div class="form-field">
+              <label for="contact-email">{% trans "E-mail" %}</label>
+              <input id="contact-email" type="email" name="email">
+            </div>
+            <div class="form-field">
+              <label for="contact-phone">{% trans "Téléphone" %}</label>
+              <input id="contact-phone" type="text" name="phone">
+            </div>
+            <button type="submit" class="btn btn-sm">{% trans "Ajouter un contact" %}</button>
+          </form>
+        {% endif %}
+
+        <h2>{% trans "Documents" %}</h2>
+        <ul>
+          {% for document in documents %}
+            <li>{{ document.original_name }}</li>
+          {% empty %}
+            <li>{% trans "Aucun document." %}</li>
+          {% endfor %}
+        </ul>
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label for="document-upload">{% trans "Ajouter un document" %}</label>
+          <input id="document-upload" type="file" name="document" required>
+          <button type="submit">{% trans "Envoyer" %}</button>
+        </form>
+      </section>
+
+      {% for role in partner.roles %}
+        {% with data=role_tabs|dict_get:role %}
+        <section x-show="isActive('{{ role }}')">
+          <h2>{% trans "Compte comptable assigné" %}</h2>
+          {% if data.account %}
+            <p>{{ data.account.account_code }} — {{ data.account.account_name }}</p>
+          {% else %}
+            <p>{% trans "Aucun compte assigné." %}</p>
+          {% endif %}
+          {% if can_manage_accounts %}
+            <form method="post" action="{% url 'partners:assign_account' partner.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="role" value="{{ role }}">
+              <div class="form-field">
+                <label for="account-{{ role }}">{% trans "Assigner un compte" %}</label>
+                <select id="account-{{ role }}" name="account_id" required>
+                  {% for account in assignable_accounts %}
+                    <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-sm">{% trans "Enregistrer" %}</button>
+            </form>
+          {% endif %}
+
+          <h2>{% trans "Contacts" %}</h2>
+          <ul>
+            {% for contact in contacts_by_role|dict_get:role %}
+              <li>{{ contact.full_name }}{% if contact.email %} — {{ contact.email }}{% endif %}</li>
+            {% empty %}
+              <li>{% trans "Aucun contact pour ce rôle." %}</li>
+            {% endfor %}
+          </ul>
+
+          {% if role == "client" %}
+            <h2>{% trans "Devis" %}</h2>
+            <ul>
+              {% for row in data.quotations %}
+                <li>{{ row.reference }} — {{ row.date }} — {{ row.state }} — {{ row.total }} MGA</li>
+              {% empty %}<li>{% trans "Aucun devis." %}</li>{% endfor %}
+            </ul>
+            <h2>{% trans "Commandes de vente" %}</h2>
+            <ul>
+              {% for row in data.orders %}
+                <li>{{ row.reference }} — {{ row.date }} — {{ row.state }} — {{ row.total }} MGA</li>
+              {% empty %}<li>{% trans "Aucune commande." %}</li>{% endfor %}
+            </ul>
+          {% elif role == "supplier" %}
+            <h2>{% trans "Produits fournis" %}</h2>
+            <ul>
+              {% for row in data.supplier_products %}
+                <li>{{ row.product_name }} ({{ row.variant_reference }}) — {{ row.price_mga }} MGA</li>
+              {% empty %}<li>{% trans "Aucun produit référencé." %}</li>{% endfor %}
+            </ul>
+            <h2>{% trans "Commandes d'achat" %}</h2>
+            <ul>
+              {% for row in data.purchase_orders %}
+                <li>{{ row.reference }} — {{ row.date }} — {{ row.state }} — {{ row.total }} MGA</li>
+              {% empty %}<li>{% trans "Aucune commande." %}</li>{% endfor %}
+            </ul>
+          {% elif role == "subcontractor" %}
+            <h2>{% trans "Envois en sous-traitance" %}</h2>
+            <ul>
+              {% for row in data.subcontract_orders %}
+                <li>{{ row.qty }} — {{ row.state }} — {{ row.date_sent }}</li>
+              {% empty %}<li>{% trans "Aucun envoi." %}</li>{% endfor %}
+            </ul>
+            <p>{% trans "Score fournisseur" %}: {{ data.supplier_score|default:"—" }}</p>
+          {% elif role == "carrier" %}
+            <h2>{% trans "Expéditions" %}</h2>
+            <ul>
+              {% for row in data.shipments %}
+                <li>{{ row.reference }} — {{ row.origin }} → {{ row.destination }} — {{ row.state }}</li>
+              {% empty %}<li>{% trans "Aucune expédition." %}</li>{% endfor %}
+            </ul>
+          {% elif role == "bank" %}
+            <h2>{% trans "Dossiers de financement" %}</h2>
+            <ul>
+              {% for row in data.loan_applications %}
+                <li>{{ row.reference }} — {{ row.type }} — {{ row.amount_requested_mga }} MGA — {{ row.state }}</li>
+              {% empty %}<li>{% trans "Aucun dossier." %}</li>{% endfor %}
+            </ul>
+            <h2>{% trans "CREDOC" %}</h2>
+            <ul>
+              {% for row in data.credocs %}
+                <li>{{ row.reference }} — {{ row.amount_mga }} MGA — {{ row.state }}</li>
+              {% empty %}<li>{% trans "Aucun CREDOC." %}</li>{% endfor %}
+            </ul>
+          {% endif %}
+
+          <h2>{% trans "Grand livre" %}</h2>
+          <ul>
+            {% for row in data.ledger_entries %}
+              <li>{{ row.date }} — {{ row.account_code }} — {{ row.label }} — D {{ row.debit }} / C {{ row.credit }}</li>
+            {% empty %}<li>{% trans "Aucun mouvement." %}</li>{% endfor %}
+          </ul>
+        </section>
+        {% endwith %}
+      {% endfor %}
+
+      <section x-show="isActive('audit')">
+        {% include "components/_side_panel.html" with audit_entries=audit_entries documents=None chat_channel_id=None %}
+      </section>
     </div>
 
     <div class="col-side">
-      {% include "components/_side_panel.html" with documents=None %}
+      {% include "components/_side_panel.html" with audit_entries=None documents=None %}
     </div>
   </div>
 {% endblock %}

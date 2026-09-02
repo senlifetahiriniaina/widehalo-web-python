@@ -715,6 +715,29 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
 }
 .side-panel h2, .side-panel h3 { margin-top: 0; }
 
+/* ============== Onglets (fiche partenaire a onglets par role, PT12) === */
+.tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--spacing);
+}
+.tab-strip button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--spacing-sm) var(--spacing);
+  cursor: pointer;
+  color: var(--fg-muted);
+  font: inherit;
+}
+.tab-strip button[aria-selected="true"] {
+  color: var(--fg-default);
+  border-bottom-color: var(--halo-500, var(--fg-default));
+  font-weight: 600;
+}
+
 /* ============== Accessibilite ============== */
 .sr-only {
   position: absolute;

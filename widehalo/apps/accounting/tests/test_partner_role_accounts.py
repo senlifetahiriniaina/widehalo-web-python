@@ -39,7 +39,7 @@ def test_assign_partner_role_account_creates_and_updates_mapping() -> None:
         assert mapping_id is not None
 
         rows = list_partner_role_accounts(partner_id)
-        assert rows == [
+        assert [{k: v for k, v in row.items() if k != "id"} for row in rows] == [
             {
                 "role": "client",
                 "account_id": account_a.id,
@@ -47,6 +47,7 @@ def test_assign_partner_role_account_creates_and_updates_mapping() -> None:
                 "account_name": account_a.name,
             }
         ]
+        assert rows[0]["id"] == mapping_id
 
         # Reassigning the same role updates the mapping instead of duplicating it.
         assign_partner_role_account(tenant, partner_id, "client", account_b.id, user)

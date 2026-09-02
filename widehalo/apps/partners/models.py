@@ -5,10 +5,18 @@ relation commerciale."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 from apps.core.models.base import BaseModel, ReferenceMixin
+from apps.core.services.audit import compute_field_diff
+
+# Champs suivis pour le diff d'audit (PT11) — jamais les champs internes
+# `is_active`/`archived_at`/`merged_into`, qui ont deja leur propre
+# semantique/ecran dedie (soft-delete, fusion de doublons).
+_AUDITED_FIELDS = ("name", "nif", "roles", "credit_limit_mga")
 
 
 class Partner(BaseModel, ReferenceMixin):
@@ -60,6 +68,20 @@ class Partner(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return f"{self.reference} — {self.name}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Calcule un diff avant/apres sur les champs metier suivis
+        (`_AUDITED_FIELDS`) et le pose en `_audit_diff` — lu de facon
+        additive par le signal d'audit global (`apps.core.audit_signals`,
+        PT11), aucun appel a `log_action()` ici (le signal `post_save`
+        s'en charge deja pour tout `BaseModel`). Sans effet a la creation
+        (`self.pk` absent avant le premier `save()`)."""
+        if self.pk:
+            old_values = type(self).all_objects.filter(pk=self.pk).values(*_AUDITED_FIELDS).first()
+            if old_values is not None:
+                new_values = {field: getattr(self, field) for field in _AUDITED_FIELDS}
+                self._audit_diff = compute_field_diff(old_values, new_values)
+        super().save(*args, **kwargs)
 
 
 class DuplicateAlert(BaseModel):

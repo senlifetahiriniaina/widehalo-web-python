@@ -21,10 +21,21 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
-from apps.partners.models import DuplicateAlert, Partner
-from apps.partners.services.accounts import assign_partner_account
+from apps.partners.models import DuplicateAlert, Partner, PartnerContact
+from apps.partners.services.accounts import (
+    assign_partner_account,
+    get_partner_account_assignments,
+    list_assignable_accounts,
+)
+from apps.partners.services.contacts import (
+    create_contact,
+    delete_contact,
+    list_contacts,
+    update_contact,
+)
 from apps.partners.services.merge import merge_partners
 from apps.partners.services.onboarding import create_partner
+from apps.partners.services.tab_data import build_role_tab_data
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -61,9 +72,26 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
     # `User | AnonymousUser` par defaut.
     user = cast(User, request.user)
 
-    audit_entries = AuditLog.objects.filter(
-        content_type=content_type, object_id=str(partner.id)
-    ).order_by("-created_at")[:20]
+    # PT11 : union de l'audit du partenaire lui-meme, de ses contacts
+    # (`PartnerContact`, meme app — content-type direct) et de ses comptes
+    # comptables assignes (`AccPartnerRoleAccount`, autre app — resolu par
+    # `app_label`/`model` sans jamais importer `apps.accounting.models`,
+    # regle de couplage n1). Toujours capee (50, au-dela des 20 de PT4-10
+    # vu le nombre de sous-entites desormais tracees).
+    contact_ids = [str(pk) for pk in partner.contacts.values_list("id", flat=True)]
+    role_account_ids = [str(row["id"]) for row in get_partner_account_assignments(partner)]
+    audit_filter = models.Q(content_type=content_type, object_id=str(partner.id))
+    if contact_ids:
+        contact_content_type = ContentType.objects.get_for_model(PartnerContact)
+        audit_filter |= models.Q(content_type=contact_content_type, object_id__in=contact_ids)
+    if role_account_ids:
+        role_account_content_type = ContentType.objects.get(
+            app_label="accounting", model="accpartnerroleaccount"
+        )
+        audit_filter |= models.Q(
+            content_type=role_account_content_type, object_id__in=role_account_ids
+        )
+    audit_entries = AuditLog.objects.filter(audit_filter).order_by("-created_at")[:50]
     documents = Document.objects.filter(content_type=content_type, object_id=str(partner.id))
 
     uploaded_file = request.FILES.get("document")
@@ -80,6 +108,17 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
         tenant=partner.tenant, content_object=partner, participants=[user], title=partner.name
     )
 
+    # PT12 : donnees d'onglets par role (compte comptable + operations
+    # liees), contacts groupes par role, calcules une seule fois cote
+    # serveur — toute la fiche est rendue en un seul chargement de page,
+    # le basculement entre onglets reste purement client-side (Alpine).
+    role_tabs = build_role_tab_data(partner)
+    role_labels = dict(Partner.ROLE_CHOICES)
+    contacts_by_role = {role: list_contacts(partner, role=role) for role in partner.roles}
+    general_contacts = list_contacts(partner)
+    can_manage_accounts = request.user.has_perm("accounting.manage_partneraccountassignment")
+    assignable_accounts = list_assignable_accounts(partner.tenant) if can_manage_accounts else []
+
     return render(
         request,
         "partners/detail.html",
@@ -88,6 +127,13 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
             "audit_entries": audit_entries,
             "documents": documents,
             "chat_channel_id": chat_channel_id,
+            "role_tabs": role_tabs,
+            "role_labels": role_labels,
+            "role_choices": Partner.ROLE_CHOICES,
+            "contacts_by_role": contacts_by_role,
+            "general_contacts": general_contacts,
+            "can_manage_accounts": can_manage_accounts,
+            "assignable_accounts": assignable_accounts,
         },
     )
 
@@ -305,6 +351,51 @@ def partner_instant_picker(request: HttpRequest) -> HttpResponse:
     query = request.GET.get("q", "")
     partners = Partner.objects.filter(is_active=True, name__icontains=query).order_by("name")[:20]
     return render(request, "partners/_instant_picker_results.html", {"partners": partners})
+
+
+@login_required
+def partner_contact_create(request: HttpRequest, partner_id: str) -> HttpResponse:
+    """Creation d'un contact (formulaire POST depuis l'onglet General de la
+    fiche partenaire, chantier PT12) — `partners.change_partner`, meme
+    permission que le reste de l'edition de la fiche."""
+    if not request.user.has_perm("partners.change_partner"):
+        return HttpResponse(status=403)
+    partner = get_object_or_404(Partner, id=partner_id)
+    if request.method == "POST":
+        create_contact(
+            partner=partner,
+            full_name=request.POST.get("full_name", ""),
+            role=request.POST.get("role", ""),
+            title=request.POST.get("title", ""),
+            email=request.POST.get("email", ""),
+            phone=request.POST.get("phone", ""),
+            is_primary=request.POST.get("is_primary") == "on",
+        )
+    return redirect("partners:detail", partner_id=partner.id)
+
+
+@login_required
+def partner_contact_edit(request: HttpRequest, partner_id: str, contact_id: str) -> HttpResponse:
+    """Modification (POST) ou suppression (POST `action=delete`) d'un
+    contact existant — meme garde RBAC que la creation."""
+    if not request.user.has_perm("partners.change_partner"):
+        return HttpResponse(status=403)
+    partner = get_object_or_404(Partner, id=partner_id)
+    contact = get_object_or_404(PartnerContact, id=contact_id, partner=partner)
+    if request.method == "POST":
+        if request.POST.get("action") == "delete":
+            delete_contact(contact)
+        else:
+            update_contact(
+                contact,
+                full_name=request.POST.get("full_name", contact.full_name),
+                role=request.POST.get("role", ""),
+                title=request.POST.get("title", ""),
+                email=request.POST.get("email", ""),
+                phone=request.POST.get("phone", ""),
+                is_primary=request.POST.get("is_primary") == "on",
+            )
+    return redirect("partners:detail", partner_id=partner.id)
 
 
 def _resolve_tenant(request: HttpRequest) -> Tenant:
