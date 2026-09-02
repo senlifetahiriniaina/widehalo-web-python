@@ -103,21 +103,35 @@ périmètre de migration, tranché en §5 bis).
 
 ## 5. Sprints par lot (construction des écrans critiques du cahier des charges)
 
-### Sprint 1 — L0 Fondations (8 JT / 15 disponibles)
-Design system Tailwind/DaisyUI finalisé, shell applicatif (logo + app switcher type
-Odoo/Fiori), launchpad par rôle (tuiles statiques + dynamiques + KPI), breadcrumb,
-recherche globale (command palette Ctrl/Cmd+K — entités + actions + navigation),
-notifications (cloche, compteur live), menu utilisateur (langue FR/MG/EN, dark mode). Ce
-lot migre aussi les 18 écrans racine existants (dashboard, recherche, paramètres) qui
-occupent précisément le shell reconstruit ici. Les 7 JT de marge sur la capacité de 15
-sont absorbés par un raffinement UX approfondi plutôt que par de nouvelles fonctionnalités.
+### Sprint 1 — L0 Fondations (8 JT / 15 disponibles) — RÉALISÉ (partiellement)
 
-- **Critères d'acceptation** : chaque utilisateur voit un launchpad filtré par son rôle
-  métier ; la recherche globale répond en < 100 ms perçu (indicateurs HTMX/skeletons) ;
-  tous les écrans sont composés exclusivement à partir de la bibliothèque de composants.
-- **Raffinement renforcé** : cohérence des tokens sur l'ensemble du shell, contraste
-  WCAG AA sur la palette de marque, focus clavier visible sur l'app switcher et la command
-  palette.
+Livré (commit `985c9bf`, poussé directement sur `madagascar1`) : shell applicatif
+(`<c-shell>`, logo + app switcher type Odoo/Fiori), launchpad par rôle
+(`/launchpad/`, tuiles de navigation + tuiles KPI, toutes deux gardées par
+`visible_app_labels_for` — RBAC N1 identique à la sidebar legacy), fil d'Ariane
+(`<c-breadcrumb>`), recherche globale en command palette (Ctrl/Cmd+K, réutilise
+`global_search`/`/search/instant/` existants), cloche de notifications (compteur live par
+polling HTMX, réutilise le modèle `Notification` existant). Coexistence strangler pattern
+via bascule de session (`toggle_shell`) : `/dashboard/` redirige vers `/launchpad/` une
+fois la bascule activée, jamais l'inverse automatiquement ; point d'entrée additionnel
+("Essayer la nouvelle interface (bêta)") depuis le menu compte legacy.
+
+**Reporté** (hors 8 JT engagés, à couvrir par le Jour de raffinement d'un sprint suivant
+ou un correctif ciblé) : menu utilisateur langue FR/MG/EN et bascule dark mode (stubs
+visuels seulement) ; migration réelle des 18 écrans racine autres que `/dashboard/`
+(`search.html`, `settings.html`, etc. restent sur l'ancien shell — seul `/dashboard/`
+redirige) ; favoris/tâches récentes du launchpad (emplacement vide assumé, personnalisation
+réelle = lot L6).
+
+- **Critères d'acceptation** : ✅ chaque utilisateur voit un launchpad filtré par son rôle
+  métier (`tests/ui/test_shell_toggle.py::test_launchpad_shows_only_role_visible_apps`) ;
+  ✅ tous les écrans du nouveau shell sont composés exclusivement à partir de la
+  bibliothèque de composants cotton ; recherche globale < 100 ms perçu — non mesuré
+  (nécessite un environnement avec données réelles, à faire au Sprint 15/recette).
+- **Raffinement effectué** : contrôles icône-seule avec `aria-label` (app switcher, cloche,
+  recherche mobile), audit accessibilité automatisé étendu à `/launchpad/`
+  (`tests/ui/test_accessibility.py`), build Tailwind sans "preflight" vérifié sans
+  régression sur les 219 écrans existants.
 
 ### Sprint 2 — L1 Data grid & vues (10 JT / 15 disponibles)
 Moteur de vues configurables en base (`ui_view_definition`, arch JSON façon Odoo), data
