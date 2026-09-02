@@ -22,6 +22,7 @@ from apps.catalog.services.sector_specs import create_sector_spec
 from apps.catalog.services.variants import generate_variants, set_variant_attributes
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
+from apps.partners.services.public import get_partner_display_name
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -108,6 +109,7 @@ def template_create(request: HttpRequest) -> HttpResponse:
 def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
     template = get_object_or_404(ProductTemplate, id=template_id)
     error = None
+    supplier_form: dict[str, str] = {}
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -146,6 +148,28 @@ def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
                 )
         except (ValidationError, ValueError, ProductVariant.DoesNotExist) as exc:
             error = str(exc)
+            if action == "add_supplier_info":
+                # Ne jamais perdre la saisie du formulaire fournisseur
+                # (y compris le partenaire deja choisi via le picker) sur
+                # une erreur d'ajout (ex. doublon variante+fournisseur) —
+                # reaffiche exactement ce que l'utilisateur avait rempli.
+                partner_id = request.POST.get("partner_id", "")
+                try:
+                    partner_name = get_partner_display_name(partner_id) if partner_id else ""
+                except (ValidationError, ValueError):
+                    # partner_id malforme (jamais produit par le picker
+                    # lui-meme, mais un champ cache reste modifiable) —
+                    # reaffiche quand meme le reste du formulaire, juste
+                    # sans nom resolu.
+                    partner_name = ""
+                supplier_form = {
+                    "variant_id": request.POST.get("variant_id", ""),
+                    "partner_id": partner_id,
+                    "partner_name": partner_name,
+                    "supplier_reference": request.POST.get("supplier_reference", ""),
+                    "price_mga": request.POST.get("price_mga", ""),
+                    "lead_time_days": request.POST.get("lead_time_days", ""),
+                }
         else:
             return redirect("catalog:template_detail", template_id=template.id)
 
@@ -168,6 +192,7 @@ def template_detail(request: HttpRequest, template_id: str) -> HttpResponse:
             "current_attribute_ids": {a.id for a in template.variant_attributes.all()},
             "sector_choices": CatalogSectorSpec.SECTOR_CHOICES,
             "error": error,
+            "supplier_form": supplier_form,
         },
     )
 

@@ -204,6 +204,65 @@ def test_generate_variants_rejects_over_fifty_combinations(catalog_screens_setup
         assert template.variants.count() == 0
 
 
+def test_template_detail_price_is_formatted_with_thousands_separator(
+    catalog_screens_setup,
+) -> None:
+    client, tenant, template, _color = catalog_screens_setup
+    with use_tenant(tenant.id):
+        template.base_price_mga = Decimal("98610.0000")
+        template.save(update_fields=["base_price_mga"])
+    response = client.get(f"/catalog/templates/{template.id}/")
+    assert response.status_code == 200
+    assert "98\xa0610,00\xa0MGA" in response.content.decode()
+
+
+def test_generate_variants_fieldset_has_form_field_spacing_class(
+    catalog_screens_setup,
+) -> None:
+    client, _tenant, template, _color = catalog_screens_setup
+    response = client.get(f"/catalog/templates/{template.id}/")
+    body = response.content.decode()
+    assert '<fieldset class="form-field">' in body
+
+
+def test_add_supplier_info_form_uses_partner_picker_not_free_text(
+    catalog_screens_setup,
+) -> None:
+    client, _tenant, template, _color = catalog_screens_setup
+    response = client.get(f"/catalog/templates/{template.id}/")
+    body = response.content.decode()
+    assert '<input id="partner_id" type="text" name="partner_id" required>' not in body
+    assert 'id="partner-picker-search-partner_id"' in body
+    assert "+ Nouveau partenaire" in body
+
+
+def test_add_supplier_info_error_preserves_form_values(catalog_screens_setup) -> None:
+    client, tenant, template, color = catalog_screens_setup
+    client.post(
+        f"/catalog/templates/{template.id}/",
+        {"action": "generate_variants", "attribute_ids": [str(color.id)]},
+    )
+    partner_id = str(uuid.uuid4())
+    response = client.post(
+        f"/catalog/templates/{template.id}/",
+        {
+            "action": "add_supplier_info",
+            "variant_id": str(uuid.uuid4()),  # variante inexistante -> erreur
+            "partner_id": partner_id,
+            "supplier_reference": "SUP-KEEP",
+            "price_mga": "4200",
+            "lead_time_days": "5",
+        },
+    )
+    assert response.status_code == 200
+    assert response.context["error"]
+    body = response.content.decode()
+    assert partner_id in body
+    assert 'value="SUP-KEEP"' in body
+    assert 'value="4200"' in body
+    assert 'value="5"' in body
+
+
 def test_add_supplier_info(catalog_screens_setup) -> None:
     client, tenant, template, color = catalog_screens_setup
     client.post(
@@ -244,7 +303,7 @@ def test_template_detail_shows_price_cascade(catalog_screens_setup) -> None:
         )
     response = client.get(f"/catalog/templates/{template.id}/")
     assert response.status_code == 200
-    assert b"4800" in response.content
+    assert "4\xa0800,00\xa0MGA" in response.content.decode()
 
 
 def test_textile_converter_weight_to_length(catalog_screens_setup) -> None:

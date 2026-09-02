@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n core_extras %}
+{% load i18n core_extras currency %}
 {% block title %}{{ template.name }} — WideHalo{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -8,7 +8,7 @@
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p>{% trans "Catégorie" %}: {{ template.category|default:"—" }}</p>
   <p>{% trans "Unité de base" %}: {{ template.base_uom }}</p>
-  <p>{% trans "Prix catalogue" %}: {{ template.base_price_mga }} MGA</p>
+  <p>{% trans "Prix catalogue" %}: {{ template.base_price_mga|mga2 }}</p>
 
   <form method="post">
     {% csrf_token %}
@@ -49,7 +49,7 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="generate_variants">
-    <fieldset>
+    <fieldset class="form-field">
       <legend>{% trans "Attributs générateurs (2 maximum)" %}</legend>
       {% for attribute in attributes %}
         <label>
@@ -160,7 +160,7 @@
           <td>{{ item.variant.reference }}</td>
           <td>{{ item.price_list.name }}</td>
           <td><span class="badge {{ item.price_list.kind|state_badge_class }}">{{ item.price_list.get_kind_display }}</span></td>
-          <td>{{ item.price_mga }}</td>
+          <td>{{ item.price_mga|mga2 }}</td>
         </tr>
       {% empty %}
         <tr><td colspan="4">{% trans "Aucun prix spécifique — le prix catalogue s'applique." %}</td></tr>
@@ -186,7 +186,7 @@
             <td>{{ variant.reference }}</td>
             <td>{{ info.partner_id }}</td>
             <td>{{ info.supplier_reference }}</td>
-            <td>{{ info.price_mga }}</td>
+            <td>{{ info.price_mga|mga2 }}</td>
             <td>{{ info.lead_time_days }}</td>
           </tr>
         {% endfor %}
@@ -203,25 +203,22 @@
       <label for="variant_id">{% trans "Variante" %}</label>
       <select id="variant_id" name="variant_id" required>
         {% for variant in variants %}
-          <option value="{{ variant.id }}">{{ variant.reference }}</option>
+          <option value="{{ variant.id }}" {% if variant.id|stringformat:"s" == supplier_form.variant_id %}selected{% endif %}>{{ variant.reference }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="form-field">
-      <label for="partner_id">{% trans "Partenaire (UUID)" %}</label>
-      <input id="partner_id" type="text" name="partner_id" required>
-    </div>
+    {% include "components/_partner_picker.html" with field_id="partner_id" display_id="partner_id_display" initial_partner_id=supplier_form.partner_id initial_partner_name=supplier_form.partner_name %}
     <div class="form-field">
       <label for="supplier_reference">{% trans "Référence fournisseur" %}</label>
-      <input id="supplier_reference" type="text" name="supplier_reference">
+      <input id="supplier_reference" type="text" name="supplier_reference" value="{{ supplier_form.supplier_reference|default:'' }}">
     </div>
     <div class="form-field">
       <label for="price_mga">{% trans "Prix (MGA)" %}</label>
-      <input id="price_mga" type="number" step="0.0001" name="price_mga">
+      <input id="price_mga" type="number" step="0.0001" name="price_mga" value="{{ supplier_form.price_mga|default:'' }}">
     </div>
     <div class="form-field">
       <label for="lead_time_days">{% trans "Délai (jours)" %}</label>
-      <input id="lead_time_days" type="number" name="lead_time_days">
+      <input id="lead_time_days" type="number" name="lead_time_days" value="{{ supplier_form.lead_time_days|default:'' }}">
     </div>
     <button type="submit">{% trans "Ajouter" %}</button>
   </form>

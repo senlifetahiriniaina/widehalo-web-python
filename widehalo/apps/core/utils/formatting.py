@@ -25,6 +25,18 @@ def format_mga(amount: Decimal) -> str:
     return f"{formatted} Ar"
 
 
+def format_mga_precise(amount: Decimal) -> str:
+    """Affiche un montant en MGA avec separateur de milliers (espace
+    insecable) et exactement 2 decimales — a la difference de `format_mga`
+    (convention monetaire malgache, 0 decimale), utilise la ou une valeur
+    de reference/catalogue (pas un solde de caisse) doit rester lisible au
+    centime pres, ex. un prix catalogue."""
+    rounded = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    integer_part, _sep, decimal_part = f"{rounded:,.2f}".partition(".")
+    formatted = integer_part.replace(",", " ")
+    return f"{formatted},{decimal_part} MGA"
+
+
 def _format_mga_column(value: Any) -> str:
     if value in (None, ""):
         return ""
