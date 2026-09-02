@@ -52,6 +52,7 @@ from apps.accounting.models import (
     AccMobileMoneyStatementLine,
     AccMove,
     AccMoveLine,
+    AccPartnerRoleAccount,
     AccPayment,
     AccPaymentAllocation,
     AccPaymentTerm,
@@ -449,6 +450,16 @@ class AccCashCategoryMappingFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     category_label = factory.Sequence(lambda n: f"Categorie {n}")
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+
+
+class AccPartnerRoleAccountFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccPartnerRoleAccount
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    partner_id = factory.LazyFunction(uuid.uuid4)
+    role = "client"
     account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
 
 

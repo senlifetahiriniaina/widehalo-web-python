@@ -10,6 +10,7 @@ from django.db import models
 from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
+from apps.partners.services.public import list_role_choices
 
 
 class AccFiscalYear(BaseModel):
@@ -1327,6 +1328,51 @@ class AccCashCategoryMapping(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.category_label} -> {self.account.code}"
+
+
+class AccPartnerRoleAccount(BaseModel):
+    """Compte comptable assigne a un partenaire pour un role donne (client,
+    fournisseur, transporteur, sous-traitant, associe, collaborateur,
+    banque) — chantier "fiche partenaire a onglets par role". Meme patron
+    structurel que `AccCashCategoryMapping` ci-dessus : mapping tenant-scope
+    avec une vraie FK Django vers `AccAccount` (legal, meme app), mais
+    `partner_id` reste un UUID nu (jamais une FK vers `apps.partners.
+    Partner` — regle de couplage n1, `accounting` ne fait jamais de FK
+    Django vers un modele d'une autre app metier).
+
+    `role` est construit depuis `apps.partners.services.public.
+    list_role_choices()` (jamais un import de `apps.partners.models`) pour
+    que le choix reste synchronise avec `Partner.ROLE_CHOICES` sans
+    dupliquer la liste.
+
+    L'edition de ce mapping est gardee par la permission personnalisee
+    `accounting.manage_partneraccountassignment` (cf. `Meta.permissions`
+    ci-dessous), reservee a comptable/admin/direction (cf.
+    `apps.core.services.rbac_policy.
+    CUSTOM_PERMISSIONS_MANAGE_PARTNER_ACCOUNT_ROLES`) — plus etroit que
+    `partners.change_partner`, deja accorde a commercial/resp_commercial/
+    acheteur pour les autres champs de la fiche partenaire."""
+
+    partner_id = models.UUIDField()
+    role = models.CharField(max_length=20, choices=list_role_choices)
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "acc_partner_role_account"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "partner_id", "role"], name="uniq_partner_role_account"
+            )
+        ]
+        permissions = [
+            (
+                "manage_partneraccountassignment",
+                "Peut assigner/modifier le compte comptable d'un partenaire par role",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.partner_id}/{self.role} -> {self.account.code}"
 
 
 class AccImportBatch(BaseModel):

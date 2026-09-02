@@ -39,6 +39,7 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccJournal,
     AccMove,
+    AccPartnerRoleAccount,
     AccPaymentTerm,
     AccPeriod,
 )
@@ -715,4 +716,66 @@ def list_payment_terms(tenant: Tenant) -> list[dict[str, Any]]:
         for row in AccPaymentTerm.objects.filter(tenant=tenant, is_active=True)
         .order_by("name")
         .values("id", "name")
+    ]
+
+
+def list_accounts(tenant: Tenant, *, account_type: str | None = None) -> list[dict[str, Any]]:
+    """Gap ajoute par le chantier "fiche partenaire a onglets par role"
+    (PT2) : liste des comptes du plan comptable du tenant, primitives
+    uniquement (`id`/`code`/`name`/`type`) — jamais un `AccAccount` Django,
+    meme discipline que `list_payment_terms` ci-dessus. Sert a peupler le
+    selecteur de compte comptable assignable par role sur la fiche
+    partenaire (`apps.partners.services.accounts`)."""
+    queryset = AccAccount.objects.filter(tenant=tenant, is_active=True)
+    if account_type:
+        queryset = queryset.filter(type=account_type)
+    return [
+        {"id": row["id"], "code": row["code"], "name": row["name"], "type": row["type"]}
+        for row in queryset.order_by("code").values("id", "code", "name", "type")
+    ]
+
+
+def assign_partner_role_account(
+    tenant: Tenant, partner_id: UUID, role: str, account_id: UUID, user: User
+) -> UUID | None:
+    """Assigne (ou remplace) le compte comptable d'un partenaire pour un
+    role donne — `update_or_create` idempotent sur `AccPartnerRoleAccount`
+    (meme patron que `AccCashCategoryMapping`). Retourne `None` (jamais une
+    exception) si `account_id` ne correspond a aucun compte reel de ce
+    tenant — meme discipline "jamais d'exception pour une reference
+    invalide" que le reste de ce fichier. Le controle RBAC
+    (`accounting.manage_partneraccountassignment`) est verifie par
+    l'appelant (couche vue `partners`, cf. `apps.partners.services.
+    accounts`), pas ici — un check `has_perm` fonctionne independamment de
+    quelle app porte la vue appelante, aucun souci de regle de couplage."""
+    account = AccAccount.objects.filter(id=account_id, tenant=tenant).first()
+    if account is None:
+        return None
+    mapping, _created = AccPartnerRoleAccount.objects.update_or_create(
+        tenant=tenant,
+        partner_id=partner_id,
+        role=role,
+        defaults={"account": account, "updated_by": user},
+    )
+    if _created:
+        mapping.created_by = user
+        mapping.save(update_fields=["created_by"])
+    return mapping.id
+
+
+def list_partner_role_accounts(partner_id: UUID) -> list[dict[str, Any]]:
+    """Tous les comptes deja assignes a ce partenaire, un par role — deja
+    tenant-scope par `AccPartnerRoleAccount.objects` (TenantManager/RLS),
+    aucun parametre `tenant` necessaire (meme discipline que
+    `count_unpaid_customer_invoices` ci-dessus)."""
+    return [
+        {
+            "role": row.role,
+            "account_id": row.account_id,
+            "account_code": row.account.code,
+            "account_name": row.account.name,
+        }
+        for row in AccPartnerRoleAccount.objects.filter(partner_id=partner_id).select_related(
+            "account"
+        )
     ]

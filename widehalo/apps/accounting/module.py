@@ -19,6 +19,10 @@ MODULE = ModuleSpec(
     # reports_registration._adapter_invoice_pdf` consomme `apps.reporting.
     # services.public.render_and_archive` pour l'archivage RPT-10 de
     # ACC-FAC — jamais `apps.reporting.models`.
+    # "partners" (deja declare) est desormais aussi consomme par
+    # `models.py::AccPartnerRoleAccount.role` (chantier "fiche partenaire a
+    # onglets par role", PT2) via `apps.partners.services.public.
+    # list_role_choices()` — jamais un import de `apps.partners.models`.
     dependencies=("core", "partners", "stocks", "catalog", "accounting", "reporting"),
     verbose_name="Comptabilite",
 )

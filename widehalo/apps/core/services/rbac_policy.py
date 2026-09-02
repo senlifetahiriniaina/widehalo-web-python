@@ -571,6 +571,22 @@ CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES = ("admin", "direction")
 for _role in CUSTOM_PERMISSIONS_MANAGE_USERS_ROLES:
     CUSTOM_PERMISSIONS.setdefault(_role, set()).add("core.manage_users")
 
+# PT2 (chantier "fiche partenaire a onglets par role") :
+# `accounting.manage_partneraccountassignment` (declaree en `Meta.
+# permissions` de `AccPartnerRoleAccount`) contourne la granularite
+# app-level de `ROLE_APP_PERMISSIONS` — celle-ci accorde deja `partners:
+# {view,add,change}` a commercial/resp_commercial/acheteur (edition
+# courante de la fiche partenaire) mais seulement `accounting: {view}` a
+# ces memes roles, et inversement `comptable` a `accounting: {view,add,
+# change}` mais `partners: {view}` seul. Assigner/modifier le compte
+# comptable d'un partenaire par role est un geste du domaine COMPTABLE
+# pose sur une fiche `partners` — reserve explicitement a comptable/admin/
+# direction (decision actee avec l'utilisateur), jamais aux roles
+# "domaine commercial" qui gerent deja le reste de la fiche partenaire.
+CUSTOM_PERMISSIONS_MANAGE_PARTNER_ACCOUNT_ROLES = ("admin", "direction", "comptable")
+for _role in CUSTOM_PERMISSIONS_MANAGE_PARTNER_ACCOUNT_ROLES:
+    CUSTOM_PERMISSIONS.setdefault(_role, set()).add("accounting.manage_partneraccountassignment")
+
 # Chantier sauvegarde/restauration/reinitialisation : PAS de permission
 # personnalisee ici (contrairement au premier jet de ce chantier, corrige
 # apres coup par le commanditaire) — sauvegarde/restauration/
