@@ -11,8 +11,12 @@ from apps.core.module import ModuleSpec
 # `apps.catalog.services.public.list_supplier_products` et
 # `apps.purchase.services.public.list_orders_for_partner` — jamais un
 # import de `apps.catalog.models`/`apps.purchase.models`.
+#
+# "sales" ajoute par PT6 du meme chantier : l'onglet "Client" consomme
+# `apps.sales.services.public.list_quotations_for_partner`/
+# `list_orders_for_partner` — jamais un import de `apps.sales.models`.
 MODULE = ModuleSpec(
     name="partners",
-    dependencies=("core", "chat", "accounting", "catalog", "purchase"),
+    dependencies=("core", "chat", "accounting", "catalog", "purchase", "sales"),
     verbose_name="Partenaires",
 )

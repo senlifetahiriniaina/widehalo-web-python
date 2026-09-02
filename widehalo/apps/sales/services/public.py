@@ -82,3 +82,53 @@ def count_orders_pending_confirmation() -> int:
     `SalesOrder.objects` (RLS), aucun parametre `tenant` necessaire.
     Utilise par le tableau de bord transversal (chantier UX6)."""
     return SalesOrder.objects.filter(state=SalesOrder.STATE_SENT).count()
+
+
+def list_quotations_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap PT6 du chantier "fiche partenaire a onglets par role" (cf.
+    plan) : alimente l'onglet "Client" de la fiche partenaire avec les
+    `SalesQuotation` de ce client — `partners` ne doit jamais importer
+    `apps.sales.models` (regle de couplage n1).
+
+    Retourne des dicts primitifs `{"id", "reference", "date", "state",
+    "total"}`, jamais l'objet `SalesQuotation`, tries par date
+    decroissante (devis le plus recent en premier). Liste vide, jamais
+    d'exception, si aucun devis ne correspond a ce `partner_id`."""
+    quotations = SalesQuotation.objects.filter(partner_id=partner_id).order_by("-date", "-id")[
+        :limit
+    ]
+    return [
+        {
+            "id": quotation.id,
+            "reference": quotation.reference,
+            "date": quotation.date,
+            "state": quotation.state,
+            "total": quotation.amount_total_mga,
+        }
+        for quotation in quotations
+    ]
+
+
+def list_orders_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap PT6 du chantier "fiche partenaire a onglets par role" (cf.
+    plan) : alimente l'onglet "Client" de la fiche partenaire avec les
+    `SalesOrder` de ce client — `partners` ne doit jamais importer
+    `apps.sales.models` (regle de couplage n1). Homonyme de
+    `purchase.services.public.list_orders_for_partner` (PT5) : chaque
+    module a son propre `services/public.py`, aucune collision reelle.
+
+    Retourne des dicts primitifs `{"id", "reference", "date", "state",
+    "total"}`, jamais l'objet `SalesOrder`, tries par date decroissante
+    (commande la plus recente en premier). Liste vide, jamais
+    d'exception, si aucune commande ne correspond a ce `partner_id`."""
+    orders = SalesOrder.objects.filter(partner_id=partner_id).order_by("-date", "-id")[:limit]
+    return [
+        {
+            "id": order.id,
+            "reference": order.reference,
+            "date": order.date,
+            "state": order.state,
+            "total": order.amount_total_mga,
+        }
+        for order in orders
+    ]
