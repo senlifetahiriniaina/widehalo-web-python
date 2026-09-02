@@ -133,42 +133,69 @@ réelle = lot L6).
   (`tests/ui/test_accessibility.py`), build Tailwind sans "preflight" vérifié sans
   régression sur les 219 écrans existants.
 
-### Sprint 2 — L1 Data grid & vues (10 JT / 15 disponibles)
-Moteur de vues configurables en base (`ui_view_definition`, arch JSON façon Odoo), data
-grid universel (colonnes configurables, tri, pagination serveur HTMX, sélection multiple,
-actions de masse, colonnes gelées), vues list/kanban, filtres et groupements sauvegardables
-(`ui_saved_filter`), quick create. Moteur transverse réutilisé par tous les lots suivants
-(y compris L9) — c'est lui qui rend la migration en masse du catalogue existant réaliste
-en JT.
+### Sprint 2 — L1 Data grid & vues (10 JT / 15 disponibles) — RÉALISÉ (partiellement)
 
-- **Critères d'acceptation** : pagination serveur systématique (jamais tout charger) ;
-  changement de vue (list ↔ kanban) sans perte de filtres actifs.
-- **Raffinement renforcé** : densité configurable (compacte pour atelier/entrepôt, confort
-  en saisie), skeletons de chargement, empty states pédagogiques par écran de liste.
+Livré (commit `2a03da4`) : le rapport d'exploration a montré qu'un moteur SmartTable
+substantiel existait déjà (pagination serveur, tri, recherche, export, `SavedTableView`),
+réutilisé par 27 écrans — étendu plutôt que reconstruit. Actions de masse (`BulkAction`,
+cases à cocher + colonne figée, formulaire natif sans JS) opt-in ; boucle CRUD des vues
+sauvegardées fermée (sélecteur + "Enregistrer la vue actuelle", mapping tri/colonnes
+masquées/recherche texte) ; preuve d'usage bout en bout ("Archiver la sélection" sur
+`/documents/`, réutilisant `BaseModel.soft_delete()`).
 
-### Sprint 3 — L2 Formulaires & chatter (8 JT / 15 disponibles)
-Formulaires longs par onglets avec validation inline (HTMX par champ), sauvegarde de
-brouillon, chatter (messages/notes internes/activités planifiées/abonnés,
-`mail_message`/`mail_activity`/`mail_follower`), notifications contextuelles avec actions.
+**Reporté** : moteur de vues piloté par métadonnées en base façon Odoo
+(`ui_view_definition` — n'existe pas, gros chantier séparé) ; kanban généralisé avec
+drag-drop (l'unique kanban existant, `apps/projects`, reste en lecture seule) ; filtres
+par champ au-delà de la recherche texte globale unique.
 
-- **Critères d'acceptation** : une saisie interrompue par une coupure réseau reste
-  enregistrée localement (« sera envoyée au retour du réseau ») ; le chatter est disponible
-  sur tous les objets clés du périmètre Phase 1.
-- **Raffinement renforcé** : messages d'erreur de validation clairs et positionnés au bon
-  endroit, panneau chatter latéral cohérent sur toutes les object pages.
+- **Critères d'acceptation** : ✅ pagination serveur systématique (déjà en place, non
+  régressée) ; changement de vue list ↔ kanban — non traité (kanban généralisé reporté).
+- **Raffinement effectué** : colonne de sélection figée (sticky), formulaire de vue
+  sauvegardée cohérent avec le style SmartTable existant.
+
+### Sprint 3 — L2 Formulaires & chatter (8 JT / 15 disponibles) — RÉALISÉ (partiellement)
+
+Livré (commit `9a96267`) : aucun chatter Odoo-style n'existait (`apps.chat` est une
+messagerie temps réel distincte, `AuditLog` un journal de conformité non pensé pour
+l'affichage, `CrmActivity` spécifique au CRM) — construit réellement neuf.
+`ChatterMessage` (fil générique par `GenericForeignKey`, messages + notes internes),
+`<c-chatter>` (chargement HTMX paresseux, formulaire natif), première utilisation réelle
+sur `/sales/orders/<id>/`. Notifications contextuelles avec action : convention
+`payload.action_url`/`action_label`, premier appelant réel dans
+`apps.sales.services.orders._notify_salesperson`.
+
+**Reporté** : activités planifiées génériques (généraliser `CrmActivity` au-delà du CRM) ;
+formulaires longs par onglets avec validation inline HTMX par champ (aucun `forms.py`
+n'existe encore dans le dépôt — chantier plus large) ; autosave de brouillon.
+
+- **Critères d'acceptation** : autosave hors-ligne — non traité (reporté) ; ✅ chatter
+  disponible sur au moins un objet clé du périmètre (commande de vente) — généralisation
+  aux autres objets à poursuivre lot par lot.
+- **Raffinement effectué** : note interne visuellement distincte (fond ambre) du message
+  normal, badge dédié.
 
 ### Sprints 4–5 — L3 Textile (28 JT / 30 disponibles)
-- **Écran T1** — Fiche style avec matrice tailles×couleurs (grille éditable, génération
-  automatique des variantes SKU, BOM par variante, codes-barres EAN/GTIN).
-  *Critère* : créer un style 8 tailles × 6 couleurs génère 48 SKU en < 2 s.
+
+**Sprint 4, écran T1 — RÉALISÉ (partiellement)** : livré (commit `63fe60b`). Le rapport
+d'exploration a montré que le modèle de données était déjà quasi complet
+(`ProductTemplate`/`ProductVariant`, génération cartésienne des variantes déjà
+implémentée, BOM déjà variant-aware via `qty_by_size`) — seules deux vraies lacunes
+comblées : grille éditable tailles×couleurs (`apps.catalog.views._variant_matrix`,
+matrice 2D quand le gabarit a exactement 2 attributs générateurs) et EAN-13/GTIN par
+variante (`apps.catalog.services.barcodes`, premier vrai calcul de clé de contrôle GS1
+du dépôt, généré automatiquement à la création). **Critère d'acceptation T1(a) validé par
+test** : 8 tailles × 6 couleurs → 48 SKU + 48 EAN-13 uniques et valides (temps de
+génération non chronométré en environnement CI, mais purement en mémoire/DB locale —
+risque de dépassement des 2 s jugé faible).
+
 - **Écran T2** — Ordre de fabrication + suivi atelier (kanban coupe→couture→finition),
-  sous-traitance façon (CMT), First Pass Yield.
+  sous-traitance façon (CMT), First Pass Yield. *Non exploré/non réalisé.*
   *Critère* : déplacer une carte change l'état et journalise dans le chatter ; tablette,
   cibles ≥ 44 px, fonctionne sur réseau faible.
 - **Écran T3** — Dossier d'import + CREDOC + landed cost (flux banque émettrice → banque
-  notificatrice → bénéficiaire, coût de revient débarqué par SKU).
+  notificatrice → bénéficiaire, coût de revient débarqué par SKU). *Non exploré/non
+  réalisé.*
   *Critère* : statuts CREDOC conformes au flux ; alerte sur écart de change Ariary.
-  (Sprint 4 : T1–T3, 12 JT.)
 - **Migration du catalogue existant du domaine** (Sprint 5, 16 JT) : les 45 écrans déjà
   livrés dans `catalog` (16), `mrp` (12) et `purchase` (17) passent au nouveau design
   system, écran par écran, en réutilisant les composants L0/L1/L2 — pas de reconstruction
