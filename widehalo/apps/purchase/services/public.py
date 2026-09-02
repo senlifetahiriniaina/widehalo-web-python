@@ -141,3 +141,26 @@ def create_requisition_line_from_source(
         # catalogue reelle.
         return None
     return line.id
+
+
+def list_orders_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap PT5 du chantier "fiche partenaire a onglets par role" (cf.
+    plan) : alimente l'onglet "Fournisseur (achat)" de la fiche
+    partenaire avec les `PurOrder` de ce fournisseur — `partners` ne doit
+    jamais importer `apps.purchase.models` (regle de couplage n1).
+
+    Retourne des dicts primitifs `{"id", "reference", "date", "state",
+    "total"}`, jamais l'objet `PurOrder`, tries par date decroissante
+    (commande la plus recente en premier). Liste vide, jamais
+    d'exception, si aucune commande ne correspond a ce `partner_id`."""
+    orders = PurOrder.objects.filter(partner_id=partner_id).order_by("-date", "-id")[:limit]
+    return [
+        {
+            "id": order.id,
+            "reference": order.reference,
+            "date": order.date,
+            "state": order.state,
+            "total": order.amount_total_mga,
+        }
+        for order in orders
+    ]

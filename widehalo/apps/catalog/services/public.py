@@ -179,6 +179,37 @@ def select_preferred_supplier(variant_id: Any) -> dict[str, Any] | None:
     }
 
 
+def list_supplier_products(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap PT5 du chantier "fiche partenaire a onglets par role" (cf.
+    plan) : alimente l'onglet "Fournisseur (achat)" de la fiche
+    partenaire avec les lignes `ProductSupplierInfo` de ce fournisseur —
+    `partners` ne doit jamais importer `apps.catalog.models` (regle de
+    couplage n°1).
+
+    Retourne des dicts primitifs `{"variant_id", "variant_reference",
+    "product_name", "supplier_reference", "price_mga", "lead_time_days"}`,
+    jamais l'objet `ProductSupplierInfo`, tries par reference de variante
+    croissante pour un affichage stable — meme discipline que
+    `select_preferred_supplier`. Liste vide, jamais d'exception, si aucune
+    ligne ne correspond a ce `partner_id`."""
+    infos = (
+        ProductSupplierInfo.objects.filter(partner_id=partner_id)
+        .select_related("variant", "variant__template")
+        .order_by("variant__reference")[:limit]
+    )
+    return [
+        {
+            "variant_id": info.variant_id,
+            "variant_reference": info.variant.reference,
+            "product_name": info.variant.template.name,
+            "supplier_reference": info.supplier_reference,
+            "price_mga": info.price_mga,
+            "lead_time_days": info.lead_time_days,
+        }
+        for info in infos
+    ]
+
+
 def set_supplier_priority(
     partner_id: Any, *, priority: int, variant_ids: list[Any] | None = None
 ) -> int:

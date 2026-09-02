@@ -5,6 +5,14 @@ from apps.core.module import ModuleSpec
 # `apps.accounting.services.public.list_accounts`/
 # `assign_partner_role_account`/`list_partner_role_accounts` — jamais un
 # import de `apps.accounting.models`.
+#
+# "catalog"/"purchase" ajoutes par PT5 du meme chantier : l'onglet
+# "Fournisseur (achat)" consomme
+# `apps.catalog.services.public.list_supplier_products` et
+# `apps.purchase.services.public.list_orders_for_partner` — jamais un
+# import de `apps.catalog.models`/`apps.purchase.models`.
 MODULE = ModuleSpec(
-    name="partners", dependencies=("core", "chat", "accounting"), verbose_name="Partenaires"
+    name="partners",
+    dependencies=("core", "chat", "accounting", "catalog", "purchase"),
+    verbose_name="Partenaires",
 )
