@@ -18,6 +18,10 @@ htmlcov/
 .coverage.*
 node_modules/
 *.log
+
+# Worktrees locaux des agents d'exploration Claude Code (isolation en
+# lecture seule, jamais du contenu applicatif).
+.claude/
 .DS_Store
 *.mo
 dump.rdb
