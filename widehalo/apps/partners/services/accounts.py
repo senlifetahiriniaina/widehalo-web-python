@@ -41,3 +41,16 @@ def list_assignable_accounts(tenant: Tenant) -> list[dict[str, Any]]:
     """Comptes du plan comptable du tenant, pour peupler le selecteur de
     compte assignable sur la fiche partenaire."""
     return list_accounts(tenant)
+
+
+# PT10 (chantier "fiche partenaire a onglets par role") : les onglets
+# Collaborateur et Associe n'ont AUCUNE donnee operationnelle propre a un
+# autre module (contrairement a Client/Fournisseur/Transporteur/Banque,
+# qui ont chacun un gap dedie — sales/purchase+catalog/logistics/
+# financing, PT5-PT9) — un collaborateur/associe est un tiers purement
+# comptable (compte courant associe, remuneration occasionnelle). Le
+# grand livre tiers deja expose par PT4
+# (`apps.accounting.services.public.list_ledger_entries_for_partner`)
+# suffit donc deja pour ces deux onglets — decision documentee ici
+# explicitement, jamais un oubli : aucun nouveau gap de module n'est
+# ajoute pour ces deux roles.
