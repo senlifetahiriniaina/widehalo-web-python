@@ -1,0 +1,27 @@
+{% comment %}
+Composant bouton -- A.8 du cahier des charges refonte UX (variantes
+primary/secondary/ghost/danger, tailles, etat loading, icone).
+
+Usage :
+  <c-button variant="primary">Enregistrer</c-button>
+  <c-button variant="danger" size="sm" loading>Supprimer</c-button>
+{% endcomment %}
+<c-vars variant="primary" size="md" loading="false" type="button" />
+
+<button
+  type="{{ type }}"
+  {% if loading == "true" or loading == True %}disabled aria-busy="true"{% endif %}
+  {{ attrs }}
+  class="btn
+    {% if variant == 'primary' %}btn-primary
+    {% elif variant == 'secondary' %}btn-secondary
+    {% elif variant == 'ghost' %}btn-ghost
+    {% elif variant == 'danger' %}btn-error
+    {% endif %}
+    {% if size == 'sm' %}btn-sm{% elif size == 'lg' %}btn-lg{% endif %}"
+>
+  {% if loading == "true" or loading == True %}
+    <span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+  {% endif %}
+  {{ slot }}
+</button>

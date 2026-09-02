@@ -8,6 +8,11 @@
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {# Socle refonte UX (Sprint 0) : Tailwind sans preflight + DaisyUI, sur
+     les memes tokens que tokens.css -- purement additif, aucune classe
+     Tailwind n'est utilisee par l'ancien design system donc aucun impact
+     visuel sur les ecrans non migres. Voir docs/planning/2026-refonte-ux-sprints.md #3. #}
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
   <script src="{% static 'js/ui_patterns.js' %}" defer></script>
   <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>

@@ -8,6 +8,11 @@ urlpatterns = [
     path("search/instant/", pages.instant_search_fragment, name="instant_search"),
     path("documents/", pages.documents_list, name="documents"),
     path("settings/", pages.settings_page, name="settings"),
+    path(
+        "settings/design-system/",
+        pages.design_system_preview,
+        name="design_system_preview",
+    ),
     path("settings/company-profile/", pages.company_profile_view, name="company_profile"),
     path("backups/", backup_admin.backup_list, name="backup_list"),
     path(

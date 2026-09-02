@@ -65,6 +65,20 @@ def settings_page(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def design_system_preview(request: HttpRequest) -> HttpResponse:
+    """Ecran de preuve du socle Tailwind/DaisyUI/django-cotton (Sprint 0
+    de la refonte UX, cf. docs/planning/2026-refonte-ux-sprints.md) —
+    isole du reste de l'application (pas dans la sidebar), reserve a
+    admin/direction/superutilisateur le temps que la migration ecran par
+    ecran (strangler pattern, B.8 du cahier des charges) commence
+    reellement en Sprint 1 (L0)."""
+    role_codes = user_role_codes(cast(User, request.user))
+    if not (role_codes & _ADMIN_ROLE_CODES or request.user.is_superuser):
+        return HttpResponse(status=403)
+    return render(request, "tw-design-system-preview.html", {})
+
+
+@login_required
 def company_profile_view(request: HttpRequest) -> HttpResponse:
     """Ecran "Profil de l'entreprise" (chantier marque d'entreprise sur le
     PDF devis/commande) : upload du logo + edition adresse/telephone/e-mail

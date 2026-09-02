@@ -24,6 +24,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.postgres",
     "django_htmx",
+    # Socle Tailwind/DaisyUI/django-cotton de la refonte UX (Sprint 0, cf.
+    # docs/planning/2026-refonte-ux-sprints.md) : composants dans
+    # templates/cotton/, invoques <c-nom-composant>. Se configure tout
+    # seul (loaders + builtins) via django_cotton.apps.LoaderAppConfig.
+    "django_cotton",
     "guardian",
     "django_otp",
     "django_otp.plugins.otp_totp",

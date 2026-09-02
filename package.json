@@ -1,0 +1,14 @@
+{
+  "name": "widehalo-presentation",
+  "private": true,
+  "description": "Build de la nouvelle couche de presentation (Tailwind + DaisyUI) de la refonte UX WideHalo v3 -- voir docs/planning/2026-refonte-ux-sprints.md (Sprint 0).",
+  "scripts": {
+    "build:css": "tailwindcss -i widehalo/static/css/tailwind-input.css -o widehalo/static/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -i widehalo/static/css/tailwind-input.css -o widehalo/static/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.14",
+    "daisyui": "^5.1.31",
+    "tailwindcss": "^4.1.14"
+  }
+}
