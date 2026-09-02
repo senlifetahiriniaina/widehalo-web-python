@@ -779,3 +779,79 @@ def list_partner_role_accounts(partner_id: UUID) -> list[dict[str, Any]]:
             "account"
         )
     ]
+
+
+def list_ledger_entries_for_partner(partner_id: UUID, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Grand livre tiers : mouvements `AccMoveLine` ou `partner_id=X`,
+    tries par date decroissante — chantier "fiche partenaire a onglets par
+    role" (PT4). Sert de contenu "operations comptables" pour TOUS les
+    onglets de la fiche partenaire, y compris Collaborateur/Associe/Banque
+    qui n'ont aucune donnee operationnelle propre a un autre module.
+    Primitives uniquement, jamais un `AccMoveLine` Django."""
+    from apps.accounting.models import AccMoveLine
+
+    return [
+        {
+            "move_id": row["move_id"],
+            "move_reference": row["move__reference"],
+            "date": row["move__date"],
+            "account_code": row["account__code"],
+            "label": row["label"],
+            "debit": row["debit"],
+            "credit": row["credit"],
+        }
+        for row in AccMoveLine.objects.filter(partner_id=partner_id)
+        .select_related("move", "account")
+        .order_by("-move__date")[:limit]
+        .values(
+            "move_id",
+            "move__reference",
+            "move__date",
+            "account__code",
+            "label",
+            "debit",
+            "credit",
+        )
+    ]
+
+
+def list_customer_invoices_for_partner(
+    partner_id: UUID, *, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Factures clients (`AccMove.move_type=customer_invoice`) de ce
+    partenaire — chantier PT4."""
+    return [
+        {
+            "id": row["id"],
+            "reference": row["reference"],
+            "date": row["date"],
+            "invoice_state": row["invoice_state"],
+            "total_debit": row["total_debit"],
+        }
+        for row in AccMove.objects.filter(
+            partner_id=partner_id, move_type=AccMove.TYPE_CUSTOMER_INVOICE
+        )
+        .order_by("-date")[:limit]
+        .values("id", "reference", "date", "invoice_state", "total_debit")
+    ]
+
+
+def list_supplier_invoices_for_partner(
+    partner_id: UUID, *, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Factures fournisseurs (`AccMove.move_type=supplier_invoice`) de ce
+    partenaire — chantier PT4."""
+    return [
+        {
+            "id": row["id"],
+            "reference": row["reference"],
+            "date": row["date"],
+            "invoice_state": row["invoice_state"],
+            "total_debit": row["total_debit"],
+        }
+        for row in AccMove.objects.filter(
+            partner_id=partner_id, move_type=AccMove.TYPE_SUPPLIER_INVOICE
+        )
+        .order_by("-date")[:limit]
+        .values("id", "reference", "date", "invoice_state", "total_debit")
+    ]
