@@ -70,6 +70,20 @@ def assist_fragment(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def ai_launcher(request: HttpRequest) -> HttpResponse:
+    """Popup Assistant IA (FAB ambre, base.html) — meme construction de
+    contexte que `assist_widget` (liste des modules enregistres via le
+    registre reel), rendue en fragment (jamais `{% extends %}`). Le
+    formulaire poste sur `ai:assist_fragment`, deja existant et inchange —
+    aucun nouvel endpoint metier."""
+    return render(
+        request,
+        "ai/_launcher.html",
+        {"modules": [ctx.module for ctx in list_registered_contexts()]},
+    )
+
+
+@login_required
 def search_widget(request: HttpRequest) -> HttpResponse:
     """AI4 — page complete de l'ecran « Recherche en langage naturel » :
     champ de question libre + zone de resultat rendue directement (pas de

@@ -41,17 +41,28 @@
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-package"></use></svg>
               {% trans "Catalogue" %}
             </a>
+            <ul class="app-menu-dropdown">
+              <li><a href="{% url 'catalog:config_categories' %}">{% trans "Catégorie de produits" %}</a></li>
+            </ul>
           </li>
+          {% if "pour-tous" in visible_group_keys %}
+          <li class="app-menu-group" x-data="menuGroup('pour-tous')">
+            <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
+              <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
+              <span>{% trans "Pour tous" %}</span>
+              <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
+            </a>
+            <ul class="app-menu-dropdown" x-show="open" x-cloak>
+              {% if "reporting" in visible_app_labels %}<li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>{% endif %}
+              {% if "strategy" in visible_app_labels %}<li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Stratégie et pilotage" %}</a></li>{% endif %}
+              {% if "helpdesk" in visible_app_labels %}<li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>{% endif %}
+            </ul>
+          </li>
+          {% endif %}
           <li>
             <a href="/documents/">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-file-text"></use></svg>
               {% trans "Documents" %}
-            </a>
-          </li>
-          <li>
-            <a href="/ai/assist/">
-              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
-              {% trans "Assistant IA" %}
             </a>
           </li>
           <li>
@@ -60,20 +71,6 @@
               {% trans "Modules métier" %}
             </span>
             <ul class="app-menu-groups">
-              {% if "pour-tous" in visible_group_keys %}
-              <li class="app-menu-group" x-data="menuGroup('pour-tous')">
-                <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
-                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-users"></use></svg>
-                  <span>{% trans "Pour tous" %}</span>
-                  <svg class="ic ic-sm chevron" aria-hidden="true" :style="open ? 'transform:rotate(90deg)' : ''"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right"></use></svg>
-                </a>
-                <ul class="app-menu-dropdown" x-show="open" x-cloak>
-                  {% if "reporting" in visible_app_labels %}<li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>{% endif %}
-                  {% if "strategy" in visible_app_labels %}<li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Stratégie et pilotage" %}</a></li>{% endif %}
-                  {% if "helpdesk" in visible_app_labels %}<li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>{% endif %}
-                </ul>
-              </li>
-              {% endif %}
               {% if "commercial" in visible_group_keys %}
               <li class="app-menu-group" x-data="menuGroup('commercial')">
                 <a href="#" class="app-menu-group-trigger" @click.prevent="toggle()">
@@ -283,6 +280,45 @@
           <button type="button" class="wh-modal-close" @click="hide()" aria-label="{% trans 'Fermer' %}">×</button>
         </div>
         <div id="wh-launcher-body">{% trans "Chargement…" %}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% comment %}
+  Bouton flottant Assistant IA (FAB ambre, distinct du FAB messagerie bleu) :
+  meme structure whModal()/wh-modal-overlay que le lanceur de messagerie
+  ci-dessus, positionne juste au-dessus pour ne jamais le chevaucher.
+  Formulaire module/action + resultat tiennent entierement dans la popup
+  (jamais de redirection, contrairement au chat).
+  {% endcomment %}
+  {% if user.is_authenticated and current_tenant %}
+  <div x-data="whModal()">
+    <button
+      type="button"
+      class="wh-ai-fab"
+      @click="show()"
+      hx-get="{% url 'ai:launcher' %}"
+      hx-target="#wh-ai-launcher-body"
+      hx-swap="innerHTML"
+      aria-haspopup="dialog"
+      aria-label="{% trans 'Assistant IA' %}"
+    >
+      <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
+    </button>
+    <div
+      x-show="open"
+      x-cloak
+      class="wh-modal-overlay"
+      @keydown.escape.window="hide()"
+      @click.self="hide()"
+    >
+      <div class="wh-modal wh-ai-launcher-modal" role="dialog" aria-modal="true" aria-labelledby="wh-ai-launcher-title">
+        <div class="wh-launcher-header">
+          <h2 id="wh-ai-launcher-title">{% trans "Assistant IA" %}</h2>
+          <button type="button" class="wh-modal-close" @click="hide()" aria-label="{% trans 'Fermer' %}">×</button>
+        </div>
+        <div id="wh-ai-launcher-body">{% trans "Chargement…" %}</div>
       </div>
     </div>
   </div>

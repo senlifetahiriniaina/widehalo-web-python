@@ -1,0 +1,17 @@
+{% load i18n %}
+<p>{% trans "Choisissez un module et décrivez l'action en cours pour obtenir une guidance." %}</p>
+<form hx-post="{% url 'ai:assist_fragment' %}" hx-target="#ai-launcher-result">
+  {% csrf_token %}
+  <label>{% trans "Module" %}
+    <select name="module">
+      {% for module in modules %}
+        <option value="{{ module }}">{{ module }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>{% trans "Action en cours" %}
+    <input type="text" name="action" placeholder="{% trans 'ex. consulter, creer, valider...' %}">
+  </label>
+  <button type="submit">{% trans "Obtenir une guidance" %}</button>
+</form>
+<div id="ai-launcher-result"></div>

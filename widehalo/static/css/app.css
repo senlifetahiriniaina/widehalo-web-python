@@ -838,7 +838,39 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   height: 1.5rem;
 }
 
+/* ============== Lanceur Assistant IA (FAB ambre, distinct du FAB messagerie bleu) ============== */
+.wh-ai-fab {
+  position: fixed;
+  right: var(--spacing-lg);
+  bottom: calc(var(--spacing-lg) + 4rem);
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: var(--r-pill);
+  border: none;
+  background: var(--amber-500);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  z-index: var(--z-nav);
+}
+
+.wh-ai-fab:hover {
+  background: var(--amber-600);
+}
+
+.wh-ai-fab .ic {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .wh-launcher-modal {
+  max-width: 32rem;
+}
+
+.wh-ai-launcher-modal {
   max-width: 32rem;
 }
 

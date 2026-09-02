@@ -47,7 +47,11 @@ def test_magasinier_does_not_see_crm_or_accounting_links() -> None:
 
     client = _login_with_tenant(tenant, user)
     soup = BeautifulSoup(client.get("/dashboard/").content, "html.parser")
-    menu = soup.find("ul", class_="app-menu-groups")
+    # Scope elargi a tout `ul.app-menu` (pas seulement `.app-menu-groups`) :
+    # le groupe "Pour tous" (reporting/strategy/helpdesk) est desormais un
+    # `<li>` de premier niveau, sibling de "Modules metier", plus imbrique
+    # dans `.app-menu-groups` (chantier "Assistant IA en popup...").
+    menu = soup.find("ul", class_="app-menu")
 
     assert menu.find("a", href="/stocks/") is not None
     assert menu.find("a", href="/logistics/") is not None
@@ -85,7 +89,11 @@ def test_admin_sees_all_module_links_it_is_granted_by_the_rbac_matrix() -> None:
     client = _login_with_tenant_mfa_verified(tenant, user)
     resp = client.get("/dashboard/")
     soup = BeautifulSoup(resp.content, "html.parser")
-    menu = soup.find("ul", class_="app-menu-groups")
+    # Scope elargi a tout `ul.app-menu` (pas seulement `.app-menu-groups`) :
+    # le groupe "Pour tous" (reporting/strategy/helpdesk) est desormais un
+    # `<li>` de premier niveau, sibling de "Modules metier", plus imbrique
+    # dans `.app-menu-groups` (chantier "Assistant IA en popup...").
+    menu = soup.find("ul", class_="app-menu")
 
     for href in (
         "/reporting/",
@@ -119,7 +127,11 @@ def test_superuser_sees_all_module_links_even_without_role_groups() -> None:
 
     client = _login_with_tenant_mfa_verified(tenant, user)
     soup = BeautifulSoup(client.get("/dashboard/").content, "html.parser")
-    menu = soup.find("ul", class_="app-menu-groups")
+    # Scope elargi a tout `ul.app-menu` (pas seulement `.app-menu-groups`) :
+    # le groupe "Pour tous" (reporting/strategy/helpdesk) est desormais un
+    # `<li>` de premier niveau, sibling de "Modules metier", plus imbrique
+    # dans `.app-menu-groups` (chantier "Assistant IA en popup...").
+    menu = soup.find("ul", class_="app-menu")
 
     assert menu.find("a", href="/crm/") is not None
     assert menu.find("a", href="/risks/") is not None
@@ -142,7 +154,11 @@ def test_collaborateur_role_does_not_see_risks_link() -> None:
 
     client = _login_with_tenant(tenant, user)
     soup = BeautifulSoup(client.get("/dashboard/").content, "html.parser")
-    menu = soup.find("ul", class_="app-menu-groups")
+    # Scope elargi a tout `ul.app-menu` (pas seulement `.app-menu-groups`) :
+    # le groupe "Pour tous" (reporting/strategy/helpdesk) est desormais un
+    # `<li>` de premier niveau, sibling de "Modules metier", plus imbrique
+    # dans `.app-menu-groups` (chantier "Assistant IA en popup...").
+    menu = soup.find("ul", class_="app-menu")
 
     assert menu.find("a", href="/risks/") is None
     assert menu.find("a", href="/projects/") is not None
@@ -159,6 +175,10 @@ def test_acheteur_role_sees_risks_link() -> None:
 
     client = _login_with_tenant(tenant, user)
     soup = BeautifulSoup(client.get("/dashboard/").content, "html.parser")
-    menu = soup.find("ul", class_="app-menu-groups")
+    # Scope elargi a tout `ul.app-menu` (pas seulement `.app-menu-groups`) :
+    # le groupe "Pour tous" (reporting/strategy/helpdesk) est desormais un
+    # `<li>` de premier niveau, sibling de "Modules metier", plus imbrique
+    # dans `.app-menu-groups` (chantier "Assistant IA en popup...").
+    menu = soup.find("ul", class_="app-menu")
 
     assert menu.find("a", href="/risks/") is not None

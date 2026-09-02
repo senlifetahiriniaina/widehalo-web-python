@@ -61,6 +61,21 @@ def test_assist_fragment_returns_guidance(web_ai) -> None:
     assert response.content.strip()
 
 
+def test_ai_launcher_fragment_renders_form_without_navigation(web_ai) -> None:
+    tenant, user = web_ai
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/launcher/")
+    assert response.status_code == 200
+    assert b"sales" in response.content  # module reellement enregistre au demarrage
+    assert b"ai-launcher-result" in response.content
+    assert b"<html" not in response.content  # fragment, jamais {% extends %}
+
+
 def test_insights_list_screen_renders(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
