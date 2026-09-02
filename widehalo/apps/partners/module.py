@@ -15,8 +15,14 @@ from apps.core.module import ModuleSpec
 # "sales" ajoute par PT6 du meme chantier : l'onglet "Client" consomme
 # `apps.sales.services.public.list_quotations_for_partner`/
 # `list_orders_for_partner` — jamais un import de `apps.sales.models`.
+#
+# "mrp" ajoute par PT7 du meme chantier : l'onglet "Fournisseur atelier
+# (sous-traitant)" consomme
+# `apps.mrp.services.public.list_subcontract_orders_for_partner`/
+# `get_supplier_score`/`list_supplier_evaluations` — jamais un import de
+# `apps.mrp.models`.
 MODULE = ModuleSpec(
     name="partners",
-    dependencies=("core", "chat", "accounting", "catalog", "purchase", "sales"),
+    dependencies=("core", "chat", "accounting", "catalog", "purchase", "sales", "mrp"),
     verbose_name="Partenaires",
 )

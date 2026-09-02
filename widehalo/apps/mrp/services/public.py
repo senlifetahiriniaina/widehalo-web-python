@@ -20,6 +20,7 @@ from apps.mrp.models import (
     MrpBomLine,
     MrpCra,
     MrpOrder,
+    MrpSubcontractOrder,
     MrpSupplierEvaluation,
     MrpWorkcenter,
     MrpWorkshop,
@@ -331,6 +332,50 @@ def list_supplier_evaluations(partner_id: Any) -> list[dict[str, Any]]:
             "notes": evaluation.notes,
         }
         for evaluation in evaluations
+    ]
+
+
+def list_subcontract_orders_for_partner(
+    partner_id: Any, *, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Gap PT7 du chantier "fiche partenaire a onglets par role" (cf.
+    plan) : alimente l'onglet "Fournisseur atelier (sous-traitant)" de la
+    fiche partenaire avec les `MrpSubcontractOrder` de ce sous-traitant —
+    `partners` ne doit jamais importer `apps.mrp.models` (regle de
+    couplage n1).
+
+    Pour le meme onglet, une future ecran pourra aussi appeler
+    directement `get_supplier_score(partner_id, *, since=None) ->
+    Decimal | None` et `list_supplier_evaluations(partner_id) ->
+    list[dict[str, Any]]` (deja exposes ci-dessus, chantier MRP-QQCD1) —
+    tous deux prennent deja `partner_id` en premier argument, aucun gap
+    supplementaire necessaire pour le score/les evaluations.
+
+    `MrpSubcontractOrder` n'a pas de `reference` (pas un `ReferenceMixin`,
+    contrairement a `PurOrder`/`SalesOrder`) — identifie ici par son `id`
+    et l'`id` de l'`MrpOrder` (`order_id`) qui l'a genere. Retourne des
+    dicts primitifs `{"id", "order_id", "qty", "qty_received",
+    "qty_rejected", "state", "date_sent", "date_expected",
+    "date_received"}`, jamais l'objet `MrpSubcontractOrder`, tries par
+    `date_sent` decroissant (envoi le plus recent en premier). Liste
+    vide, jamais d'exception, si aucun envoi ne correspond a ce
+    `partner_id`."""
+    orders = MrpSubcontractOrder.objects.filter(partner_id=partner_id).order_by(
+        "-date_sent", "-id"
+    )[:limit]
+    return [
+        {
+            "id": order.id,
+            "order_id": order.order_id,
+            "qty": order.qty,
+            "qty_received": order.qty_received,
+            "qty_rejected": order.qty_rejected,
+            "state": order.state,
+            "date_sent": order.date_sent,
+            "date_expected": order.date_expected,
+            "date_received": order.date_received,
+        }
+        for order in orders
     ]
 
 
