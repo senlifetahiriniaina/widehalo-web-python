@@ -16,11 +16,17 @@ class Partner(BaseModel, ReferenceMixin):
     ROLE_SUPPLIER = "supplier"
     ROLE_CARRIER = "carrier"
     ROLE_SUBCONTRACTOR = "subcontractor"
+    ROLE_ASSOCIATE = "associate"
+    ROLE_COLLABORATOR = "collaborator"
+    ROLE_BANK = "bank"
     ROLE_CHOICES = [
         (ROLE_CLIENT, "Client"),
         (ROLE_SUPPLIER, "Fournisseur"),
         (ROLE_CARRIER, "Transporteur"),
         (ROLE_SUBCONTRACTOR, "Sous-traitant"),
+        (ROLE_ASSOCIATE, "Associé"),
+        (ROLE_COLLABORATOR, "Collaborateur"),
+        (ROLE_BANK, "Banque"),
     ]
 
     name = models.CharField(max_length=200)
@@ -69,3 +75,26 @@ class DuplicateAlert(BaseModel):
 
     class Meta:
         db_table = "partners_duplicate_alert"
+
+
+class PartnerContact(BaseModel):
+    """Personne de contact rattachee a un partenaire (chantier fiche
+    partenaire a onglets) — sous-enregistrement simple, pas `ReferenceMixin`
+    (meme categorie que `PrjTeamMember`/`HlpTicketComment`, aucun besoin de
+    numero de document). `role` vide = contact general, visible sur TOUS
+    les onglets du partenaire ; `role` renseigne (une valeur de
+    `Partner.ROLE_CHOICES`) = contact scope au seul onglet correspondant."""
+
+    partner = models.ForeignKey(Partner, on_delete=models.CASCADE, related_name="contacts")
+    full_name = models.CharField(max_length=200)
+    role = models.CharField(max_length=20, choices=Partner.ROLE_CHOICES, blank=True)
+    title = models.CharField(max_length=100, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=32, blank=True)
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "partners_contact"
+
+    def __str__(self) -> str:
+        return self.full_name

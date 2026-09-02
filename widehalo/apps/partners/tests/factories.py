@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import factory
 
-from apps.partners.models import DuplicateAlert, Partner
+from apps.partners.models import DuplicateAlert, Partner, PartnerContact
 
 
 class PartnerFactory(factory.django.DjangoModelFactory):
@@ -29,3 +29,13 @@ class DuplicateAlertFactory(factory.django.DjangoModelFactory):
     partner = factory.SubFactory(PartnerFactory, tenant=factory.SelfAttribute("..tenant"))
     duplicate_of = factory.SubFactory(PartnerFactory, tenant=factory.SelfAttribute("..tenant"))
     matched_field = "nif"
+
+
+class PartnerContactFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PartnerContact
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    partner = factory.SubFactory(PartnerFactory, tenant=factory.SelfAttribute("..tenant"))
+    full_name = factory.Sequence(lambda n: f"Contact {n}")
+    email = factory.Sequence(lambda n: f"contact{n}@example.com")

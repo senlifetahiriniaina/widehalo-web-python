@@ -28,6 +28,18 @@ ROLE_CLIENT = Partner.ROLE_CLIENT
 ROLE_SUPPLIER = Partner.ROLE_SUPPLIER
 ROLE_CARRIER = Partner.ROLE_CARRIER
 ROLE_SUBCONTRACTOR = Partner.ROLE_SUBCONTRACTOR
+ROLE_ASSOCIATE = Partner.ROLE_ASSOCIATE
+ROLE_COLLABORATOR = Partner.ROLE_COLLABORATOR
+ROLE_BANK = Partner.ROLE_BANK
+
+
+def list_role_choices() -> list[tuple[str, str]]:
+    """Expose `Partner.ROLE_CHOICES` (code, libelle) sans jamais exposer le
+    modele lui-meme — permet a un autre module (ex. `accounting`, pour
+    construire le `choices=` de `AccPartnerRoleAccount.role`) de reutiliser
+    la meme liste sans importer `apps.partners.models` (regle de couplage
+    n°1)."""
+    return list(Partner.ROLE_CHOICES)
 
 
 def is_over_credit_limit(partner_id: Any, outstanding_amount_mga: Decimal) -> bool:
