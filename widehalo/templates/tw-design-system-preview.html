@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static i18n %}
+{% block title %}Socle Tailwind/DaisyUI (Sprint 0) — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Socle Tailwind + DaisyUI + django-cotton</h1>
+</div>
+<p>
+  Ecran de preuve du Sprint 0 (<code>docs/planning/2026-refonte-ux-sprints.md</code>) :
+  ces composants sont rendus par <code>django-cotton</code>
+  (<code>templates/cotton/*.html</code>) et stylés par Tailwind/DaisyUI
+  (<code>static/css/tailwind.css</code>), chargés en coexistence avec
+  l'ancien design system (<code>tokens.css</code>/<code>app.css</code>) sans
+  aucun impact sur les écrans existants — voir A.7/A.8 du cahier des charges.
+</p>
+
+<section class="flex flex-wrap gap-3 my-6">
+  <c-button variant="primary">Enregistrer</c-button>
+  <c-button variant="secondary">Annuler</c-button>
+  <c-button variant="ghost">Voir le détail</c-button>
+  <c-button variant="danger">Supprimer</c-button>
+  <c-button variant="primary" size="sm">Petit</c-button>
+  <c-button variant="primary" size="lg">Grand</c-button>
+  <c-button variant="primary" loading="true">En cours</c-button>
+</section>
+
+<section class="flex flex-wrap gap-3">
+  <c-kpi-tile label="OF en retard" value="3" tone="danger" />
+  <c-kpi-tile label="Factures à échéance" value="12" tone="warning" />
+  <c-kpi-tile label="Lots proches DLC" value="0" tone="success" />
+  <c-kpi-tile label="Devis en attente" value="7" tone="neutral" />
+</section>
+{% endblock %}

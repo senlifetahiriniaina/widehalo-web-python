@@ -57,6 +57,11 @@ def _counted_screens() -> int:
         if not path.name.startswith("_")
         and "components" not in path.parts
         and "layout" not in path.parts
+        # templates/cotton/ (Sprint 0 de la refonte UX, cf.
+        # docs/planning/2026-refonte-ux-sprints.md) : bibliotheque de
+        # composants django-cotton, meme role que components/ ci-dessus
+        # -- pas des ecrans autonomes.
+        and "cotton" not in path.parts
     )
 
 

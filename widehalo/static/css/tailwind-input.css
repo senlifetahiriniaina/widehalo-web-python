@@ -1,0 +1,112 @@
+/* =============================================================
+   Socle Tailwind v4 + DaisyUI de la refonte UX WideHalo v3.
+   Sprint 0 (docs/planning/2026-refonte-ux-sprints.md) : coexistence
+   avec l'ancien design system (tokens.css / app.css), pas de
+   remplacement -- les deux feuilles sont chargees en parallele tant
+   que le strangler pattern (B.8 du cahier des charges) n'a pas migre
+   un ecran donne.
+
+   Les tokens de marque ne sont PAS redefinis ici : ce fichier importe
+   tokens.css et reexpose ses variables CSS sous les noms attendus par
+   Tailwind (@theme) et DaisyUI (--color-*), pour qu'il n'existe qu'une
+   seule source de verite pour les couleurs/espacements/rayons.
+   ============================================================= */
+
+/* Pas de couche "preflight" : ce socle est charge globalement (base.html,
+   coexistence avec l'ancien design system sur les 217 ecrans existants) --
+   le reset global de Tailwind casserait leur mise en forme. Les
+   utilitaires restent strictement opt-in (aucune classe = aucun effet),
+   donc sans risque de regression visuelle sur les ecrans non migres. */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+@import "./tokens.css";
+@plugin "daisyui";
+
+@theme {
+  /* ---- Couleurs de marque, portees depuis tokens.css ---- */
+  --color-halo-50: var(--halo-50);
+  --color-halo-100: var(--halo-100);
+  --color-halo-200: var(--halo-200);
+  --color-halo-300: var(--halo-300);
+  --color-halo-400: var(--halo-400);
+  --color-halo-500: var(--halo-500);
+  --color-halo-600: var(--halo-600);
+  --color-halo-700: var(--halo-700);
+  --color-halo-800: var(--halo-800);
+  --color-halo-900: var(--halo-900);
+  --color-halo-950: var(--halo-950);
+
+  --color-amber-50: var(--amber-50);
+  --color-amber-100: var(--amber-100);
+  --color-amber-200: var(--amber-200);
+  --color-amber-300: var(--amber-300);
+  --color-amber-400: var(--amber-400);
+  --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
+  --color-amber-700: var(--amber-700);
+
+  --color-slate-0: var(--slate-0);
+  --color-slate-50: var(--slate-50);
+  --color-slate-100: var(--slate-100);
+  --color-slate-200: var(--slate-200);
+  --color-slate-300: var(--slate-300);
+  --color-slate-400: var(--slate-400);
+  --color-slate-500: var(--slate-500);
+  --color-slate-600: var(--slate-600);
+  --color-slate-700: var(--slate-700);
+  --color-slate-800: var(--slate-800);
+  --color-slate-900: var(--slate-900);
+  --color-slate-950: var(--slate-950);
+
+  /* ---- Typographie (memes familles que fonts.css/tokens.css) ---- */
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  /* ---- Rayons (memes valeurs que tokens.css --r-*) ---- */
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
+  --radius-pill: var(--r-pill);
+}
+
+/* ---- Theme DaisyUI "widehalo", construit sur les memes tokens ----
+   Format OKLCH non requis par DaisyUI v5 -- les couleurs hex de
+   tokens.css sont acceptees directement par --color-*. */
+@plugin "daisyui" {
+  themes: widehalo --default;
+}
+
+@plugin "daisyui/theme" {
+  name: "widehalo";
+  --color-primary: var(--halo-500);
+  --color-primary-content: #ffffff;
+  --color-secondary: var(--amber-500);
+  --color-secondary-content: #ffffff;
+  --color-base-100: var(--slate-0);
+  --color-base-200: var(--slate-50);
+  --color-base-300: var(--slate-100);
+  --color-base-content: var(--slate-900);
+  --color-neutral: var(--slate-700);
+  --color-neutral-content: #ffffff;
+  --color-success: var(--green-500);
+  --color-success-content: #ffffff;
+  --color-warning: var(--yellow-500);
+  --color-warning-content: var(--slate-900);
+  --color-error: var(--red-500);
+  --color-error-content: #ffffff;
+  --color-info: var(--halo-400);
+  --color-info-content: var(--slate-900);
+  --radius-box: var(--r-lg);
+  --radius-field: var(--r-md);
+  --radius-selector: var(--r-sm);
+}
+
+/* Cible uniquement les templates cotton + les futurs ecrans migres,
+   pas tout templates/ (evite de scanner l'ancien design system pour
+   des classes Tailwind qui n'y existent pas). */
+@source "../../templates/cotton/**/*.html";
+@source "../../apps/**/templates/**/tw-*.html";

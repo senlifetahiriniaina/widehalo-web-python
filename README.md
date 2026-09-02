@@ -6,12 +6,17 @@ succession de l'ERP WideHalo existant (Laravel).
 
 ## Périmètre de ce lot
 
-Ce dépôt contient le **Lot 1** : socle technique transversal (multi-tenant,
+Ce dépôt a livré le **Lot 1** (socle technique transversal : multi-tenant,
 authentification, RBAC, i18n, API, workflow, événements, tâches
 asynchrones, chat interne, documents, audit, recherche, notifications,
-import/export) et les référentiels partagés `partners` et `catalog`.
-Aucun module métier complet (comptabilité, ventes, etc.) n'est livré dans
-ce lot — voir le cahier des charges pour la feuille de route complète.
+import/export, référentiels partagés `partners` et `catalog`) et est
+maintenant engagé dans le **Lot 2 Madagascar** : plusieurs modules métier
+complets sont déjà livrés (`accounting`, `stocks`, `presence`, `payroll`,
+`projects`, `purchase`, `helpdesk`, entre autres — voir
+`config/settings/base.py::BUDGET_MAX_MODELS` pour l'historique des
+chantiers clôturés). Voir le cahier des charges pour la feuille de route
+complète et `docs/planning/ECART_ARCHITECTURE.md` pour l'état réel mesuré
+du dépôt (modèles/endpoints/écrans) face aux budgets déclarés.
 
 ## Démarrage
 

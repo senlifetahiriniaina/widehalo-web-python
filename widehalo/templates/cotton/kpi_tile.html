@@ -1,0 +1,22 @@
+{% comment %}
+Tuile launchpad statique / dynamique / KPI -- A.7/A.8 du cahier des
+charges refonte UX (facon Fiori : tuile par role, compteur live via
+HTMX polling pour les tuiles dynamiques).
+
+Usage :
+  <c-kpi-tile label="Factures a echeance" value="12" tone="warning" href="/sales/invoices/?due=soon" />
+{% endcomment %}
+<c-vars label="" value="" tone="neutral" href="#" />
+
+<a
+  href="{{ href }}"
+  class="card bg-base-100 border border-base-300 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col gap-1 min-w-[160px]
+    {% if tone == 'warning' %}border-l-4 border-l-warning
+    {% elif tone == 'danger' %}border-l-4 border-l-error
+    {% elif tone == 'success' %}border-l-4 border-l-success
+    {% endif %}"
+>
+  <span class="text-sm text-base-content/70">{{ label }}</span>
+  <span class="text-3xl font-semibold text-base-content">{{ value }}</span>
+  {{ slot }}
+</a>
