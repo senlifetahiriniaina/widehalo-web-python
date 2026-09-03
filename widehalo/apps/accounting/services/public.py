@@ -844,6 +844,46 @@ def get_treasury_forecast_summary(
     return treasury_forecast(tenant, as_of_date=as_of_date, horizon_days=horizon_days)
 
 
+def get_income_statement_summary(
+    tenant: Tenant, *, as_of_date: dt.date | None = None
+) -> list[dict[str, Any]] | None:
+    """Nouveau gap ajoute pour le module `simulation` (cahier §13.6) : passe-
+    plat vers `services/reports.py::income_statement`, en resolvant
+    l'exercice fiscal qui CONTIENT `as_of_date` (aujourd'hui par defaut) —
+    le module `simulation` a besoin des postes du compte de resultat
+    (chiffre d'affaires, achats consommes, charges de personnel, charges
+    financieres...) sans connaitre l'identifiant d'exercice a l'avance,
+    contrairement a `get_financial_ratios_summary` ci-dessus qui prend deja
+    `fiscal_year_id` en entree. Renvoie `None` (jamais une exception) si
+    aucun exercice ne couvre `as_of_date` — meme discipline "signale a
+    l'ecran, ne bloque jamais silencieusement" que le reste de ce fichier
+    (cf. `closing_move_id` de `apps.pos.models.PosSession`)."""
+    from apps.accounting.models import AccFiscalYear
+    from apps.accounting.services.reports import income_statement
+
+    as_of = as_of_date or dt.date.today()
+    fiscal_year = AccFiscalYear.objects.filter(
+        tenant=tenant, date_start__lte=as_of, date_end__gte=as_of
+    ).first()
+    if fiscal_year is None:
+        return None
+    return income_statement(fiscal_year)
+
+
+def get_open_settlement_items(
+    tenant: Tenant, *, as_of_date: dt.date | None = None, horizon_days: int = 91
+) -> list[dict[str, Any]]:
+    """Passe-plat vers `services/reports.py::list_open_settlement_items` —
+    nouveau gap pour le module `simulation` (SIM-7). `tenant` expose pour
+    la signature (coherence avec le reste de ce fichier) mais non utilise
+    pour filtrer directement, meme remarque que `get_treasury_forecast_
+    summary` juste au-dessus."""
+    from apps.accounting.services.reports import list_open_settlement_items
+
+    del tenant
+    return list_open_settlement_items(as_of_date=as_of_date, horizon_days=horizon_days)
+
+
 def decide_invoice_import_qualification(
     approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
 ) -> None:

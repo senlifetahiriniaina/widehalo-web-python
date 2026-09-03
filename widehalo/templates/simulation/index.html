@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Simulation financière" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Simulation financière" %}</c-breadcrumb>
+
+<div class="page-head">
+  <h1>{% trans "Simulation financière" %}</h1>
+  {% if can_create %}<a href="{% url 'simulation:workbench_new' %}" class="btn btn-primary">{% trans "Nouveau scénario" %}</a>{% endif %}
+</div>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<div class="wh-panel">
+  {% if baseline %}
+    <p>{% trans "Dernier socle construit le" %} {{ baseline.extracted_at|date:"d/m/Y H:i" }}
+      ({% trans "référence" %} {{ baseline.period_start|date:"d/m/Y" }} — {{ baseline.period_end|date:"d/m/Y" }}).
+      {% if baseline.data.degraded %}<span class="badge b-warning">{% trans "socle dégradé" %}</span>{% endif %}
+    </p>
+  {% else %}
+    <p>{% trans "Aucun socle de simulation n'a encore été construit." %}</p>
+  {% endif %}
+  {% if can_refresh %}
+    <form method="post" action="{% url 'simulation:baseline_refresh' %}">
+      {% csrf_token %}
+      <c-button variant="secondary" type="submit">{% trans "Rafraîchir le socle" %}</c-button>
+    </form>
+  {% endif %}
+</div>
+
+<h2>{% trans "Bibliothèque de scénarios" %}</h2>
+<form method="get" action="{% url 'simulation:compare' %}">
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>{% trans "Nom" %}</th>
+        <th>{% trans "Propriétaire" %}</th>
+        <th>{% trans "Partagé" %}</th>
+        <th>{% trans "Origine IA" %}</th>
+        <th>{% trans "Mis à jour" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for scenario in scenarios %}
+        <tr>
+          <td><input type="checkbox" name="ids" value="{{ scenario.id }}"></td>
+          <td><a href="{% url 'simulation:workbench' scenario.id %}">{{ scenario.name }}</a></td>
+          <td>{{ scenario.owner.email }}</td>
+          <td>{% if scenario.is_shared %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+          <td>{% if scenario.ai_generated %}{% trans "Copilote" %}{% else %}—{% endif %}</td>
+          <td>{{ scenario.updated_at|date:"d/m/Y H:i" }}</td>
+          <td>
+            <form method="post" action="{% url 'simulation:archive' scenario.id %}" style="display:inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm">{% trans "Archiver" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucun scénario. Créez-en un depuis l'atelier de scénarios." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <c-button variant="secondary" type="submit">{% trans "Comparer les scénarios cochés (2 à 4)" %}</c-button>
+</form>
+{% endblock %}

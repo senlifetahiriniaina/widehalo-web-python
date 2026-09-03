@@ -46,14 +46,15 @@ def test_user_with_group_permission_is_allowed() -> None:
     assert response.status_code == 200
 
 
-def test_load_roles_creates_twelve_standard_roles() -> None:
-    """12 depuis le chantier module POS (cahier §13.5) : `caissier`
-    ajouté — cf. docs/RBAC.md §2 pour le raisonnement de cet ajout, le
-    premier depuis les 11 rôles "V1 acquis du CDC" du Lot 1/Lot 2."""
+def test_load_roles_creates_thirteen_standard_roles() -> None:
+    """13 depuis le chantier module Simulation financière (cahier §13.6) :
+    `controleur_gestion` ajouté — cf. docs/RBAC.md §2 pour le raisonnement
+    de cet ajout, le second depuis les 11 rôles "V1 acquis du CDC" du
+    Lot 1/Lot 2 (le premier étant `caissier`, chantier module POS)."""
     from django.conf import settings
     from django.core.management import call_command
 
     call_command("load_roles")
     for code in settings.CORE_STANDARD_ROLES:
         assert Group.objects.filter(name=code).exists()
-    assert len(settings.CORE_STANDARD_ROLES) == 12
+    assert len(settings.CORE_STANDARD_ROLES) == 13

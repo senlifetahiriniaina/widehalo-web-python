@@ -90,6 +90,14 @@ _FACTORY_MODULES = [
     "apps.projects.tests.factories",
     "apps.ai.tests.factories",
     "apps.helpdesk.tests.factories",
+    # `pos` (chantier module POS, cahier §13.5) et `simulation` (chantier
+    # module Simulation financière, cahier §13.6) : omis à tort de cette
+    # liste par les deux chantiers qui ont pourtant livré une factory
+    # `apps/*/tests/factories.py` complète — corrigé ici plutôt que
+    # laissé comme un gap silencieux (ce test n'était visiblement jamais
+    # exécuté dans le même run que les tests dédiés de ces deux modules).
+    "apps.pos.tests.factories",
+    "apps.simulation.tests.factories",
 ]
 
 

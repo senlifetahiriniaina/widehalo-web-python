@@ -793,6 +793,53 @@ def aged_payables(as_of_date: Any = None) -> list[dict[str, Any]]:
     return _aged_balance(AccAccount.TYPE_PAYABLE, as_of_date)
 
 
+def list_open_settlement_items(
+    *, as_of_date: Any = None, horizon_days: int = 91
+) -> list[dict[str, Any]]:
+    """Lignes `receivable`/`payable` OUVERTES (memes criteres qu'`aged_
+    receivables`/`aged_payables` et que `treasury_forecast` : `matching_
+    number == ""`, echeance connue) dans la fenetre `[as_of_date, as_of_date
+    + horizon_days]`, au format BRUT ligne par ligne (montant + echeance),
+    plutot que deja agregees par tiers (`aged_*`) ou deja decoupees en
+    paniers hebdomadaires figes (`treasury_forecast`).
+
+    Ajoute pour le module `simulation` (SIM-7 : projection de tresorerie a
+    13 semaines) qui doit pouvoir DECALER l'echeance de chaque ligne selon
+    un levier de delai de reglement puis re-decouper elle-meme en paniers —
+    un decoupage deja fige ne permettrait pas ce recalcul local cote
+    client."""
+    as_of = as_of_date or dt.date.today()
+    horizon_end = as_of + dt.timedelta(days=horizon_days)
+    items: list[dict[str, Any]] = []
+    for account_type, kind in (
+        (AccAccount.TYPE_RECEIVABLE, "receivable"),
+        (AccAccount.TYPE_PAYABLE, "payable"),
+    ):
+        lines = AccMoveLine.objects.filter(
+            account__type=account_type,
+            move__state=AccMove.STATE_POSTED,
+            matching_number="",
+            due_date__isnull=False,
+            due_date__gte=as_of,
+            due_date__lte=horizon_end,
+        )
+        for line in lines:
+            amount = (
+                line.debit - line.credit
+                if account_type == AccAccount.TYPE_RECEIVABLE
+                else line.credit - line.debit
+            )
+            items.append(
+                {
+                    "kind": kind,
+                    "due_date": line.due_date,
+                    "amount_mga": amount,
+                    "partner_id": line.partner_id,
+                }
+            )
+    return items
+
+
 def cash_basis_report(fiscal_year: AccFiscalYear, *, mode: str = "recap") -> list[dict[str, Any]]:
     """ACC-SMT — rapport de tresorerie simplifie pour un tenant au regime
     Impot Synthetique (§1.1.1 du document annexe), derive uniquement des

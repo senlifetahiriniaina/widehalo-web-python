@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.helpdesk",
     "apps.pos",
+    "apps.simulation",
 ]
 
 MIDDLEWARE = [
@@ -271,6 +272,20 @@ PRICE_WATCH_PROVIDERS: dict[str, dict[str, str]] = {}
 # docs/RBAC.md §2 pour le detail de cette decision). Rattache a
 # `CORE_SIMPLE_MODE_ROLES` (meme discipline que `magasinier`/
 # `chef_atelier` : role intensif mais peu forme, interface guidee).
+#
+# "controleur_gestion" ajoute par le chantier module Simulation financiere
+# (cahier Phase 1 §13.6, persona "Controleur de gestion" explicitement
+# nomme §3 : "manipuler des hypotheses sur les vraies donnees et voir
+# l'effet immediatement... aujourd'hui dans un tableur deconnecte des
+# donnees") — 13e role. Meme raisonnement que `caissier` : aucun role
+# existant ne convient (le cahier reserve explicitement l'atelier de
+# scenarios et l'outil IA `paramétrer_simulation` à "Contrôleur de
+# gestion, Dirigeant" — un role de pilotage utilisateur EXPERT, distinct
+# de `direction` qui porte deja un role de pilotage/validation TRANSVERSE
+# sur tous les autres modules, cf. `ROLE_APP_PERMISSIONS["direction"]`).
+# PAS rattache a `CORE_SIMPLE_MODE_ROLES` : role expert (cf. persona,
+# "Utilisateur periodique, a fort pouvoir de decision"), pas un role
+# intensif peu forme comme `caissier`/`magasinier`/`chef_atelier`.
 CORE_STANDARD_ROLES = [
     "admin",
     "direction",
@@ -284,6 +299,7 @@ CORE_STANDARD_ROLES = [
     "rh",
     "collaborateur",
     "caissier",
+    "controleur_gestion",
 ]
 CORE_MFA_REQUIRED_ROLES = {"admin", "direction", "comptable", "rh"}
 CORE_SIMPLE_MODE_ROLES = {"collaborateur", "magasinier", "chef_atelier", "caissier"}

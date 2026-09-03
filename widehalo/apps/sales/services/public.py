@@ -28,6 +28,36 @@ def get_order_reference(order_id: Any) -> str:
     return order.reference if order is not None else ""
 
 
+def get_revenue_summary(*, date_from: Any, date_to: Any) -> Decimal:
+    """Nouveau gap pour le module `simulation` (cahier §13.6) : passe-plat
+    vers `services/reports.py::revenue_report` (SAL-CA), agrege en un seul
+    montant total (le socle de simulation n'a pas besoin du detail par
+    tiers/commercial/date, seulement du total de la periode de reference)."""
+    from apps.sales.services.reports import revenue_report
+
+    rows = revenue_report(date_from=date_from, date_to=date_to, group_by="date")
+    return sum((row["total_mga"] for row in rows), Decimal(0))
+
+
+def get_margin_summary(*, role_codes: set[str]) -> dict[str, Decimal] | None:
+    """Nouveau gap pour le module `simulation` : passe-plat vers `services/
+    reports.py::margin_report` (SAL-MARGE), agrege en `{"subtotal_mga",
+    "cost_estimate_mga"}` — masquage par role deja applique en amont par
+    `margin_report` (RG-SAL-5) : `cost_estimate_mga` peut etre absent des
+    lignes si `role_codes` n'y donne pas droit, auquel cas cette fonction
+    renvoie `None` plutot qu'un cout de revient invente a zero (le socle de
+    simulation doit alors se rabattre sur `revenue_report` seul pour la
+    marge — cf. `apps.simulation.services.baseline`)."""
+    from apps.sales.services.reports import margin_report
+
+    rows = margin_report(role_codes=role_codes)
+    subtotal = sum((row["subtotal"] for row in rows), Decimal(0))
+    if not rows or "cost_estimate_mga" not in rows[0]:
+        return None
+    cost_estimate = sum((row["cost_estimate_mga"] for row in rows), Decimal(0))
+    return {"subtotal_mga": subtotal, "cost_estimate_mga": cost_estimate}
+
+
 def get_delivered_qty_for_order(order_id: Any) -> Decimal | None:
     """Premier gap reel de lecture ajoute par `stocks` (ST6, RG-STK-6,
     "cohérence production/stock" — jambe "quantite livree au client") :

@@ -10,7 +10,7 @@ from apps.core.services.rbac_policy import sync_group_permissions
 
 class Command(BaseCommand):
     help = (
-        "Cree les 11 roles standards V1 (settings.CORE_STANDARD_ROLES) comme "
+        "Cree les roles standards (settings.CORE_STANDARD_ROLES) comme "
         "Group+RoleProfile, et (re)synchronise leurs permissions Django selon "
         "apps.core.services.rbac_policy.ROLE_APP_PERMISSIONS — idempotent, a "
         "relancer si cette politique est modifiee."

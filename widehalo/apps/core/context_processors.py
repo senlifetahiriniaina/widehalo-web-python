@@ -24,6 +24,11 @@ _ADMIN_ROLE_CODES = {"admin", "direction"}
 # "Point de vente" (`templates/base.html`), groupe accordeon "commercial"
 # ci-dessous (memes utilisateurs que crm/sales, cf. `ROLE_APP_PERMISSIONS
 # ["caissier"]`).
+# "simulation" ajoute par le chantier module Simulation financiere (cahier
+# §13.6) : lien sidebar "Simulation financière" (`templates/base.html`),
+# groupe accordeon "finance-pilotage" ci-dessous (memes utilisateurs que
+# accounting/financing — direction/comptable/controleur_gestion, cf.
+# `ROLE_APP_PERMISSIONS["controleur_gestion"]`).
 _MODULE_APP_LABELS: tuple[str, ...] = (
     "accounting",
     "crm",
@@ -43,6 +48,7 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "strategy",
     "financing",
     "automation",
+    "simulation",
 )
 _RISK_MENU_KEY = "risks"
 _RISK_PERMISSION_CODENAME = "core.view_riskitem"
@@ -55,7 +61,7 @@ _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),
-    "finance-pilotage": ("accounting", "financing", "automation"),
+    "finance-pilotage": ("accounting", "financing", "automation", "simulation"),
     "rh": ("presence", "payroll"),
     "projets-risques": ("projects", _RISK_MENU_KEY),
 }

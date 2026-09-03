@@ -1,7 +1,7 @@
 # Contrôle d'accès par rôle (RBAC) : niveaux, rôles, matrice et scoping
 
 Ce document décrit le mécanisme RBAC réellement implémenté dans le dépôt :
-les 4 niveaux de contrôle, les 11 rôles standards, la matrice complète
+les 4 niveaux de contrôle, les 13 rôles standards, la matrice complète
 rôle × module, les permissions personnalisées qui affinent cette matrice,
 les mécanismes de portée au niveau enregistrement (scoping N3) trouvés
 module par module, et le masquage de champ (N4). Chaque affirmation ci-
@@ -57,14 +57,14 @@ content-type/object-id — reçoivent des permissions Django auto-générées
 ajoutées au cas par cas dans `CUSTOM_PERMISSIONS` (§4), précisément pour
 éviter d'ouvrir tout `core` en accordant l'app entière.
 
-## 2. Les 12 rôles
+## 2. Les 13 rôles
 
 Liste confirmée dans `widehalo/config/settings/base.py`
 (`CORE_STANDARD_ROLES`), chargée en base par la commande de management
 `load_roles` (`apps/core/management/commands/load_roles.py`, qui crée un
 `Group`+`RoleProfile` par rôle et appelle `sync_group_permissions`). Le
 test `apps/core/tests/test_rbac_default_deny.py` vérifie qu'il y en a
-exactement 12.
+exactement 13.
 
 **`caissier` est le 12e rôle**, ajouté par le chantier module POS (cahier
 Phase 1 §13.5) — les 11 précédents datent tous du Lot 1/Lot 2 (« V1 acquis
@@ -82,6 +82,25 @@ différence des réutilisations précédentes (`magasinier`/`logistics`,
 `acheteur`/département achats), aucun des 11 rôles existants n'est un
 candidat plausible ici.
 
+**`controleur_gestion` est le 13e rôle**, ajouté par le chantier module
+Simulation financière (cahier Phase 1 §13.6). Même raisonnement que
+`caissier` : le cahier nomme explicitement un persona « Contrôleur de
+gestion » (§3) — « manipuler des hypothèses sur les vraies données et
+voir l'effet immédiatement... aujourd'hui dans un tableur déconnecté des
+données » — et la table des outils IA exposés (§13.4) réserve
+littéralement l'atelier de scénarios et l'outil `paramétrer_simulation`
+aux deux seuls rôles « Contrôleur de gestion, Dirigeant ». `direction`
+existait déjà et couvre la moitié de cette liste, mais aucun des 12 rôles
+restants n'est un candidat plausible pour l'autre moitié : `comptable` a
+un domaine cible `accounting` sans rapport avec la modélisation
+d'hypothèses commerciales/trésorerie, et les rôles « responsable de
+département » (`resp_commercial`, `resp_production`...) portent un scope
+N3 « son équipe/département » sans rapport avec le périmètre entreprise
+de la simulation. Contrairement à `caissier`, ce rôle n'est PAS rattaché
+à `CORE_SIMPLE_MODE_ROLES` : c'est un rôle expert (persona « Utilisateur
+périodique, à fort pouvoir de décision »), pas un rôle intensif peu
+formé.
+
 | Rôle | Intention métier (déduite de l'usage réel dans le code) |
 |---|---|
 | `admin` | Accès complet et transverse à tous les modules métier — administration technique du tenant. |
@@ -96,6 +115,7 @@ candidat plausible ici.
 | `rh` | Domaine cible = `presence` + `payroll` (accès complet aux deux) ; responsable de département RH identifié pour `strategy`. |
 | `collaborateur` | Rôle par défaut : accès en lecture aux référentiels partagés, gère ses propres objectifs/tâches/pointages/bulletins (scope N3 « own » très répandu pour ce rôle, cf. §5). |
 | `caissier` | Domaine cible = `pos` (accès complet) ; persona « Caissier / vendeur » du cahier §3, distinct du `commercial` (cf. §2 pour le détail de cette décision). Scope N3 « sa session » (cf. §5) : ne gère que la session de caisse dont il est le titulaire. |
+| `controleur_gestion` | Domaine cible = `simulation` (accès complet) ; persona « Contrôleur de gestion » du cahier §3, un des deux seuls rôles (avec `direction`) autorisés par le cahier à utiliser l'atelier de scénarios et l'outil IA `paramétrer_simulation` (cf. §2 pour le détail de cette décision). Scope N3 « ses scénarios » (cf. §5) : ne gère que ses propres scénarios, voit en plus ceux partagés par d'autres. |
 
 ## 3. Matrice complète rôle × module (N2)
 
@@ -107,29 +127,38 @@ jamais (§1).
 
 ### 3.1 Modules métier « classiques »
 
-| Module | admin | direction | comptable | commercial | resp_commercial | acheteur | resp_production | chef_atelier | magasinier | rh | collaborateur | caissier |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `accounting` | v,a,c | v,c | v,a,c | — | v | — | — | — | — | — | — | — |
-| `crm` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — |
-| `mrp` | v,a,c | v,c | — | — | — | v,c | v,a,c | v,c | v,c | — | — | — |
-| `patronage` | v,a,c | v,c | — | — | — | — | v,a,c | — | — | — | — | — |
-| `partners` | v,a,c | v,c | v | v,a,c | v,a,c | v,a,c | — | — | — | — | v | v |
-| `catalog` | v,a,c | v,c | v | v | v | v,a,c | v | v | v | — | v | v |
-| `sales` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — |
-| `pos` | v,a,c | v,c | v | — | — | — | — | — | — | — | — | v,a,c |
-| `purchase` | v,a,c | v,c | — | — | — | v,a,c | — | — | — | — | — | — |
-| `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — |
-| `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — |
-| `presence` | v,a,c | v,c | — | — | — | — | — | — | — | v,a,c | v | — |
-| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* | — |
-| `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
-| `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v |
-| `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c | — |
-| `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — |
-| `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — |
-| `helpdesk` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a |
+| Module | admin | direction | comptable | commercial | resp_commercial | acheteur | resp_production | chef_atelier | magasinier | rh | collaborateur | caissier | controleur_gestion |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `accounting` | v,a,c | v,c | v,a,c | — | v | — | — | — | — | — | — | — | v |
+| `crm` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — | — |
+| `mrp` | v,a,c | v,c | — | — | — | v,c | v,a,c | v,c | v,c | — | — | — | — |
+| `patronage` | v,a,c | v,c | — | — | — | — | v,a,c | — | — | — | — | — | — |
+| `partners` | v,a,c | v,c | v | v,a,c | v,a,c | v,a,c | — | — | — | — | v | v | v |
+| `catalog` | v,a,c | v,c | v | v | v | v,a,c | v | v | v | — | v | v | v |
+| `sales` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — | v |
+| `pos` | v,a,c | v,c | v | — | — | — | — | — | — | — | — | v,a,c | — |
+| `simulation` | v,a,c | v,a,c | — | — | — | — | — | — | — | — | — | — | v,a,c |
+| `purchase` | v,a,c | v,c | — | — | — | v,a,c | — | — | — | — | — | — | — |
+| `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
+| `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
+| `presence` | v,a,c | v,c | — | — | — | — | — | — | — | v,a,c | v | — | — |
+| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* | — | — |
+| `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
+| `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v | v,a |
+| `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c | — | — |
+| `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — | — |
+| `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — | — |
+| `helpdesk` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a |
 
 Légende : v = view, a = add, c = change.
+
+**`simulation` : EXCEPTION à la discipline habituelle de `direction`** —
+`v,a,c` (accès complet) et non le `v,c` transverse habituel de ce rôle
+(comme `strategy`/`reporting`/`automation`/`feasibility`, cf. le
+commentaire dédié dans `rbac_policy.py`) : le cahier nomme littéralement
+« Dirigeant » comme l'un des deux seuls rôles autorisés à manipuler
+l'atelier de scénarios, pas seulement à consulter/valider un
+enregistrement créé par un autre rôle.
 
 \* `payroll` en `view` seul pour `resp_commercial`/`resp_production`/
 `chef_atelier` (les 3 rôles « manager » identifiés, cf. §4.2) donne accès à
@@ -138,13 +167,15 @@ l'existence/l'état d'un bulletin, jamais aux montants (masqués au N4,
 propres bulletins (§5.4).
 
 **`accounting` : `absent` pour tous les rôles non listés** — aucun autre
-rôle que `admin`/`direction`/`comptable`/`resp_commercial` (`view` seul)
+rôle que `admin`/`direction`/`comptable`/`resp_commercial` (`view` seul) ni
+`controleur_gestion` (`view` seul — consulte le compte de résultat réel
+qui alimente le socle de simulation, ne crée/modifie jamais d'écriture)
 n'a d'entrée `accounting` dans la matrice.
 
 ### 3.2 Modules d'infrastructure transverse (`ai`, `automation`)
 
 Ces deux modules ne sont pas des modules métier au même titre que ceux
-ci-dessus (pas de « domaine cible » parmi les 11 rôles) mais possèdent
+ci-dessus (pas de « domaine cible » parmi les 13 rôles) mais possèdent
 bien une entrée RBAC dans `ROLE_APP_PERMISSIONS`, restreinte au pilotage :
 
 | Module | admin | direction | Tous les autres rôles |
@@ -333,6 +364,22 @@ session, sans exception (pilotage transverse, même discipline que le
 reste de ce registre) — cohérent avec `comptable`, qui lui n'a que
 `view` au N2 (§3.1) et n'a donc jamais besoin de ce scope.
 
+### 5.5ter `apps/simulation/services/scoping.py` — `visible_scenarios`/`assert_can_manage_scenario`/`assert_can_view_scenario` (chantier module Simulation financière)
+
+Scope N3 « ses scénarios » (cahier §13.6 : « personnels ou partagés »),
+appliqué à la fois au niveau **queryset** (`visible_scenarios`, pour la
+bibliothèque de scénarios et le comparateur) et au niveau **objet**
+(`assert_can_view_scenario`/`assert_can_manage_scenario`, pour un accès
+direct par identifiant) — les trois fonctions partagent la même règle :
+un `SimScenario` non partagé (`is_shared=False`) n'est visible/modifiable
+que par son `owner` ; un scénario partagé (`is_shared=True`) est visible
+par tout utilisateur autorisé du tenant (accès N2 déjà accordé à
+`simulation`) mais reste modifiable/archivable uniquement par son
+`owner`. `admin`/`direction`/un superutilisateur voient/gèrent tout, même
+discipline transverse que `apps/pos/services/scoping.py` (§5.5bis) —
+cohérent avec le fait que `direction` a, contrairement au reste de sa
+discipline habituelle, un accès N2 complet à `simulation` (§3.1).
+
 ### 5.6 `projects` (PJ1) — scope N3 explicitement **non câblé**, à documenter comme tel
 
 Contrairement aux 4 mécanismes ci-dessus, la docstring du rôle
@@ -362,6 +409,7 @@ limitation.
 | `payroll` | idem (API) | `apps/payroll/api.py` | collaborateur = ses bulletins (403 explicite sur PDF d'autrui, jamais 404) ; rh/admin/direction = tout. |
 | `helpdesk` | `user_can_manage_ticket` | `apps/helpdesk/services/tickets.py` | tout rôle peut transitionner/commenter un ticket dont il est requester OU assignee, en plus de ce que donne `helpdesk.change_hlpticket`. |
 | `pos` | `assert_can_manage_session` | `apps/pos/services/scoping.py` | caissier = sa propre session (mouvements, clôture, ventes) ; admin/direction = tout. |
+| `simulation` | `visible_scenarios`, `assert_can_manage_scenario`, `assert_can_view_scenario` | `apps/simulation/services/scoping.py` | contrôleur de gestion/direction = ses scénarios + ceux partagés (voit), lui seul peut gérer les siens ; admin/direction = tout. |
 | `projects` | — (non câblé pour PJ1) | — | limitation N3 « collaborateur » explicitement reportée, cf. §5.6. |
 
 ## 6. Masquage de champ (N4)
@@ -394,7 +442,7 @@ qui échappe entièrement au RBAC interne décrit ci-dessus : il donne accès
 à une vue **lecture seule** d'un projet à un tiers externe (client,
 partenaire) qui n'a et n'aura **jamais** de compte `core.User`, de
 session Django, ni de JWT. L'unique credential est la possession d'un
-`token` opaque (modèle `PrjGuestAccess`), pas un rôle parmi les 11.
+`token` opaque (modèle `PrjGuestAccess`), pas un rôle parmi les 13.
 Points notables documentés dans le code source :
 
 - Le token porte lui-même l'identification du tenant (dérogation RLS
@@ -411,7 +459,7 @@ Points notables documentés dans le code source :
   produit disclosée explicitement dans la docstring du service.
 
 Ce portail doit être traité comme un **canal d'accès séparé**, pas comme
-une extension des 11 rôles RBAC — aucune ligne de `ROLE_APP_PERMISSIONS`
+une extension des 13 rôles RBAC — aucune ligne de `ROLE_APP_PERMISSIONS`
 ni de `CUSTOM_PERMISSIONS` ne s'applique à un visiteur invité.
 
 ## 8. Réserve méthodologique
@@ -434,13 +482,13 @@ registres — en particulier :
 - toute nouvelle entrée dans `SENSITIVE_FIELDS` → ajouter une ligne au
   tableau du §6.
 
-Ce document couvre l'état du dépôt au moment de sa rédaction (18 modules
-métier réels sous `apps/`, hors `core`/`chat`/`automation`/`ai` ; ces 2
-derniers traités séparément au §3.2 comme infrastructure transverse
+Ce document couvre l'état du dépôt au moment de sa dernière révision (20
+modules métier réels sous `apps/`, hors `core`/`chat`/`automation`/`ai` ;
+ces 2 derniers traités séparément au §3.2 comme infrastructure transverse
 disposant néanmoins d'une entrée RBAC). Le décompte exact des modules
 métier au moment de la rédaction : `accounting`, `catalog`, `crm`,
 `feasibility`, `financing`, `helpdesk`, `logistics`, `mrp`, `partners`,
-`patronage`, `payroll`, `presence`, `projects`, `purchase`, `reporting`,
-`sales`, `stocks`, `strategy` — soit 18, pas 19 ; si un module
-supplémentaire existe dans une version ultérieure du dépôt, ce compte et
-la matrice du §3 doivent être révisés en conséquence.
+`patronage`, `payroll`, `pos`, `presence`, `projects`, `purchase`,
+`reporting`, `sales`, `simulation`, `stocks`, `strategy` — soit 20, pas
+21 ; si un module supplémentaire existe dans une version ultérieure du
+dépôt, ce compte et la matrice du §3 doivent être révisés en conséquence.

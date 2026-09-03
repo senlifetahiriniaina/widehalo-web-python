@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Atelier de scénarios" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'simulation:index' %}">{% trans "Simulation financière" %}</a> / {% trans "Atelier de scénarios" %}</c-breadcrumb>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+{% if not baseline %}
+  <div class="page-head"><h1>{% trans "Atelier de scénarios" %}</h1></div>
+  <p>{% trans "Aucun socle de simulation n'a encore été construit pour cette entreprise." %}</p>
+  <form method="post" action="{% url 'simulation:baseline_refresh' %}">
+    {% csrf_token %}
+    <c-button variant="primary" type="submit">{% trans "Construire le socle de simulation" %}</c-button>
+  </form>
+{% else %}
+
+{{ baseline_data|json_script:"sim-baseline-data" }}
+{{ lever_catalog|json_script:"sim-lever-catalog" }}
+{{ scenario_data|json_script:"sim-scenario-data" }}
+
+<script src="{% static 'js/simulation_engine.js' %}"></script>
+
+<div x-data="simWorkbench({
+  baselineId: '{{ baseline.id }}',
+  scenarioId: {% if scenario %}'{{ scenario.id }}'{% else %}null{% endif %}
+})" x-init="init()">
+
+  <div class="page-head">
+    <h1>{% trans "Atelier de scénarios" %}</h1>
+    <span class="badge">{% trans "Socle du" %} {{ baseline.extracted_at|date:"d/m/Y H:i" }}</span>
+  </div>
+  {% if baseline.data.degraded %}
+    <p class="form-error">{% trans "Socle dégradé : aucun exercice comptable ne couvre la date de référence — seul le chiffre d'affaires est disponible." %}</p>
+  {% endif %}
+  <p class="text-muted">{% trans "Aucun bouton « calculer » : les indicateurs se recalculent en continu, localement, à chaque mouvement de curseur (moins de 100 ms)." %}</p>
+
+  <nav role="tablist" class="tabs tabs-boxed mb-4">
+    <a role="tab" class="tab" :class="tab === 'levers' ? 'tab-active' : ''" @click.prevent="tab = 'levers'" href="#">{% trans "Leviers" %}</a>
+    <a role="tab" class="tab" :class="tab === 'treasury' ? 'tab-active' : ''" @click.prevent="tab = 'treasury'" href="#">{% trans "Trésorerie 13 semaines" %}</a>
+    <a role="tab" class="tab" :class="tab === 'sensitivity' ? 'tab-active' : ''" @click.prevent="tab = 'sensitivity'; loadSensitivity()" href="#">{% trans "Point mort et sensibilité" %}</a>
+  </nav>
+
+  <div class="sim-grid" x-show="tab === 'levers'">
+    <div class="sim-levers">
+      <template x-for="family in families" :key="family">
+        <fieldset class="wh-panel">
+          <legend x-text="familyLabel(family)"></legend>
+          <template x-for="lever in leversForFamily(family)" :key="lever.code">
+            <label class="sim-lever-row">
+              <span x-text="lever.label"></span>
+              <input type="range" :min="lever.min" :max="lever.max" step="0.5"
+                     x-model.number="values[lever.code]" @input="recompute()">
+              <span x-text="values[lever.code] + ' ' + lever.unit"></span>
+            </label>
+          </template>
+        </fieldset>
+      </template>
+    </div>
+    <div class="sim-indicators">
+      <table class="smart-table">
+        <tbody>
+          <tr><th>{% trans "Chiffre d'affaires" %}</th><td x-text="fmt(indicators.ca)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.ca)"></td></tr>
+          <tr><th>{% trans "Marge" %}</th><td x-text="fmt(indicators.marge)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.marge)"></td></tr>
+          <tr><th>{% trans "Excédent brut d'exploitation" %}</th><td x-text="fmt(indicators.excedent_brut)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.excedent_brut)"></td></tr>
+          <tr><th>{% trans "Résultat net" %}</th><td x-text="fmt(indicators.resultat_net)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.resultat_net)"></td></tr>
+          <tr><th>{% trans "Seuil de rentabilité" %}</th><td x-text="indicators.seuil_rentabilite !== null && indicators.seuil_rentabilite !== undefined ? fmt(indicators.seuil_rentabilite) : '—'"></td><td></td></tr>
+          <tr><th>{% trans "TVA nette projetée" %}</th><td x-text="fmt(indicators.tva_nette_projetee)"></td><td></td></tr>
+        </tbody>
+      </table>
+      <p class="text-muted">{% trans "Un scénario n'est pas un budget : aucune écriture ni document n'est créé ou modifié par ce module." %}</p>
+    </div>
+  </div>
+
+  <div x-show="tab === 'treasury'">
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Semaine" %}</th><th>{% trans "Encaissements" %}</th><th>{% trans "Décaissements" %}</th><th>{% trans "Solde projeté" %}</th></tr></thead>
+      <tbody>
+        <template x-for="bucket in (indicators.treasury ? indicators.treasury.buckets : [])" :key="bucket.week">
+          <tr :class="bucket.balance_mga < 0 ? 'text-danger' : ''">
+            <td x-text="bucket.week"></td>
+            <td x-text="fmt(bucket.inflow_mga)"></td>
+            <td x-text="fmt(bucket.outflow_mga)"></td>
+            <td x-text="fmt(bucket.balance_mga)"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <p x-show="indicators.treasury && indicators.treasury.couverture_jours !== null" x-text="'{% trans "Trésorerie couverte" %} ' + (indicators.treasury ? indicators.treasury.couverture_jours : '') + ' {% trans "jours." %}'"></p>
+    <p x-show="indicators.treasury && indicators.treasury.couverture_jours === null">{% trans "Trésorerie couverte sur l'intégralité des 13 semaines." %}</p>
+  </div>
+
+  <div x-show="tab === 'sensitivity'">
+    <p x-show="!scenarioId">{% trans "Enregistrez d'abord ce scénario pour calculer sa sensibilité." %}</p>
+    <p x-show="scenarioId && !sensitivityLoaded">{% trans "Chargement…" %}</p>
+    <table class="smart-table" x-show="scenarioId && sensitivityLoaded">
+      <thead><tr><th>{% trans "Levier" %}</th><th>{% trans "Effet sur le résultat net (+1)" %}</th></tr></thead>
+      <tbody>
+        <template x-for="row in sensitivity" :key="row.code">
+          <tr><td x-text="row.label"></td><td x-text="fmt(row.delta_resultat_mga)"></td></tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" @submit="onSubmit($event)" class="wh-panel sim-save-form">
+    {% csrf_token %}
+    <input type="hidden" name="baseline_id" value="{{ baseline.id }}">
+    <label>{% trans "Nom du scénario" %}
+      <input type="text" name="name" x-model="name" required>
+    </label>
+    <label>{% trans "Description" %}
+      <textarea name="description" x-model="description"></textarea>
+    </label>
+    <label><input type="checkbox" x-model="isShared"> {% trans "Partagé" %}</label>
+    <input type="hidden" name="scenario_json" x-ref="scenarioJson">
+    <c-button variant="primary" type="submit">{% trans "Enregistrer le scénario" %}</c-button>
+  </form>
+</div>
+
+<script>
+function simWorkbench(config) {
+  return {
+    tab: 'levers',
+    baselineRaw: null,
+    catalog: [],
+    values: {},
+    indicators: {},
+    name: '',
+    description: '',
+    isShared: false,
+    sensitivity: [],
+    sensitivityLoaded: false,
+    scenarioId: config.scenarioId || null,
+    init() {
+      this.baselineRaw = JSON.parse(document.getElementById('sim-baseline-data').textContent);
+      this.catalog = JSON.parse(document.getElementById('sim-lever-catalog').textContent);
+      var scenarioEl = document.getElementById('sim-scenario-data');
+      var scenario = scenarioEl ? JSON.parse(scenarioEl.textContent) : null;
+      if (scenario) {
+        this.name = scenario.name;
+        this.description = scenario.description;
+        this.isShared = scenario.is_shared;
+        this.values = window.SimEngine.clampLevers(scenario.levers, this.catalog);
+      } else {
+        this.values = window.SimEngine.clampLevers({}, this.catalog);
+      }
+      this.recompute();
+    },
+    get families() {
+      var seen = [];
+      this.catalog.forEach(function (lever) {
+        if (seen.indexOf(lever.family) === -1) seen.push(lever.family);
+      });
+      return seen;
+    },
+    leversForFamily(family) {
+      return this.catalog.filter(function (lever) { return lever.family === family; });
+    },
+    familyLabel(family) {
+      var labels = {
+        commercial: "{% trans 'Commercial' %}",
+        achats: "{% trans 'Achats et production' %}",
+        structure: "{% trans 'Structure' %}",
+        tresorerie: "{% trans 'Trésorerie' %}",
+        fiscal: "{% trans 'Fiscal' %}"
+      };
+      return labels[family] || family;
+    },
+    recompute() {
+      this.indicators = window.SimEngine.computeIndicators(this.baselineRaw, this.values, this.catalog);
+    },
+    fmt(x) {
+      if (x === null || x === undefined || isNaN(x)) return '—';
+      return Math.round(x).toLocaleString('fr-FR') + ' MGA';
+    },
+    ecartText(e) {
+      if (!e) return '';
+      var sign = e.value_mga >= 0 ? '+' : '';
+      var pctText = e.pct === null || e.pct === undefined ? '—' : sign + e.pct + '%';
+      return sign + Math.round(e.value_mga).toLocaleString('fr-FR') + ' MGA (' + pctText + ')';
+    },
+    loadSensitivity() {
+      if (!this.scenarioId || this.sensitivityLoaded) return;
+      var self = this;
+      fetch('/simulation/workbench/' + this.scenarioId + '/sensitivity/')
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          self.sensitivity = data.results || [];
+          self.sensitivityLoaded = true;
+        });
+    },
+    onSubmit() {
+      this.recompute();
+      var payload = {
+        name: this.name,
+        description: this.description,
+        is_shared: this.isShared,
+        levers: this.values,
+        client_computed_indicators: this.indicators
+      };
+      this.$refs.scenarioJson.value = JSON.stringify(payload);
+    }
+  };
+}
+</script>
+{% endif %}
+{% endblock %}

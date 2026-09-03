@@ -43,6 +43,7 @@ from apps.projects.api import router as projects_router  # noqa: E402
 from apps.purchase.api import router as purchase_router  # noqa: E402
 from apps.reporting.api import router as reporting_router  # noqa: E402
 from apps.sales.api import router as sales_router  # noqa: E402
+from apps.simulation.api import router as simulation_router  # noqa: E402
 from apps.stocks.api import router as stocks_router  # noqa: E402
 from apps.strategy.api import router as strategy_router  # noqa: E402
 
@@ -70,6 +71,7 @@ api.add_router("", feasibility_router)
 api.add_router("", projects_router)
 api.add_router("", helpdesk_router)
 api.add_router("", pos_router)
+api.add_router("", simulation_router)
 api.add_router("/health", health_router)
 api.add_router("", meta_router)
 api.add_router("", tenants_router)

@@ -105,6 +105,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `pos` (chantier module POS, cahier §13.5) : acces complet, meme
         # discipline transverse que le reste de la matrice pour ce role.
         "pos": {"view", "add", "change"},
+        # `simulation` (chantier module Simulation financiere, cahier
+        # §13.6) : acces complet, meme discipline transverse que le reste
+        # de la matrice pour ce role.
+        "simulation": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -151,6 +155,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `pos` : pilotage/validation transverse — "view"+"change" (jamais
         # "add"), meme raisonnement que le reste de ce role.
         "pos": {"view", "change"},
+        # `simulation` (chantier module Simulation financiere, cahier
+        # §13.6) : EXCEPTION au reste de ce role — acces COMPLET
+        # {view, add, change} et non le "view"+"change" transverse
+        # habituel de `direction`, meme raisonnement que `strategy`/
+        # `reporting`/`automation`/`feasibility` ci-dessus : le cahier
+        # nomme litteralement "Dirigeant" comme l'un des DEUX SEULS roles
+        # autorises a manipuler l'atelier de scenarios et l'outil IA
+        # `paramétrer_simulation` (§13.4, tableau des outils exposes —
+        # "Rôles autorisés : Contrôleur de gestion, Dirigeant"), pas
+        # seulement a consulter/valider un enregistrement cree par un
+        # autre role.
+        "simulation": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -372,6 +388,28 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # independamment de son domaine cible `pos`.
         "strategy": {"view", "add", "change"},
         "reporting": {"view"},
+        "helpdesk": {"view", "add"},
+    },
+    # `controleur_gestion` (13e role, chantier module Simulation financiere
+    # — cahier Phase 1 §13.6, persona "Contrôleur de gestion" explicitement
+    # nomme §3 : "manipuler des hypothèses sur les vraies données et voir
+    # l'effet immédiatement... aujourd'hui dans un tableur déconnecté des
+    # données", cf. le commentaire de `settings.CORE_STANDARD_ROLES` pour
+    # le raisonnement complet de cet ajout). Domaine cible = `simulation`
+    # (acces complet) ; `reporting`/`accounting`/`sales` en lecture seule
+    # (le controleur de gestion manipule des hypotheses SUR les donnees
+    # reelles, il ne cree ni ne modifie ni devis/facture ni ecriture —
+    # seul le moteur de simulation, jamais un document metier, cf. SIM-5).
+    "controleur_gestion": {
+        "simulation": {"view", "add", "change"},
+        "reporting": {"view", "add"},
+        "accounting": {"view"},
+        "sales": {"view"},
+        "catalog": {"view"},
+        "partners": {"view"},
+        # `strategy`/`helpdesk` : meme baseline transverse que les 12
+        # autres roles (cf. `caissier` ci-dessus).
+        "strategy": {"view", "add", "change"},
         "helpdesk": {"view", "add"},
     },
 }

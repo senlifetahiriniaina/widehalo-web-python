@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Comparateur de scénarios" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'simulation:index' %}">{% trans "Simulation financière" %}</a> / {% trans "Comparateur" %}</c-breadcrumb>
+
+<div class="page-head"><h1>{% trans "Comparateur de scénarios" %}</h1></div>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<form method="get" class="wh-panel">
+  <p>{% trans "Sélectionnez de 2 à 4 scénarios à comparer." %}</p>
+  {% for scenario in all_scenarios %}
+    <label style="display:block">
+      <input type="checkbox" name="ids" value="{{ scenario.id }}" {% if scenario.id|stringformat:"s" in selected_ids %}checked{% endif %}>
+      {{ scenario.name }} ({{ scenario.owner.email }})
+    </label>
+  {% endfor %}
+  <c-button variant="primary" type="submit">{% trans "Comparer" %}</c-button>
+</form>
+
+{% if rows %}
+<div class="sim-compare-grid">
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th></th>
+        {% for row in rows %}<th>{{ row.name }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>{% trans "Chiffre d'affaires" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.ca }} MGA</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Marge" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.marge }} MGA</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Excédent brut d'exploitation" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.excedent_brut }} MGA</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Résultat net" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.resultat_net }} MGA</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Écart CA vs référence" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.ecarts.ca.value_mga }} MGA ({{ row.indicators.ecarts.ca.pct|default:"—" }}%)</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Écart résultat net vs référence" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.ecarts.resultat_net.value_mga }} MGA ({{ row.indicators.ecarts.resultat_net.pct|default:"—" }}%)</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Seuil de rentabilité" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.seuil_rentabilite|default:"—" }}{% if row.indicators.seuil_rentabilite %} MGA{% endif %}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th>{% trans "Trésorerie couverte (jours)" %}</th>
+        {% for row in rows %}<td>{{ row.indicators.treasury.couverture_jours|default:"13 semaines" }}</td>{% endfor %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
