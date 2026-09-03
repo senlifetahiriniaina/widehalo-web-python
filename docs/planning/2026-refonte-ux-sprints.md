@@ -188,10 +188,23 @@ test** : 8 tailles × 6 couleurs → 48 SKU + 48 EAN-13 uniques et valides (temp
 génération non chronométré en environnement CI, mais purement en mémoire/DB locale —
 risque de dépassement des 2 s jugé faible).
 
+Livré (commit `8aaea44`) pour **T2** : `MrpWorkOrder` (exécution par étape de gamme) et
+`MrpSubcontractOrder` (façon/CMT) existaient déjà pleinement fonctionnels ;
+`MrpWorkcenter.TYPE_CHOICES` modélise déjà coupe/couture/broderie/impression/finition/
+contrôle/emballage — aucun nouveau champ. First Pass Yield était même déjà implémenté
+(`services.quality.first_pass_yield`), simplement jamais affiché. Nouveau
+`services.orders.advance_work_order` : termine l'étape courante, démarre automatiquement la
+suivante en attente (jamais si déjà mise en pause par un opérateur), journalise la
+transition sur le chatter de l'ordre. Nouvel écran `mrp:kanban` (une colonne par poste de
+charge, une carte par ordre de travail, bouton — jamais de glisser-déposer, cohérent avec
+l'unique autre kanban du dépôt, `apps.projects` — cibles ≥ 44 px). Chatter câblé sur `mrp`
+pour la première fois. 7 tests (`test_kanban.py`).
+
 - **Écran T2** — Ordre de fabrication + suivi atelier (kanban coupe→couture→finition),
-  sous-traitance façon (CMT), First Pass Yield. *Non exploré/non réalisé.*
-  *Critère* : déplacer une carte change l'état et journalise dans le chatter ; tablette,
-  cibles ≥ 44 px, fonctionne sur réseau faible.
+  sous-traitance façon (CMT), First Pass Yield.
+  *Critère* : ✅ déplacer une carte change l'état et journalise dans le chatter ; ✅ cibles
+  ≥ 44 px ; ⚠️ « fonctionne sur réseau faible » non mesuré (pas d'environnement de test
+  réseau contraint disponible).
 - **Écran T3** — Dossier d'import + CREDOC + landed cost (flux banque émettrice → banque
   notificatrice → bénéficiaire, coût de revient débarqué par SKU). *Non exploré/non
   réalisé.*
