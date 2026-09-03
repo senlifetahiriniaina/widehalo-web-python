@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Tableaux de mesures" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'patronage:config_index' %}">{% trans "Configuration Patronage" %}</a>
+  <span>/</span> {% trans "Tableaux de mesures" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Tableaux de mesures" %}</h1>
 </div>
@@ -57,6 +61,6 @@
       <label for="base_size">{% trans "Taille de base" %}</label>
       <input id="base_size" type="text" name="base_size" placeholder="M" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

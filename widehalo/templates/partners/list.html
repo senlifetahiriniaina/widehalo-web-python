@@ -2,10 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Partenaires" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Partenaires" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Partenaires" %}</h1>
 </div>
-  <p><a href="{% url 'partners:wizard' %}">{% trans "Nouveau partenaire" %}</a></p>
+  <p><a href="{% url 'partners:wizard' %}" class="btn btn-primary">{% trans "Nouveau partenaire" %}</a></p>
   <p>
     <a href="{% url 'partners:duplicates' %}">{% trans "Alertes de doublon" %}</a>
     &middot;

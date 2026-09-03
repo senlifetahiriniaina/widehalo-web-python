@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Présence" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Rapports Présence" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Rapports Présence (§5.9.6)" %}</h1>
 </div>
@@ -9,36 +10,36 @@
   <h2>PRS-POINT — {% trans "Feuille de pointage mensuelle" %}</h2>
   <form method="get" action="{% url 'presence:report_attendance_sheet' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 
   <h2>PRS-ABS — {% trans "Registre des absences" %}</h2>
   <form method="get" action="{% url 'presence:report_absences' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 
   <h2>PRS-SOLDE — {% trans "Soldes de congés" %}</h2>
   <form method="get" action="{% url 'presence:report_leave_balances' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 
   <h2>PRS-HSUP — {% trans "Heures supplémentaires" %}</h2>
   <form method="get" action="{% url 'presence:report_overtime' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 
   <h2>PRS-ABSENT — {% trans "Taux d'absentéisme par département" %}</h2>
   <form method="get" action="{% url 'presence:report_absenteeism' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 
   <h2>PRS-COHER — {% trans "Écart présence / CRA" %}</h2>
   <form method="get" action="{% url 'presence:report_reconciliation' %}">
     <select name="format"><option value="json">JSON</option><option value="csv">CSV</option><option value="xlsx">XLSX</option></select>
-    <button type="submit">{% trans "Télécharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Télécharger" %}</c-button>
   </form>
 {% endblock %}

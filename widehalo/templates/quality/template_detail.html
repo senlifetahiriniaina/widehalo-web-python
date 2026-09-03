@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ template.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'qlt_template_list' %}">{% trans "Gabarits de contrôle qualité" %}</a>
+  <span>/</span> {{ template.name }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ template.name }}</h1>
 </div>

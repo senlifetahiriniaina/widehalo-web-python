@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Fusionner des partenaires" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'partners:list' %}">{% trans "Partenaires" %}</a>
+  <span>/</span> {% trans "Fusionner" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Fusionner deux partenaires" %}</h1>
 </div>
@@ -27,6 +31,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Fusionner" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Fusionner" %}</c-button>
   </form>
 {% endblock %}

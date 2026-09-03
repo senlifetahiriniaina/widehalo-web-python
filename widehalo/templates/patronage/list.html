@@ -2,9 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Patrons" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Patrons" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Patrons" %}</h1>
 </div>
-  <p><a href="{% url 'patronage:create' %}">{% trans "Nouveau patron" %}</a></p>
+  <p><a href="{% url 'patronage:create' %}" class="btn btn-primary">{% trans "Nouveau patron" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

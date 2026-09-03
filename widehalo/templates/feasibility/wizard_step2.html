@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ study.name }} — {% trans "Lignes" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'feasibility:list' %}">{% trans "Études de faisabilité" %}</a>
+  <span>/</span> {{ study.name }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ study.name }}</h1>
 </div>
@@ -52,7 +56,7 @@
       <label for="assumed_unit_price_mga">{% trans "Prix unitaire hypothèse (MGA)" %}</label>
       <input id="assumed_unit_price_mga" type="text" name="assumed_unit_price_mga" value="0">
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <p>

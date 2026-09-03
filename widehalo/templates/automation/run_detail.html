@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Exécution" %} {{ run.id }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'automation:list' %}">{% trans "Studio de workflow" %}</a>
+  <span>/</span> <a href="{% url 'automation:run_history' run.flow_id %}">{{ run.flow.name }}</a>
+  <span>/</span> {% trans "Exécution" %} {{ run.id }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Exécution" %} {{ run.id }}</h1>
 </div>

@@ -2,11 +2,12 @@
 {% load i18n %}
 {% block title %}{% trans "Gabarits de contrôle qualité" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Gabarits de contrôle qualité" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Gabarits de contrôle qualité" %}</h1>
 </div>
   <p>
-    <a href="{% url 'qlt_template_create' %}">{% trans "Nouveau gabarit" %}</a>
+    <a href="{% url 'qlt_template_create' %}" class="btn btn-primary">{% trans "Nouveau gabarit" %}</a>
     <a href="{% url 'qlt_inspection_list' %}">{% trans "Voir les inspections" %}</a>
   </p>
   {% include "components/_smart_table.html" %}

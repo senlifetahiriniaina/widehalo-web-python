@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Signaler un risque" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'risk_list' %}">{% trans "Registre des risques" %}</a>
+  <span>/</span> {% trans "Signaler un risque" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Signaler un risque" %}</h1>
 </div>
@@ -24,6 +28,6 @@
     <label for="risk-mitigation">{% trans "Plan d'atténuation" %}</label>
     <textarea id="risk-mitigation" name="mitigation_plan"></textarea>
 
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

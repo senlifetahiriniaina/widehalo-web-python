@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Import des partenaires" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'partners:list' %}">{% trans "Partenaires" %}</a>
+  <span>/</span> {% trans "Import" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Import des partenaires" %}</h1>
 </div>
@@ -15,7 +19,7 @@
       <label for="file">{% trans "Fichier xlsx" %}</label>
       <input id="file" type="file" name="file" accept=".xlsx" required>
     </div>
-    <button type="submit">{% trans "Importer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Importer" %}</c-button>
   </form>
 
   {% if summary %}

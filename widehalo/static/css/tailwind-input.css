@@ -183,6 +183,20 @@
 @source "../../templates/crm/**/*.html";
 @source "../../templates/sales/**/*.html";
 
+/* Sprint 13 (L9 rattrapage du catalogue existant, cf.
+   docs/planning/2026-refonte-ux-sprints.md §5 bis), batch 2 : meme
+   elargissement pour partners, patronage, quality, financing, risk,
+   feasibility, automation et presence -- deuxieme des 3 batches du
+   sprint. */
+@source "../../templates/partners/**/*.html";
+@source "../../templates/patronage/**/*.html";
+@source "../../templates/quality/**/*.html";
+@source "../../templates/financing/**/*.html";
+@source "../../templates/risk/**/*.html";
+@source "../../templates/feasibility/**/*.html";
+@source "../../templates/automation/**/*.html";
+@source "../../templates/presence/**/*.html";
+
 /* Habillage minimal du fragment de resultats de recherche instantanee
    (templates/components/_instant_search_results.html, HTML nu reutilise
    tel quel par la command palette du nouveau shell -- cf. cotton/shell.html)

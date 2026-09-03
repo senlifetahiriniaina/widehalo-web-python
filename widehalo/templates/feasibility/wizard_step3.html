@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ study.name }} — {% trans "Simulation" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'feasibility:list' %}">{% trans "Études de faisabilité" %}</a>
+  <span>/</span> {{ study.name }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ study.name }}</h1>
 </div>
@@ -38,7 +42,7 @@
               {% csrf_token %}
               <input type="hidden" name="action" value="simulate_line">
               <input type="hidden" name="line_id" value="{{ line.id }}">
-              <button type="submit">{% trans "Simuler" %}</button>
+              <c-button variant="primary" type="submit">{% trans "Simuler" %}</c-button>
             </form>
           </td>
         </tr>
@@ -54,6 +58,6 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="complete">
-    <button type="submit">{% trans "Terminer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Terminer" %}</c-button>
   </form>
 {% endblock %}

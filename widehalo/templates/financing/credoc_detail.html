@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ credoc.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'financing:credoc-list' %}">{% trans "Crédits documentaires (CREDOC)" %}</a>
+  <span>/</span> {{ credoc.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Crédit documentaire" %} {{ credoc.reference }}</h1>
 </div>
@@ -30,12 +34,12 @@
   {% endif %}
 
   {% if credoc.state == "demande" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="open"><button type="submit">{% trans "Ouvrir" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="open"><c-button variant="primary" type="submit">{% trans "Ouvrir" %}</c-button></form>
   {% elif credoc.state == "ouvert" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="receive_documents"><button type="submit">{% trans "Marquer documents reçus" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="receive_documents"><c-button variant="primary" type="submit">{% trans "Marquer documents reçus" %}</c-button></form>
   {% elif credoc.state == "documents_recus" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="pay"><button type="submit">{% trans "Marquer paye" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="pay"><c-button variant="primary" type="submit">{% trans "Marquer paye" %}</c-button></form>
   {% elif credoc.state == "paye" %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button type="submit">{% trans "Clôturer" %}</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button></form>
   {% endif %}
 {% endblock %}

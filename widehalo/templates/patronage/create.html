@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouveau patron" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'patronage:list' %}">{% trans "Patrons" %}</a>
+  <span>/</span> {% trans "Nouveau patron" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouveau patron" %}</h1>
 </div>
@@ -30,6 +34,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer le patron" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer le patron" %}</c-button>
   </form>
 {% endblock %}

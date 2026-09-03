@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{{ size_chart.code }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'patronage:config_index' %}">{% trans "Configuration Patronage" %}</a>
+  <span>/</span> <a href="{% url 'patronage:config_size_charts' %}">{% trans "Tableaux de mesures" %}</a>
+  <span>/</span> {{ size_chart.code }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ size_chart.code }} — {{ size_chart.name }}</h1>
 </div>
@@ -50,7 +55,7 @@
         <option value="angle">{% trans "Angle" %}</option>
       </select>
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <h2>{% trans "Ajouter/mettre a jour une valeur" %}</h2>
@@ -77,6 +82,6 @@
       <label for="value">{% trans "Valeur" %}</label>
       <input id="value" type="number" name="value" step="0.01" required>
     </div>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

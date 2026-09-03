@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ inspection.template.name }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'qlt_inspection_list' %}">{% trans "Inspections qualité" %}</a>
+    <span>/</span> {{ inspection.template.name }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Résultat" %}:</strong>
     {% if inspection.passed %}{% trans "Conforme" %}{% else %}{% trans "Non conforme" %}{% endif %}

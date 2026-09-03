@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouveau CREDOC" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'financing:credoc-list' %}">{% trans "Crédits documentaires (CREDOC)" %}</a>
+  <span>/</span> {% trans "Nouveau CREDOC" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouveau crédit documentaire" %}</h1>
 </div>
@@ -36,6 +40,6 @@
       <label for="validity_date">{% trans "Date de validité" %}</label>
       <input id="validity_date" type="date" name="validity_date" required>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

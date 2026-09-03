@@ -2,11 +2,12 @@
 {% load i18n %}
 {% block title %}{% trans "Inspections qualité" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Inspections qualité" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Inspections qualité" %}</h1>
 </div>
   <p>
-    <a href="{% url 'qlt_inspection_create' %}">{% trans "Nouvelle inspection" %}</a>
+    <a href="{% url 'qlt_inspection_create' %}" class="btn btn-primary">{% trans "Nouvelle inspection" %}</a>
     <a href="{% url 'qlt_template_list' %}">{% trans "Voir les gabarits" %}</a>
   </p>
   {% include "components/_smart_table.html" %}

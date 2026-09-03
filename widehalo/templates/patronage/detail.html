@@ -2,13 +2,17 @@
 {% load i18n core_extras %}
 {% block title %}{{ pattern.name }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'patronage:list' %}">{% trans "Patrons" %}</a>
+    <span>/</span> {{ pattern.name }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ pattern.state|state_badge_class }}">{{ pattern.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     {% if pattern.state == "draft" %}
       <form method="post" style="display:inline;">
         {% csrf_token %}
-        <button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
+        <c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>
       </form>
     {% endif %}
   </div>
@@ -57,7 +61,7 @@
               <input id="geom_{{ code }}_{{ piece.id }}" type="number" step="0.01" name="{{ code }}">
             </div>
           {% endfor %}
-          <button type="submit">{% trans "Générer la géométrie" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Générer la géométrie" %}</c-button>
         </form>
       </li>
     {% empty %}
@@ -85,7 +89,7 @@
       <label for="piece_material_variant_id">{% trans "Matière (UUID)" %}</label>
       <input id="piece_material_variant_id" type="text" name="material_variant_id">
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <h2>{% trans "Consommation matière" %}</h2>
@@ -124,7 +128,7 @@
       <label for="cons_waste_pct">{% trans "Taux de chute (%)" %}</label>
       <input id="cons_waste_pct" type="number" step="0.01" name="waste_pct" value="0">
     </div>
-    <button type="submit">{% trans "Calculer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Calculer" %}</c-button>
   </form>
 
   <h2>{% trans "Plan de coupe" %}</h2>
@@ -155,7 +159,7 @@
       <label for="marker_size_ratio">{% trans "Ratio de tailles (ex: S:2,M:3)" %}</label>
       <input id="marker_size_ratio" type="text" name="size_ratio" required>
     </div>
-    <button type="submit">{% trans "Calculer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Calculer" %}</c-button>
   </form>
 
   <h3>{% trans "Pousser vers une nomenclature" %}</h3>
@@ -170,7 +174,7 @@
       <label for="push_material_variant_id">{% trans "Matière (UUID)" %}</label>
       <input id="push_material_variant_id" type="text" name="material_variant_id" required>
     </div>
-    <button type="submit">{% trans "Pousser" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Pousser" %}</c-button>
   </form>
   <form method="post" style="display:inline-block;">
     {% csrf_token %}
@@ -183,7 +187,7 @@
       <label for="revert_material_variant_id">{% trans "Matière (UUID)" %}</label>
       <input id="revert_material_variant_id" type="text" name="material_variant_id" required>
     </div>
-    <button type="submit">{% trans "Retirer" %}</button>
+    <c-button variant="danger" type="submit">{% trans "Retirer" %}</c-button>
   </form>
 
   <h2>{% trans "Nouvelle version" %}</h2>
@@ -199,7 +203,7 @@
   {% endif %}
   <form method="post">
     {% csrf_token %}
-    <button type="submit" name="action" value="new_version">{% trans "Créer une nouvelle version" %}</button>
+    <c-button variant="primary" type="submit" name="action" value="new_version">{% trans "Créer une nouvelle version" %}</c-button>
   </form>
 
   <h2>{% trans "Mesures gradées" %}</h2>

@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Règles de gradation" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'patronage:config_index' %}">{% trans "Configuration Patronage" %}</a>
+  <span>/</span> {% trans "Règles de gradation" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Règles de gradation" %}</h1>
 </div>
@@ -86,7 +90,7 @@
       <label for="to_size">{% trans "A la taille" %}</label>
       <input id="to_size" type="text" name="to_size" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
   {% endif %}
 {% endblock %}

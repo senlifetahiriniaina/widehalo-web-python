@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ application.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'financing:list' %}">{% trans "Dossiers de financement" %}</a>
+  <span>/</span> {{ application.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Dossier de financement" %} {{ application.reference }}</h1>
 </div>
@@ -35,14 +39,14 @@
     <input type="text" name="label" placeholder="{% trans 'Libelle' %}" aria-label="{% trans 'Libelle' %}">
     <input type="number" step="0.01" name="amount_mga" placeholder="{% trans 'Montant' %}"
            aria-label="{% trans 'Montant' %}">
-    <button type="submit">{% trans "Ajouter une ligne" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter une ligne" %}</c-button>
   </form>
 
   {% if application.state == "draft" %}
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="submit">
-      <button type="submit">{% trans "Soumettre a la banque" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Soumettre a la banque" %}</c-button>
     </form>
   {% endif %}
 
@@ -56,7 +60,7 @@
       </select>
       <input type="text" name="rejection_reason" placeholder="{% trans 'Motif de rejet' %}"
              aria-label="{% trans 'Motif de rejet' %}">
-      <button type="submit">{% trans "Enregistrer la décision" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer la décision" %}</c-button>
     </form>
   {% endif %}
 
@@ -93,6 +97,6 @@
            aria-label="{% trans 'Description du bien' %}">
     <input type="number" step="0.01" name="estimated_value_mga" placeholder="{% trans 'Valeur estimee' %}"
            aria-label="{% trans 'Valeur estimee' %}">
-    <button type="submit">{% trans "Ajouter une sûreté" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter une sûreté" %}</c-button>
   </form>
 {% endblock %}

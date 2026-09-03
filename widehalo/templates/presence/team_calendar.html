@@ -2,6 +2,7 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Calendrier d'équipe" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Calendrier d'équipe" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Calendrier d'équipe" %} — {{ date }}</h1>
 </div>
@@ -10,7 +11,7 @@
       <label for="date">{% trans "Date" %}</label>
       <input type="date" id="date" name="date" value="{{ date|date:'Y-m-d' }}">
     </div>
-    <button type="submit">{% trans "Afficher" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Afficher" %}</c-button>
   </form>
 
   <h2>{% trans "Présents" %}</h2>

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Doublons partenaires" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'partners:list' %}">{% trans "Partenaires" %}</a>
+  <span>/</span> {% trans "Alertes de doublon" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Alertes de doublon" %}</h1>
 </div>
@@ -27,7 +31,7 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="alert_id" value="{{ alert.id }}">
-              <button type="submit">{% trans "Résoudre" %}</button>
+              <c-button variant="primary" type="submit">{% trans "Résoudre" %}</c-button>
             </form>
           </td>
         </tr>

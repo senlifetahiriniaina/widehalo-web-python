@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouveau flux" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'automation:list' %}">{% trans "Studio de workflow" %}</a>
+  <span>/</span> {% trans "Nouveau flux" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouveau flux d'automatisation" %}</h1>
 </div>
@@ -24,6 +28,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer et ouvrir le constructeur" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer et ouvrir le constructeur" %}</c-button>
   </form>
 {% endblock %}

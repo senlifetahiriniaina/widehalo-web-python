@@ -2,9 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Dossiers de financement" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Dossiers de financement" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Dossiers de financement" %}</h1>
 </div>
-  <p><a href="{% url 'financing:create' %}">{% trans "Nouveau dossier" %}</a></p>
+  <p><a href="{% url 'financing:create' %}" class="btn btn-primary">{% trans "Nouveau dossier" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

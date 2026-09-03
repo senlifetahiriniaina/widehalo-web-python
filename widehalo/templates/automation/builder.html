@@ -14,6 +14,10 @@
   </style>
 {% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'automation:list' %}">{% trans "Studio de workflow" %}</a>
+  <span>/</span> {{ flow.name }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ flow.name }} <small>({{ flow.reference }})</small></h1>
 </div>
@@ -25,9 +29,9 @@
   <form method="post" style="display:inline">
     {% csrf_token %}
     <input type="hidden" name="action" value="toggle_active">
-    <button type="submit">
+    <c-button variant="primary" type="submit">
       {% if flow.is_active %}{% trans "Désactiver" %}{% else %}{% trans "Activer" %}{% endif %}
-    </button>
+    </c-button>
   </form>
   <a href="{% url 'automation:run_history' flow.id %}">{% trans "Historique d'exécution" %}</a>
 
@@ -47,7 +51,7 @@
   <form method="post" id="canvas-form">
     {% csrf_token %}
     <input type="hidden" name="canvas_json" id="canvas_json">
-    <button type="submit">{% trans "Enregistrer le canevas" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer le canevas" %}</c-button>
   </form>
 
   <script>

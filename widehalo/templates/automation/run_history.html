@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Historique d'exécution" %} — {{ flow.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'automation:list' %}">{% trans "Studio de workflow" %}</a>
+  <span>/</span> <a href="{% url 'automation:builder' flow.id %}">{{ flow.name }}</a>
+  <span>/</span> {% trans "Historique d'exécution" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Historique d'exécution" %} — {{ flow.name }}</h1>
 </div>

@@ -2,9 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Études de faisabilité" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Études de faisabilité" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Études de faisabilité" %}</h1>
 </div>
-  <p><a href="{% url 'feasibility:create' %}">{% trans "Nouvelle étude" %}</a></p>
+  <p><a href="{% url 'feasibility:create' %}" class="btn btn-primary">{% trans "Nouvelle étude" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

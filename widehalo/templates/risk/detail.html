@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}<span class="badge {{ risk_item.category|state_badge_class }}">{{ risk_item.get_category_display }}</span> — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'risk_list' %}">{% trans "Registre des risques" %}</a>
+    <span>/</span> {{ risk_item.get_category_display }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ risk_item.status|state_badge_class }}">{{ risk_item.get_status_display }}</span>
   </div>
@@ -19,13 +23,13 @@
   <form method="post">
     {% csrf_token %}
     <textarea name="mitigation_plan">{{ risk_item.mitigation_plan }}</textarea>
-    <button type="submit" name="action" value="update">{% trans "Mettre a jour" %}</button>
+    <c-button variant="primary" type="submit" name="action" value="update">{% trans "Mettre a jour" %}</c-button>
   </form>
 
   {% if risk_item.status != "closed" %}
     <form method="post">
       {% csrf_token %}
-      <button type="submit" name="action" value="close">{% trans "Clôturer le risque" %}</button>
+      <c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer le risque" %}</c-button>
     </form>
   {% endif %}
 {% endblock %}

@@ -2,6 +2,7 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Demande d'absence" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Demande d'absence" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Demande d'absence" %}</h1>
 </div>
@@ -25,7 +26,7 @@
         <label for="date_to">{% trans "Au" %}</label>
         <input type="date" id="date_to" name="date_to" required>
       </div>
-      <button type="submit">{% trans "Soumettre" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Soumettre" %}</c-button>
     </form>
 
     <h2>{% trans "Mes demandes récentes" %}</h2>

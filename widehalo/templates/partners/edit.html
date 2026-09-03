@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Modifier" %} {{ partner.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'partners:list' %}">{% trans "Partenaires" %}</a>
+  <span>/</span> <a href="{% url 'partners:detail' partner.id %}">{{ partner.name }}</a>
+  <span>/</span> {% trans "Modifier" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Modifier le partenaire" %}</h1>
 </div>
@@ -29,7 +34,7 @@
       <label for="credit_limit_mga">{% trans "Plafond crédit (MGA)" %}</label>
       <input id="credit_limit_mga" type="number" name="credit_limit_mga" value="{{ partner.credit_limit_mga }}" min="0" step="0.01">
     </div>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     <a href="{% url 'partners:detail' partner.id %}">{% trans "Annuler" %}</a>
   </form>
 {% endblock %}

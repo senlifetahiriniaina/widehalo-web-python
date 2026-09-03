@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Kiosque de pointage" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Pointage" %}</c-breadcrumb>
 <div style="max-width:420px;margin:8vh auto;text-align:center;">
 <div class="page-head">
   <h1>{% trans "Pointage" %}</h1>
@@ -19,7 +20,7 @@
       <label for="reference">{% trans "Matricule" %}</label>
       <input type="text" id="reference" name="reference" autofocus required>
     </div>
-    <button type="submit">{% trans "Pointer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Pointer" %}</c-button>
   </form>
 </div>
 {% endblock %}
