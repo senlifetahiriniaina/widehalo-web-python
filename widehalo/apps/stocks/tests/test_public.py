@@ -13,13 +13,15 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkLocation, StkReservation
+from apps.stocks.models import StkLocation, StkPicking, StkQuant, StkReservation
 from apps.stocks.services.public import (
     apply_landed_cost_to_valuation,
     check_and_reserve_stock,
+    deliver_reserved_stock,
     get_available_stock_qty,
 )
 from apps.stocks.tests.factories import (
@@ -27,6 +29,7 @@ from apps.stocks.tests.factories import (
     StkMoveFactory,
     StkQuantFactory,
     StkValuationLayerFactory,
+    StkWarehouseFactory,
 )
 
 pytestmark = pytest.mark.django_db
@@ -150,6 +153,67 @@ def test_check_and_reserve_stock_records_source_object(tenant) -> None:
 # ---------------------------------------------------------------------------
 # get_available_stock_qty — gap ajoute pour lever le stub RG-PUR-3.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# deliver_reserved_stock — correctif du gap sales.mark_delivered
+# (docs/audit/2026-09-cahier-des-charges-v3-audit.md, §6/§8).
+# ---------------------------------------------------------------------------
+
+
+def test_deliver_reserved_stock_moves_qty_and_releases_reservation(tenant) -> None:
+    variant_id = uuid.uuid4()
+    warehouse = StkWarehouseFactory(tenant=tenant)
+    internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+    client_location = StkLocationFactory(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT
+    )
+    quant = StkQuantFactory(
+        tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(20)
+    )
+    reservation_id = check_and_reserve_stock(
+        tenant, variant_id=variant_id, qty=Decimal(7), date=dt.date(2026, 1, 15)
+    )
+    assert reservation_id is not None
+
+    picking_id = deliver_reserved_stock(
+        tenant, reservation_id=reservation_id, date=dt.date(2026, 1, 16), source_document="CMD-1"
+    )
+
+    picking = StkPicking.objects.get(id=picking_id)
+    assert picking.type == StkPicking.TYPE_SORTIE
+    assert picking.state == StkPicking.STATE_DONE
+    assert picking.location_from_id == internal_location.id
+    assert picking.location_to_id == client_location.id
+    assert picking.source_document == "CMD-1"
+
+    quant.refresh_from_db()
+    assert quant.qty == Decimal(13)  # 20 - 7 physiquement sorties
+    assert quant.qty_reserved == Decimal(0)  # reservation liberee
+
+    reservation = StkReservation.objects.get(id=reservation_id)
+    assert reservation.state == StkReservation.STATE_RELEASED
+
+    client_quant = StkQuant.objects.get(location=client_location, variant_id=variant_id)
+    assert client_quant.qty == Decimal(7)  # double-entree RG-STK-1
+
+
+def test_deliver_reserved_stock_raises_without_a_client_location(tenant) -> None:
+    variant_id = uuid.uuid4()
+    # Entrepot SANS emplacement virtuel "client" configure.
+    internal_location = StkLocationFactory(tenant=tenant)
+    StkQuantFactory(tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(20))
+    reservation_id = check_and_reserve_stock(
+        tenant, variant_id=variant_id, qty=Decimal(5), date=dt.date(2026, 1, 15)
+    )
+    assert reservation_id is not None
+
+    with pytest.raises(ValidationError):
+        deliver_reserved_stock(tenant, reservation_id=reservation_id, date=dt.date(2026, 1, 16))
+
+    # La reservation reste active — rien n'a ete perdu par l'echec.
+    reservation = StkReservation.objects.get(id=reservation_id)
+    assert reservation.state == StkReservation.STATE_ACTIVE
 
 
 def test_get_available_stock_qty_aggregates_across_internal_quants(tenant) -> None:

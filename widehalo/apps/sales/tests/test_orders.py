@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -24,6 +25,8 @@ from apps.sales.services.orders import (
     start_preparation,
     unblock_order,
 )
+from apps.stocks.models import StkLocation, StkPicking, StkReservation
+from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory, StkWarehouseFactory
 from apps.sales.services.quotations import (
     accept_quotation,
     add_quotation_line,
@@ -179,6 +182,67 @@ def test_partial_then_full_delivery(orders_setup) -> None:
         assert partial.state == SalesOrder.STATE_PARTIALLY_DELIVERED
         full = mark_delivered(order, user)
         assert full.state == SalesOrder.STATE_DELIVERED
+
+
+def test_mark_delivered_creates_a_real_stock_picking_for_reserved_lines(orders_setup) -> None:
+    """Correctif de l'ecart confirme par l'audit
+    (docs/audit/2026-09-cahier-des-charges-v3-audit.md, §6/§8) : une ligne
+    "sur stock" effectivement reservee a la confirmation doit produire un
+    VRAI mouvement de sortie de stock a la livraison, pas seulement
+    `qty_delivered = qty`."""
+    tenant, user, partner = orders_setup
+    with use_tenant(tenant.id):
+        variant_id = uuid.uuid4()
+        warehouse = StkWarehouseFactory(tenant=tenant)
+        internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+        StkLocationFactory(tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT)
+        StkQuantFactory(
+            tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(50)
+        )
+
+        order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
+        line = add_order_line(
+            order,
+            variant_id=variant_id,
+            description="Article sur stock",
+            qty=Decimal(5),
+            unit_price=Decimal(1000),
+        )
+        confirm_order(order, user)
+        line.refresh_from_db()
+        assert line.stock_reservation_id is not None
+
+        start_preparation(order, user)
+        mark_delivered(order, user)
+
+        reservation = StkReservation.objects.get(id=line.stock_reservation_id)
+        assert reservation.state == StkReservation.STATE_RELEASED
+        picking = StkPicking.objects.get(source_document=order.reference)
+        assert picking.type == StkPicking.TYPE_SORTIE
+        assert picking.state == StkPicking.STATE_DONE
+
+        line.refresh_from_db()
+        assert line.qty_delivered == line.qty
+
+
+def test_mark_delivered_leaves_custom_lines_on_the_naive_path(orders_setup) -> None:
+    """Une ligne hors catalogue (`is_custom`) n'a jamais de reservation —
+    le comportement naif preexistant (`qty_delivered = qty` sans mouvement
+    de stock) reste inchange pour ce cas, perimetre assume du correctif
+    (cf. docstring `mark_delivered`)."""
+    tenant, user, partner = orders_setup
+    with use_tenant(tenant.id):
+        order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
+        add_order_line(
+            order, description="Prestation", qty=Decimal(1), unit_price=Decimal(1000), is_custom=True
+        )
+        confirm_order(order, user)
+        start_preparation(order, user)
+
+        delivered = mark_delivered(order, user)
+
+        assert delivered.state == SalesOrder.STATE_DELIVERED
+        assert not StkPicking.objects.filter(source_document=order.reference).exists()
 
 
 def test_close_order_requires_invoiced_state(orders_setup) -> None:

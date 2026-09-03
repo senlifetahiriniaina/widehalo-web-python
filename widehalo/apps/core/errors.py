@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from ninja import NinjaAPI
 from ninja.errors import ValidationError as NinjaValidationError
@@ -42,6 +43,18 @@ def register_exception_handlers(api: NinjaAPI) -> None:
             detail="Un ou plusieurs champs sont invalides.",
             instance=request.path,
             errors=exc.errors,
+        )
+
+    @api.exception_handler(PermissionDenied)
+    def on_permission_denied(request: Any, exc: PermissionDenied) -> JsonResponse:
+        # Convertit toute PermissionDenied levee par un service metier (ex.
+        # approvals.decide) en 403 — sans ce handler, elle tombait dans le
+        # handler generique Exception ci-dessous (500 en production).
+        return ProblemDetailResponse(
+            status=403,
+            title="Permission refusée",
+            detail=str(exc) or "permission refusée",
+            instance=request.path,
         )
 
     @api.exception_handler(Exception)

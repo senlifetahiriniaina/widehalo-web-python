@@ -35,6 +35,7 @@ from apps.core.services.workflow import attempt_transition
 from apps.partners.services.public import is_over_credit_limit
 from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation
 from apps.sales.services import procurement
+from apps.stocks.services.public import deliver_reserved_stock
 
 
 def _notify_salesperson(order: SalesOrder, notification_type: str, message: str) -> None:
@@ -333,11 +334,34 @@ def start_preparation(order: SalesOrder, user: User) -> SalesOrder:
 
 
 def mark_delivered(order: SalesOrder, user: User, *, partial: bool = False) -> SalesOrder:
-    """Simplification assumee (S2, pas encore de `stocks`) : aucune
-    integration entrepot reelle. Une livraison complete recopie
-    naivement `qty_delivered = qty` sur chaque ligne ; une livraison
-    partielle se contente de changer l'etat, le detail quantite par
-    quantite restant a la charge d'un futur module `stocks`."""
+    """Livraison complete : cree une VRAIE sortie de stock
+    (`stocks.services.public.deliver_reserved_stock`) pour chaque ligne
+    qualifiee "sur stock" et effectivement reservee
+    (`SalesOrderLine.stock_reservation_id`, cf.
+    `apps.sales.services.procurement`) — correctif d'un ecart reel
+    confirme par l'audit (docs/audit/2026-09-cahier-des-charges-v3-audit.md,
+    §6/§8) : `qty_delivered = qty` etait jusqu'ici recopie sans jamais
+    toucher `stocks`, alors que ce module est aujourd'hui pleinement
+    construit (le commentaire "S2, pas encore de stocks" etait devenu
+    obsolete).
+
+    **Perimetre assume de ce correctif** : seules les lignes "sur stock"
+    AVEC reservation active sont livrees reellement. Une ligne hors
+    catalogue (`is_custom`), qualifiee "a produire"/"a acheter", ou restee
+    `pending_stock` (stock insuffisant a la confirmation, cf.
+    `procurement._qualify_stock_line`) suit l'ancien comportement naif
+    (`qty_delivered = qty` sans mouvement de stock) — corriger EGALEMENT
+    ces cas suppose une decision metier (ex. relancer une reservation a la
+    livraison si le stock est redevenu suffisant entretemps) hors perimetre
+    d'une correction ponctuelle. Si `deliver_reserved_stock` echoue (aucun
+    emplacement client configure pour l'entrepot), la ligne concernee
+    reste `qty_delivered = 0` et l'exception remonte a l'appelant plutot
+    que d'etre absorbee silencieusement — mieux vaut un blocage visible
+    qu'une livraison faussement marquee complete.
+
+    Une livraison partielle se contente de changer l'etat, le detail
+    quantite par quantite restant hors perimetre de ce correctif (deja
+    disclosed avant lui, cf. `mark_partially_delivered`)."""
     if partial:
         attempt_transition(order, "mark_partially_delivered", user)
         order.save(update_fields=["state"])
@@ -346,6 +370,14 @@ def mark_delivered(order: SalesOrder, user: User, *, partial: bool = False) -> S
     attempt_transition(order, "mark_delivered", user)
     order.save(update_fields=["state"])
     for line in order.lines.all():
+        if line.source == SalesOrderLine.SOURCE_STOCK and line.stock_reservation_id is not None:
+            deliver_reserved_stock(
+                order.tenant,
+                reservation_id=line.stock_reservation_id,
+                date=timezone.now().date(),
+                source_document=order.reference,
+                operator=user,
+            )
         line.qty_delivered = line.qty
         line.save(update_fields=["qty_delivered"])
 

@@ -49,7 +49,19 @@ def lead_list(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
-    lead = get_object_or_404(CrmLead, id=lead_id)
+    # RG-CRM-5 (CRM-6 du cahier des charges) : correctif d'un manque reel —
+    # cette vue recuperait le lead SANS repasser par
+    # `scope_leads_for_user`, contrairement a `lead_list` juste au-dessus.
+    # Consequence avant ce correctif : n'importe quel utilisateur
+    # authentifie du tenant (pas seulement le vendeur assigne ou son
+    # equipe) pouvait consulter ET agir (changer d'etape, ajouter une
+    # activite/ligne) sur N'IMPORTE QUEL lead par simple connaissance de
+    # son UUID. `get_object_or_404` sur le queryset deja scope reproduit le
+    # meme comportement "objet inexistant" (404) qu'un ID invalide plutot
+    # que de distinguer "n'existe pas" de "existe mais hors portee" —
+    # coherent avec le choix deja fait sur les bulletins de paie (RG-PAY-9)
+    # de ne jamais laisser deviner l'existence d'un enregistrement d'autrui.
+    lead = get_object_or_404(scope_leads_for_user(CrmLead.objects.filter(is_active=True), request.user), id=lead_id)
     user = cast(User, request.user)
     error = None
 

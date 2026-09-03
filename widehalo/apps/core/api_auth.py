@@ -59,7 +59,7 @@ def mfa_confirm(request, payload: MfaVerifyIn):
     device = mfa_service.enroll_device(user)
     if not mfa_service.confirm_device(device, payload.token):
         return JsonResponse({"status": "invalid_token"}, status=400)
-    result = auth_service.complete_mfa_login(user)
+    result = auth_service.complete_mfa_login(request, user)
     return LoginOut(status=result.status, access=result.access, refresh=result.refresh)
 
 
@@ -70,7 +70,7 @@ def mfa_verify(request, payload: MfaVerifyIn):
     user = User.objects.filter(email=payload.email).first()
     if user is None or not mfa_service.verify_token(user, payload.token):
         return JsonResponse({"status": "invalid_token"}, status=400)
-    result = auth_service.complete_mfa_login(user)
+    result = auth_service.complete_mfa_login(request, user)
     return LoginOut(status=result.status, access=result.access, refresh=result.refresh)
 
 

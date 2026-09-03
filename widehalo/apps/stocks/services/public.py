@@ -22,13 +22,16 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
 from django.db.models import F
+from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
-from apps.stocks.models import StkLocation, StkQuant, StkValuationLayer
+from apps.stocks.models import StkLocation, StkPicking, StkQuant, StkReservation, StkValuationLayer
+from apps.stocks.services.pickings import add_picking_line, create_picking, mark_picking_ready, validate_picking
 from apps.stocks.services.quants import available_qty
-from apps.stocks.services.reservations import reserve_stock
+from apps.stocks.services.reservations import release_reservation, reserve_stock
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -115,6 +118,84 @@ def check_and_reserve_stock(
         tenant=tenant, quant=quant, qty=qty, date=date, source_object=source_object
     )
     return reservation.id
+
+
+@transaction.atomic
+def deliver_reserved_stock(
+    tenant: Tenant,
+    *,
+    reservation_id: UUID,
+    date: dt.date,
+    source_document: str = "",
+    operator: User | None = None,
+) -> UUID:
+    """Gap ajoute pour lever le dernier stub retroactif reel de la chaine
+    commerciale (audit `docs/audit/2026-09-cahier-des-charges-v3-audit.md`,
+    §6/§8) : `sales.services.orders.mark_delivered` recopiait jusqu'ici
+    `qty_delivered = qty` SANS jamais toucher `stocks`, avec un commentaire
+    date de l'epoque (S2) ou ce module n'existait pas encore — devenu
+    obsolete puisque `stocks` est aujourd'hui pleinement construit
+    (`check_and_reserve_stock` ci-dessus reservait deja le stock a la
+    confirmation de commande, mais rien ne consommait jamais cette
+    reservation a la livraison).
+
+    Consomme une `StkReservation` ACTIVE (creee par
+    `check_and_reserve_stock`) en une VRAIE sortie de stock : cree un
+    `StkPicking` de type "sortie" avec une seule ligne, le fait suivre son
+    cycle de vie complet (`draft -> ready -> done`, moteur ST2/ST4
+    reutilise integralement via `services.pickings`/`services.moves` —
+    aucune logique de mouvement dupliquee ici), PUIS libere la reservation
+    (RG-STK-8 : liberer `qty_reserved` est une action distincte de
+    l'execution physique du mouvement, cf. `services.reservations`).
+    `@transaction.atomic` : soit la livraison ET la liberation de la
+    reservation reussissent ensemble, soit aucune des deux n'est
+    persistee — jamais un picking valide avec une reservation restee
+    active (double-comptage du disponible) ni l'inverse.
+
+    Refuse (`ValidationError` i18n) si aucun emplacement virtuel `client`
+    n'existe pour l'entrepot de la reservation (meme garde exacte que
+    `services.returns.process_return`) — la reservation reste alors
+    active, a charge de l'appelant de la traiter manuellement.
+
+    Retourne l'UUID du `StkPicking` cree (bon de livraison)."""
+    reservation = StkReservation.objects.select_related(
+        "quant", "quant__location", "quant__location__warehouse", "quant__lot"
+    ).get(tenant=tenant, pk=reservation_id, state=StkReservation.STATE_ACTIVE)
+    quant = reservation.quant
+    location_from = quant.location
+
+    client_location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=location_from.warehouse, type=StkLocation.TYPE_CLIENT
+    ).first()
+    if client_location is None:
+        raise ValidationError(
+            _(
+                "Aucun emplacement virtuel client trouvé pour l'entrepôt de la "
+                "réservation — livraison impossible."
+            )
+        )
+
+    picking = create_picking(
+        tenant=tenant,
+        type=StkPicking.TYPE_SORTIE,
+        location_from=location_from,
+        location_to=client_location,
+        date_scheduled=date,
+        source_document=source_document,
+    )
+    add_picking_line(
+        picking,
+        variant_id=quant.variant_id,
+        qty=reservation.qty,
+        uom=quant.uom,
+        unit_cost_mga=quant.unit_cost_mga,
+        lot=quant.lot,
+        operator=operator,
+    )
+    mark_picking_ready(picking)
+    validate_picking(picking, date_done=date)
+    release_reservation(reservation)
+    return picking.id
 
 
 def get_available_stock_qty(variant_id: Any) -> Decimal:

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 
 from apps.core.models.notification import Notification, WhatsAppMessage
@@ -112,7 +114,14 @@ def record_inbound_whatsapp_message(
 def group_hourly(user: User) -> list[Notification]:
     """Regroupe les notifications non lues de la derniere heure par
     `grouped_key`, pour n'envoyer qu'un seul e-mail par groupe plutot
-    qu'un e-mail par notification individuelle."""
+    qu'un e-mail par notification individuelle.
+
+    Selection UNIQUEMENT : marque `email_sent_at` sur TOUTES les
+    notifications du groupe (candidates ET representants), mais n'envoie
+    rien elle-meme — c'est `send_grouped_email_notifications()` ci-dessous
+    qui envoie reellement, pour que cette fonction reste testable sans
+    backend e-mail (deja le comportement avant ce correctif, conserve a
+    l'identique pour ne pas casser `test_notifications_grouping.py`)."""
     since = timezone.now() - GROUPING_WINDOW
     candidates = Notification.objects.filter(
         user=user, created_at__gte=since, email_sent_at__isnull=True
@@ -130,3 +139,47 @@ def group_hourly(user: User) -> list[Notification]:
         email_sent_at=timezone.now()
     )
     return to_send
+
+
+def _render_email_body(notifications: list[Notification]) -> str:
+    lines: list[str] = []
+    for notification in notifications:
+        message = notification.payload.get("message") or notification.notification_type
+        lines.append(f"- {message}")
+        action_url = notification.payload.get("action_url")
+        if action_url:
+            label = notification.payload.get("action_label") or "Voir"
+            lines.append(f"  {label} : {settings.SITE_URL.rstrip('/')}{action_url}")
+    return "\n".join(lines)
+
+
+def send_grouped_email_notifications(user: User) -> int:
+    """Cahier des charges Phase 1 §9 (« Serveur d'envoi d'e-mail ») : envoie
+    reellement, via le backend e-mail Django configure (console en dev,
+    SMTP en prod — `config/settings/{dev,prod}.py::EMAIL_BACKEND`), le
+    resume horaire groupe des notifications de `user` — ecart confirme par
+    l'audit (docs/audit/2026-09-cahier-des-charges-v3-audit.md, §9) :
+    `group_hourly()` marquait `email_sent_at` sans jamais appeler
+    `django.core.mail.send_mail`, donc aucun e-mail ne partait jamais
+    reellement.
+
+    A appeler periodiquement (toutes les heures, cf. `GROUPING_WINDOW` et
+    la commande de management `send_grouped_notification_emails`) pour
+    chaque utilisateur ayant des notifications en attente — jamais depuis
+    le cycle de requete HTTP qui a cree la notification (l'envoi groupe
+    n'aurait alors plus aucun sens).
+
+    Renvoie le nombre de notifications effectivement incluses dans
+    l'e-mail (0 si rien a envoyer — n'envoie alors aucun e-mail vide)."""
+    to_send = group_hourly(user)
+    if not to_send:
+        return 0
+
+    send_mail(
+        subject=f"WideHalo — {len(to_send)} notification(s)",
+        message=_render_email_body(to_send),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+    return len(to_send)

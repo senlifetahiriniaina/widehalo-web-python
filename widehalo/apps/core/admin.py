@@ -52,8 +52,31 @@ class AuditLogAdmin(ModelAdmin):
 
 @admin.register(RegulatoryParameter)
 class RegulatoryParameterAdmin(ModelAdmin):
-    list_display = ("code", "tenant", "valid_from", "valid_to")
+    list_display = (
+        "code",
+        "tenant",
+        "version",
+        "valid_from",
+        "valid_to",
+        "statut_validation",
+        "valide_par",
+        "valide_le",
+    )
+    list_filter = ("statut_validation",)
     search_fields = ("code",)
+    actions = ["validate_oecfm"]
+
+    @admin.action(description="Valider (expert-comptable OECFM)")
+    def validate_oecfm(self, request, queryset):
+        # ACC-8/ACC-9 (cahier des charges Phase 1 §13.3) : seule action qui
+        # fait passer statut_validation a VALIDE_OECFM — jamais un defaut,
+        # jamais automatique. `mark_validated` journalise via le signal
+        # `_on_regulatory_parameter_save` (cf. apps.core.audit_signals).
+        count = 0
+        for parameter in queryset:
+            parameter.mark_validated(request.user)
+            count += 1
+        self.message_user(request, f"{count} paramètre(s) marqué(s) validé(s) OECFM.")
 
 
 @admin.register(CountryDefaultsProfile)

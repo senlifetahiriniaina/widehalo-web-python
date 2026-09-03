@@ -280,6 +280,39 @@ automatiquement au redémarrage de `web`/`worker` (`docker/entrypoint.sh`) ;
 aucune étape manuelle supplémentaire n'est nécessaire pour une mise à jour de
 code standard.
 
+## 9 bis. Verrou de mise en production et tâches planifiées
+
+Correctifs de l'audit `docs/audit/2026-09-cahier-des-charges-v3-audit.md`
+(§9, ACC-9 et canal e-mail des notifications) :
+
+- **Verrou de mise en production (cahier des charges Phase 1 §13.3,
+  ACC-9)** : avant toute mise en production commerciale, ou après toute
+  modification d'un paramètre réglementaire (`core_regulatory_parameter`),
+  exécuter :
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec web python manage.py check_regulatory_validation
+  ```
+
+  Sort en erreur (code de retour non nul) si un paramètre actuellement
+  effectif, utilisé par un calcul actif
+  (`apps.core.services.regulatory_governance.ACTIVE_CALCULATION_PARAMETER_CODES`),
+  n'a pas encore le statut « Validé OECFM » — validation à effectuer via
+  l'admin Django (action « Valider (expert-comptable OECFM) » sur l'écran
+  `RegulatoryParameter`) avant de relancer le déploiement. Ne jamais
+  contourner cette commande au motif que le déploiement doit avancer (cf.
+  cahier §4, « Aucune hypothèse réglementaire ne peut être levée par
+  défaut »).
+
+- **Résumé horaire des notifications par e-mail** : comme
+  `run_tenant_backups`/`run_sales_recurrences`, **aucun cron n'est
+  enregistré automatiquement** — à planifier toutes les heures via
+  l'ordonnanceur externe du VM :
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec web python manage.py send_grouped_notification_emails
+  ```
+
 ## 10. Sauvegarde
 
 Deux mécanismes complémentaires, à des granularités différentes — l'un ne

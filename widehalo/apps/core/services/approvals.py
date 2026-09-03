@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import PermissionDenied
 from django.db.models import DateTimeField, ExpressionWrapper, F, Q, QuerySet
 from django.utils import timezone
 
@@ -61,9 +62,40 @@ def pending_for_user(user: User) -> QuerySet[ApprovalRequest]:
     )
 
 
+def is_eligible_approver(approval_request: ApprovalRequest, user: User) -> bool:
+    """Reprend exactement les 3 conditions de `pending_for_user` (role
+    approbateur principal / delegation explicite / escalade de secours
+    apres `rule.escalate_after`), mais evaluees pour UNE demande deja
+    identifiee plutot que pour filtrer un queryset — utilisee par
+    `decide()` pour empecher un utilisateur authentifie quelconque de
+    decider d'une demande qui ne lui est pas adressee (RG-WF-DECIDE,
+    correctif d'un controle d'acces manquant : `decide_approval` n'avait
+    aucune verification d'eligibilite avant ce correctif)."""
+    rule = approval_request.rule
+    approver_roles = set(user.groups.values_list("name", flat=True))
+
+    if rule.approver_role and rule.approver_role in approver_roles:
+        return True
+    if approval_request.requested_by_id in _delegate_ids_for(user):
+        return True
+    if (
+        rule.fallback_approver_role
+        and rule.fallback_approver_role in approver_roles
+        and rule.escalate_after is not None
+        and timezone.now() >= approval_request.created_at + rule.escalate_after
+    ):
+        return True
+    return False
+
+
 def decide(
     request: ApprovalRequest, decided_by: User, *, approved: bool, comment: str = ""
 ) -> ApprovalRequest:
+    if not is_eligible_approver(request, decided_by):
+        raise PermissionDenied(
+            "Cet utilisateur n'est pas un approbateur eligible pour cette demande "
+            "(role approbateur, delegation ou escalade de secours requis)."
+        )
     request.status = (
         ApprovalRequest.STATUS_APPROVED if approved else ApprovalRequest.STATUS_REJECTED
     )
