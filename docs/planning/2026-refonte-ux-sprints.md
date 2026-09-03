@@ -294,15 +294,28 @@ propriétaire ou un rôle staff, 403 sinon) — corrige au passage un lien mort 
   non applicable dans ce contexte (pas d'expert-comptable disponible pour cette session) ;
   ✅ plafond social (8×SME) déjà calculé dynamiquement (préexistant).
 
+Livré (commit `0a81913`) pour **X2** : aucun écran de saisie d'écriture comptable
+libre/multi-lignes n'existait (uniquement des écritures générées automatiquement par
+d'autres domaines) — le cycle de vie brouillon→publication (`services/moves.py` :
+partie double RG-ACC-1, numérotation RG-ACC-3, périodes closes RG-ACC-4) existait déjà et
+n'était simplement pas exposé à un utilisateur. Trois écrans ajoutés
+(`accounting:quick_entry_list/create/detail`) suivant le patron déjà établi par les écrans
+facture ; nouveau `services/quick_entry.py::suggest_counterpart_account` (heuristique de
+co-occurrence — le compte le plus souvent associé à un autre sur une même écriture
+historique, aucun barème en dur). 5 tests (`test_x2_quick_entry.py`).
+
+- **Écran X2** — Saisie comptable rapide.
+  *Critère* : ✅ écriture équilibrée obligatoire avant publication (le service refuse déjà
+  toute écriture déséquilibrée) ; ✅ contrepartie suggérée à partir de l'historique.
+
 **Reporté** (hors périmètre traité cette semaine) :
-- **Écran X2** — Saisie comptable rapide (journal avec contreparties suggérées) :
-  *non réalisé*. Aucun écran de saisie d'écriture comptable libre/multi-lignes n'existe
-  dans `apps.accounting` (uniquement des écritures générées automatiquement par les autres
-  domaines) — à construire de zéro, hors budget de cette session.
-- **Migration du catalogue existant du domaine** (Sprint 9, 6 JT) : `accounting` et
-  `payroll` vers le nouveau design system — *non traitée* cette session.
-- **Raffinement renforcé** : saisie comptable rapide avec contreparties suggérées, écarts
-  PCG 2005 vs SYSCOHADA — sans objet tant que X2 n'est pas construit.
+- **Migration du catalogue existant du domaine** (Sprint 9, 6 JT) : `accounting` (15 écrans,
+  desormais 18 avec X2) et `payroll` vers le nouveau design system — *non traitée* cette
+  session, ni lors d'aucun sprint précédent (Sprints 1 et 2 documentent déjà ce même report
+  pour les écrans racine/catalog/mrp/purchase) : c'est un chantier de ré-habillage réel,
+  jamais entamé sur ce dépôt à ce jour.
+- **Raffinement renforcé** : écarts PCG 2005 vs SYSCOHADA — sans objet, aucun tenant
+  SYSCOHADA de test disponible pour valider visuellement la distinction.
 
 ### Sprint 10 — L6 Personnalisation & offline (6 JT / 15 disponibles)
 Personnalisation utilisateur (`user_preference` : colonnes, densité, thème, langue), PWA /
