@@ -75,6 +75,7 @@ from apps.stocks.services.pickings import (
     validate_picking,
 )
 from apps.stocks.services.quality import apply_quality_decision, set_quality_state
+from apps.stocks.services.quants import select_lot_fefo
 from apps.stocks.services.redistribution import suggest_redistribution
 from apps.stocks.services.reservations import release_reservation, reserve_stock
 from apps.stocks.services.returns import assess_return, cancel_return, create_return, process_return
@@ -261,6 +262,33 @@ def picking_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _lot_for_add_line(picking: StkPicking, variant_id: uuid.UUID, post: Any) -> StkLot | None:
+    """A1 refonte UX (Sprint 6 / L4, cf. docs/planning/2026-refonte-ux-sprints.md
+    §5 -- "Réception + lots + DLC/DLUO") : a la reception, cree/recupere le
+    lot avec sa DLC/DLUO directement depuis le formulaire d'ajout de ligne
+    (plus besoin d'un ecran separe) ; a la sortie/en interne, l'operateur
+    reference un lot deja existant par id (typiquement celui suggere par
+    `fefo_suggestion` ci-dessous)."""
+    lot_id = post.get("lot_id", "").strip()
+    if lot_id:
+        return get_object_or_404(StkLot, id=uuid.UUID(lot_id))
+
+    lot_name = post.get("lot_name", "").strip()
+    if not lot_name:
+        return None
+    lot, _created = StkLot.objects.get_or_create(
+        tenant=picking.tenant,
+        variant_id=variant_id,
+        name=lot_name,
+        defaults={
+            "date_production": parse_date(post.get("date_production", "")),
+            "date_expiry": parse_date(post.get("date_expiry", "")),
+            "supplier_lot": post.get("supplier_lot", ""),
+        },
+    )
+    return lot
+
+
 @login_required
 def picking_detail(request: HttpRequest, picking_id: str) -> HttpResponse:
     picking = get_object_or_404(StkPicking, id=picking_id)
@@ -272,12 +300,14 @@ def picking_detail(request: HttpRequest, picking_id: str) -> HttpResponse:
         post = request.POST
         try:
             if action == "add_line":
+                variant_id = uuid.UUID(post.get("variant_id", ""))
                 add_picking_line(
                     picking,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=variant_id,
                     qty=Decimal(post.get("qty") or "1"),
                     uom=post.get("uom", ""),
                     unit_cost_mga=Decimal(post.get("unit_cost_mga") or "0"),
+                    lot=_lot_for_add_line(picking, variant_id, post),
                     operator=user,
                 )
             elif action == "ready":
@@ -294,7 +324,48 @@ def picking_detail(request: HttpRequest, picking_id: str) -> HttpResponse:
     return _render(
         request,
         "pickings",
-        {"picking": picking, "lines": picking.moves.all(), "error": error, "pickings": None},
+        {
+            "picking": picking,
+            "lines": picking.moves.select_related("lot").all(),
+            "error": error,
+            "pickings": None,
+        },
+    )
+
+
+@login_required
+def fefo_suggestion(request: HttpRequest, picking_id: str) -> HttpResponse:
+    """A1 refonte UX (Sprint 6 / L4, cf. docs/planning/2026-refonte-ux-sprints.md
+    §5) : expose `services.quants.select_lot_fefo` comme suggestion
+    actionnable dans l'ecran de picking plutot que de laisser l'operateur
+    deviner un lot au hasard a la sortie. Reste une SUGGESTION -- l'operateur
+    reste libre de saisir un autre `lot_id` -- coherent avec la conception
+    deliberee de `select_lot_fefo` comme primitive de LECTURE (cf. sa
+    docstring : jamais appelee automatiquement par `validate_move`)."""
+    picking = get_object_or_404(StkPicking, id=picking_id)
+    suggestions: list[dict[str, Any]] = []
+    error = None
+    variant_id_raw = request.GET.get("variant_id", "")
+    if variant_id_raw:
+        try:
+            allocations = select_lot_fefo(
+                uuid.UUID(variant_id_raw),
+                location=picking.location_from,
+                qty_needed=Decimal(request.GET.get("qty") or "1"),
+            )
+            lots_by_id = {
+                lot.id: lot
+                for lot in StkLot.objects.filter(id__in=[a["lot_id"] for a in allocations])
+            }
+            suggestions = [
+                {"lot": lots_by_id[a["lot_id"]], "qty": a["qty"]}
+                for a in allocations
+                if a["lot_id"] in lots_by_id
+            ]
+        except (ValueError, ValidationError) as exc:
+            error = _error_message(exc)
+    return render(
+        request, "stocks/_fefo_suggestion.html", {"suggestions": suggestions, "error": error}
     )
 
 

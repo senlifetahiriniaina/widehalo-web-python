@@ -32,6 +32,11 @@ urlpatterns = [
     path("moves/<uuid:move_id>/", views.move_detail, name="move_detail"),
     path("pickings/", views.picking_list, name="picking_list"),
     path("pickings/<uuid:picking_id>/", views.picking_detail, name="picking_detail"),
+    path(
+        "pickings/<uuid:picking_id>/fefo-suggestion/",
+        views.fefo_suggestion,
+        name="fefo_suggestion",
+    ),
     path("measurements/", views.measurement_create, name="measurement_create"),
     path("quality/", views.quality_list, name="quality_list"),
     path("reservations/", views.reservation_list, name="reservation_list"),

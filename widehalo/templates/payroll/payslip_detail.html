@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{{ payslip.reference }} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Bulletin de paie" %} {{ payslip.reference }}</h1>
+</div>
+<p>{% trans "Période" %} : {{ payslip.date_from }} — {{ payslip.date_to }}</p>
+<p>{% trans "Statut" %} : <span class="badge {{ payslip.state|state_badge_class }}">{{ payslip.get_state_display }}</span></p>
+
+<div class="kpi-row">
+  <div class="card panel-body"><h3>{% trans "Brut" %}</h3><p>{{ payslip.gross }} MGA</p></div>
+  <div class="card panel-body"><h3>{% trans "Base imposable" %}</h3><p>{{ payslip.taxable_base }} MGA</p></div>
+  <div class="card panel-body"><h3>{% trans "IRSA" %}</h3><p>{{ payslip.irsa }} MGA</p></div>
+  <div class="card panel-body"><h3>{% trans "Cotisations salariales (CNaPS + OSTIE)" %}</h3><p>{{ payslip.social_employee }} MGA</p></div>
+  <div class="card panel-body"><h3>{% trans "Cotisations patronales (CNaPS + OSTIE + FMFP)" %}</h3><p>{{ payslip.social_employer }} MGA</p></div>
+  <div class="card panel-body"><h3>{% trans "Net à payer" %}</h3><p>{{ payslip.net_to_pay }} MGA</p></div>
+</div>
+
+<h2>{% trans "Détail du calcul" %}</h2>
+<table class="smart-table">
+  <thead>
+    <tr>
+      <th>{% trans "Rubrique" %}</th>
+      <th>{% trans "Base" %}</th>
+      <th>{% trans "Taux" %}</th>
+      <th>{% trans "Montant" %}</th>
+      <th>{% trans "Charge employeur" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+      <tr>
+        <td>{{ line.label }}</td>
+        <td class="col-num">{{ line.base }}</td>
+        <td class="col-num">{{ line.rate|default:"—" }}</td>
+        <td class="col-num">{{ line.amount }}</td>
+        <td>{{ line.is_employer_charge|yesno:"Oui,Non" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5">{% trans "Bulletin pas encore calculé." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p>
+  <a href="{% url 'payroll:payslip_download' payslip_id=payslip.id %}" class="btn btn-primary">{% trans "Télécharger le PDF" %}</a>
+  <a href="{% url 'payroll:my_payslips' %}">{% trans "Retour à la liste" %}</a>
+</p>
+{% endblock %}

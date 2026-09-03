@@ -16,6 +16,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.services.regulatory import get_parameter
 from apps.payroll.services.seed import (
     CODE_CNAPS_RATE,
+    CODE_FMFP_RATE,
     CODE_IRSA_BRACKETS,
     CODE_IRSA_DEPENDENT_REDUCTION,
     CODE_IRSA_MINIMUM,
@@ -48,6 +49,7 @@ class PayrollParams:
     cnaps_employee_rate: Decimal
     ostie_employer_rate: Decimal
     ostie_employee_rate: Decimal
+    fmfp_employer_rate: Decimal
     sme: Decimal
     social_ceiling_multiplier: Decimal
     overtime_exempt_hours: Decimal
@@ -75,6 +77,7 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
     )
     cnaps = get_parameter(CODE_CNAPS_RATE, at_date, tenant=tenant)
     ostie = get_parameter(CODE_OSTIE_RATE, at_date, tenant=tenant)
+    fmfp = get_parameter(CODE_FMFP_RATE, at_date, tenant=tenant)
     sme = Decimal(get_parameter(CODE_SME, at_date, tenant=tenant)["amount"])
     ceiling_multiplier = Decimal(
         get_parameter(CODE_SOCIAL_CEILING_MULTIPLIER, at_date, tenant=tenant)["multiplier"]
@@ -91,6 +94,7 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
         cnaps_employee_rate=Decimal(cnaps["employee"]),
         ostie_employer_rate=Decimal(ostie["employer"]),
         ostie_employee_rate=Decimal(ostie["employee"]),
+        fmfp_employer_rate=Decimal(fmfp["employer"]),
         sme=sme,
         social_ceiling_multiplier=ceiling_multiplier,
         overtime_exempt_hours=overtime_exempt,

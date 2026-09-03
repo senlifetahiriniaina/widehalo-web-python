@@ -1,0 +1,19 @@
+{% load i18n %}
+<div id="fefo-suggestion">
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if suggestions %}
+    <p>{% trans "Suggestion FEFO (premier périmé, premier sorti) :" %}</p>
+    <ul>
+      {% for s in suggestions %}
+        <li>
+          {{ s.lot.name }} — {% trans "péremption" %} {{ s.lot.date_expiry|default:"—" }} — {{ s.qty }}
+          <button type="button" onclick="document.getElementById('add-line-lot-id').value='{{ s.lot.id }}'">
+            {% trans "Utiliser ce lot" %}
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% elif not error %}
+    <p>{% trans "Aucune suggestion — renseignez le produit et la quantité, puis cliquez sur « Suggérer un lot »." %}</p>
+  {% endif %}
+</div>

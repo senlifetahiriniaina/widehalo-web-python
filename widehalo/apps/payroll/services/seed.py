@@ -30,6 +30,11 @@ CODE_IRSA_MINIMUM = "payroll.irsa_minimum"
 CODE_IRSA_DEPENDENT_REDUCTION = "payroll.irsa_dependent_reduction"
 CODE_CNAPS_RATE = "payroll.cnaps_rate"
 CODE_OSTIE_RATE = "payroll.ostie_rate"
+# X3 refonte UX (Sprint 8 / L5, cf. docs/planning/2026-refonte-ux-sprints.md
+# §5) : FMFP absent du depot avant ce lot (aucun code/seed) — seul le
+# taux employeur existe (le CDC ne mentionne aucune part salariale pour le
+# FMFP), meme plafond que CNaPS/OSTIE (8×SME).
+CODE_FMFP_RATE = "payroll.fmfp_rate"
 CODE_SME = "payroll.sme"
 CODE_SOCIAL_CEILING_MULTIPLIER = "payroll.social_ceiling_multiplier"
 CODE_OVERTIME_EXEMPT_HOURS = "payroll.overtime_exempt_hours"
@@ -75,6 +80,12 @@ def seed_payroll_regulatory_params(tenant: Tenant, *, effective_date: dt.date | 
             CODE_OSTIE_RATE,
             {"employer": "0.05", "employee": "0.01"},
             "OSTIE",
+            effective_date,
+        ),
+        (
+            CODE_FMFP_RATE,
+            {"employer": "0.01", "employee": "0.00"},
+            "Fonds Malgache de Formation Professionnelle",
             effective_date,
         ),
         (

@@ -44,6 +44,7 @@ def _params_as_expr_dict(tenant: Tenant, period_date_from: object) -> dict[str, 
         "cnaps_employer_rate": params.cnaps_employer_rate,
         "ostie_employee_rate": params.ostie_employee_rate,
         "ostie_employer_rate": params.ostie_employer_rate,
+        "fmfp_employer_rate": params.fmfp_employer_rate,
         "sme": params.sme,
         "social_ceiling": params.social_ceiling,
         "overtime_exempt_hours": params.overtime_exempt_hours,
@@ -203,7 +204,13 @@ def compute_payslip(
     payslip.taxable_base = _get("BASE_IMPOSABLE")
     payslip.irsa = _get("IRSA_NET")
     payslip.social_employee = _get("CNAPS_SAL") + _get("OSTIE_SAL")
-    payslip.social_employer = _get("CNAPS_PAT") + _get("OSTIE_PAT")
+    # FMFP (Sprint 8 / L5 refonte UX, cf.
+    # docs/planning/2026-refonte-ux-sprints.md §5) : uniquement part
+    # employeur ("FMFP_PAT"), le CDC ne prevoit aucune part salariale —
+    # `_get` renvoie 0 tant qu'aucune regle FMFP_PAT n'est configuree sur
+    # la structure salariale du tenant (meme discipline que CNAPS/OSTIE,
+    # cf. docstring `_get` ci-dessus : jamais une KeyError silencieuse).
+    payslip.social_employer = _get("CNAPS_PAT") + _get("OSTIE_PAT") + _get("FMFP_PAT")
     payslip.net_to_pay = _get("NET_A_PAYER")
     payslip.save(
         update_fields=[

@@ -220,18 +220,55 @@
       <p>{% trans "Statut" %}: <span class="badge {{ picking.state|state_badge_class }}">{{ picking.get_state_display }}</span></p>
       <p>{{ picking.location_from }} → {{ picking.location_to }}</p>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Statut" %}</th></tr></thead>
-        <tbody>{% for line in lines %}<tr><td>{{ line.variant_id }}</td><td>{{ line.qty }}</td><td><span class="badge {{ line.state|state_badge_class }}">{{ line.get_state_display }}</span></td></tr>{% empty %}<tr><td colspan="3">{% trans "Aucune ligne." %}</td></tr>{% endfor %}</tbody>
+        <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Quantité" %}</th><th>{% trans "Lot" %}</th><th>{% trans "Péremption (DLC/DLUO)" %}</th><th>{% trans "Statut" %}</th></tr></thead>
+        <tbody>
+          {% for line in lines %}
+            <tr>
+              <td>{{ line.variant_id }}</td>
+              <td>{{ line.qty }}</td>
+              <td>{{ line.lot.name|default:"—" }}</td>
+              <td>{{ line.lot.date_expiry|default:"—" }}</td>
+              <td><span class="badge {{ line.state|state_badge_class }}">{{ line.get_state_display }}</span></td>
+            </tr>
+          {% empty %}<tr><td colspan="5">{% trans "Aucune ligne." %}</td></tr>{% endfor %}
+        </tbody>
       </table>
       {% if picking.state == "draft" or picking.state == "waiting" %}
+        {% comment %}
+        A1 refonte UX (Sprint 6 / L4, cf. docs/planning/2026-refonte-ux-sprints.md
+        §5) : a la reception ("entree"), saisie directe du lot + DLC/DLUO ;
+        a la sortie/en interne, suggestion FEFO (HTMX) + reference a un lot
+        existant plutot qu'un champ libre sans controle.
+        {% endcomment %}
         <h3>{% trans "Ajouter une ligne" %}</h3>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="add_line">
-          <input type="text" name="variant_id" placeholder="{% trans 'Produit (UUID)' %}" required>
-          <input type="number" name="qty" step="0.0001" value="1">
+          <input type="text" name="variant_id" id="add-line-variant-id" placeholder="{% trans 'Produit (UUID)' %}" required>
+          <input type="number" name="qty" id="add-line-qty" step="0.0001" value="1">
           <input type="text" name="uom" placeholder="{% trans 'Unite' %}">
           <input type="number" name="unit_cost_mga" step="0.0001" placeholder="{% trans 'Cout unitaire' %}">
+          {% if picking.type == "entree" %}
+            <fieldset>
+              <legend>{% trans "Lot / DLC-DLUO" %}</legend>
+              <input type="text" name="lot_name" placeholder="{% trans 'Numéro de lot' %}">
+              <label>{% trans "Production" %} <input type="date" name="date_production"></label>
+              <label>{% trans "Péremption (DLC/DLUO)" %} <input type="date" name="date_expiry"></label>
+              <input type="text" name="supplier_lot" placeholder="{% trans 'Lot fournisseur' %}">
+            </fieldset>
+          {% else %}
+            <fieldset>
+              <legend>{% trans "Lot" %}</legend>
+              <input type="text" name="lot_id" id="add-line-lot-id" placeholder="{% trans 'Lot (UUID)' %}">
+              <button type="button"
+                      hx-get="{% url 'stocks:fefo_suggestion' picking_id=picking.id %}"
+                      hx-include="#add-line-variant-id,#add-line-qty"
+                      hx-target="#fefo-suggestion" hx-swap="outerHTML">
+                {% trans "Suggérer un lot (FEFO)" %}
+              </button>
+              <div id="fefo-suggestion"></div>
+            </fieldset>
+          {% endif %}
           <button type="submit">{% trans "Ajouter" %}</button>
         </form>
       {% endif %}
