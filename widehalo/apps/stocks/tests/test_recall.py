@@ -103,6 +103,39 @@ def test_create_move_still_allows_relocating_a_held_lot_to_quarantine() -> None:
         assert move.state == StkMove.STATE_DONE
 
 
+def test_create_move_allows_relocating_a_held_lot_to_a_type_interne_quarantine() -> None:
+    """Régression : `services.quality`'s propre docstring documente
+    `TYPE_INTERNE` comme choix valide de `quarantine_or_scrap_location`
+    pour un `defaut_majeur` (pas seulement `TYPE_REBUT`/`TYPE_INVENTAIRE`)
+    — la garde RG-STK-11 doit donc aussi exempter un mouvement
+    `move_type=TYPE_REBUT` vers un `TYPE_INTERNE`, pas seulement vers un
+    emplacement de type quarantaine/rebut."""
+    tenant = Tenant.objects.create(code="RCL-3B", name="Recall Tenant 3B")
+    with use_tenant(tenant.id):
+        _wh, internal, supplier, _client = _internal_and_supplier(tenant)
+        dedicated_quarantine = create_location(
+            tenant=tenant, warehouse=internal.warehouse, code="QUA-INT",
+            name="Quarantaine (zone interne dédiée)", type=StkLocation.TYPE_INTERNE,
+        )
+        variant_id = uuid.uuid4()
+        lot = StkLot.objects.create(tenant=tenant, variant_id=variant_id, name="LOT-HOLD-3B")
+        reception = create_move(
+            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
+            location_from=supplier, location_to=internal, date=dt.date.today(),
+            move_type=StkMove.TYPE_RECEPTION, lot=lot,
+        )
+        validate_move(reception)
+        set_quality_state(tenant=tenant, lot=lot, state=StkQualityState.STATE_DEFAUT_MAJEUR)
+
+        move = create_move(
+            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
+            location_from=internal, location_to=dedicated_quarantine, date=dt.date.today(),
+            move_type=StkMove.TYPE_REBUT, lot=lot,
+        )
+        validate_move(move)
+        assert move.state == StkMove.STATE_DONE
+
+
 def test_declare_recall_holds_lot_and_all_descendants_and_captures_client_exposure() -> None:
     tenant = Tenant.objects.create(code="RCL-4", name="Recall Tenant 4")
     user = UserFactory()

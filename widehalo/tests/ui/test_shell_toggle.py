@@ -122,3 +122,33 @@ def test_notifications_bell_renders_contextual_action_link() -> None:
     action_link = soup.find("a", href="/sales/orders/abc/")
     assert action_link is not None
     assert action_link.get_text(strip=True) == "Voir la commande"
+
+
+def test_notifications_are_scoped_to_the_active_session_tenant() -> None:
+    """Régression : `User` est un compte global pouvant appartenir à
+    plusieurs tenants (`UserTenantMembership`) — une notification créée
+    pour un autre tenant que celui actif en session ne doit jamais
+    apparaître dans la cloche, ni dans le compteur du launchpad, ni être
+    marquable comme lue par cette session (fuite inter-tenant sinon)."""
+    from apps.core.models.notification import Notification
+
+    tenant_a = Tenant.objects.create(code="SHELL-7A", name="Shell Tenant 7A")
+    tenant_b = Tenant.objects.create(code="SHELL-7B", name="Shell Tenant 7B")
+    user = User.objects.create_user(email="shell7@example.com", password="Str0ngPassw0rd!23")
+    other_tenant_notification = Notification.objects.create(
+        tenant_id=tenant_b.id, user=user, notification_type="test.notification", payload={}
+    )
+    client = _login_with_tenant(tenant_a, user)
+
+    response = client.get("/notifications/bell/")
+    soup = BeautifulSoup(response.content, "html.parser")
+    badge = soup.find(id="notif-count")
+    assert badge is not None
+    assert badge.get_text(strip=True) == "0"
+
+    mark_read_response = client.post(
+        f"/notifications/{other_tenant_notification.id}/read/"
+    )
+    assert mark_read_response.status_code == 200
+    other_tenant_notification.refresh_from_db()
+    assert other_tenant_notification.read_at is None

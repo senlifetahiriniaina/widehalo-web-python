@@ -143,14 +143,18 @@ def create_move(
     **RG-STK-11 (A3, hold/release qualite)** : refuse egalement tout
     mouvement d'un `lot` actuellement bloque (`StkLot.is_held()` —
     dernier `StkQualityState` en `en_quarantaine`/`defaut_majeur`/`rebut`)
-    SAUF si `location_to` est elle-meme un emplacement de
-    quarantaine/rebut (`TYPE_INVENTAIRE`/`TYPE_REBUT`) — c'est exactement
-    le mouvement que `services.quality.apply_quality_decision` cree pour
-    isoler physiquement un lot deja classe defectueux, qui doit rester
-    possible. Avant A3, AUCUNE garde n'empechait de continuer a expedier/
-    consommer un lot pourtant place en quarantaine (cf. docstring de
-    `services.quality`, "en_quarantaine ne declenche aucun StkMove") — ce
-    gap est celui que A3 comble."""
+    SAUF (a) si `location_to` est elle-meme un emplacement de
+    quarantaine/rebut (`TYPE_INVENTAIRE`/`TYPE_REBUT`), ou (b) si
+    `move_type == TYPE_REBUT` — c'est exactement le mouvement que
+    `services.quality.apply_quality_decision` cree pour isoler
+    physiquement un lot deja classe defectueux, quel que soit le type de
+    l'emplacement de destination choisi par l'appelant (son propre
+    docstring documente `TYPE_REBUT` OU `TYPE_INTERNE` comme choix valides
+    pour `quarantine_or_scrap_location` — l'exemption (a) seule aurait a
+    tort bloque ce second cas). Avant A3, AUCUNE garde n'empechait de
+    continuer a expedier/consommer un lot pourtant place en quarantaine
+    (cf. docstring de `services.quality`, "en_quarantaine ne declenche
+    aucun StkMove") — ce gap est celui que A3 comble."""
     if qty <= 0:
         raise ValidationError(
             _("La quantité d'un mouvement de stock doit être strictement positive.")
@@ -162,6 +166,7 @@ def create_move(
     if (
         lot is not None
         and lot.is_held()
+        and move_type != StkMove.TYPE_REBUT
         and location_to.type not in (StkLocation.TYPE_INVENTAIRE, StkLocation.TYPE_REBUT)
     ):
         raise ValidationError(

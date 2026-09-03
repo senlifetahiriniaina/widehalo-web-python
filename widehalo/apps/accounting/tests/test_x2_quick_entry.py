@@ -61,6 +61,40 @@ def test_suggest_counterpart_account_returns_most_frequent_co_occurrence() -> No
         assert suggested == expense_a
 
 
+def test_suggest_counterpart_account_counts_distinct_entries_not_raw_lines() -> None:
+    """Régression : une jointure `move__lines__account=account` naïve
+    gonfle le compte d'une contrepartie proportionnellement au nombre de
+    lignes que `account` porte sur la MÊME écriture (fan-out de jointure).
+    Une seule écriture avec 2 lignes sur `bank` et 1 ligne sur
+    `expense_a` doit compter pour 1 occurrence de `expense_a`, jamais 2 —
+    sinon `expense_a` l'emporterait ici sur `expense_b` malgré 2 écritures
+    distinctes réellement associées à `expense_b`."""
+    tenant = Tenant.objects.create(code="X2-2B", name="X2 Tenant 2B")
+    with use_tenant(tenant.id):
+        journal = AccJournalFactory(tenant=tenant)
+        period = AccPeriodFactory(tenant=tenant)
+        bank = AccAccountFactory(tenant=tenant, code="5121", type=AccAccount.TYPE_BANK)
+        expense_a = AccAccountFactory(tenant=tenant, code="6011")
+        expense_b = AccAccountFactory(tenant=tenant, code="6021")
+
+        move = create_draft_move(tenant=tenant, journal=journal, period=period, date="2026-01-15")
+        add_line(move, account=bank, credit=Decimal("50"))
+        add_line(move, account=bank, credit=Decimal("50"))
+        add_line(move, account=expense_a, debit=Decimal("100"))
+        post_move(move)
+
+        for _ in range(2):
+            move_b = create_draft_move(
+                tenant=tenant, journal=journal, period=period, date="2026-01-16"
+            )
+            add_line(move_b, account=bank, credit=Decimal("10"))
+            add_line(move_b, account=expense_b, debit=Decimal("10"))
+            post_move(move_b)
+
+        suggested = suggest_counterpart_account(tenant=tenant, account=bank)
+        assert suggested == expense_b
+
+
 def test_quick_entry_create_view_creates_a_draft_move() -> None:
     tenant = Tenant.objects.create(code="X2-3", name="X2 Tenant 3")
     with use_tenant(tenant.id):

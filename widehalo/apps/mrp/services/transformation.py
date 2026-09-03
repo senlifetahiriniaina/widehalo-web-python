@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -83,36 +84,42 @@ def finish_transformation_order(
         raise ValidationError(
             _("Un emplacement de réception est requis pour enregistrer un lot de sortie.")
         )
-    order = finish_order(order, user, qty_produced=qty_produced, qty_scrapped=qty_scrapped)
+    # Transaction unique (RG-MRP/A2) : la transition FSM ET la réception en
+    # stock/généalogie doivent réussir ou échouer ENSEMBLE — avant ce
+    # correctif, un échec de `receive_production_output` (ex. emplacement
+    # invalide) après une transition déjà validée laissait l'ordre `done`
+    # sans aucune réception de stock ni généalogie, silencieusement.
+    with transaction.atomic():
+        order = finish_order(order, user, qty_produced=qty_produced, qty_scrapped=qty_scrapped)
 
-    if not output_lot_name:
-        return order
+        if not output_lot_name:
+            return order
 
-    receive_production_output(
-        tenant=order.tenant,
-        variant_id=order.variant_id,
-        qty=qty_produced,
-        location_to_id=location_to_id,
-        date=date,
-        source_document=order.reference,
-        lot_name=output_lot_name,
-    )
-    for component in order.components.all():
-        if not component.lot or component.qty_consumed <= 0 or component.variant_id is None:
-            continue
-        record_lot_genealogy(
+        receive_production_output(
             tenant=order.tenant,
-            parent_variant_id=component.variant_id,
-            parent_lot_name=component.lot,
-            child_variant_id=order.variant_id,
-            child_lot_name=output_lot_name,
-            qty=component.qty_consumed,
+            variant_id=order.variant_id,
+            qty=qty_produced,
+            location_to_id=location_to_id,
+            date=date,
             source_document=order.reference,
+            lot_name=output_lot_name,
         )
+        for component in order.components.all():
+            if not component.lot or component.qty_consumed <= 0 or component.variant_id is None:
+                continue
+            record_lot_genealogy(
+                tenant=order.tenant,
+                parent_variant_id=component.variant_id,
+                parent_lot_name=component.lot,
+                child_variant_id=order.variant_id,
+                child_lot_name=output_lot_name,
+                qty=component.qty_consumed,
+                source_document=order.reference,
+            )
 
-    order.output_lot_name = output_lot_name
-    order.save(update_fields=["output_lot_name"])
-    return order
+        order.output_lot_name = output_lot_name
+        order.save(update_fields=["output_lot_name"])
+        return order
 
 
 def order_yield(order: MrpOrder) -> dict[str, Any]:

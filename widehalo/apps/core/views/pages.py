@@ -189,7 +189,9 @@ def launchpad(request: HttpRequest) -> HttpResponse:
 
     user = cast(User, request.user)
     visible = visible_app_labels_for(user)
-    unread_notifications = Notification.objects.filter(user=user, read_at__isnull=True).count()
+    unread_notifications = Notification.objects.filter(
+        user=user, tenant_id=resolve_tenant(request).id, read_at__isnull=True
+    ).count()
     kpis = []
     if "accounting" in visible:
         kpis.append(
@@ -239,8 +241,13 @@ def notifications_bell_fragment(request: HttpRequest) -> HttpResponse:
     endpoints HTMX et API publique (cf. docs/planning/ECART_ARCHITECTURE.md
     §3)."""
     user = cast(User, request.user)
-    notifications = Notification.objects.filter(user=user).order_by("-created_at")[:10]
-    unread_count = Notification.objects.filter(user=user, read_at__isnull=True).count()
+    tenant_id = resolve_tenant(request).id
+    notifications = Notification.objects.filter(user=user, tenant_id=tenant_id).order_by(
+        "-created_at"
+    )[:10]
+    unread_count = Notification.objects.filter(
+        user=user, tenant_id=tenant_id, read_at__isnull=True
+    ).count()
     return render(
         request,
         "components/_notification_bell.html",
@@ -252,7 +259,9 @@ def notifications_bell_fragment(request: HttpRequest) -> HttpResponse:
 def notification_mark_read(request: HttpRequest, notification_id: str) -> HttpResponse:
     if request.method != "POST":
         return HttpResponse(status=405)
-    Notification.objects.filter(id=notification_id, user=cast(User, request.user)).update(
-        read_at=timezone.now()
-    )
+    Notification.objects.filter(
+        id=notification_id,
+        user=cast(User, request.user),
+        tenant_id=resolve_tenant(request).id,
+    ).update(read_at=timezone.now())
     return notifications_bell_fragment(request)

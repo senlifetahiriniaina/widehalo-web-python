@@ -58,6 +58,40 @@ def test_bulk_archive_soft_deletes_selected_documents_only() -> None:
     assert "a-archiver.pdf" not in body
 
 
+def test_bulk_archive_form_carries_its_own_csrf_token() -> None:
+    """Régression : `bulk-form-{{ dom_id }}` (les cases à cocher et le
+    bouton d'action y sont rattachés via l'attribut `form=`, pas imbriqués
+    dedans) était rendu sans `{% csrf_token %}` — un navigateur réel
+    (contrairement au `Client()` de test, qui n'applique pas CSRF par
+    défaut) aurait alors reçu un 403 sur toute action de masse. Ce test
+    utilise `enforce_csrf_checks=True` pour reproduire un vrai navigateur."""
+    tenant = Tenant.objects.create(code="UI-BULK-CSRF", name="UI Bulk CSRF Tenant")
+    user = User.objects.create_user(email="ui-bulk-csrf@example.com", password="Str0ngPassw0rd!23")
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+    with use_tenant(tenant.id):
+        archive = DocumentFactory(tenant=tenant, original_name="a-archiver-csrf.pdf")
+
+    get_response = client.get("/documents/")
+    body = get_response.content.decode()
+    assert 'id="bulk-form-' in body
+    bulk_form_start = body.index('id="bulk-form-')
+    bulk_form_html = body[bulk_form_start : body.index("</form>", bulk_form_start)]
+    assert "csrfmiddlewaretoken" in bulk_form_html
+
+    csrf_token = client.cookies["csrftoken"].value
+    response = client.post(
+        "/documents/bulk-archive/",
+        {"ids": [str(archive.id)], "csrfmiddlewaretoken": csrf_token},
+    )
+    assert response.status_code == 302
+    archive.refresh_from_db()
+    assert archive.is_active is False
+
+
 def test_bulk_archive_requires_post() -> None:
     client, _tenant, _user = _logged_in_client()
     response = client.get("/documents/bulk-archive/")

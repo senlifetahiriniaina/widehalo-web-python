@@ -26,12 +26,24 @@ def suggest_counterpart_account(*, tenant: Tenant, account: AccAccount) -> AccAc
     Retourne `None`, jamais une exception, si `account` n'a encore jamais
     été utilisé aux côtés d'un autre compte (première saisie, aucun
     historique à apprendre) — l'appelant (l'écran) doit alors laisser le
-    champ de contrepartie vide plutôt que d'imposer un choix arbitraire."""
+    champ de contrepartie vide plutôt que d'imposer un choix arbitraire.
+
+    **Comptage par écriture distincte, jamais par ligne brute** : une
+    jointure directe `move__lines__account=account` gonflerait le compte
+    d'un même contrepartie si l'écriture contient plusieurs lignes sur
+    `account` (fan-out de jointure) — on résout donc d'abord l'ensemble
+    des écritures contenant `account`, puis on compte, pour chaque
+    contrepartie candidate, le nombre d'écritures DISTINCTES où elle
+    apparaît (`Count("move_id", distinct=True)`), jamais le nombre brut de
+    lignes."""
+    move_ids = AccMoveLine.objects.filter(tenant=tenant, account=account).values_list(
+        "move_id", flat=True
+    )
     counterpart = (
-        AccMoveLine.objects.filter(tenant=tenant, move__lines__account=account)
+        AccMoveLine.objects.filter(tenant=tenant, move_id__in=move_ids)
         .exclude(account=account)
         .values("account")
-        .annotate(occurrences=Count("id"))
+        .annotate(occurrences=Count("move_id", distinct=True))
         .order_by("-occurrences")
         .first()
     )

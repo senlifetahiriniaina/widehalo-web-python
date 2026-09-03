@@ -108,6 +108,38 @@ def test_finish_with_output_lot_name_creates_stock_and_genealogy() -> None:
         assert genealogy["ancestors"][0]["qty"] == Decimal("48")
 
 
+def test_finish_transformation_order_rolls_back_on_stock_reception_failure() -> None:
+    """Régression : avant le correctif, `finish_order` (transition FSM)
+    s'exécutait hors transaction — un `location_to_id` invalide faisait
+    échouer `receive_production_output` APRÈS que l'ordre soit déjà
+    `done` en base, laissant un ordre clos sans aucune réception de stock
+    ni généalogie. Toute l'opération doit désormais réussir ou échouer
+    ensemble."""
+    import uuid as uuid_module
+
+    from apps.stocks.models import StkLocation
+
+    tenant = TenantFactory()
+    user = UserFactory()
+    with use_tenant(tenant.id):
+        order = _order_at_quality_control(tenant, user)
+        bogus_location_id = uuid_module.uuid4()
+        assert not StkLocation.objects.filter(id=bogus_location_id).exists()
+
+        with pytest.raises(StkLocation.DoesNotExist):
+            finish_transformation_order(
+                order,
+                user,
+                qty_produced=Decimal("95"),
+                output_lot_name="PF-ROLLBACK-1",
+                location_to_id=bogus_location_id,
+            )
+
+        order.refresh_from_db()
+        assert order.state == "quality_control"
+        assert order.output_lot_name == ""
+
+
 def test_record_component_consumption_rejects_negative_qty() -> None:
     from django.core.exceptions import ValidationError
 
