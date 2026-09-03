@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Nomenclatures (BOM)" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Nomenclatures (BOM)" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nomenclatures (BOM)" %}</h1>
 </div>
@@ -31,6 +35,6 @@
       <label for="product_template_id">{% trans "UUID du produit (catalog)" %}</label>
       <input id="product_template_id" type="text" name="product_template_id" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

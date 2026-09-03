@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Matières de reference" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Matières de reference" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Référentiel de matières (fibres/tissus)" %}</h1>
 </div>
@@ -72,6 +76,6 @@
       <label for="supplier_reference">{% trans "Référence fournisseur (texte libre)" %}</label>
       <input id="supplier_reference" type="text" name="supplier_reference">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

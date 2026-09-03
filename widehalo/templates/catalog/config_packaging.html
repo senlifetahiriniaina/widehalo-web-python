@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Conditionnement" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Conditionnement" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Conditionnement" %}</h1>
 </div>
@@ -57,6 +61,6 @@
       <label for="barcode">{% trans "Code-barres" %}</label>
       <input id="barcode" type="text" name="barcode">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Postes de charge" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Postes de charge" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Postes de charge" %}</h1>
 </div>
@@ -64,7 +68,7 @@
       <label for="cost_per_hour_mga">{% trans "Coût/h (MGA)" %}</label>
       <input id="cost_per_hour_mga" type="number" name="cost_per_hour_mga" step="0.0001" value="0">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
   {% endif %}
 {% endblock %}

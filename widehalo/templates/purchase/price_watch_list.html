@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Veille prix fournisseurs" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:requisition_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "Veille prix fournisseurs" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Veille prix fournisseurs Chine/Europe" %}</h1>
 </div>
@@ -37,7 +41,7 @@
               {% csrf_token %}
               <input type="hidden" name="action" value="check">
               <input type="hidden" name="target_id" value="{{ target.id }}">
-              <button type="submit">{% trans "Vérifier maintenant" %}</button>
+              <c-button variant="primary" type="submit">{% trans "Vérifier maintenant" %}</c-button>
             </form>
           </td>
         </tr>
@@ -68,6 +72,6 @@
     <div class="form-field"><label>{% trans "Référence matière (UUID, optionnel)" %}</label><input type="text" name="material_reference_id"></div>
     <div class="form-field"><label>{% trans "Variante produit (UUID, optionnel)" %}</label><input type="text" name="variant_id"></div>
     <p class="form-hint">{% trans "Renseigner exactement l'un des deux champs ci-dessus (jamais les deux, jamais aucun)." %}</p>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

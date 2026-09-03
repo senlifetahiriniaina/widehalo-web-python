@@ -2,6 +2,10 @@
 {% load i18n core_extras currency %}
 {% block title %}{{ template.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:template_list' %}">{% trans "Catalogue" %}</a>
+  <span>/</span> {{ template.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ template.reference }} — {{ template.name }}</h1>
 </div>
@@ -101,7 +105,7 @@
         <p>{% trans "Aucun attribut disponible — creez-en depuis la configuration." %}</p>
       {% endfor %}
     </fieldset>
-    <button type="submit">{% trans "Générer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Générer" %}</c-button>
   </form>
 
   <h2>{% trans "Spécifications textiles" %}</h2>
@@ -181,7 +185,7 @@
       <textarea id="sector_attributes" name="attributes" rows="3"
                 placeholder='{"type_peau": "chevre", "tannage": "vegetal"}'></textarea>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 
   <h2>{% trans "Prix (listes applicables)" %}</h2>
@@ -260,6 +264,6 @@
       <label for="lead_time_days">{% trans "Délai (jours)" %}</label>
       <input id="lead_time_days" type="number" name="lead_time_days" value="{{ supplier_form.lead_time_days|default:'' }}">
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 {% endblock %}

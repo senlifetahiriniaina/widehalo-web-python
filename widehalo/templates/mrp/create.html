@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvel ordre de fabrication" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:list' %}">{% trans "Ordres de fabrication" %}</a>
+  <span>/</span> {% trans "Nouvel ordre" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouvel ordre de fabrication" %}</h1>
 </div>
@@ -36,6 +40,6 @@
       <label for="qty">{% trans "Quantité" %}</label>
       <input id="qty" type="number" name="qty" step="0.0001" min="0" value="1" required>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer l ordre" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer l ordre" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "CRA achats" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:order_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "CRA achats" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Comptes rendus d'activité achats" %}</h1>
 </div>
@@ -33,9 +37,9 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="cra_id" value="{{ entry.id }}">
-              {% if entry.state == "draft" %}<button type="submit" name="action" value="submit">{% trans "Soumettre" %}</button>{% endif %}
-              {% if entry.state == "submitted" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
-              {% if entry.state == "submitted" %}<input type="text" name="reason" placeholder="{% trans 'Motif' %}"><button type="submit" name="action" value="reject">{% trans "Rejeter" %}</button>{% endif %}
+              {% if entry.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="submit">{% trans "Soumettre" %}</c-button>{% endif %}
+              {% if entry.state == "submitted" %}<c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>{% endif %}
+              {% if entry.state == "submitted" %}<input type="text" name="reason" placeholder="{% trans 'Motif' %}"><c-button variant="danger" type="submit" name="action" value="reject">{% trans "Rejeter" %}</c-button>{% endif %}
             </form>
           </td>
         </tr>
@@ -60,6 +64,6 @@
     <div class="form-field"><label>{% trans "Heures" %}</label><input type="number" name="hours" step="0.01" value="0"></div>
     <div class="form-field"><label>{% trans "Commande liée (UUID, optionnel)" %}</label><input type="text" name="order_id"></div>
     <div class="form-field"><label>{% trans "Commentaire" %}</label><textarea name="comment"></textarea></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

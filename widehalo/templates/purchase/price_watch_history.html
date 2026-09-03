@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Historique des relevés" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:price_watch_list' %}">{% trans "Veille prix fournisseurs" %}</a>
+  <span>/</span> {% trans "Historique" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Historique de veille" %} — <span class="badge {{ target.platform_code|state_badge_class }}">{{ target.get_platform_code_display }}</span></h1>
 </div>

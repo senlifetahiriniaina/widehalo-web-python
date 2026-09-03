@@ -2,11 +2,12 @@
 {% load i18n %}
 {% block title %}{% trans "Ordres de fabrication" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Ordres de fabrication" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Ordres de fabrication" %}</h1>
 </div>
   <p>
-    <a href="{% url 'mrp:create' %}">{% trans "Nouvel ordre" %}</a>
+    <a href="{% url 'mrp:create' %}" class="btn btn-primary">{% trans "Nouvel ordre" %}</a>
     <a href="{% url 'mrp:kanban' %}">{% trans "Atelier (kanban)" %}</a>
   </p>
   {% include "components/_smart_table.html" %}

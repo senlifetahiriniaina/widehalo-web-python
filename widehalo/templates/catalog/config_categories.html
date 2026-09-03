@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Catégories" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Catégories" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Catégories" %}</h1>
 </div>
@@ -42,6 +46,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

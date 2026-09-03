@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Attributs" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Attributs" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Attributs générateurs de variantes" %}</h1>
 </div>
@@ -28,7 +32,7 @@
         <input type="text" name="value" placeholder="{% trans 'Nouvelle valeur' %}" required>
         <input type="text" name="pantone_code" placeholder="{% trans 'Code Pantone (NN-NNNN TCX, optionnel)' %}">
         <input type="text" name="hex_approximation" placeholder="{% trans 'Approximation hex (#RRGGBB, optionnel)' %}">
-        <button type="submit">{% trans "Ajouter la valeur" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Ajouter la valeur" %}</c-button>
       </form>
     </div>
   {% empty %}
@@ -42,6 +46,6 @@
       <label for="name">{% trans "Nom" %}</label>
       <input id="name" type="text" name="name" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

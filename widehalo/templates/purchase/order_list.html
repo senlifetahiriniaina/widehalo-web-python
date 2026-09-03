@@ -2,16 +2,20 @@
 {% load i18n %}
 {% block title %}{% trans "Commandes d'achat" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:requisition_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "Commandes d'achat" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Commandes d'achat" %}</h1>
 </div>
   <p>
-    <a href="{% url 'purchase:order_create' %}">{% trans "Nouvelle commande" %}</a>
-    | <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
-    | <a href="{% url 'purchase:rfq_list' %}">{% trans "Appels d'offres" %}</a>
-    | <a href="{% url 'purchase:cra_list' %}">{% trans "CRA achats" %}</a>
-    | <a href="{% url 'purchase:cri_list' %}">{% trans "CRI achats" %}</a>
-    | <a href="{% url 'purchase:reports_index' %}">{% trans "Rapports" %}</a>
+    <a href="{% url 'purchase:order_create' %}" class="btn btn-primary">{% trans "Nouvelle commande" %}</a>
+    <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+    <a href="{% url 'purchase:rfq_list' %}">{% trans "Appels d'offres" %}</a>
+    <a href="{% url 'purchase:cra_list' %}">{% trans "CRA achats" %}</a>
+    <a href="{% url 'purchase:cri_list' %}">{% trans "CRI achats" %}</a>
+    <a href="{% url 'purchase:reports_index' %}">{% trans "Rapports" %}</a>
   </p>
   <form method="get" style="margin-bottom:1em;">
     <label for="state">{% trans "Filtrer par statut" %}</label>

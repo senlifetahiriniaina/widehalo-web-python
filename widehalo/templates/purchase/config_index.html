@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Achats" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:requisition_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "Configuration" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Configuration Achats" %}</h1>
 </div>

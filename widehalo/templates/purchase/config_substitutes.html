@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Substituts" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Substituts" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Substituts (RG-PUR-2)" %}</h1>
 </div>
@@ -39,7 +43,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="approve">
                 <input type="hidden" name="substitute_id" value="{{ substitute.id }}">
-                <button type="submit">{% trans "Valider" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Valider" %}</c-button>
               </form>
             {% endif %}
           </td>
@@ -64,6 +68,6 @@
     </div>
     <div class="form-field"><label>{% trans "Ratio" %}</label><input type="number" name="ratio" step="0.0001" value="1"></div>
     <div class="form-field"><label>{% trans "Conditions" %}</label><textarea name="conditions"></textarea></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

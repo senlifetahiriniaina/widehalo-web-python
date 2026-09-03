@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'mrp:list' %}">{% trans "Ordres de fabrication" %}</a>
+    <span>/</span> {{ order.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ order.state|state_badge_class }}">{{ order.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
@@ -21,15 +25,15 @@
         {% for loc in output_locations %}<option value="{{ loc.id }}">{{ loc.code }} — {{ loc.name }}</option>{% endfor %}
       </select>
       {% endif %}
-      {% if order.state == "draft" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
-      {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Réserver" %}</button>{% endif %}
-      {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Démarrer" %}</button>{% endif %}
-      {% if order.state == "in_production" %}<button type="submit" name="action" value="suspend">{% trans "Suspendre" %}</button>{% endif %}
-      {% if order.state == "suspended" %}<button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>{% endif %}
-      {% if order.state == "in_production" %}<button type="submit" name="action" value="send_to_quality_control">{% trans "Controle qualité" %}</button>{% endif %}
-      {% if order.state == "quality_control" %}<button type="submit" name="action" value="finish">{% trans "Terminer" %}</button>{% endif %}
-      {% if order.state == "done" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
-      {% if order.state != "closed" and order.state != "cancelled" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+      {% if order.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="confirm">{% trans "Confirmer" %}</c-button>{% endif %}
+      {% if order.state == "confirmed" %}<c-button variant="primary" type="submit" name="action" value="reserve">{% trans "Réserver" %}</c-button>{% endif %}
+      {% if order.state == "reserved" %}<c-button variant="primary" type="submit" name="action" value="start">{% trans "Démarrer" %}</c-button>{% endif %}
+      {% if order.state == "in_production" %}<c-button variant="primary" type="submit" name="action" value="suspend">{% trans "Suspendre" %}</c-button>{% endif %}
+      {% if order.state == "suspended" %}<c-button variant="primary" type="submit" name="action" value="resume">{% trans "Reprendre" %}</c-button>{% endif %}
+      {% if order.state == "in_production" %}<c-button variant="primary" type="submit" name="action" value="send_to_quality_control">{% trans "Controle qualité" %}</c-button>{% endif %}
+      {% if order.state == "quality_control" %}<c-button variant="primary" type="submit" name="action" value="finish">{% trans "Terminer" %}</c-button>{% endif %}
+      {% if order.state == "done" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" %}<c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -89,28 +93,28 @@
                      style="width:8em;" aria-label="{% trans 'N° de lot consommé' %}">
               <input type="number" name="consumption_qty" placeholder="{% trans 'Qté consommée' %}" step="0.0001"
                      value="{{ component.qty_consumed }}" style="width:6em;" aria-label="{% trans 'Quantité consommée' %}">
-              <button type="submit" name="action" value="record_component_consumption">{% trans "Enregistrer" %}</button>
+              <c-button variant="primary" type="submit" name="action" value="record_component_consumption">{% trans "Enregistrer" %}</c-button>
               {% if not proc_state or proc_state.state == "a_commander" %}
-                <button type="submit" name="action" value="request_sample">{% trans "Demander échantillon" %}</button>
-                <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="request_sample">{% trans "Demander échantillon" %}</c-button>
+                <c-button variant="primary" type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</c-button>
               {% elif proc_state.state == "echantillon_demande" %}
-                <button type="submit" name="action" value="evaluate_sample">{% trans "Évaluer échantillon" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="evaluate_sample">{% trans "Évaluer échantillon" %}</c-button>
               {% elif proc_state.state == "echantillon_evalue" %}
-                <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</c-button>
               {% elif proc_state.state == "fournisseur_valide" %}
-                <button type="submit" name="action" value="place_order">{% trans "Commander" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="place_order">{% trans "Commander" %}</c-button>
               {% elif proc_state.state == "commande" %}
-                <button type="submit" name="action" value="receive_component">{% trans "Réceptionner" %}</button>
-                <button type="submit" name="action" value="declare_shortage">{% trans "Déclarer rupture" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="receive_component">{% trans "Réceptionner" %}</c-button>
+                <c-button variant="danger" type="submit" name="action" value="declare_shortage">{% trans "Déclarer rupture" %}</c-button>
               {% elif proc_state.state == "recue" %}
-                <button type="submit" name="action" value="quality_control_component">{% trans "Controle qualité" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="quality_control_component">{% trans "Controle qualité" %}</c-button>
               {% elif proc_state.state == "controle_qualite" %}
-                <button type="submit" name="action" value="approve_component">{% trans "Approuver" %}</button>
-                <button type="submit" name="action" value="reject_component">{% trans "Rejeter" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="approve_component">{% trans "Approuver" %}</c-button>
+                <c-button variant="danger" type="submit" name="action" value="reject_component">{% trans "Rejeter" %}</c-button>
               {% elif proc_state.state == "disponible" %}
-                <button type="submit" name="action" value="start_production_component">{% trans "Mettre en production" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="start_production_component">{% trans "Mettre en production" %}</c-button>
               {% elif proc_state.state == "en_production" %}
-                <button type="submit" name="action" value="consume_component">{% trans "Consommer" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="consume_component">{% trans "Consommer" %}</c-button>
               {% endif %}
             </form>
           </td>
@@ -138,15 +142,15 @@
               {% csrf_token %}
               <input type="hidden" name="work_order_id" value="{{ wo.id }}">
               {% if wo.state == "pending" or wo.state == "paused" %}
-                <button type="submit" name="action" value="start_work_order">{% trans "Démarrer" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="start_work_order">{% trans "Démarrer" %}</c-button>
               {% endif %}
               {% if wo.state == "in_progress" %}
-                <button type="submit" name="action" value="pause_work_order">{% trans "Pause" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="pause_work_order">{% trans "Pause" %}</c-button>
                 <input type="number" name="wo_qty_done" placeholder="{% trans 'Qte faite' %}" step="0.0001" style="width:6em;"
                        aria-label="{% trans 'Qte faite' %}">
                 <input type="number" name="wo_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;"
                        aria-label="{% trans 'Qte rejetee' %}">
-                <button type="submit" name="action" value="done_work_order">{% trans "Terminer" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="done_work_order">{% trans "Terminer" %}</c-button>
               {% endif %}
             </form>
           </td>
@@ -179,7 +183,7 @@
       <label for="wo_duration_planned_min">{% trans "Durée planifiée (min)" %}</label>
       <input id="wo_duration_planned_min" type="number" name="wo_duration_planned_min" value="0">
     </div>
-    <button type="submit">{% trans "Créer l'ordre de travail" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer l'ordre de travail" %}</c-button>
   </form>
 
   <h2>{% trans "Sous-traitance" %}</h2>
@@ -201,7 +205,7 @@
                      aria-label="{% trans 'Qte recue' %}">
               <input type="number" name="sub_qty_rejected" placeholder="{% trans 'Qte rejetee' %}" step="0.0001" style="width:6em;"
                      aria-label="{% trans 'Qte rejetee' %}">
-              <button type="submit" name="action" value="receive_subcontract">{% trans "Réceptionner" %}</button>
+              <c-button variant="primary" type="submit" name="action" value="receive_subcontract">{% trans "Réceptionner" %}</c-button>
             </form>
             {% endif %}
           </td>
@@ -228,7 +232,7 @@
       <label for="price_unit">{% trans "Prix unitaire" %}</label>
       <input id="price_unit" type="number" name="price_unit" step="0.0001" value="0">
     </div>
-    <button type="submit">{% trans "Envoyer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
   </form>
 
   <h2>{% trans "Comptes rendus d'activité (CRA)" %}</h2>
@@ -246,10 +250,10 @@
               {% csrf_token %}
               <input type="hidden" name="cra_id" value="{{ cra.id }}">
               {% if cra.state == "draft" %}
-                <button type="submit" name="action" value="submit_cra">{% trans "Soumettre" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="submit_cra">{% trans "Soumettre" %}</c-button>
               {% elif cra.state == "submitted" %}
-                <button type="submit" name="action" value="validate_cra">{% trans "Valider" %}</button>
-                <button type="submit" name="action" value="reject_cra">{% trans "Rejeter" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="validate_cra">{% trans "Valider" %}</c-button>
+                <c-button variant="danger" type="submit" name="action" value="reject_cra">{% trans "Rejeter" %}</c-button>
               {% endif %}
             </form>
           </td>
@@ -286,7 +290,7 @@
       <label for="cra_activity_type">{% trans "Type d'activité" %}</label>
       <input id="cra_activity_type" type="text" name="cra_activity_type">
     </div>
-    <button type="submit">{% trans "Déclarer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Déclarer" %}</c-button>
   </form>
 
   <h2>{% trans "Comptes rendus d'intervention (CRI)" %}</h2>
@@ -304,7 +308,7 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="cri_id" value="{{ cri.id }}">
-              <button type="submit" name="action" value="close_cri">{% trans "Clôturer" %}</button>
+              <c-button variant="primary" type="submit" name="action" value="close_cri">{% trans "Clôturer" %}</c-button>
             </form>
             {% endif %}
           </td>
@@ -352,7 +356,7 @@
       <label for="cri_description">{% trans "Description" %}</label>
       <input id="cri_description" type="text" name="cri_description">
     </div>
-    <button type="submit">{% trans "Déclarer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Déclarer" %}</c-button>
   </form>
 
   <h2>{% trans "Rebuts" %}</h2>
@@ -379,7 +383,7 @@
       <label for="scrap_reason">{% trans "Motif" %}</label>
       <input id="scrap_reason" type="text" name="scrap_reason" required>
     </div>
-    <button type="submit">{% trans "Déclarer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Déclarer" %}</c-button>
   </form>
 
   <h2>{% trans "Discussion" %}</h2>

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Normes" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Normes" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Normes et certifications" %}</h1>
 </div>
@@ -43,6 +47,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

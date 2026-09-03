@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Opérations" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Opérations" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Opérations" %}</h1>
 </div>
@@ -50,6 +54,6 @@
       <label for="description">{% trans "Description" %}</label>
       <textarea id="description" name="description"></textarea>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Règles de réapprovisionnement" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Règles de réapprovisionnement" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Règles de réapprovisionnement (RG-PUR-3)" %}</h1>
 </div>
@@ -27,6 +31,6 @@
     <div class="form-field"><label>{% trans "Quantité maximum" %}</label><input type="number" name="max_qty" step="0.0001" required></div>
     <div class="form-field"><label>{% trans "Multiple de commande" %}</label><input type="number" name="multiple_qty" step="0.0001" value="1"></div>
     <div class="form-field"><label>{% trans "Délai fournisseur (jours)" %}</label><input type="number" name="lead_time_days" value="0"></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

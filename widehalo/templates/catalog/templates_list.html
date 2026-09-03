@@ -2,11 +2,12 @@
 {% load i18n static %}
 {% block title %}{% trans "Catalogue" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Catalogue" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Catalogue" %}</h1>
 </div>
   <p>
-    <a href="{% url 'catalog:template_create' %}" class="btn-primary">
+    <a href="{% url 'catalog:template_create' %}" class="btn btn-primary">
       <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg>
       {% trans "Nouveau produit" %}
     </a>

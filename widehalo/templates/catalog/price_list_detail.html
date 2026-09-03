@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ price_list.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_price_lists' %}">{% trans "Listes de prix" %}</a>
+  <span>/</span> {{ price_list.name }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ price_list.name }}</h1>
 </div>
@@ -42,6 +46,6 @@
       <label for="price_mga">{% trans "Prix (MGA)" %}</label>
       <input id="price_mga" type="number" step="0.0001" name="price_mga" required>
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 {% endblock %}

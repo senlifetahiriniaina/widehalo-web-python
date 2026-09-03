@@ -2,13 +2,17 @@
 {% load i18n %}
 {% block title %}{% trans "Appels d'offres" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:requisition_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "Appels d'offres" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Appels d'offres" %}</h1>
 </div>
   <p>
-    <a href="{% url 'purchase:rfq_create' %}">{% trans "Nouvel appel d'offres" %}</a>
-    | <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
-    | <a href="{% url 'purchase:order_list' %}">{% trans "Commandes" %}</a>
+    <a href="{% url 'purchase:rfq_create' %}" class="btn btn-primary">{% trans "Nouvel appel d'offres" %}</a>
+    <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+    <a href="{% url 'purchase:order_list' %}">{% trans "Commandes" %}</a>
   </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

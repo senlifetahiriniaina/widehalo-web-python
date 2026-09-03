@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "CRI achats" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:order_list' %}">{% trans "Achats" %}</a>
+  <span>/</span> {% trans "CRI achats" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Comptes rendus d'incident achats" %}</h1>
 </div>
@@ -33,7 +37,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="cri_id" value="{{ entry.id }}">
                 <input type="text" name="action_taken" placeholder="{% trans 'Action corrective' %}">
-                <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
+                <c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>
               </form>
             {% endif %}
           </td>
@@ -60,6 +64,6 @@
     <div class="form-field"><label>{% trans "Description" %}</label><textarea name="description" required></textarea></div>
     <div class="form-field"><label>{% trans "Impact" %}</label><textarea name="impact"></textarea></div>
     <div class="form-field"><label>{% trans "Coût (MGA)" %}</label><input type="number" name="cost_mga" step="0.0001" value="0"></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

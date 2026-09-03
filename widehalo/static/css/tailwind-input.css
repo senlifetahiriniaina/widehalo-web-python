@@ -122,6 +122,14 @@
    stocks et logistics. */
 @source "../../templates/stocks/**/*.html";
 @source "../../templates/logistics/**/*.html";
+/* Sprint 5 (L3 Textile, catalogue existant du domaine) : meme
+   elargissement pour catalog, mrp et purchase -- mrp/kanban.html (ecran
+   deja construit en Tailwind cette semaine, cf. son propre gabarit)
+   n'a pas besoin d'etre ajoute individuellement, il est deja couvert par
+   ce glob. */
+@source "../../templates/catalog/**/*.html";
+@source "../../templates/mrp/**/*.html";
+@source "../../templates/purchase/**/*.html";
 
 /* Habillage minimal du fragment de resultats de recherche instantanee
    (templates/components/_instant_search_results.html, HTML nu reutilise

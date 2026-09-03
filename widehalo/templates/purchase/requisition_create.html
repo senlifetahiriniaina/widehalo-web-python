@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle demande d'achat" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+  <span>/</span> {% trans "Nouvelle" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouvelle demande d'achat" %}</h1>
 </div>
@@ -24,6 +28,6 @@
       <label for="source_document">{% trans "Document d'origine" %}</label>
       <input id="source_document" type="text" name="source_document">
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

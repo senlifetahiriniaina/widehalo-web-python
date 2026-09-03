@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports MRP" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:list' %}">{% trans "Production" %}</a>
+  <span>/</span> {% trans "Rapports" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Rapports MRP" %}</h1>
 </div>
@@ -24,7 +28,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Comptes rendus d'intervention (CRI)" %}</h2>
@@ -45,7 +49,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Rendement par poste" %}</h2>
@@ -62,7 +66,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Analyse des rebuts" %}</h2>
@@ -83,7 +87,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Charge planifiée par atelier" %}</h2>
@@ -103,6 +107,6 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 {% endblock %}

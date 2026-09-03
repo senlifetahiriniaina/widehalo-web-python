@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Personnalisation" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Personnalisation" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Options de personnalisation" %}</h1>
 </div>
@@ -75,6 +79,6 @@
       <label for="notes">{% trans "Notes" %}</label>
       <textarea id="notes" name="notes"></textarea>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

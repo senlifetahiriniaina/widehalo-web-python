@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Ateliers" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Ateliers" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Ateliers" %}</h1>
 </div>
@@ -41,6 +45,6 @@
     <div class="form-field">
       <label for="is_subcontractor"><input id="is_subcontractor" type="checkbox" name="is_subcontractor"> {% trans "Sous-traitant" %}</label>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Unités de mesure" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Unités de mesure" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Unités de mesure" %}</h1>
 </div>
@@ -52,7 +56,7 @@
     <div class="form-field">
       <label><input type="checkbox" name="is_base"> {% trans "Unité de base" %}</label>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 
   <h2>{% trans "Conversions" %}</h2>
@@ -101,6 +105,6 @@
       <label for="factor">{% trans "Facteur" %}</label>
       <input id="factor" type="number" step="0.00000001" name="factor" required>
     </div>
-    <button type="submit">{% trans "Ajouter la conversion" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter la conversion" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ routing.code }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'mrp:config_routings' %}">{% trans "Gammes" %}</a>
+  <span>/</span> {{ routing.code }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ routing.code }} — {{ routing.name }}</h1>
 </div>
@@ -59,7 +63,7 @@
       <label for="duration_min">{% trans "Durée (min)" %}</label>
       <input id="duration_min" type="number" name="duration_min" value="0" required>
     </div>
-    <button type="submit">{% trans "Ajouter l étape" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter l étape" %}</c-button>
   </form>
   {% endif %}
 {% endblock %}

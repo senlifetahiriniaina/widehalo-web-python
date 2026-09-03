@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ requisition.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'purchase:requisition_list' %}">{% trans "Demandes d'achat" %}</a>
+    <span>/</span> {{ requisition.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ requisition.state|state_badge_class }}">{{ requisition.get_state_display }}</span>
     {% if requisition.rejection_reason %}<p>{% trans "Motif de rejet" %}: {{ requisition.rejection_reason }}</p>{% endif %}
@@ -9,9 +13,9 @@
     <form method="post" style="display:inline;">
       {% csrf_token %}
       <input type="text" name="reason" placeholder="{% trans 'Motif (rejet)' %}">
-      {% if requisition.state == "draft" %}<button type="submit" name="action" value="submit">{% trans "Soumettre" %}</button>{% endif %}
-      {% if requisition.state == "submitted" %}<button type="submit" name="action" value="approve">{% trans "Approuver" %}</button>{% endif %}
-      {% if requisition.state == "submitted" %}<button type="submit" name="action" value="reject">{% trans "Rejeter" %}</button>{% endif %}
+      {% if requisition.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="submit">{% trans "Soumettre" %}</c-button>{% endif %}
+      {% if requisition.state == "submitted" %}<c-button variant="primary" type="submit" name="action" value="approve">{% trans "Approuver" %}</c-button>{% endif %}
+      {% if requisition.state == "submitted" %}<c-button variant="danger" type="submit" name="action" value="reject">{% trans "Rejeter" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -69,7 +73,7 @@
         <label for="uom">{% trans "Unité" %}</label>
         <input id="uom" type="text" name="uom">
       </div>
-      <button type="submit">{% trans "Ajouter" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
     </form>
   {% endif %}
 
@@ -82,7 +86,7 @@
         <label for="partner_id">{% trans "Fournisseur (UUID)" %}</label>
         <input id="partner_id" type="text" name="partner_id" required>
       </div>
-      <button type="submit">{% trans "Créer la commande" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Créer la commande" %}</c-button>
     </form>
   {% endif %}
 {% endblock %}

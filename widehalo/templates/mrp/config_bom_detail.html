@@ -2,13 +2,17 @@
 {% load i18n core_extras %}
 {% block title %}{{ bom.code }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'mrp:config_boms' %}">{% trans "Nomenclatures (BOM)" %}</a>
+    <span>/</span> {{ bom.code }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ bom.state|state_badge_class }}">{{ bom.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      {% if bom.state == "draft" %}<button type="submit" name="action" value="activate">{% trans "Activer" %}</button>{% endif %}
-      {% if bom.state == "active" %}<button type="submit" name="action" value="new_version">{% trans "Nouvelle version" %}</button>{% endif %}
+      {% if bom.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="activate">{% trans "Activer" %}</c-button>{% endif %}
+      {% if bom.state == "active" %}<c-button variant="primary" type="submit" name="action" value="new_version">{% trans "Nouvelle version" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -51,7 +55,7 @@
         <label for="waste_pct">{% trans "Taux de chute (%)" %}</label>
         <input id="waste_pct" type="number" name="waste_pct" step="0.01" value="0">
       </div>
-      <button type="submit">{% trans "Ajouter la ligne" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Ajouter la ligne" %}</c-button>
     </form>
   {% else %}
     <p class="hint">{% trans "Nomenclature immuable une fois active — créer une nouvelle version pour la modifier." %}</p>

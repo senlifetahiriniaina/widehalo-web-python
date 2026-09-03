@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Catalogue" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:template_list' %}">{% trans "Catalogue" %}</a>
+  <span>/</span> {% trans "Configuration" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Configuration Catalogue" %}</h1>
 </div>

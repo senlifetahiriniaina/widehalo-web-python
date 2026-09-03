@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Convertisseur textile" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Convertisseur textile" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Convertisseur poids / longueur" %}</h1>
 </div>
@@ -34,6 +38,6 @@
       <label for="width_cm">{% trans "Laize (cm)" %}</label>
       <input id="width_cm" type="number" step="0.01" name="width_cm" required>
     </div>
-    <button type="submit">{% trans "Convertir" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Convertir" %}</c-button>
   </form>
 {% endblock %}

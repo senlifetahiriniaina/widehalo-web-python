@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle commande d'achat" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'purchase:order_list' %}">{% trans "Commandes d'achat" %}</a>
+  <span>/</span> {% trans "Nouvelle" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouvelle commande d'achat" %}</h1>
 </div>
@@ -34,6 +38,6 @@
       <label for="incoterm">{% trans "Incoterm" %}</label>
       <input id="incoterm" type="text" name="incoterm" placeholder="EXW/FOB/CIF/DAP/DDP">
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

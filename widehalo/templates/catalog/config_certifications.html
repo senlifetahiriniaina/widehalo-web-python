@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Certifications" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'catalog:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Certifications" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Certifications" %}</h1>
 </div>
@@ -61,6 +65,6 @@
       <label for="valid_until">{% trans "Valide jusqu'à" %}</label>
       <input id="valid_until" type="date" name="valid_until">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

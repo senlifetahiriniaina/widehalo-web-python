@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'purchase:order_list' %}">{% trans "Commandes d'achat" %}</a>
+    <span>/</span> {{ order.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ order.state|state_badge_class }}">{{ order.get_state_display }}</span>
     {% if order.import_dossier_pending %}<p>{% trans "Dossier d'importation en attente d'ouverture (RG-PUR-7)." %}</p>{% endif %}
@@ -12,17 +16,17 @@
       {% csrf_token %}
       <input type="text" name="reason" placeholder="{% trans 'Motif (annulation/litige)' %}"
              aria-label="{% trans 'Motif (annulation/litige)' %}">
-      {% if order.state == "draft" %}<button type="submit" name="action" value="submit">{% trans "Soumettre a validation" %}</button>{% endif %}
-      {% if order.state == "to_validate" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
-      {% if order.state == "validated" %}<button type="submit" name="action" value="send">{% trans "Envoyer au fournisseur" %}</button>{% endif %}
-      {% if order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
-      {% if order.state == "confirmed" %}<button type="submit" name="action" value="in_transit">{% trans "Marquer en transit" %}</button>{% endif %}
-      {% if order.state == "in_transit" %}<button type="submit" name="action" value="partially_receive">{% trans "Marquer reçue partiellement" %}</button>{% endif %}
-      {% if order.state == "in_transit" or order.state == "partially_received" %}<button type="submit" name="action" value="receive">{% trans "Marquer reçue" %}</button>{% endif %}
-      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
-      {% if order.state == "confirmed" or order.state == "in_transit" or order.state == "partially_received" or order.state == "received" or order.state == "invoiced" %}<button type="submit" name="action" value="open_dispute">{% trans "Ouvrir un litige" %}</button>{% endif %}
-      {% if order.state == "in_dispute" %}<button type="submit" name="action" value="resolve_dispute">{% trans "Résoudre le litige" %}</button>{% endif %}
-      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+      {% if order.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="submit">{% trans "Soumettre a validation" %}</c-button>{% endif %}
+      {% if order.state == "to_validate" %}<c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>{% endif %}
+      {% if order.state == "validated" %}<c-button variant="primary" type="submit" name="action" value="send">{% trans "Envoyer au fournisseur" %}</c-button>{% endif %}
+      {% if order.state == "sent" %}<c-button variant="primary" type="submit" name="action" value="confirm">{% trans "Confirmer" %}</c-button>{% endif %}
+      {% if order.state == "confirmed" %}<c-button variant="primary" type="submit" name="action" value="in_transit">{% trans "Marquer en transit" %}</c-button>{% endif %}
+      {% if order.state == "in_transit" %}<c-button variant="primary" type="submit" name="action" value="partially_receive">{% trans "Marquer reçue partiellement" %}</c-button>{% endif %}
+      {% if order.state == "in_transit" or order.state == "partially_received" %}<c-button variant="primary" type="submit" name="action" value="receive">{% trans "Marquer reçue" %}</c-button>{% endif %}
+      {% if order.state == "invoiced" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>{% endif %}
+      {% if order.state == "confirmed" or order.state == "in_transit" or order.state == "partially_received" or order.state == "received" or order.state == "invoiced" %}<c-button variant="danger" type="submit" name="action" value="open_dispute">{% trans "Ouvrir un litige" %}</c-button>{% endif %}
+      {% if order.state == "in_dispute" %}<c-button variant="primary" type="submit" name="action" value="resolve_dispute">{% trans "Résoudre le litige" %}</c-button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -81,7 +85,7 @@
       <input type="number" name="unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire' %}"
              aria-label="{% trans 'Prix unitaire' %}">
       <input type="text" name="uom" placeholder="{% trans 'Unite' %}" aria-label="{% trans 'Unite' %}">
-      <button type="submit">{% trans "Ajouter" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
     </form>
   {% endif %}
 
@@ -102,7 +106,7 @@
       </select>
       <input type="text" name="receive_notes" placeholder="{% trans 'Notes' %}"
              aria-label="{% trans 'Notes' %}">
-      <button type="submit">{% trans "Réceptionner" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Réceptionner" %}</c-button>
     </form>
 
     <h3>{% trans "Écart réception vs commande (RG-PUR-5)" %}</h3>
@@ -130,7 +134,7 @@
       <input type="number" name="invoice_unit_price_mga" step="0.0001" placeholder="{% trans 'Prix unitaire facture' %}" required
              aria-label="{% trans 'Prix unitaire facture' %}">
       <input type="date" name="invoice_date" aria-label="{% trans 'Date de facture' %}">
-      <button type="submit">{% trans "Enregistrer la facture" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer la facture" %}</c-button>
     </form>
   {% endif %}
 {% endblock %}
