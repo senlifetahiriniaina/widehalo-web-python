@@ -388,6 +388,96 @@ jusqu'ici (L0–L5).
 - **Raffinement renforcé** : cohérence du dark mode sur l'ensemble des écrans livrés
   jusqu'ici (audit rétroactif L0–L5).
 
+Livré (commit `6916d1f`) : le rapport d'exploration a montré que **colonnes**
+(`SavedTableView`, moteur SmartTable) et **langue** (`User.preferred_language`, éditable
+depuis `/profile/`) existaient déjà côté données — mais la langue n'était **jamais
+appliquée** (aucun `translation.activate()` nulle part) : donnée morte corrigée cette
+semaine, `densité`/`thème` restaient entièrement à construire.
+
+- **Langue** : `apps.core.middleware.UserLocaleMiddleware` (nouveau, placé APRÈS
+  `LocaleMiddleware`/`AuthenticationMiddleware` dans `MIDDLEWARE`) active
+  `User.preferred_language` pour tout utilisateur authentifié qui en a une — un visiteur
+  anonyme retombe sur `LocaleMiddleware` seul, comportement inchangé. Vue
+  `set_language_view` (`POST /i18n/setlang/`, réimplémentation volontaire plutôt que
+  `django.conf.urls.i18n.set_language` — persiste sur `User.preferred_language`, pas
+  seulement un cookie) + `django.template.context_processors.i18n` ajouté aux
+  `TEMPLATES` (`LANGUAGES`/`LANGUAGE_CODE` n'étaient pas exposés aux templates avant).
+  Sélecteur `<select>` natif + `<form method="post">` (soumission au `onchange` en
+  amélioration progressive, bouton `<noscript>` de secours) ajouté au menu compte de
+  `templates/base.html` (shell réellement utilisé par les 216 écrans existants) **et**
+  de `templates/cotton/shell.html` (comme demandé), même patron que le sélecteur de
+  société déjà existant sur `profile.html`.
+- **Malagasy (mg)** : ajouté à `LANGUAGES`/`PREFERRED_LANGUAGE_CHOICES` et
+  `locale/mg/LC_MESSAGES/django.po` créé — catalogue **volontairement vide**, note
+  d'en-tête disclosed (même discipline que `FX_VARIANCE_ALERT_THRESHOLD_PCT`, aucun
+  traducteur malgache professionnel disponible dans ce dépôt) : un utilisateur qui
+  choisit « Malagasy » voit l'application en français plutôt qu'une traduction
+  approximative présentée comme fiable. `compilemessages` n'est déjà, pour `fr`/`en`,
+  invoqué nulle part dans le build (les `.mo` sont dans `.gitignore`, absents du dépôt) —
+  aucune nouvelle étape de build inventée pour `mg`, même précédent.
+- **Thème (dark mode)** : champs `User.theme` (clair/sombre/système, défaut « système »)
+  et `User.density` (confortable/compacte) + migration `0027`. Second thème DaisyUI
+  `widehalo-dark` ajouté dans `tailwind-input.css` (mêmes tokens `--halo-*`/`--amber-*`/
+  `--slate-*` que `widehalo`, surfaces inversées — aucune nouvelle palette) ;
+  `tailwind.css` reconstruit (`npm run build:css`). `<html data-theme="...">` résolu
+  côté serveur par `apps.core.context_processors.account` (`resolved_theme`) : « système »
+  se résout en **clair** côté serveur (page correcte sans JS) ; un petit script inline
+  dans `base.html`/`tw-launchpad.html`, guardé `theme_is_system`, affine ce choix côté
+  client via `prefers-color-scheme` — pure amélioration progressive, jamais la source de
+  vérité. Densité appliquée via `<body class="density-...">` + quelques règles CSS
+  représentatives (`table.smart-table`, `.form-field`) dans `app.css` — application
+  volontairement partielle, pas une réduction exhaustive de tout espacement. Une seule
+  vue `set_preference_view` (`POST /settings/preferences/`) enregistre thème et/ou
+  densité, mêmes formulaires HTML purs que la langue.
+- **PWA / offline** : `static/manifest.json` (nom/icône — réutilise le logo SVG existant,
+  aucune icône PNG dédiée n'a été fabriquée) lié depuis `base.html`/`tw-launchpad.html`.
+  Service worker minimal `static/js/sw.js`, portée **volontairement étroite et
+  documentée dans son propre commentaire d'en-tête** : cache-first sur les assets
+  statiques (CSS/JS/police/icône) + le shell HTML de `/dashboard/` uniquement — **pas**
+  une tentative de mise hors-ligne de l'ERP dynamique dans son ensemble (tout écran
+  métier non déjà visité reste, à raison, inatteignable hors connexion).
+- **File d'attente hors-ligne** : `static/js/offline_queue.js`, inclus globalement
+  depuis `base.html` — amélioration progressive générique (branchée sur tout
+  `<form method="post">` du site, pas d'intégration écran par écran) : hors connexion
+  (`navigator.onLine`), intercepte la soumission, stocke méthode/action/champs dans
+  `localStorage` (tableau JSON simple, pas d'IndexedDB), affiche le message demandé
+  (« Enregistré hors connexion — sera envoyé automatiquement au retour du réseau. »,
+  réutilise `.wh-toast-container` s'il existe sur la page, sinon repli `alert()`), puis
+  rejoue la file au retour réseau (`fetch`, échecs rapportés visiblement, jamais
+  silencieusement perdus). Les formulaires avec upload de fichier sont explicitement
+  exclus (non sérialisables en JSON) : ils échouent alors normalement hors-ligne, comme
+  sans ce script.
+- **Audit rétroactif de cohérence progressive enhancement** : shell (Alpine
+  `x-data`/`x-show`, palette de commandes/dropdowns) — **sans** `<noscript>`, accepté
+  comme fonctionnalité JS-only (navigation, pas le cœur CRUD) ; `profile.html`/formulaires
+  comptables (X2, factures) — déjà `<form method="post">` natifs avec repli
+  `<noscript>` là où une soumission auto existait ; SmartTable (listes) — filtres/tri en
+  liens `<a href>` classiques, fonctionnent sans JS ; chatter — non ré-audité en détail
+  cette semaine (hors échantillon représentatif retenu), signalé plutôt que passé sous
+  silence.
+
+**Résultat des 2 critères d'acceptation stipulés** :
+- ✅ **Cœur applicatif sans JS** : formulaires CRUD (profil, connexion, écritures
+  comptables, réception de lot...) sont déjà des `<form method="post">` natifs
+  (vérifié avant ce chantier) ; les nouveaux contrôles de ce sprint (langue/thème/
+  densité) suivent la même règle (sélecteur natif + repli `<noscript>`). ⚠️ Seule la
+  navigation (palette de commandes, dropdowns Alpine du shell) reste JS-only — écart
+  assumé, la navigation n'est pas le cœur CRUD de l'application.
+- ✅ **Message explicite de mise en file hors connexion** : réellement implémenté et
+  testable (`offline_queue.js`), pas un stub — cf. tests manuels de rendu de
+  `wh-toast-container` dans `base.html`.
+
+19 tests (`apps/core/tests/test_personalization.py`) : activation de langue par le
+middleware (utilisateur `mg` vs visiteur anonyme vs utilisateur sans préférence
+explicite), persistance via `set_language_view` (langue invalide ignorée, redirection
+externe rejetée, `GET` refusé), `set_preference_view` (thème/densité, valeurs invalides
+ignorées, authentification requise), rendu serveur de `data-theme`/`density-*`
+(clair/sombre/système→clair). Suite complète `apps/core/tests tests/architecture` :
+566 passed, 1 xfailed (préexistant), 4 failed — les 4 mêmes échecs
+environnement-only déjà connus avant ce chantier (`test_health_ready_reports_db_and_redis`,
+`test_raw_sql_cannot_bypass_rls`, `test_raw_sql_without_tenant_setting_sees_nothing`,
+`test_cross_tenant_insert_is_rejected_by_rls`), aucune régression.
+
 ### Sprint 11 — L7 IA gateway (8 JT / 15 disponibles)
 `widehalo-ai-gateway` (FastAPI, Ollama local par défaut, repli Mistral), function-calling
 contre des endpoints django-ninja en lecture seule, explicitement whitelistés — **pas de
