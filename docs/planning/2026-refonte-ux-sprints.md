@@ -535,7 +535,7 @@ répartis sur 3 semaines à 15 JT :
 | Sprint | Batches (apps couvertes, écrans, JT) | Total semaine |
 |---|---|---|
 | 12 | ✅ `projects` (23 écrans, 5 JT) · `helpdesk`+`chat` (14 écrans, 5 JT) · `crm`+`sales` (17 écrans, 5 JT) | 15 JT |
-| 13 | `partners`+`patronage` (15 écrans, 5 JT) · `quality`+`financing`+`risk` (15 écrans, 5 JT) · `feasibility`+`automation`+`presence` (15 écrans, 5 JT) | 15 JT |
+| 13 | ✅ `partners`+`patronage` (15 écrans, 5 JT) · `quality`+`financing`+`risk` (15 écrans, 5 JT) · `feasibility`+`automation`+`presence` (15 écrans, 5 JT) | 15 JT |
 | 14 | `strategy`+`reporting`+`reports` (12 écrans, 4 JT) · résidu racine (~18 écrans, 5 JT) | 9 JT (6 JT de marge) |
 
 Livré (commit `e63812a`) pour le **premier batch du Sprint 12** : `projects` (22 écrans
@@ -581,6 +581,49 @@ composant) et reste intact, seuls le fil d'Ariane et les boutons ont été ajout
   réel dépasse ~20 %, en réajustant les batches suivants en conséquence (voir recalibrage
   ci-dessus : pas d'écart significatif observé). La marge de 6 JT du Sprint 14 sert de
   premier amortisseur si un recalibrage s'avérait nécessaire sur les batches restants.
+
+Livré (commit `8ab78ee`) pour le **Sprint 13**, deuxième des 3 batches du lot : `partners`
+(8 écrans) + `patronage` (7 écrans), `quality` (6 écrans) + `financing` (6 écrans) + `risk`
+(3 écrans), `feasibility` (5 écrans) + `automation` (5 écrans) + `presence` (5 écrans) —
+soit 45 écrans, même traitement mécanique que les Sprints 5/7/9/11/12
+(`<c-breadcrumb>` + `<c-button>`, `variant="danger"` sur les actions destructrices/de
+blocage). `partners/wizard_step2.html` (rendu server-side, jamais via `{% extends %}`,
+swappé par `hx-post` dans `#wizard-container`) est traité comme un fragment HTMX au sens du
+Sprint 12 : seul son bouton est converti, pas de fil d'Ariane (pas de shell de page à cet
+endroit) — les fragments à underscore (`_wizard_form.html`, `_wizard_step1_embed.html`,
+`_instant_picker_results.html`) restent exclus comme au Sprint 12. `financing/credoc_create.html`
+et `financing/credoc_detail.html` (T3, commit `19c6889`, alerte d'écart de change) ont été
+vérifiés individuellement avant modification — aucun traitement fil d'Ariane/bouton n'y avait
+encore été appliqué, donc migrés ici à l'identique du reste du lot, sans toucher au bloc
+FX-variance (formulaire et logique intacts). `quality` et `risk` n'ont pas d'app Django dédiée
+(vues sous `apps/core/views/quality.py` et `apps/core/views/risk.py`) mais les gabarits vivent
+bien sous `templates/quality/**` et `templates/risk/**`, conformément au périmètre du batch.
+`automation/builder.html` : la palette de nœuds (boutons `type="button" onclick=...` pilotant
+Drawflow, bespoke JS comme le toggle « Vendable » du Sprint 5) n'est pas touchée ; seuls les
+deux vrais boutons submit (activer/désactiver le flux, enregistrer le canevas) sont convertis.
+`tailwind-input.css` élargi à `templates/partners/**/*.html`, `templates/patronage/**/*.html`,
+`templates/quality/**/*.html`, `templates/financing/**/*.html`, `templates/risk/**/*.html`,
+`templates/feasibility/**/*.html`, `templates/automation/**/*.html` et
+`templates/presence/**/*.html`.
+
+- **Critères d'acceptation** : ✅ fil d'Ariane présent sur chaque écran migré (à l'exception
+  documentée de `partners/wizard_step2.html`, fragment HTMX sans shell de page) ; ⚠️ mêmes
+  réserves que les batches précédents sur les tableaux (`<table class="smart-table">` et
+  tables simples laissées en l'état) et sur « suppression du chemin legacy » (un seul
+  template par écran, rien à supprimer).
+- 322 tests (`partners` + `patronage` + `financing` + `feasibility` + `automation` +
+  `presence` + `core` (quality/risk) + `tests/architecture`, 2 désélectionnés
+  pré-existants sans lien) verts, aucune régression. Rendu cotton vérifié sur les écrans les
+  plus à risque non déjà couverts par un test HTML existant (`financing/credoc_detail`
+  déjà couvert par `test_views.py` — confirmé vert avec le bloc FX-variance intact ;
+  les 7 écrans `patronage`, sans test HTML préexistant ; `partners/duplicates`,
+  `partners/edit`, `partners/imports`, `partners/merge`, non couverts par
+  `test_pt12_tabs.py` qui ne teste que `detail`/contacts) via un rendu réel (Client Django +
+  tenant + fixtures factory/service, tests temporaires ensuite supprimés) : 200 partout,
+  aucune balise `<c-*>` non résolue.
+- **Recalibrage du chiffrage L9** : les 45 écrans du batch ont été traités dans le même tour
+  sans signal de dérive par rapport aux Sprints 5/7/9/11/12 — pas de recalibrage nécessaire,
+  le chiffrage du Sprint 14 est maintenu tel quel.
 
 ## 6. Sprint 15 — Raffinement global & recette UX (5 JT / 15 disponibles)
 
