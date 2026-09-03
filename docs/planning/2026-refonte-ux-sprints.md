@@ -205,10 +205,23 @@ pour la première fois. 7 tests (`test_kanban.py`).
   *Critère* : ✅ déplacer une carte change l'état et journalise dans le chatter ; ✅ cibles
   ≥ 44 px ; ⚠️ « fonctionne sur réseau faible » non mesuré (pas d'environnement de test
   réseau contraint disponible).
+Livré (commit `19c6889`) pour **T3** : le workflow CREDOC (FSM linéaire `demande→ouvert→
+documents_recus→paye→clos`, banques émettrice/notificatrice/bénéficiaire) et le moteur de
+coût de revient débarqué (landed cost, application par SKU, déclenché par la clôture du
+dossier douanier) existaient déjà pleinement fonctionnels. Seule « l'alerte sur écart de
+change Ariary » manquait : nouveau champ `FinCredoc.amount_foreign` (montant en devise
+d'origine, `None` si MGA), `create_credoc` exige ce champ pour toute devise ≠ MGA, nouvelle
+fonction `services.credoc.credoc_fx_variance` (reconversion au taux du jour vs. montant MGA
+constaté à l'ouverture, seuil de matérialité disclosed à 2 %) et `services.public.
+convert_amount_to_mga` (enveloppe fine côté `accounting`, pour respecter la règle de
+couplage n°1). Écrans `credoc_create`/`credoc_detail` mis à jour ; bug d'affichage
+préexistant corrigé au passage (montant toujours en MGA mais étiqueté avec le code devise
+brut). 5 tests (`test_credoc_fx_variance.py`).
+
 - **Écran T3** — Dossier d'import + CREDOC + landed cost (flux banque émettrice → banque
-  notificatrice → bénéficiaire, coût de revient débarqué par SKU). *Non exploré/non
-  réalisé.*
-  *Critère* : statuts CREDOC conformes au flux ; alerte sur écart de change Ariary.
+  notificatrice → bénéficiaire, coût de revient débarqué par SKU).
+  *Critère* : ✅ statuts CREDOC conformes au flux (préexistant) ; ✅ alerte sur écart de
+  change Ariary (`credoc_fx_variance`, seuil 2 %).
 - **Migration du catalogue existant du domaine** (Sprint 5, 16 JT) : les 45 écrans déjà
   livrés dans `catalog` (16), `mrp` (12) et `purchase` (17) passent au nouveau design
   system, écran par écran, en réutilisant les composants L0/L1/L2 — pas de reconstruction
