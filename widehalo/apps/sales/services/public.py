@@ -114,6 +114,27 @@ def count_orders_pending_confirmation() -> int:
     return SalesOrder.objects.filter(state=SalesOrder.STATE_SENT).count()
 
 
+def get_untaxed_revenue_for_reconciliation(*, date_from: Any, date_to: Any) -> Decimal:
+    """Gap fondations Phase 2 (cahier §12, "un chiffre faux en comité de
+    direction coûte des mois de crédibilité") : total HT (`amount_untaxed`)
+    des commandes sur `[date_from, date_to]`, MEME PERIMETRE que
+    `list_order_lines_for_warehouse` (actives, non annulees) — sert de
+    reference independante a `apps.analytics.services.refresh` pour
+    verifier que `sum(AnFactVente.montant_ht_mga)` reconstruit correctement
+    le meme total, ligne par ligne, que l'agregat calcule directement au
+    niveau commande. Volontairement HT (pas `get_revenue_summary`, qui
+    agrege `amount_total_mga` TTC) : `AnFactVente` ne porte que le HT par
+    ligne (cf. docstring `apps.analytics.models.AnFactVente`), comparer a
+    un total TTC produirait un ecart structurel (le montant de TVA) qui
+    n'est pas une vraie incoherence."""
+    total = (
+        SalesOrder.objects.filter(date__gte=date_from, date__lte=date_to, is_active=True)
+        .exclude(state=SalesOrder.STATE_CANCELLED)
+        .aggregate(total=Sum("amount_untaxed"))["total"]
+    )
+    return total if total is not None else Decimal(0)
+
+
 def list_quotations_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:
     """Gap PT6 du chantier "fiche partenaire a onglets par role" (cf.
     plan) : alimente l'onglet "Client" de la fiche partenaire avec les
@@ -136,6 +157,57 @@ def list_quotations_for_partner(partner_id: Any, *, limit: int = 20) -> list[dic
             "total": quotation.amount_total_mga,
         }
         for quotation in quotations
+    ]
+
+
+def list_order_lines_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12, entrepôt en étoile) : extrait les
+    lignes de `SalesOrder` (jamais `SalesQuotation`, pas encore
+    engagé/facturable) pour alimenter `apps.analytics.AnFactVente` — seule
+    voie d'accès pour `analytics`, qui ne doit jamais importer
+    `apps.sales.models` (regle de couplage n1).
+
+    `updated_since` (datetime ou None) filtre sur `SalesOrderLine.
+    updated_at` STRICTEMENT superieur : c'est le mecanisme de
+    rafraichissement INCREMENTAL de l'entrepot (`apps.analytics.services.
+    refresh`) — `None` (premier rafraichissement) renvoie tout l'historique.
+    Renvoie des dicts primitifs, jamais l'objet `SalesOrderLine`, tries par
+    `updated_at` croissant (l'appelant reconstruit son propre jalon comme
+    le max de `updated_at` vu).
+
+    Exclut les commandes `CANCELLED` (meme filtre que `services/reports.py
+    ::revenue_report`, condition de la reconciliation exacte operee par
+    `apps.analytics.services.refresh._check_reconciliation` — un ecart
+    entre l'entrepot et ce rapport de reference doit signaler une vraie
+    incoherence, jamais une simple difference de perimetre)."""
+    qs = (
+        SalesOrderLine.objects.filter(order__tenant=tenant, order__is_active=True)
+        .exclude(order__state=SalesOrder.STATE_CANCELLED)
+        .select_related("order")
+    )
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "line_id": line.id,
+            "updated_at": line.updated_at,
+            "order_id": line.order_id,
+            "order_reference": line.order.reference,
+            "order_state": line.order.state,
+            "order_date": line.order.date,
+            "partner_id": line.order.partner_id,
+            "salesperson_id": line.order.salesperson_id,
+            "variant_id": line.variant_id,
+            "qty": line.qty,
+            "unit_price": line.unit_price,
+            "discount_pct": line.discount_pct,
+            "subtotal": line.subtotal,
+            "cost_estimate_mga": line.cost_estimate_mga,
+            "margin_pct": line.margin_pct,
+        }
+        for line in qs.order_by("updated_at")
     ]
 
 

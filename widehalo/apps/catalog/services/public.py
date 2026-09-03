@@ -347,3 +347,36 @@ def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None)
             continue
         valid_codes.append(certification.standard.code)
     return valid_codes
+
+
+def list_variants_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : réferentiel des variantes,
+    INCLUANT les non vendables et les placeholders (`is_sellable=False`/
+    `is_placeholder=True`) — contrairement à `list_sellable_variants`
+    ci-dessus, pensé pour un sélecteur de vente : une ligne de vente déjà
+    passée doit rester rattachable à sa dimension `AnDimArticle` même si
+    l'article a depuis été retiré de la vente. `updated_since` filtre sur
+    `ProductVariant.updated_at` (jalon incrémental, même contrat que
+    `sales.services.public.list_order_lines_for_warehouse`)."""
+    qs = ProductVariant.objects.filter(tenant=tenant).select_related("template", "template__category")
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "variant_id": variant.id,
+            "updated_at": variant.updated_at,
+            "template_id": variant.template_id,
+            "reference": variant.reference,
+            "libelle": variant.template.name if variant.template_id else "",
+            "categorie_nom": (
+                variant.template.category.name
+                if variant.template_id and variant.template.category_id
+                else ""
+            ),
+            "is_sellable": variant.template.is_sellable if variant.template_id else False,
+            "is_placeholder": variant.is_placeholder,
+        }
+        for variant in qs.order_by("updated_at")
+    ]

@@ -125,3 +125,26 @@ def ensure_default_partner(tenant: Tenant, role: str) -> UUID:
     Retourne l'UUID, jamais l'objet `Partner` (regle de couplage n°1)."""
     partner_id: UUID = _defaults.ensure_default_partner(tenant, role).id
     return partner_id
+
+
+def list_partners_for_warehouse(tenant: Tenant, *, updated_since: Any = None) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : réferentiel des tiers pour
+    alimenter `apps.analytics.AnDimTiers` — seule voie d'accès pour
+    `analytics`, qui ne doit jamais importer `apps.partners.models`.
+    `updated_since` filtre sur `Partner.updated_at` (jalon incrémental,
+    même contrat que `sales.services.public.list_order_lines_for_
+    warehouse`)."""
+    qs = Partner.objects.filter(tenant=tenant)
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "partner_id": partner.id,
+            "updated_at": partner.updated_at,
+            "code": partner.reference,
+            "nom": partner.name,
+            "roles": list(partner.roles),
+            "is_placeholder": partner.is_placeholder,
+        }
+        for partner in qs.order_by("updated_at")
+    ]

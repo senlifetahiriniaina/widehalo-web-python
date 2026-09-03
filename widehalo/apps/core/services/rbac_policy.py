@@ -109,6 +109,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # §13.6) : acces complet, meme discipline transverse que le reste
         # de la matrice pour ce role.
         "simulation": {"view", "add", "change"},
+        # `analytics` (chantier fondations Phase 2, cahier §12 — entrepot
+        # en etoile + dictionnaire d'indicateurs) : acces complet, meme
+        # discipline transverse que le reste de la matrice pour ce role.
+        "analytics": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -167,6 +171,12 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # seulement a consulter/valider un enregistrement cree par un
         # autre role.
         "simulation": {"view", "add", "change"},
+        # `analytics` (chantier fondations Phase 2, cahier §12) : meme
+        # raisonnement que `simulation` ci-dessus — le dictionnaire
+        # d'indicateurs gouverne et le declenchement du rafraichissement
+        # de l'entrepot sont des actes de gouvernance/pilotage, pas une
+        # simple consultation.
+        "analytics": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -402,6 +412,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
     # seul le moteur de simulation, jamais un document metier, cf. SIM-5).
     "controleur_gestion": {
         "simulation": {"view", "add", "change"},
+        # `analytics` (chantier fondations Phase 2, cahier §12) : le
+        # controleur de gestion est le proprietaire naturel du dictionnaire
+        # d'indicateurs gouverne et du pilotage de l'entrepot decisionnel
+        # (meme persona que `simulation` ci-dessus, cf. cahier Phase 2 §3).
+        "analytics": {"view", "add", "change"},
         "reporting": {"view", "add"},
         "accounting": {"view"},
         "sales": {"view"},

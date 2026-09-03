@@ -29,6 +29,13 @@ _ADMIN_ROLE_CODES = {"admin", "direction"}
 # groupe accordeon "finance-pilotage" ci-dessous (memes utilisateurs que
 # accounting/financing — direction/comptable/controleur_gestion, cf.
 # `ROLE_APP_PERMISSIONS["controleur_gestion"]`).
+# "analytics" ajoute par le chantier fondations Phase 2 (cahier §12,
+# entrepot en etoile + dictionnaire d'indicateurs) : lien sidebar "Entrepôt
+# analytique" (`templates/base.html`), meme groupe accordeon "finance-
+# pilotage" et memes utilisateurs restreints que `simulation`
+# (admin/direction/controleur_gestion, cf. `ROLE_APP_PERMISSIONS`) — un
+# ecran de gouvernance/pilotage, pas un module a large audience comme le
+# futur module BI (Phase 2 §13.1) qui le consommera.
 _MODULE_APP_LABELS: tuple[str, ...] = (
     "accounting",
     "crm",
@@ -49,6 +56,7 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "financing",
     "automation",
     "simulation",
+    "analytics",
 )
 _RISK_MENU_KEY = "risks"
 _RISK_PERMISSION_CODENAME = "core.view_riskitem"
@@ -61,7 +69,7 @@ _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),
-    "finance-pilotage": ("accounting", "financing", "automation", "simulation"),
+    "finance-pilotage": ("accounting", "financing", "automation", "simulation", "analytics"),
     "rh": ("presence", "payroll"),
     "projets-risques": ("projects", _RISK_MENU_KEY),
 }

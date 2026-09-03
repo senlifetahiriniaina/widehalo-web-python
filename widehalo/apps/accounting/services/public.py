@@ -42,7 +42,9 @@ from apps.accounting.models import (
     AccFiscalYear,
     AccJournal,
     AccMove,
+    AccMoveLine,
     AccPartnerRoleAccount,
+    AccPayment,
     AccPaymentTerm,
     AccPeriod,
     AccTax,
@@ -1118,3 +1120,82 @@ def convert_amount_to_mga(
     from apps.accounting.services.currency import convert_to_mga
 
     return convert_to_mga(amount, currency, date, tenant=tenant)
+
+
+def list_move_lines_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : extrait les lignes d'écriture
+    PUBLIÉES (`AccMove.state=posted` uniquement — une écriture brouillon
+    reste par nature modifiable, même discipline d'immuabilité que
+    RG-ACC-2/RG-ACC-3) pour alimenter `apps.analytics.AnFactEcriture`.
+
+    `updated_since` : même contrat que `sales.services.public.
+    list_order_lines_for_warehouse` (jalon incrémental)."""
+    qs = AccMoveLine.objects.filter(
+        move__tenant=tenant, move__state=AccMove.STATE_POSTED
+    ).select_related("move", "account")
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "line_id": line.id,
+            "updated_at": line.updated_at,
+            "move_id": line.move_id,
+            "move_reference": line.move.reference,
+            "move_type": line.move.move_type,
+            "move_date": line.move.date,
+            "partner_id": line.partner_id,
+            "account_id": line.account_id,
+            "account_code": line.account.code,
+            "account_name": line.account.name,
+            "account_class": line.account.account_class,
+            "debit": line.debit,
+            "credit": line.credit,
+        }
+        for line in qs.order_by("updated_at")
+    ]
+
+
+def list_payments_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : extrait les règlements
+    PUBLIÉS (`AccPayment.state=posted`) pour alimenter `apps.analytics.
+    AnFactEncaissement`. `updated_since` : même contrat que ci-dessus."""
+    qs = AccPayment.objects.filter(tenant=tenant, state=AccPayment.STATE_POSTED)
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "payment_id": payment.id,
+            "updated_at": payment.updated_at,
+            "reference": payment.reference,
+            "date": payment.date,
+            "partner_id": payment.partner_id,
+            "direction": payment.direction,
+            "method": payment.method,
+            "amount": payment.amount,
+            "state": payment.state,
+        }
+        for payment in qs.order_by("updated_at")
+    ]
+
+
+def list_accounts_for_warehouse(tenant: Tenant) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : réferentiel des comptes PCG,
+    INCLUANT les comptes désactivés (une écriture historique doit rester
+    rattachable à son compte même si celui-ci a depuis été désactivé —
+    contrairement à `list_accounts` ci-dessus, pensé pour un sélecteur de
+    saisie qui ne doit proposer que des comptes actifs)."""
+    return [
+        {
+            "account_id": row["id"],
+            "code": row["code"],
+            "name": row["name"],
+            "account_class": row["account_class"],
+        }
+        for row in AccAccount.objects.filter(tenant=tenant).values(
+            "id", "code", "name", "account_class"
+        )
+    ]

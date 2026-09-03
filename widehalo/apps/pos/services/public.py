@@ -18,7 +18,7 @@ from uuid import UUID
 
 from django.db.models import Sum
 
-from apps.pos.models import PosOrder, PosPayment, PosSession
+from apps.pos.models import PosOrder, PosOrderLine, PosPayment, PosSession
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -71,3 +71,45 @@ def get_session_cash_summary(session_id: UUID) -> dict[str, Any] | None:
         "pending_offline_orders": pending_orders,
         "cash_variance": session.cash_variance,
     }
+
+
+def list_order_lines_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Gap fondations Phase 2 (cahier §12) : extrait les lignes de
+    `PosOrder` VALIDÉES pour alimenter `apps.analytics.AnFactTicketPos` —
+    seule voie d'accès pour `analytics`. Un ticket `DRAFT`/`CANCELLED`
+    n'est jamais remonté : l'entrepôt décisionnel ne reflète que des
+    ventes définitives, même discipline que `AnFactEcriture`/écritures
+    publiées uniquement.
+
+    `updated_since` : même contrat que `sales.services.public.
+    list_order_lines_for_warehouse` (jalon incrémental)."""
+    qs = PosOrderLine.objects.filter(
+        order__tenant=tenant, order__state=PosOrder.STATE_VALIDATED
+    ).select_related("order", "order__register", "order__session")
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "line_id": line.id,
+            "updated_at": line.updated_at,
+            "order_id": line.order_id,
+            "ticket_number": line.order.number,
+            "order_type": line.order.order_type,
+            "order_created_at": line.order.created_at,
+            "partner_id": line.order.partner_id,
+            "cashier_id": line.order.session.cashier_id,
+            "register_code": line.order.register.code,
+            "register_name": line.order.register.name,
+            "variant_id": line.variant_id,
+            "line_type": line.line_type,
+            "qty": line.qty,
+            "unit_price": line.unit_price,
+            "discount_pct": line.discount_pct,
+            "subtotal": line.subtotal,
+            "tax_amount": line.tax_amount,
+            "total": line.total,
+        }
+        for line in qs.order_by("updated_at")
+    ]

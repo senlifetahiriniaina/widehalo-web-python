@@ -62,6 +62,7 @@ urlpatterns = [
     path("helpdesk/", include("apps.helpdesk.urls")),
     path("pos/", include("apps.pos.urls")),
     path("simulation/", include("apps.simulation.urls")),
+    path("analytics/", include("apps.analytics.urls")),
 ]
 
 if settings.DEBUG:

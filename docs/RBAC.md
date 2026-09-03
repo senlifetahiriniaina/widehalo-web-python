@@ -115,7 +115,7 @@ formé.
 | `rh` | Domaine cible = `presence` + `payroll` (accès complet aux deux) ; responsable de département RH identifié pour `strategy`. |
 | `collaborateur` | Rôle par défaut : accès en lecture aux référentiels partagés, gère ses propres objectifs/tâches/pointages/bulletins (scope N3 « own » très répandu pour ce rôle, cf. §5). |
 | `caissier` | Domaine cible = `pos` (accès complet) ; persona « Caissier / vendeur » du cahier §3, distinct du `commercial` (cf. §2 pour le détail de cette décision). Scope N3 « sa session » (cf. §5) : ne gère que la session de caisse dont il est le titulaire. |
-| `controleur_gestion` | Domaine cible = `simulation` (accès complet) ; persona « Contrôleur de gestion » du cahier §3, un des deux seuls rôles (avec `direction`) autorisés par le cahier à utiliser l'atelier de scénarios et l'outil IA `paramétrer_simulation` (cf. §2 pour le détail de cette décision). Scope N3 « ses scénarios » (cf. §5) : ne gère que ses propres scénarios, voit en plus ceux partagés par d'autres. |
+| `controleur_gestion` | Domaine cible = `simulation` (accès complet) ; persona « Contrôleur de gestion » du cahier §3, un des deux seuls rôles (avec `direction`) autorisés par le cahier à utiliser l'atelier de scénarios et l'outil IA `paramétrer_simulation` (cf. §2 pour le détail de cette décision). Scope N3 « ses scénarios » (cf. §5) : ne gère que ses propres scénarios, voit en plus ceux partagés par d'autres. Également domaine cible de `analytics` (accès complet, cahier Phase 2 §12) : propriétaire naturel du dictionnaire d'indicateurs gouverné et du pilotage de l'entrepôt décisionnel. |
 
 ## 3. Matrice complète rôle × module (N2)
 
@@ -138,6 +138,7 @@ jamais (§1).
 | `sales` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — | v |
 | `pos` | v,a,c | v,c | v | — | — | — | — | — | — | — | — | v,a,c | — |
 | `simulation` | v,a,c | v,a,c | — | — | — | — | — | — | — | — | — | — | v,a,c |
+| `analytics` | v,a,c | v,a,c | — | — | — | — | — | — | — | — | — | — | v,a,c |
 | `purchase` | v,a,c | v,c | — | — | — | v,a,c | — | — | — | — | — | — | — |
 | `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
 | `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
@@ -159,6 +160,17 @@ commentaire dédié dans `rbac_policy.py`) : le cahier nomme littéralement
 « Dirigeant » comme l'un des deux seuls rôles autorisés à manipuler
 l'atelier de scénarios, pas seulement à consulter/valider un
 enregistrement créé par un autre rôle.
+
+**`analytics` : même exception, même raisonnement** — `direction` reçoit
+`v,a,c` (chantier fondations Phase 2, cahier §12) : publier/dépublier un
+indicateur du dictionnaire gouverné ou déclencher un rafraîchissement de
+l'entrepôt sont des actes de pilotage, pas une simple consultation/
+validation d'un enregistrement créé par un autre rôle — même discipline
+que `simulation` ci-dessus. `analytics` n'est le domaine cible d'aucun des
+13 rôles autres que `admin`/`direction`/`controleur_gestion` : c'est un
+écran de gouvernance/pilotage technique, pas un module à large audience
+(contrairement au futur module BI, Phase 2 §13.1, qui consommera cet
+entrepôt avec une audience plus large).
 
 \* `payroll` en `view` seul pour `resp_commercial`/`resp_production`/
 `chef_atelier` (les 3 rôles « manager » identifiés, cf. §4.2) donne accès à
@@ -482,13 +494,14 @@ registres — en particulier :
 - toute nouvelle entrée dans `SENSITIVE_FIELDS` → ajouter une ligne au
   tableau du §6.
 
-Ce document couvre l'état du dépôt au moment de sa dernière révision (20
+Ce document couvre l'état du dépôt au moment de sa dernière révision (21
 modules métier réels sous `apps/`, hors `core`/`chat`/`automation`/`ai` ;
 ces 2 derniers traités séparément au §3.2 comme infrastructure transverse
 disposant néanmoins d'une entrée RBAC). Le décompte exact des modules
-métier au moment de la rédaction : `accounting`, `catalog`, `crm`,
-`feasibility`, `financing`, `helpdesk`, `logistics`, `mrp`, `partners`,
-`patronage`, `payroll`, `pos`, `presence`, `projects`, `purchase`,
-`reporting`, `sales`, `simulation`, `stocks`, `strategy` — soit 20, pas
-21 ; si un module supplémentaire existe dans une version ultérieure du
-dépôt, ce compte et la matrice du §3 doivent être révisés en conséquence.
+métier au moment de la rédaction : `accounting`, `analytics`, `catalog`,
+`crm`, `feasibility`, `financing`, `helpdesk`, `logistics`, `mrp`,
+`partners`, `patronage`, `payroll`, `pos`, `presence`, `projects`,
+`purchase`, `reporting`, `sales`, `simulation`, `stocks`, `strategy` —
+soit 21, pas 22 ; si un module supplémentaire existe dans une version
+ultérieure du dépôt, ce compte et la matrice du §3 doivent être révisés
+en conséquence.

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Entrepôt analytique" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Entrepôt analytique" %}</c-breadcrumb>
+
+<div class="page-head">
+  <h1>{% trans "Entrepôt analytique" %}</h1>
+</div>
+
+<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <a role="tab" class="tab {% if tab == 'dictionnaire' %}tab-active{% endif %}" href="?tab=dictionnaire">{% trans "Dictionnaire d'indicateurs" %}</a>
+  <a role="tab" class="tab {% if tab == 'etat' %}tab-active{% endif %}" href="?tab=etat">{% trans "État de l'entrepôt" %}</a>
+</nav>
+
+{% if tab == "etat" %}
+  <div class="wh-panel">
+    {% if state %}
+      <p>
+        {% if state.is_locked %}
+          <span class="badge b-warning">{% trans "Rafraîchissement en cours" %}</span>
+        {% else %}
+          <span class="badge b-success">{% trans "Disponible" %}</span>
+        {% endif %}
+      </p>
+      <p>{% trans "Dernier rafraîchissement réussi" %} :
+        {% if state.last_successful_refresh_at %}{{ state.last_successful_refresh_at|date:"d/m/Y H:i" }}{% else %}{% trans "jamais" %}{% endif %}
+      </p>
+    {% else %}
+      <p>{% trans "Aucun rafraîchissement n'a encore été lancé." %}</p>
+    {% endif %}
+    {% if can_refresh %}
+      <form method="post" action="{% url 'analytics:refresh_now' %}">
+        {% csrf_token %}
+        <c-button variant="secondary" type="submit">{% trans "Rafraîchir maintenant" %}</c-button>
+      </form>
+    {% endif %}
+  </div>
+
+  <h2>{% trans "Historique des exécutions" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Démarré le" %}</th>
+        <th>{% trans "Statut" %}</th>
+        <th>{% trans "Déclenchement" %}</th>
+        <th>{% trans "Lignes traitées" %}</th>
+        <th>{% trans "Réconciliation" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+        <tr>
+          <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ run.get_status_display }}</td>
+          <td>{{ run.get_triggered_by_display }}</td>
+          <td>{{ run.rows_processed }}</td>
+          <td>
+            {% if run.reconciliation_ok == True %}
+              <span class="badge b-success">{% trans "OK" %}</span>
+            {% elif run.reconciliation_ok == False %}
+              <span class="badge b-danger">{% trans "Écart détecté" %}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucune exécution enregistrée." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Code" %}</th>
+        <th>{% trans "Libellé" %}</th>
+        <th>{% trans "Module" %}</th>
+        <th>{% trans "Unité" %}</th>
+        <th>{% trans "Maille minimale" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for metric in metrics %}
+        <tr>
+          <td>{{ metric.code }}</td>
+          <td>{{ metric.libelle }}</td>
+          <td>{{ metric.module_source }}</td>
+          <td>{{ metric.unite|default:"—" }}</td>
+          <td>{{ metric.maille_minimale|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun indicateur publié pour votre rôle." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if all_metrics %}
+    <h2>{% trans "Tous les indicateurs (y compris brouillons)" %}</h2>
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>{% trans "Code" %}</th>
+          <th>{% trans "Libellé" %}</th>
+          <th>{% trans "Statut" %}</th>
+          <th>{% trans "Version" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for metric in all_metrics %}
+          <tr>
+            <td>{{ metric.code }}</td>
+            <td>{{ metric.libelle }}</td>
+            <td>{{ metric.get_statut_display }}</td>
+            <td>{{ metric.version }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endif %}
+{% endblock %}

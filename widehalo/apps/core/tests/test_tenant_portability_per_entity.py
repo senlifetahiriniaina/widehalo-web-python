@@ -98,6 +98,10 @@ _FACTORY_MODULES = [
     # exécuté dans le même run que les tests dédiés de ces deux modules).
     "apps.pos.tests.factories",
     "apps.simulation.tests.factories",
+    # `analytics` (chantier fondations Phase 2, cahier §12) : ajouté dès la
+    # livraison de ce module, pas en rattrapage — cf. le commentaire
+    # ci-dessus sur `pos`/`simulation`.
+    "apps.analytics.tests.factories",
 ]
 
 

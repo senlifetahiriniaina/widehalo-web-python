@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "apps.helpdesk",
     "apps.pos",
     "apps.simulation",
+    "apps.analytics",
 ]
 
 MIDDLEWARE = [
