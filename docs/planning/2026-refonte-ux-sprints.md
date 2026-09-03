@@ -681,24 +681,90 @@ cartes-liens vers les sous-modules), fil d'Ariane seul. `tailwind-input.css` él
   périmètre « écran ») — sans impact sur le budget JT engagé, la marge de 6 JT du Sprint 14
   n'ayant pas eu besoin d'être consommée.
 
-## 6. Sprint 15 — Raffinement global & recette UX (5 JT / 15 disponibles)
+## 6. Sprint 15 — Raffinement global & recette UX (5 JT / 15 disponibles) — ✅ livré
 
 Sprint de clôture de la Phase 1, dédié entièrement à la demande d'insistance UX/UI. Les
 10 JT de marge sur la capacité de 15 sont volontairement réservés à cette recette plutôt
-que comprimés — c'est le sprint où le raffinement UX est la seule priorité :
+que comprimés — c'est le sprint où le raffinement UX est la seule priorité. Livré (commit
+`2666d69`), avec la même discipline d'honnêteté que le reste de ce document : ce qui est
+réellement mesurable dans cet environnement sandbox (sans utilisateurs réels) est fait
+pour de vrai ; ce qui ne l'est pas est documenté comme tel, jamais simulé.
 
-- Audit visuel transverse : cohérence des tokens et composants sur les 218+ écrans
-  livrés (L0 à L9).
-- Passage accessibilité complet : navigation clavier de bout en bout, ARIA sur les
-  composants custom, contrastes WCAG AA (point d'attention DaisyUI/Flowbite qui ne
-  garantissent pas toute la couche ARIA).
-- Mesure SUS finale (cible ≥ 80, seuil minimal acceptable 68) comparée à la baseline
-  mesurée avant refonte ; temps par tâche (réduction ≥ 30 % sur les 5 tâches critiques :
-  créer devis, saisir réception lot, créer OF, saisir écriture, préparer expédition FEFO) ;
-  SEQ (cible ≥ 6,0).
-- Confirmation qu'**aucun** chemin legacy ne subsiste (étape d'élimination obligatoire du
-  strangler pattern appliquée à chaque sprint L3–L9, vérifiée ici une dernière fois).
-- Tests de non-régression visuelle (snapshot) sur l'ensemble du périmètre livré.
+- ✅ **Audit visuel transverse** : grep exhaustif des `<button>` bruts restants dans les
+  apps migrées — 5 boutons Filtrer/Rechercher/Planifier réellement oubliés convertis en
+  `<c-button>` (`projects/time_report.html`, `helpdesk/reports.html`,
+  `helpdesk/kb_list.html`, `purchase/config_substitutes.html`,
+  `reporting/_schedules_container.html`) ; découverte plus large sur
+  `templates/stocks/index.html` (mono-page complet — stock, mouvements, pickings, mesures,
+  qualité, réservations, inventaires, retours, traçabilité, rappels, redistribution,
+  obsolescence, ABC, rapports — jamais réellement converti au design system malgré le
+  traitement « onglets » du Sprint 7) : 32 boutons `<button type="submit">` convertis en
+  `<c-button>` (`variant="danger"` sur annuler/révoquer/clôturer, même convention que les
+  Sprints 5/7/9/11/12/13/14), 1 bouton HTMX bespoke (suggestion FEFO) laissé intact comme
+  les autres exceptions déjà disclosed (palette `automation/builder.html`, onglets
+  `partners/detail.html`). Contraste : 5 violations WCAG AA réelles trouvées et corrigées
+  (`.nav-section-title` 3.93:1→7.09:1 ; `.app-footer` 4.42:1→7.25:1 ; badges
+  `.b-pending`/`.b-sent` 4.09:1→4.98:1 ; lien noyé sans soulignement dans `.form-error` ;
+  `text-base-content/40`/`/50` du launchpad 3.43-3.62:1→4.72-6.91:1).
+- ✅ **Passage accessibilité automatisé réel** (pas un audit manuel humain, non disponible
+  dans cet environnement) : axe-core via Playwright (`axe-playwright-python`, nouvelle dev
+  dépendance, `tests/e2e/test_accessibility_axe.py`), moteur de règles WCAG 2.x complet
+  (contrastes AA, ARIA, structure) — 6 écrans représentatifs (launchpad, liste SmartTable,
+  formulaire de création, chatter, dark mode, écran IA data_query), toutes les violations
+  bloquantes (critical/serious) corrigées pour de vrai (cf. ci-dessus), pas de règle
+  désactivée pour les masquer (une seule règle, `region` — landmarks ARIA absents du shell
+  legacy `base.html` sur ~210 écrans — désactivée avec justification explicite dans le
+  code, écart réel restant, cf. ci-dessous) ; ⚠️ navigation clavier de bout en bout NON
+  vérifiée de façon exhaustive (axe-core détecte l'absence de nom accessible/contraste,
+  pas l'ordre de tabulation réel — un balayage clavier manuel écran par écran sur ~220
+  écrans dépasse le calibrage de ce sprint de clôture, écart honnête).
+- ⚠️ **Mesure SUS finale / SEQ / temps par tâche** : **non mesurable dans cet
+  environnement** (pas d'utilisateurs réels disponibles), identique au constat déjà fait
+  au Sprint 1 pour la recherche globale < 100 ms perçu — cette promesse explicite du
+  Sprint 1 (« à faire au Sprint 15/recette ») est donc réaffirmée ici : elle reste hors
+  d'atteinte d'une session sandbox sans panel d'utilisateurs réels, pas résolue.
+- ✅ **Confirmation qu'aucun chemin legacy ne subsiste** — vérifiée, avec un residu
+  honnêtement restaté plutôt que masqué : les 26 apps déclarées migrées ont toutes une
+  entrée `@source` Tailwind (aucune app silencieusement oubliée, vérifié par inventaire
+  exhaustif de `templates/*`) ; le strangler pattern `toggle_shell` (Sprint 1) reste
+  **un résidu réel et non éliminé** — `/dashboard/` est toujours le seul point de
+  redirection vers `/launchpad/`, `<c-shell>` (app switcher, palette de commandes) n'est
+  utilisé QUE par le launchpad lui-même, les ~210 autres écrans restent sur le shell
+  `base.html` (topbar/sidebar classique) — écart déjà disclosed au Sprint 1
+  (« Reporté ») et confirmé encore présent ici, pas silencieusement disparu ; ⚠️ le report
+  déjà disclosed à chaque sprint L3–L9 sur `<table class="smart-table">`/`<c-table>`
+  (composant table cotton inexistant) reste également non résolu — connu depuis les
+  Sprints 5/7/9/11/12/13/14, restaté ici comme constat de clôture, pas retraité en
+  urgence sur l'ensemble du périmètre sans recette humaine pour valider l'absence de
+  régression visuelle à cette échelle.
+- ✅ **Tests de non-régression visuelle (snapshot)** — perimètre calibré à ce sprint
+  (pas un pixel-diff CI complet sur les ~220 écrans, chantier d'infra separé) :
+  `tests/e2e/test_visual_regression.py`, 4 captures de référence (launchpad, liste
+  SmartTable, formulaire de création, dark mode) comparées pixel à pixel via Pillow (déjà
+  une dépendance du dépôt, `requirements/base.txt`) — l'API native
+  `expect(page).to_have_screenshot()` de Playwright a été vérifiée absente côté Python
+  (1.62, JS/TS uniquement), donc implémentation manuelle équivalente documentée dans le
+  module plutôt que suppposée disponible sans vérification.
+- **Bonus non planifié, trouvé par cette clôture** : deux bugs réels découverts en
+  exécutant pour la première fois cette session la suite complète (`pytest` sans filtre)
+  en une seule fois — jusqu'ici `tests/e2e` tournait dans un job CI séparé
+  (`.github/workflows/ci.yml`), jamais combiné au reste. (1) `page.click("button[type=
+  submit]")` sur 9 tests Playwright était ambigu depuis le Sprint 1 sur toute page
+  authentifiée (bouton caché « Essayer la nouvelle interface » du menu compte, présent
+  avant le contenu de page dans le DOM) — corrigé en scopant chaque sélecteur à
+  `#main-content`, jamais en touchant le menu compte lui-même (comportement
+  intentionnel). (2) `gettext`/`msgfmt` absent du sandbox empêchait
+  `manage.py compilemessages` (déjà documenté comme requis par la CI) — installé, `.mo`
+  compilés, test i18n Accept-Language anglais désormais vert.
+
+**Suite complète** (`pytest` sans filtre, `widehalo/`) : 3159 passed, 1 skipped,
+18 deselected, 1 xfailed, 3 failed — les 3 échecs restants sont pré-existants et
+environnement-only (isolation RLS via SQL brut, nécessite un rôle Postgres dédié hors
+périmètre d'une session sans cluster de production, écart déjà disclosed au Sprint 11) :
+`test_raw_sql_cannot_bypass_rls`, `test_raw_sql_without_tenant_setting_sees_nothing`,
+`test_cross_tenant_insert_is_rejected_by_rls`. `test_health_ready_reports_db_and_redis`
+(4e échec habituellement cité dans ce document) n'est pas apparu cette fois — Redis
+disponible dans cet environnement de session.
 
 ## 7. Synthèse
 
@@ -709,6 +775,33 @@ que comprimés — c'est le sprint où le raffinement UX est la seule priorité 
 | Répartition | 5 (S0) + 8 (L0) + 10 (L1) + 8 (L2) + 28 (L3) + 19 (L4) + 16 (L5) + 6 (L6) + 8 (L7) + 39 (L9) + 5 (recette) = 152 |
 | Périmètre | Phase 1 Madagascar, **intégralité des 218 écrans existants + écrans critiques neufs** (L0–L7 + L9, Must + Should) |
 | Hors périmètre | L8 — activation SYSCOHADA / roadmap OHADA (Côte d'Ivoire en priorité), Phase 2 ; écrans qui seraient créés après la clôture de ce planning (nouveaux modules) |
+
+### Clôture de la Phase 1 (Sprint 15, commit `2666d69`)
+
+**Les 16 sprints de ce planning (Sprint 0 à Sprint 15) sont livrés.** Le budget de 152 JT
+est engagé en totalité (aucun sprint annulé ni réduit), les 22 apps + résidu racine du
+périmètre §5 bis sont migrées, et le Sprint 15 a fait une dernière passe honnête de
+recette plutôt qu'une simple relecture. Cette clôture est modulo les écarts **déjà
+disclosed à chaque sprint concerné et jamais dissimulés** :
+
+- `<table class="smart-table">`/`<c-table>` : composant table cotton jamais construit,
+  disclosed depuis le Sprint 5, restaté à chaque sprint de migration L3–L9 jusqu'au
+  Sprint 15 — les tableaux des écrans migrés restent visuellement en l'état.
+- Strangler pattern `toggle_shell` : `/dashboard/` reste le seul point de redirection vers
+  `/launchpad/`, `<c-shell>` n'est utilisé que par le launchpad — confirmé encore présent
+  au Sprint 15, pas éliminé.
+- SUS/SEQ/temps par tâche (Sprint 15) et validation par un expert-comptable OECFM
+  (Sprints 8–9) : nécessitent des utilisateurs/experts réels, non disponibles dans une
+  session sandbox — jamais simulés, toujours explicitement marqués non mesurés.
+- Rôle Postgres dédié moindre-privilège pour le chemin IA (Sprint 11) : provisionnement
+  infra/ops hors périmètre d'une session sans cluster de production.
+- Malagasy (`mg`) : catalogue de traduction volontairement vide (Sprint 10), aucun
+  traducteur malgache professionnel disponible dans ce dépôt.
+
+Aucun de ces écarts n'a été introduit ou aggravé au Sprint 15 — la recette de clôture les
+a confirmés inchangés (ou, pour le strangler pattern, explicitement re-vérifiés présents)
+plutôt que de les redécouvrir tardivement. La suite de tests complète (3159 passed au
+Sprint 15) ne montre aucune régression sur l'ensemble des 16 sprints.
 
 ### Historique des révisions
 
