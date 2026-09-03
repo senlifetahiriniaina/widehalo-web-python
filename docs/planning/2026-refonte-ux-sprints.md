@@ -536,7 +536,7 @@ répartis sur 3 semaines à 15 JT :
 |---|---|---|
 | 12 | ✅ `projects` (23 écrans, 5 JT) · `helpdesk`+`chat` (14 écrans, 5 JT) · `crm`+`sales` (17 écrans, 5 JT) | 15 JT |
 | 13 | ✅ `partners`+`patronage` (15 écrans, 5 JT) · `quality`+`financing`+`risk` (15 écrans, 5 JT) · `feasibility`+`automation`+`presence` (15 écrans, 5 JT) | 15 JT |
-| 14 | `strategy`+`reporting`+`reports` (12 écrans, 4 JT) · résidu racine (~18 écrans, 5 JT) | 9 JT (6 JT de marge) |
+| 14 | ✅ `strategy`+`reporting`+`reports` (8 écrans réels, 4 JT) · résidu racine (14 écrans réels, 5 JT) | 9 JT (6 JT de marge) |
 
 Livré (commit `e63812a`) pour le **premier batch du Sprint 12** : `projects` (22 écrans
 sur 23 — `guest_portal.html` explicitement exclu, page 100 % anonyme du portail invite
@@ -624,6 +624,62 @@ deux vrais boutons submit (activer/désactiver le flux, enregistrer le canevas) 
 - **Recalibrage du chiffrage L9** : les 45 écrans du batch ont été traités dans le même tour
   sans signal de dérive par rapport aux Sprints 5/7/9/11/12 — pas de recalibrage nécessaire,
   le chiffrage du Sprint 14 est maintenu tel quel.
+
+Livré (commit `c691b91`) pour le **Sprint 14**, troisième et dernier batch du lot :
+`strategy` (5 écrans : list, create, detail, benchmarks, capacity_outlook) + `reporting`
+(3 écrans : catalog, generate, schedules) + résidu racine (14 écrans : admin_users_edit,
+admin_users_list, backup_list, backup_schedule, change_password, company_profile,
+dashboard, documents, mfa, profile, reset_company_data, search, settings, setup_company)
+— même traitement mécanique que les Sprints 5/7/9/11/12/13
+(`<c-breadcrumb>` + `<c-button>`, `variant="danger"` sur les actions destructrices/
+irréversibles). Avant de migrer quoi que ce soit, une investigation exhaustive a
+déterminé le périmètre réel des deux volets estimés par le plan :
+- **`reports`** (batch prévu par la table ci-dessus) : les 4 gabarits sous
+  `templates/reports/**` (`delivery_note`, `order_confirmation`, `quotation`,
+  `smart_table_export`, tous hérités de `reports/_base.html`) sont des documents
+  PDF/impression (WeasyPrint), sans `base.html`/shell ni composant cotton, jamais rendus
+  dans le contexte de navigation applicatif — ce ne sont pas des « écrans » au sens de ce
+  lot, donc explicitement exclus. D'où 8 écrans réels sur `strategy`+`reporting` (contre
+  12 estimés au chiffrage initial) — révision à la baisse de l'hypothèse de planning, pas
+  une dérive de périmètre.
+- **Résidu racine** : inventaire exhaustif de `templates/*.html` (hors sous-dossiers d'app
+  déjà migrés aux Sprints 5/7/9/11/12/13, hors `cotton/` et `components/` qui ne sont pas
+  des écrans, hors `tw-*.html` déjà Tailwind-natifs depuis le Sprint 1) — 14 fichiers
+  réels contre ~18 estimés. Explicitement exclus, mêmes motifs que `guest_portal.html` au
+  Sprint 12 : `login.html` et `confirm_email.html` (pages anonymes pré-authentification,
+  doctype autonome sans `<c-shell>` ni composant cotton) ; `base.html` (le layout
+  lui-même, pas un écran) ; `tw-launchpad.html` et `tw-design-system-preview.html` (déjà
+  Tailwind-natifs, Sprint 1).
+
+`strategy/detail.html` a deux formulaires secondaires inline (ajout résultat clé, ajout
+check-in) dont les boutons sont convertis comme le reste du lot, même choix que
+`patronage/config_grading_rules.html` au Sprint 13. `strategy/capacity_outlook.html` : le
+bouton « Actualiser » d'un formulaire GET (pas un POST) est converti, cohérent avec les
+boutons de téléchargement GET de `presence/reports*.html` au Sprint 13. `backup_list.html`
+(« Restaurer ») et `reset_company_data.html` (« Réinitialiser définitivement ») reçoivent
+`variant="danger"` (actions destructrices/irréversibles explicitement documentées dans
+leur propre gabarit). `settings.html` n'a pas de bouton d'action primaire (uniquement des
+cartes-liens vers les sous-modules), fil d'Ariane seul. `tailwind-input.css` élargi à
+`templates/strategy/**/*.html`, `templates/reporting/**/*.html` et `templates/*.html`
+(résidu racine, glob non récursif).
+
+- **Critères d'acceptation** : ✅ fil d'Ariane présent sur chaque écran migré ; ⚠️ mêmes
+  réserves que les batches précédents sur les tableaux (`<table class="smart-table">` et
+  tables simples laissées en l'état) et sur « suppression du chemin legacy » (un seul
+  template par écran, rien à supprimer).
+- 153 tests (`strategy` + `reporting` + `tests/architecture`) + 550 tests (`apps/core`,
+  résidu racine inclus, 3 échecs pré-existants sans lien — isolation RLS via SQL brut,
+  environnement de test seulement) + 13 tests (`tests/architecture`, vérification finale
+  isolée) verts, aucune régression. Rendu cotton vérifié sur les écrans les plus à risque
+  non déjà couverts par une assertion de contenu explicite (`dashboard`, `documents`,
+  `search`, `profile`, `strategy/create`, `strategy/benchmarks`, `strategy/detail`,
+  `reporting/catalog`, `reporting/schedules`) via un test temporaire (Client Django +
+  tenant + rôle, supprimé ensuite) : 200 partout, aucune balise `<c-*>` non résolue.
+- **Clôture du lot L9** : les 3 batches prévus (Sprints 12, 13, 14) sont livrés. Périmètre
+  réel légèrement inférieur à l'estimation initiale sur ce dernier batch (22 écrans réels
+  sur `strategy`+`reporting`+résidu racine contre ~30 estimés, `reports` s'avérant hors
+  périmètre « écran ») — sans impact sur le budget JT engagé, la marge de 6 JT du Sprint 14
+  n'ayant pas eu besoin d'être consommée.
 
 ## 6. Sprint 15 — Raffinement global & recette UX (5 JT / 15 disponibles)
 
