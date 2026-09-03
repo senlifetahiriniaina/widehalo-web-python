@@ -204,38 +204,70 @@ risque de dépassement des 2 s jugé faible).
   tailles×couleurs (saisie clavier rapide), lisibilité du kanban atelier sur tablette en
   conditions de réseau faible.
 
-### Sprints 6–7 — L4 Agro (19 JT / 30 disponibles)
-- **Écran A1** — Réception + lots + DLC/DLUO (liaison certificat/COA, tablette + scan).
-  *Critère* : tout mouvement porte un n° de lot ; FEFO appliqué automatiquement.
-- **Écran A2** — Ordre de transformation + recette (BOM process) + rendement (généalogie de
-  lot, traçabilité amont/aval).
-  *Critère* : rendement réel vs théorique affiché.
-- **Écran A3** — Contrôle qualité HACCP + non-conformité + rappel produit.
-  *Critère* : un lot suspect permet de lister en < 5 s tous les lots finis et clients
-  impactés (traçabilité « one-up/one-back ») ; journal horodaté (incident, timestamp,
-  initiateur, périmètre).
-  (Sprint 6 : A1–A3, 12 JT.)
-- **Migration du catalogue existant du domaine** (Sprint 7, 7 JT sur 15 disponibles) :
-  `stocks` (3 écrans — déjà consolidés en pages multi-onglets, cf.
-  `apps/stocks/views.py`) et `logistics` (17 écrans, entrepôt/expédition) migrés vers le
-  nouveau design system. Marge confortable (8 JT) réinvestie en raffinement.
-- **Raffinement renforcé (les deux sprints)** : clarté visuelle des statuts hold/release,
-  parcours de traçabilité lisible en situation d'urgence (rappel produit).
+### Sprints 6–7 — L4 Agro (19 JT / 30 disponibles) — RÉALISÉ (partiellement)
 
-### Sprints 8–9 — L5 Compta/Paie Madagascar (16 JT / 30 disponibles)
-Abstraction du référentiel comptable (`core_accounting_framework`, `core_chart_of_accounts`,
-`core_account`, `core_account_mapping` : PCG 2005 première classe, SYSCOHADA activable par
-tenant/pays), paramètres réglementaires versionnés (`core_regulatory_parameter` : IRSA,
-CNaPS, OSTIE, FMFP, TVA, SME — jamais en dur), saisie comptable rapide (X2), bulletin de
-paie (X3). (Sprint 8 : X2–X3, 10 JT.)
+Livré (commit `5e41842`) pour **A1** : le modèle `StkLot` (DLC/DLUO/n° de lot/fournisseur)
+existait déjà, mais les écrans de saisie et la suggestion FEFO n'étaient pas exposés à
+l'utilisateur — corrigé cette semaine. Champs lot (nom, date de production, date de
+péremption, lot fournisseur) ajoutés au formulaire de réception dans
+`templates/stocks/index.html` ; en sortie/mouvement interne, un bouton HTMX
+(`stocks:fefo_suggestion`, `apps/stocks/views.py::fefo_suggestion`) interroge
+`apps.stocks.services.quants.select_lot_fefo` et affiche les lots par ordre de péremption
+croissante (fragment `templates/stocks/_fefo_suggestion.html`) — l'utilisateur choisit
+explicitement le lot proposé (FEFO reste une **suggestion**, jamais une auto-application,
+conformément au docstring de `select_lot_fefo` lui-même). 4 tests dans
+`tests/ui/test_stocks_lot_dlc.py`.
 
-- **Migration du catalogue existant du domaine** (Sprint 9, 6 JT sur 15 disponibles) :
-  `accounting` (15 écrans) et `payroll` (2 écrans) migrés vers le nouveau design system.
-- **Critères d'acceptation** : aucun barème réglementaire en dur (lu depuis la table
-  versionnée à la date d'effet) ; validation des paramètres par un expert-comptable membre
-  de l'OECFM avant mise en production ; plafond social (8×SME) calculé dynamiquement.
-- **Raffinement renforcé (les deux sprints)** : saisie comptable rapide avec contreparties
-  suggérées, lisibilité des écarts PCG 2005 vs SYSCOHADA pour éviter toute confusion.
+- **Écran A1** — Réception + lots + DLC/DLUO.
+  *Critère* : ✅ tout mouvement porte un n° de lot (création/saisie possible) ;
+  ⚠️ FEFO **suggéré** (bouton explicite), non « appliqué automatiquement » comme l'exigeait
+  le libellé initial du dossier — écart assumé, déjà documenté dans le code existant avant
+  cette session.
+
+**Reporté** (hors périmètre traité cette semaine) :
+- **Écran A2** — Ordre de transformation + recette (BOM process) + rendement/généalogie de
+  lot amont/aval : *non réalisé*. Aucun domaine « ordre de transformation »/« recette
+  process » n'existe dans le dépôt (le `MrpBomLine` couvre la nomenclature produit, pas un
+  process de transformation agro avec rendement) — nécessite un nouveau modèle métier,
+  hors budget de cette session.
+- **Écran A3** — Contrôle qualité HACCP + non-conformité + rappel produit : *non réalisé*.
+  `QltInspection` existe mais sans mécanisme de blocage/déblocage (hold/release) ni de
+  rappel produit ; aucun modèle de rappel n'existe dans le dépôt — nécessite conception et
+  implémentation dédiées.
+- **Migration du catalogue existant du domaine** (Sprint 7, 7 JT) : `stocks` et `logistics`
+  vers le nouveau design system — *non traitée* cette session.
+- **Raffinement renforcé** : clarté visuelle des statuts hold/release et parcours de
+  traçabilité d'urgence — sans objet tant que A2/A3 ne sont pas construits.
+
+### Sprints 8–9 — L5 Compta/Paie Madagascar (16 JT / 30 disponibles) — RÉALISÉ (partiellement)
+
+Livré (commit `5e41842`) pour **X3** : le moteur de calcul du bulletin
+(`apps.payroll.services.payslip.compute_payslip`) et le référentiel réglementaire versionné
+existaient déjà (IRSA, CNaPS, OSTIE, plafond social) — la cotisation **FMFP** (Fonds de
+Formation Professionnelle, 1 % patronal, pas de part salariale) en manquait : ajoutée via
+`RegulatoryParameter` (code `payroll.fmfp_rate`), `PayrollParams.fmfp_employer_rate`, et une
+nouvelle règle `FMFP_PAT` (séquence 95) dans `payroll_structure_mg.json`, intégrée à
+`social_employer`. Deux écrans manquants ajoutés : détail d'un bulletin
+(`payroll:payslip_detail`, KPI + détail ligne à ligne) et téléchargement PDF
+(`payroll:payslip_download`), avec contrôle d'accès (RG-PAY-9 : uniquement l'employé
+propriétaire ou un rôle staff, 403 sinon) — corrige au passage un lien mort dans
+`templates/payroll/my_payslips.html` qui pointait vers lui-même. 5 tests dans
+`apps/payroll/tests/test_x3_fmfp_and_views.py`.
+
+- **Critères d'acceptation** : ✅ aucun barème réglementaire en dur, FMFP compris (lu depuis
+  la table versionnée à la date d'effet) ; ⚠️ validation par un expert-comptable OECFM —
+  non applicable dans ce contexte (pas d'expert-comptable disponible pour cette session) ;
+  ✅ plafond social (8×SME) déjà calculé dynamiquement (préexistant).
+
+**Reporté** (hors périmètre traité cette semaine) :
+- **Écran X2** — Saisie comptable rapide (journal avec contreparties suggérées) :
+  *non réalisé*. Aucun écran de saisie d'écriture comptable libre/multi-lignes n'existe
+  dans `apps.accounting` (uniquement des écritures générées automatiquement par les autres
+  domaines) — à construire de zéro, hors budget de cette session.
+- **Migration du catalogue existant du domaine** (Sprint 9, 6 JT) : `accounting` et
+  `payroll` vers le nouveau design system — *non traitée* cette session.
+- **Raffinement renforcé** : saisie comptable rapide avec contreparties suggérées, écarts
+  PCG 2005 vs SYSCOHADA — sans objet tant que X2 n'est pas construit.
 
 ### Sprint 10 — L6 Personnalisation & offline (6 JT / 15 disponibles)
 Personnalisation utilisateur (`user_preference` : colonnes, densité, thème, langue), PWA /
