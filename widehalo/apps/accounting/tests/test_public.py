@@ -26,13 +26,16 @@ from apps.accounting.models import (
     AccMove,
     AccPaymentTerm,
     AccPeriod,
+    AccTax,
 )
 from apps.accounting.services.public import (
     create_customer_invoice_from_source,
     create_landed_cost_batch_from_source,
+    create_pos_session_closing_entry_from_source,
     create_stock_adjustment_entry_from_source,
     create_supplier_invoice_from_source,
     get_budget_variance_for_analytic_account,
+    get_default_sale_tax,
     get_treasury_forecast_summary,
     list_payment_terms,
 )
@@ -44,6 +47,7 @@ from apps.accounting.tests.factories import (
     AccFiscalYearFactory,
     AccJournalFactory,
     AccPeriodFactory,
+    AccTaxFactory,
 )
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
@@ -617,3 +621,151 @@ def test_list_payment_terms_returns_primitives_ordered_by_name(public_setup) -> 
 
     assert [row["name"] for row in result] == ["60 jours fin de mois", "Comptant"]
     assert all(isinstance(row, dict) for row in result)
+
+
+def test_get_default_sale_tax_returns_the_first_valid_sale_tax(public_setup) -> None:
+    """Gap ajoute pour le module `pos` (§13.5)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        account = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_TAX)
+        AccTaxFactory(tenant=tenant, type=AccTax.TYPE_SALE, code="TVA1", rate=Decimal("20.000"), account_collected=account)
+
+        result = get_default_sale_tax(tenant, on_date=dt.date(2026, 1, 15))
+
+    assert result is not None
+    assert result["rate"] == Decimal("20.000")
+    assert result["account_id"] == account.id
+
+
+def test_get_default_sale_tax_ignores_taxes_outside_their_validity_window(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccTaxFactory(
+            tenant=tenant,
+            type=AccTax.TYPE_SALE,
+            rate=Decimal("18.000"),
+            valid_from=dt.date(2020, 1, 1),
+            valid_to=dt.date(2025, 12, 31),
+        )
+
+        result = get_default_sale_tax(tenant, on_date=dt.date(2026, 1, 15))
+
+    assert result is None
+
+
+def test_get_default_sale_tax_returns_none_without_any_sale_tax(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        result = get_default_sale_tax(tenant, on_date=dt.date(2026, 1, 15))
+
+    assert result is None
+
+
+def _pos_closing_setup(tenant: Tenant) -> tuple[AccAccount, AccAccount, AccAccount, AccAccount]:
+    AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_CASH)
+    AccPeriodFactory(tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31))
+    cash = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_CASH)
+    income = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_INCOME)
+    tax = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_TAX)
+    expense = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+    return cash, income, tax, expense
+
+
+def test_create_pos_session_closing_entry_from_source_success_path(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        cash, income, tax, _expense = _pos_closing_setup(tenant)
+
+        move_id = create_pos_session_closing_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            payment_totals=[
+                {"account_id": None, "default_account_type": "cash", "amount": Decimal("12000")}
+            ],
+            income_amount_mga=Decimal("10000"),
+            tax_amount_mga=Decimal("2000"),
+            cash_variance_mga=Decimal("0"),
+            label="Clôture caisse CAISSE-1",
+        )
+
+        assert move_id is not None
+        move = AccMove.objects.get(id=move_id)
+        assert move.state == AccMove.STATE_POSTED
+        assert move.total_debit == move.total_credit == Decimal("12000.0000")
+        assert move.lines.get(account_id=cash.id).debit == Decimal("12000")
+        assert move.lines.get(account_id=income.id).credit == Decimal("10000")
+        assert move.lines.get(account_id=tax.id).credit == Decimal("2000")
+
+
+def test_create_pos_session_closing_entry_from_source_books_a_shortage_as_an_expense(
+    public_setup,
+) -> None:
+    """Écart NÉGATIF (manquant en caisse) : ligne de débit supplémentaire
+    sur le compte de charge — l'écriture reste équilibrée malgré le
+    montant COMPTÉ (12000-500=11500) inférieur au théorique (10000+2000)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        cash, income, tax, expense = _pos_closing_setup(tenant)
+
+        move_id = create_pos_session_closing_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            payment_totals=[
+                {"account_id": None, "default_account_type": "cash", "amount": Decimal("11500")}
+            ],
+            income_amount_mga=Decimal("10000"),
+            tax_amount_mga=Decimal("2000"),
+            cash_variance_mga=Decimal("-500"),
+        )
+
+        move = AccMove.objects.get(id=move_id)
+        assert move.total_debit == move.total_credit == Decimal("12000.0000")
+        variance_line = move.lines.get(account_id=expense.id)
+        assert variance_line.debit == Decimal("500")
+        assert variance_line.credit == Decimal("0")
+
+
+def test_create_pos_session_closing_entry_from_source_books_a_surplus_as_income(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        cash, income, tax, _expense = _pos_closing_setup(tenant)
+
+        move_id = create_pos_session_closing_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            payment_totals=[
+                {"account_id": None, "default_account_type": "cash", "amount": Decimal("12500")}
+            ],
+            income_amount_mga=Decimal("10000"),
+            tax_amount_mga=Decimal("2000"),
+            cash_variance_mga=Decimal("500"),
+        )
+
+        move = AccMove.objects.get(id=move_id)
+        assert move.total_debit == move.total_credit == Decimal("12500.0000")
+        # Le compte "income" porte a la fois le produit des ventes (10000)
+        # et le surplus de caisse (500) — deux lignes distinctes sur le
+        # meme compte (aucune consolidation, chaque ligne garde son
+        # libelle propre).
+        income_lines = move.lines.filter(account_id=income.id)
+        assert income_lines.count() == 2
+        assert sum((line.credit for line in income_lines), Decimal(0)) == Decimal("10500")
+
+
+def test_create_pos_session_closing_entry_from_source_returns_none_without_cash_journal(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        result = create_pos_session_closing_entry_from_source(
+            tenant=tenant,
+            date=dt.date(2026, 1, 15),
+            payment_totals=[],
+            income_amount_mga=Decimal("0"),
+            tax_amount_mga=Decimal("0"),
+            cash_variance_mga=Decimal("0"),
+        )
+
+    assert result is None

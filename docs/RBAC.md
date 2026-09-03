@@ -57,14 +57,30 @@ content-type/object-id — reçoivent des permissions Django auto-générées
 ajoutées au cas par cas dans `CUSTOM_PERMISSIONS` (§4), précisément pour
 éviter d'ouvrir tout `core` en accordant l'app entière.
 
-## 2. Les 11 rôles
+## 2. Les 12 rôles
 
 Liste confirmée dans `widehalo/config/settings/base.py`
 (`CORE_STANDARD_ROLES`), chargée en base par la commande de management
 `load_roles` (`apps/core/management/commands/load_roles.py`, qui crée un
 `Group`+`RoleProfile` par rôle et appelle `sync_group_permissions`). Le
 test `apps/core/tests/test_rbac_default_deny.py` vérifie qu'il y en a
-exactement 11.
+exactement 12.
+
+**`caissier` est le 12e rôle**, ajouté par le chantier module POS (cahier
+Phase 1 §13.5) — les 11 précédents datent tous du Lot 1/Lot 2 (« V1 acquis
+du CDC »). Décision documentée ici en détail car c'est la première
+extension de cette liste depuis son établissement : le cahier nomme
+explicitement un persona « Caissier / vendeur » (§3) distinct du
+persona « Commercial », avec un contexte d'usage entièrement différent
+(« encaisse face à une file d'attente... souvent peu formé, parfois
+saisonnier », vs. le commercial qui « passe la journée dans l'outil,
+alterne téléphone client et saisie »). Réutiliser `commercial` aurait
+mélangé deux scopes N3 sans rapport (le portefeuille CRM/ventes d'un
+commercial n'a aucun sens pour « sa session de caisse ») et donné à un
+caissier un accès CRM/Sales complet dont il n'a pas besoin — à la
+différence des réutilisations précédentes (`magasinier`/`logistics`,
+`acheteur`/département achats), aucun des 11 rôles existants n'est un
+candidat plausible ici.
 
 | Rôle | Intention métier (déduite de l'usage réel dans le code) |
 |---|---|
@@ -79,6 +95,7 @@ exactement 11.
 | `magasinier` | Domaine cible = `stocks` (accès complet) ; hérite aussi de `logistics` (livraisons/expéditions) faute d'un rôle « logisticien » dédié parmi les 11. |
 | `rh` | Domaine cible = `presence` + `payroll` (accès complet aux deux) ; responsable de département RH identifié pour `strategy`. |
 | `collaborateur` | Rôle par défaut : accès en lecture aux référentiels partagés, gère ses propres objectifs/tâches/pointages/bulletins (scope N3 « own » très répandu pour ce rôle, cf. §5). |
+| `caissier` | Domaine cible = `pos` (accès complet) ; persona « Caissier / vendeur » du cahier §3, distinct du `commercial` (cf. §2 pour le détail de cette décision). Scope N3 « sa session » (cf. §5) : ne gère que la session de caisse dont il est le titulaire. |
 
 ## 3. Matrice complète rôle × module (N2)
 
@@ -90,26 +107,27 @@ jamais (§1).
 
 ### 3.1 Modules métier « classiques »
 
-| Module | admin | direction | comptable | commercial | resp_commercial | acheteur | resp_production | chef_atelier | magasinier | rh | collaborateur |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `accounting` | v,a,c | v,c | v,a,c | — | v | — | — | — | — | — | — |
-| `crm` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — |
-| `mrp` | v,a,c | v,c | — | — | — | v,c | v,a,c | v,c | v,c | — | — |
-| `patronage` | v,a,c | v,c | — | — | — | — | v,a,c | — | — | — | — |
-| `partners` | v,a,c | v,c | v | v,a,c | v,a,c | v,a,c | — | — | — | — | v |
-| `catalog` | v,a,c | v,c | v | v | v | v,a,c | v | v | v | — | v |
-| `sales` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — |
-| `purchase` | v,a,c | v,c | — | — | — | v,a,c | — | — | — | — | — |
-| `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — |
-| `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — |
-| `presence` | v,a,c | v,c | — | — | — | — | — | — | — | v,a,c | v |
-| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* |
-| `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
-| `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v |
-| `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c |
-| `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — |
-| `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — |
-| `helpdesk` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a |
+| Module | admin | direction | comptable | commercial | resp_commercial | acheteur | resp_production | chef_atelier | magasinier | rh | collaborateur | caissier |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `accounting` | v,a,c | v,c | v,a,c | — | v | — | — | — | — | — | — | — |
+| `crm` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — |
+| `mrp` | v,a,c | v,c | — | — | — | v,c | v,a,c | v,c | v,c | — | — | — |
+| `patronage` | v,a,c | v,c | — | — | — | — | v,a,c | — | — | — | — | — |
+| `partners` | v,a,c | v,c | v | v,a,c | v,a,c | v,a,c | — | — | — | — | v | v |
+| `catalog` | v,a,c | v,c | v | v | v | v,a,c | v | v | v | — | v | v |
+| `sales` | v,a,c | v,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — |
+| `pos` | v,a,c | v,c | v | — | — | — | — | — | — | — | — | v,a,c |
+| `purchase` | v,a,c | v,c | — | — | — | v,a,c | — | — | — | — | — | — |
+| `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — |
+| `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — |
+| `presence` | v,a,c | v,c | — | — | — | — | — | — | — | v,a,c | v | — |
+| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* | — |
+| `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
+| `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v |
+| `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c | — |
+| `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — |
+| `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — |
+| `helpdesk` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a |
 
 Légende : v = view, a = add, c = change.
 
@@ -298,6 +316,23 @@ admin/direction, qui reçoivent le CRUD complet côté N2, §3.1) : la
 matrice N2 leur donne `view`+`add` sur `helpdesk`, et ce scope N3 leur
 permet en plus d'agir sur leurs propres tickets.
 
+### 5.5bis `apps/pos/services/scoping.py` — `assert_can_manage_session` (chantier module POS)
+
+Scope N3 appliqué au niveau **service**, pas queryset (même choix que
+`user_can_manage_ticket` de `helpdesk` ci-dessus) : `open_session`
+détermine déjà le titulaire de la session sans ambiguïté (le paramètre
+`cashier` est toujours `request.auth` côté API, aucun endpoint n'expose
+de champ permettant d'ouvrir une session au nom d'un tiers), mais
+`add_cash_movement`/`close_session`/`create_draft_order` (donc
+transitivement toute vente créée sous une session) sont bornés à SON
+PROPRE titulaire — un `caissier` qui a la permission N2 `pos.change_
+possession`/`pos.add_posorder` sur TOUT le module (§3.1, domaine cible)
+ne peut néanmoins gérer/vendre que sous la session dont il est
+`cashier`. `admin`/`direction`/un superutilisateur voient/gèrent toute
+session, sans exception (pilotage transverse, même discipline que le
+reste de ce registre) — cohérent avec `comptable`, qui lui n'a que
+`view` au N2 (§3.1) et n'a donc jamais besoin de ce scope.
+
 ### 5.6 `projects` (PJ1) — scope N3 explicitement **non câblé**, à documenter comme tel
 
 Contrairement aux 4 mécanismes ci-dessus, la docstring du rôle
@@ -326,6 +361,7 @@ limitation.
 | `presence` | `_can_see_all`/`_own_employee_id` (API, pas un fichier `scoping.py` dédié) | `apps/presence/api.py` | collaborateur = ses pointages/absences ; rh/admin/direction = tout. |
 | `payroll` | idem (API) | `apps/payroll/api.py` | collaborateur = ses bulletins (403 explicite sur PDF d'autrui, jamais 404) ; rh/admin/direction = tout. |
 | `helpdesk` | `user_can_manage_ticket` | `apps/helpdesk/services/tickets.py` | tout rôle peut transitionner/commenter un ticket dont il est requester OU assignee, en plus de ce que donne `helpdesk.change_hlpticket`. |
+| `pos` | `assert_can_manage_session` | `apps/pos/services/scoping.py` | caissier = sa propre session (mouvements, clôture, ventes) ; admin/direction = tout. |
 | `projects` | — (non câblé pour PJ1) | — | limitation N3 « collaborateur » explicitement reportée, cf. §5.6. |
 
 ## 6. Masquage de champ (N4)

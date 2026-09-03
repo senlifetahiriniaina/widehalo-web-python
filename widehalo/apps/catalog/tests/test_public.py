@@ -22,6 +22,7 @@ from apps.catalog.services.public import (
     convert_textile_measurement,
     get_supplier_lead_time_days,
     get_variant_template_id,
+    search_sellable_variants,
     select_preferred_supplier,
 )
 from apps.core.models.tenant import Tenant
@@ -56,6 +57,44 @@ def test_get_variant_template_id_returns_none_for_unknown_variant(variant_setup)
     tenant, _template, _variant = variant_setup
     with use_tenant(tenant.id):
         assert get_variant_template_id(uuid.uuid4()) is None
+
+
+def test_search_sellable_variants_filters_by_reference_or_name(variant_setup) -> None:
+    """Gap ajoute pour le module `pos` (§13.5, POS-1/POS-2 — recherche
+    article a la frappe/au scan)."""
+    tenant, template, variant = variant_setup
+    with use_tenant(tenant.id):
+        other_template = ProductTemplate.objects.create(
+            tenant=tenant, name="Chemise", base_uom=template.base_uom, reference="TPL-PUB-0002"
+        )
+        ProductVariant.objects.create(tenant=tenant, template=other_template, reference="VAR-PUB-0002")
+
+        by_reference = search_sellable_variants("VAR-PUB-0001")
+        by_name = search_sellable_variants("chemise")
+        empty_query = search_sellable_variants("")
+
+        assert [row["id"] for row in by_reference] == [str(variant.id)]
+        assert len(by_name) == 1
+        assert by_name[0]["label"].endswith("Chemise")
+        assert len(empty_query) == 2
+        assert all("unit_price_mga" in row for row in empty_query)
+
+
+def test_search_sellable_variants_excludes_non_sellable_templates(variant_setup) -> None:
+    tenant, template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        hidden_template = ProductTemplate.objects.create(
+            tenant=tenant,
+            name="Matière première",
+            base_uom=template.base_uom,
+            reference="TPL-PUB-0003",
+            is_sellable=False,
+        )
+        ProductVariant.objects.create(tenant=tenant, template=hidden_template, reference="VAR-PUB-0003")
+
+        results = search_sellable_variants("Matière")
+
+        assert results == []
 
 
 def test_get_supplier_lead_time_days_returns_minimum_across_suppliers(variant_setup) -> None:

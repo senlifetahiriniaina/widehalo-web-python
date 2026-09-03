@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Vente" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Point de vente" %} / {% trans "Vente" %}</c-breadcrumb>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+{% if not my_open_session %}
+  <div class="page-head"><h1>{% trans "Ouvrir une session de caisse" %}</h1></div>
+  <form method="post" action="{% url 'pos:sale_open_session' %}">
+    {% csrf_token %}
+    <select name="register_id" required>
+      {% for register in registers %}<option value="{{ register.id }}">{{ register.code }} — {{ register.name }}</option>{% endfor %}
+    </select>
+    <input type="number" step="0.01" name="opening_cash_amount" placeholder="{% trans 'Fond de caisse (espèces)' %}" required>
+    <c-button variant="primary" type="submit">{% trans "Ouvrir la session" %}</c-button>
+  </form>
+
+{% else %}
+
+{{ catalog|json_script:"pos-catalog-data" }}
+{{ payment_methods|json_script:"pos-payment-methods-data" }}
+
+<div x-data="posSale({
+  sessionId: '{{ my_open_session.id }}',
+  registerCode: '{{ my_open_session.register.code }}',
+  taxRate: {{ tax_rate|default:0 }}
+})" x-init="init()">
+
+  <div class="page-head">
+    <h1>{% trans "Vente" %} — {{ my_open_session.register.code }}</h1>
+    <span x-show="pendingCount > 0" class="badge b-pending" x-text="pendingCount + ' ' + '{% trans "vente(s) en attente de synchronisation" %}'"></span>
+  </div>
+
+  {% if last_order %}
+    <div class="wh-panel">
+      <h2>{% trans "Ticket" %} {{ last_order.number|default:"(en attente de synchronisation)" }}</h2>
+      <p>{% trans "Total" %} : {{ last_order.amount_total }} MGA — {% trans "État" %} : {{ last_order.get_state_display }}</p>
+      <ul>
+        {% for line in last_order.lines.all %}<li>{{ line.description }} × {{ line.qty }} = {{ line.total }} MGA</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="pos-layout" style="display:flex; gap:1.5rem; align-items:flex-start;">
+    <div style="flex:2;">
+      <h2>{% trans "Articles" %}</h2>
+      <input type="text" x-model="searchQuery" placeholder="{% trans 'Rechercher un article (référence, nom)…' %}" autofocus>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Article" %}</th><th>{% trans "Prix" %}</th><th></th></tr></thead>
+        <tbody>
+          <template x-for="item in filteredCatalog()" :key="item.id">
+            <tr>
+              <td x-text="item.reference"></td>
+              <td x-text="item.label"></td>
+              <td x-text="item.unit_price_mga + ' MGA'"></td>
+              <td><c-button size="sm" @click="addProduct(item)">{% trans "Ajouter" %}</c-button></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <c-button size="sm" variant="secondary" @click="addServiceLine()">{% trans "Ajouter une prestation de service" %}</c-button>
+
+      <h2>{% trans "Client (optionnel)" %}</h2>
+      <template x-if="selectedPartnerName">
+        <p><span x-text="selectedPartnerName"></span> <button type="button" @click="clearPartner()">{% trans "Retirer" %}</button></p>
+      </template>
+      <template x-if="!selectedPartnerName">
+        <input type="text" x-model="partnerQuery" @input.debounce.400ms="searchPartner()" placeholder="{% trans 'Rechercher un client (en ligne uniquement)…' %}">
+      </template>
+      <ul>
+        <template x-for="p in partnerResults" :key="p.id">
+          <li><a href="#" @click.prevent="selectPartner(p)" x-text="p.name"></a></li>
+        </template>
+      </ul>
+    </div>
+
+    <div style="flex:1;">
+      <h2>{% trans "Panier" %}</h2>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Article" %}</th><th>{% trans "Qté" %}</th><th>{% trans "Total" %}</th><th></th></tr></thead>
+        <tbody>
+          <template x-for="(line, index) in cart" :key="index">
+            <tr>
+              <td x-text="line.description"></td>
+              <td><input type="number" min="0.0001" step="0.0001" x-model.number="line.qty" @input="recomputeLine(line)" style="width:5rem;"></td>
+              <td x-text="line.total.toFixed(2)"></td>
+              <td><button type="button" @click="removeLine(index)">✕</button></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <p>{% trans "Sous-total HT" %} : <span x-text="amountUntaxed().toFixed(2)"></span> MGA</p>
+      <p>{% trans "TVA" %} : <span x-text="amountTax().toFixed(2)"></span> MGA</p>
+      <p><strong>{% trans "Total TTC" %} : <span x-text="amountTotal().toFixed(2)"></span> MGA</strong></p>
+
+      <h2>{% trans "Règlement" %}</h2>
+      <template x-for="method in paymentMethods" :key="method.id">
+        <div style="margin-bottom:.25rem;">
+          <label>
+            <span x-text="method.name"></span>
+            <input type="number" step="0.01" min="0" @input="setPayment(method, $event.target.value)" style="width:6rem;">
+          </label>
+          <template x-if="method.requires_reference">
+            <input type="text" placeholder="{% trans 'Référence de transaction' %}" @input="setPaymentReference(method, $event.target.value)">
+          </template>
+        </div>
+      </template>
+      <p>{% trans "Restant dû" %} : <span x-text="remainingDue().toFixed(2)"></span> MGA</p>
+
+      <form method="post" action="{% url 'pos:sale_submit' %}" @submit="onSaleSubmit($event)">
+        {% csrf_token %}
+        <input type="hidden" name="session_id" value="{{ my_open_session.id }}">
+        <input type="hidden" name="cart_json" x-ref="cartJson">
+        <c-button variant="primary" type="submit" :disabled="!canSubmit()">{% trans "Valider la vente" %}</c-button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function posSale(config) {
+  return {
+    sessionId: config.sessionId,
+    registerCode: config.registerCode,
+    taxRate: config.taxRate,
+    catalog: [],
+    paymentMethods: [],
+    searchQuery: "",
+    cart: [],
+    payments: {},
+    paymentRefs: {},
+    partnerQuery: "",
+    partnerResults: [],
+    selectedPartnerId: null,
+    selectedPartnerName: "",
+    pendingCount: 0,
+
+    init() {
+      var catalogEl = document.getElementById("pos-catalog-data");
+      var methodsEl = document.getElementById("pos-payment-methods-data");
+      var embeddedCatalog = catalogEl ? JSON.parse(catalogEl.textContent) : [];
+      var embeddedMethods = methodsEl ? JSON.parse(methodsEl.textContent) : [];
+      if (navigator.onLine || !this.readCache("catalog")) {
+        this.catalog = embeddedCatalog;
+        this.writeCache("catalog", embeddedCatalog);
+      } else {
+        this.catalog = this.readCache("catalog") || embeddedCatalog;
+      }
+      if (navigator.onLine || !this.readCache("payment_methods")) {
+        this.paymentMethods = embeddedMethods;
+        this.writeCache("payment_methods", embeddedMethods);
+      } else {
+        this.paymentMethods = this.readCache("payment_methods") || embeddedMethods;
+      }
+      this.refreshPendingCount();
+      var self = this;
+      window.setInterval(function () { self.refreshPendingCount(); }, 5000);
+    },
+
+    cacheKey(name) { return "wh-pos-" + this.sessionId + "-" + name; },
+    readCache(name) {
+      try {
+        var raw = window.localStorage.getItem(this.cacheKey(name));
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    },
+    writeCache(name, value) {
+      try { window.localStorage.setItem(this.cacheKey(name), JSON.stringify(value)); } catch (e) {}
+    },
+
+    nextLocalSequence() {
+      var key = "wh-pos-seq-" + this.sessionId;
+      var current = 0;
+      try { current = parseInt(window.localStorage.getItem(key) || "0", 10) || 0; } catch (e) {}
+      var next = current + 1;
+      try { window.localStorage.setItem(key, String(next)); } catch (e) {}
+      return next;
+    },
+
+    filteredCatalog() {
+      var q = this.searchQuery.trim().toLowerCase();
+      if (!q) { return this.catalog.slice(0, 20); }
+      return this.catalog.filter(function (item) {
+        return item.reference.toLowerCase().indexOf(q) !== -1 || item.label.toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 20);
+    },
+
+    _round(value) { return Math.round(value * 10000) / 10000; },
+
+    recomputeLine(line) {
+      var gross = line.qty * line.unit_price;
+      var discount = gross * (line.discount_pct || 0) / 100;
+      line.subtotal = this._round(gross - discount);
+      line.tax_amount = this._round(line.subtotal * this.taxRate / 100);
+      line.total = this._round(line.subtotal + line.tax_amount);
+    },
+
+    addProduct(item) {
+      var line = {
+        line_type: "product",
+        variant_id: item.id,
+        description: item.label,
+        qty: 1,
+        unit_price: parseFloat(item.unit_price_mga),
+        discount_pct: 0,
+        subtotal: 0, tax_amount: 0, total: 0,
+      };
+      this.recomputeLine(line);
+      this.cart.push(line);
+    },
+
+    addServiceLine() {
+      var description = window.prompt("{% trans 'Description de la prestation' %}");
+      if (!description) { return; }
+      var priceRaw = window.prompt("{% trans 'Prix' %}", "0");
+      var line = {
+        line_type: "service",
+        variant_id: null,
+        description: description,
+        qty: 1,
+        unit_price: parseFloat(priceRaw) || 0,
+        discount_pct: 0,
+        service_basis: "forfait",
+        subtotal: 0, tax_amount: 0, total: 0,
+      };
+      this.recomputeLine(line);
+      this.cart.push(line);
+    },
+
+    removeLine(index) { this.cart.splice(index, 1); },
+
+    amountUntaxed() { return this.cart.reduce(function (sum, l) { return sum + l.subtotal; }, 0); },
+    amountTax() { return this.cart.reduce(function (sum, l) { return sum + l.tax_amount; }, 0); },
+    amountTotal() { return this.cart.reduce(function (sum, l) { return sum + l.total; }, 0); },
+
+    setPayment(method, value) {
+      var amount = parseFloat(value) || 0;
+      if (amount <= 0) { delete this.payments[method.id]; return; }
+      this.payments[method.id] = amount;
+    },
+    setPaymentReference(method, value) { this.paymentRefs[method.id] = value; },
+
+    paymentTotal() {
+      var self = this;
+      return Object.keys(this.payments).reduce(function (sum, id) { return sum + self.payments[id]; }, 0);
+    },
+    remainingDue() { return this._round(this.amountTotal() - this.paymentTotal()); },
+
+    canSubmit() {
+      return this.cart.length > 0 && Math.abs(this.remainingDue()) < 0.01;
+    },
+
+    searchPartner() {
+      if (!navigator.onLine || this.partnerQuery.trim().length < 2) { this.partnerResults = []; return; }
+      var self = this;
+      fetch("{% url 'pos:sale_partner_search' %}?q=" + encodeURIComponent(this.partnerQuery), { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { self.partnerResults = data.results || []; })
+        .catch(function () { self.partnerResults = []; });
+    },
+    selectPartner(p) { this.selectedPartnerId = p.id; this.selectedPartnerName = p.name; this.partnerResults = []; this.partnerQuery = ""; },
+    clearPartner() { this.selectedPartnerId = null; this.selectedPartnerName = ""; },
+
+    buildCart() {
+      var self = this;
+      return {
+        client_uuid: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        })),
+        local_sequence: this.nextLocalSequence(),
+        order_type: "sale",
+        document_type: this.selectedPartnerId ? "invoice" : "ticket",
+        partner_id: this.selectedPartnerId,
+        lines: this.cart.map(function (l) {
+          return {
+            line_type: l.line_type, variant_id: l.variant_id, description: l.description,
+            qty: l.qty, unit_price: l.unit_price, discount_pct: l.discount_pct || 0,
+            service_basis: l.service_basis || "",
+          };
+        }),
+        payments: Object.keys(this.payments).map(function (id) {
+          return { method_id: id, amount: self.payments[id], reference: self.paymentRefs[id] || "" };
+        }),
+      };
+    },
+
+    resetCartForNextSale() {
+      this.cart = [];
+      this.payments = {};
+      this.paymentRefs = {};
+      this.clearPartner();
+      this.refreshPendingCount();
+    },
+
+    onSaleSubmit(event) {
+      if (!this.canSubmit()) {
+        event.preventDefault();
+        window.alert("{% trans 'Le règlement ne correspond pas au total de la vente.' %}");
+        return;
+      }
+      this.$refs.cartJson.value = JSON.stringify(this.buildCart());
+      if (!navigator.onLine) {
+        var self = this;
+        window.setTimeout(function () { self.resetCartForNextSale(); }, 50);
+      }
+    },
+
+    refreshPendingCount() {
+      try {
+        var raw = window.localStorage.getItem("wh-offline-queue");
+        var queue = raw ? JSON.parse(raw) : [];
+        this.pendingCount = queue.filter(function (entry) {
+          return entry.action && entry.action.indexOf("/pos/sale/submit/") !== -1;
+        }).length;
+      } catch (e) { this.pendingCount = 0; }
+    },
+  };
+}
+</script>
+
+{% endif %}
+{% endblock %}

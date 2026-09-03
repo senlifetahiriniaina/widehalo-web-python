@@ -13,7 +13,7 @@ from openpyxl import Workbook
 from apps.catalog.tests.factories import ProductVariantFactory
 from apps.core.models.workflow import ApprovalRequest
 from apps.core.tests.factories import TenantFactory, UserFactory
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.stocks.models import StkImportRow, StkQuant
 from apps.stocks.services.stock_import import (
     ANOMALY_EMPLACEMENT_INCONNU,
@@ -243,6 +243,14 @@ class TestDecideQualification:
             row = _import_needs_qualification_row(tenant, warehouse)
             qualifier = UserFactory()
             approver = UserFactory()
+            # RG-QUALIF : `ApprovalRule.approver_role="direction"` (cf.
+            # `services.stock_import.ensure_qualification_approval`) — un
+            # utilisateur sans rôle n'est PLUS un approbateur éligible
+            # depuis le garde-fou `is_eligible_approver` (audit
+            # docs/audit/2026-09-cahier-des-charges-v3-audit.md, §9,
+            # correction du contournement d'autorisation de `POST
+            # /approvals/{id}/decide`).
+            grant_role(approver, "direction")
 
             qualified = qualify_import_row(
                 row, variant_id=variant.id, location=location, qualified_by=qualifier
@@ -264,6 +272,7 @@ class TestDecideQualification:
             row = _import_needs_qualification_row(tenant, warehouse)
             qualifier = UserFactory()
             approver = UserFactory()
+            grant_role(approver, "direction")
 
             qualified = qualify_import_row(
                 row, variant_id=variant.id, location=location, qualified_by=qualifier

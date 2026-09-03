@@ -102,6 +102,9 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # venir en HD2-HD4) — acces complet, meme discipline que
         # `automation`/`financing` ci-dessus.
         "helpdesk": {"view", "add", "change"},
+        # `pos` (chantier module POS, cahier §13.5) : acces complet, meme
+        # discipline transverse que le reste de la matrice pour ce role.
+        "pos": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -145,10 +148,22 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # autres roles ne recoivent que {view, add} (cf. leurs entrees
         # respectives ci-dessous).
         "helpdesk": {"view", "add", "change"},
+        # `pos` : pilotage/validation transverse — "view"+"change" (jamais
+        # "add"), meme raisonnement que le reste de ce role.
+        "pos": {"view", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
         "partners": {"view"},
+        # `pos` (chantier module POS) : `comptable` n'est PAS "domaine
+        # cible" du POS (le caissier l'est, role dedie `caissier`
+        # ci-dessous) mais doit pouvoir consulter les sessions/clotures/
+        # ecarts pour rapprocher l'ecriture consolidee generee a chaque
+        # cloture (`accounting.services.public.create_pos_session_closing_
+        # entry_from_source`) — "view" seul, jamais "add"/"change" (le
+        # comptable ne cree ni ne modifie une vente ou une session de
+        # caisse).
+        "pos": {"view"},
         "catalog": {"view"},
         "reporting": {"view", "add"},
         # `financing` : role "domaine cible" (assemblage du dossier
@@ -334,6 +349,29 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # user_can_manage_ticket`) lui permet neanmoins de transitionner/
         # commenter SES PROPRES tickets (requester ou assignee), jamais
         # ceux d'un tiers — verifie explicitement dans `apps.helpdesk.api`.
+        "helpdesk": {"view", "add"},
+    },
+    # `caissier` (12e role, chantier module POS — cahier Phase 1 §13.5,
+    # persona "Caissier / vendeur" explicitement nomme §3, cf. le
+    # commentaire de `settings.CORE_STANDARD_ROLES` pour le raisonnement
+    # complet de cet ajout). Domaine cible = `pos` (acces complet) ;
+    # conserve un acces `catalog`/`partners` restreint a "view" (le POS
+    # n'a jamais de second catalogue ni de seconde grille de prix, cf.
+    # `apps.pos.module.MODULE` — un caissier consulte le catalogue/les
+    # clients mais ne les gere pas, ce n'est pas son role).
+    "caissier": {
+        "pos": {"view", "add", "change"},
+        "catalog": {"view"},
+        "partners": {"view"},
+        # `strategy`/`reporting`/`helpdesk` : meme baseline transverse que
+        # les 11 autres roles (cf. `collaborateur` ci-dessus, seul autre
+        # role a `reporting: {"view"}` seul plutot que `{"view","add"}`
+        # — un caissier consulte les rapports auxquels il a droit, ne
+        # genere pas de rapport ad hoc) — un caissier reste un employe qui
+        # gere ses propres objectifs et peut signaler/suivre un ticket,
+        # independamment de son domaine cible `pos`.
+        "strategy": {"view", "add", "change"},
+        "reporting": {"view"},
         "helpdesk": {"view", "add"},
     },
 }

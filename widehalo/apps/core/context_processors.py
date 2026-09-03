@@ -11,14 +11,19 @@ from apps.core.services.rbac_policy import CUSTOM_PERMISSIONS, ROLE_APP_PERMISSI
 
 _ADMIN_ROLE_CODES = {"admin", "direction"}
 
-# Les 17 app labels reels des liens « Modules metier » de la sidebar (cf.
+# Les 18 app labels reels des liens « Modules metier » de la sidebar (cf.
 # `templates/base.html`), tels qu'ils apparaissent verbatim dans les cles de
-# `ROLE_APP_PERMISSIONS`. `RiskItem` (18e lien, "Registre des risques") vit
+# `ROLE_APP_PERMISSIONS`. `RiskItem` (19e lien, "Registre des risques") vit
 # dans l'app `core` (cf. `rbac_policy.py`, section RSK1-2) — `core`
 # n'apparait jamais comme cle de `ROLE_APP_PERMISSIONS` (aucun role n'a
 # d'acces generique a TOUS les modeles `core`), donc ce lien est
 # special-case ci-dessous via `_RISK_MENU_KEY`/`_RISK_PERMISSION_CODENAME`
 # plutot que traite comme un app label ordinaire.
+# "pos" ajoute par le chantier module POS (cahier §13.5, audit
+# docs/audit/2026-09-cahier-des-charges-v3-audit.md) : lien sidebar
+# "Point de vente" (`templates/base.html`), groupe accordeon "commercial"
+# ci-dessous (memes utilisateurs que crm/sales, cf. `ROLE_APP_PERMISSIONS
+# ["caissier"]`).
 _MODULE_APP_LABELS: tuple[str, ...] = (
     "accounting",
     "crm",
@@ -28,6 +33,7 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "presence",
     "purchase",
     "sales",
+    "pos",
     "stocks",
     "payroll",
     "reporting",
@@ -46,7 +52,7 @@ _RISK_PERMISSION_CODENAME = "core.view_riskitem"
 # `visible_app_labels` de ses liens.
 _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "pour-tous": ("reporting", "strategy", "helpdesk"),
-    "commercial": ("crm", "sales", "feasibility"),
+    "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),
     "finance-pilotage": ("accounting", "financing", "automation"),

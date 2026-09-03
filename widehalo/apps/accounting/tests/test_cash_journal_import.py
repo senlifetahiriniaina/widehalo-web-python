@@ -37,7 +37,7 @@ from apps.accounting.tests.factories import (
 )
 from apps.core.models.workflow import ApprovalRequest
 from apps.core.tests.factories import TenantFactory, UserFactory
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.partners.models import Partner
 from apps.partners.tests.factories import PartnerFactory
 
@@ -584,6 +584,11 @@ class TestDecideQualification:
             row = _import_needs_qualification_row(cash_setup)
             qualifier = UserFactory()
             approver = UserFactory()
+            # RG-QUALIF : `ApprovalRule.approver_role="direction"` — un
+            # utilisateur sans rôle n'est plus un approbateur éligible
+            # depuis le garde-fou `is_eligible_approver` (audit
+            # docs/audit/2026-09-cahier-des-charges-v3-audit.md, §9).
+            grant_role(approver, "direction")
 
             qualified = qualify_import_row(
                 row, account=cash_setup["expense_account"], qualified_by=qualifier
@@ -602,6 +607,7 @@ class TestDecideQualification:
             row = _import_needs_qualification_row(cash_setup)
             qualifier = UserFactory()
             approver = UserFactory()
+            grant_role(approver, "direction")
 
             qualified = qualify_import_row(
                 row, account=cash_setup["expense_account"], qualified_by=qualifier

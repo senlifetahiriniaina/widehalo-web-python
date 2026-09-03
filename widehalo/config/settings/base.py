@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "apps.projects",
     "apps.ai",
     "apps.helpdesk",
+    "apps.pos",
 ]
 
 MIDDLEWARE = [
@@ -257,6 +258,19 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN = env.str("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default
 PRICE_WATCH_PROVIDERS: dict[str, dict[str, str]] = {}
 
 # --- Roles standards (etape 5) ---
+# "caissier" ajoute par le chantier module POS (cahier Phase 1 §13.5,
+# persona "Caissier / vendeur" explicitement nomme §3 : "encaisse face a
+# une file d'attente... souvent peu forme, parfois saisonnier") — 12e role,
+# le premier ajoute depuis les 11 roles "V1 acquis du CDC" (cf. tous les
+# roles precedents, qui reutilisent un role existant "faute d'un role
+# dedie" : magasinier/logistics, acheteur/departement achats...). Aucun des
+# 11 roles existants ne convient : `commercial` porte deja un scope N3
+# "own" distinct (portefeuille CRM/ventes) sans rapport avec "sa session de
+# caisse", et le cahier nomme litteralement ce persona a part du
+# commercial (activites/contexte d'usage entierement differents — cf.
+# docs/RBAC.md §2 pour le detail de cette decision). Rattache a
+# `CORE_SIMPLE_MODE_ROLES` (meme discipline que `magasinier`/
+# `chef_atelier` : role intensif mais peu forme, interface guidee).
 CORE_STANDARD_ROLES = [
     "admin",
     "direction",
@@ -269,9 +283,10 @@ CORE_STANDARD_ROLES = [
     "magasinier",
     "rh",
     "collaborateur",
+    "caissier",
 ]
 CORE_MFA_REQUIRED_ROLES = {"admin", "direction", "comptable", "rh"}
-CORE_SIMPLE_MODE_ROLES = {"collaborateur", "magasinier", "chef_atelier"}
+CORE_SIMPLE_MODE_ROLES = {"collaborateur", "magasinier", "chef_atelier", "caissier"}
 
 # --- CRM : plafonds de remise par role (RG-CRM-3), etape C2 du Lot 2 ---
 # Un role absent de ce mapping (direction, admin...) reste illimite par

@@ -32,6 +32,9 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
+from django.utils import timezone
+
 from apps.accounting.models import (
     AccAccount,
     AccBudget,
@@ -42,6 +45,7 @@ from apps.accounting.models import (
     AccPartnerRoleAccount,
     AccPaymentTerm,
     AccPeriod,
+    AccTax,
 )
 from apps.accounting.services.budgets import _actual_amount
 from apps.accounting.services.invoices import create_invoice, create_supplier_invoice
@@ -469,6 +473,202 @@ def create_stock_adjustment_entry_from_source(
             return None
         resolved_lines.append(
             {"account": account, "amount": amount, "label": line.get("label", "")}
+        )
+
+    move = create_draft_move(
+        tenant=tenant,
+        journal=journal,
+        period=period,
+        date=date,
+        move_type=AccMove.TYPE_ENTRY,
+        narration=label,
+    )
+    for line in resolved_lines:
+        amount = line["amount"]
+        add_line(
+            move,
+            account=line["account"],
+            label=line["label"],
+            debit=amount if amount > 0 else Decimal(0),
+            credit=-amount if amount < 0 else Decimal(0),
+        )
+
+    post_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
+def get_default_sale_tax(tenant: Tenant, *, on_date: dt.date | None = None) -> dict[str, Any] | None:
+    """Gap ajoute pour le module `pos` (cahier §13.5) : premiere `AccTax`
+    de vente (`type=AccTax.TYPE_SALE`) valide a `on_date` (aujourd'hui par
+    defaut) du tenant — `pos` ne doit jamais manipuler un objet `AccTax`
+    (regle de couplage n1), chaque ligne de vente instantane le taux
+    retourne ici dans `PosOrderLine.tax_rate` au moment de l'ajout (jamais
+    reinterprete plus tard si l'`AccTax` change, meme discipline "document
+    valide immuable" que `sales`/`accounting`).
+
+    **Simplification assumee et disclosee** : un SEUL taux de vente par
+    defaut, jamais un choix par ligne/produit (a la difference du plan de
+    comptes complet d'`accounting`, qui supporte plusieurs `AccTax`) — le
+    POS n'a pas, en Phase 1, de selecteur de taux par article ; c'est la
+    meme simplicite que la table d'amorcage `core_regulatory_parameter`
+    (`tva.taux_normal`, un taux unique) plutot qu'une matrice de taux par
+    produit.
+
+    Retourne `{"id", "rate", "account_id"}` (`account_id` = compte de TVA
+    collectee de cette taxe, `AccTax.account_collected_id`, potentiellement
+    `None` si non parametre) — jamais l'objet `AccTax` (regle de couplage
+    n1). Retourne `None`, jamais une exception, si aucune `AccTax` de vente
+    valide n'existe pour ce tenant a cette date (gap de configuration a la
+    charge de l'administrateur du tenant, meme discipline que le reste de
+    ce module)."""
+    on_date = on_date or timezone.now().date()
+    tax = (
+        AccTax.objects.filter(tenant=tenant, type=AccTax.TYPE_SALE)
+        .filter(Q(valid_from__isnull=True) | Q(valid_from__lte=on_date))
+        .filter(Q(valid_to__isnull=True) | Q(valid_to__gte=on_date))
+        .order_by("code")
+        .first()
+    )
+    if tax is None:
+        return None
+    return {"id": tax.id, "rate": tax.rate, "account_id": tax.account_collected_id}
+
+
+def create_pos_session_closing_entry_from_source(
+    *,
+    tenant: Tenant,
+    date: dt.date,
+    payment_totals: list[dict[str, Any]],
+    income_amount_mga: Decimal,
+    tax_amount_mga: Decimal,
+    cash_variance_mga: Decimal,
+    label: str = "",
+) -> UUID | None:
+    """Point d'integration appele par `pos.services.sessions.close_session`
+    pour materialiser l'ecriture comptable CONSOLIDEE de cloture de
+    session (POS-7 : "la clôture génère une écriture équilibrée sur les
+    comptes PCG 2005 paramétrés pour chaque moyen de paiement") sous forme
+    d'un `AccMove` (`move_type=entry`, journal `AccJournal.TYPE_CASH`).
+
+    `payment_totals` : `[{"account_id": UUID | None, "default_account_type":
+    "cash" | "bank", "amount": Decimal}, ...]` — un montant PAR MOYEN DE
+    PAIEMENT de la session (le moyen `cash` porte le montant COMPTE
+    physiquement, pas le montant theorique attendu — cf. `cash_variance_mga`
+    ci-dessous) ; `pos` ne peut jamais passer un objet `AccAccount`
+    (regle de couplage n1), `account_id` resolu ici, `None` retombant sur
+    le premier `AccAccount` du `default_account_type` indique (`cash` ->
+    `AccAccount.TYPE_CASH`, `bank` -> `AccAccount.TYPE_BANK` — les comptes
+    de monnaie electronique du cahier, "mobile money", partagent le type
+    `bank`, aucun type dedie n'existant dans `AccAccount.TYPE_CHOICES`).
+    Chaque montant est DEBITE (l'encaissement augmente l'actif).
+
+    `income_amount_mga`/`tax_amount_mga` : total HT et TVA collectee des
+    ventes de la session (deja calcules par `pos`, jamais recalcules ici)
+    — CREDITES sur, respectivement, le premier `AccAccount.TYPE_INCOME` et
+    `AccAccount.TYPE_TAX` du tenant.
+
+    `cash_variance_mga` : `closing_cash_counted - closing_cash_expected`
+    (POS-6, "tout écart de caisse est enregistré... écriture comptable").
+    Le montant COMPTE (physique) etant deja porte par la ligne `cash` de
+    `payment_totals` ci-dessus (jamais le montant theorique), l'ecart
+    EXISTE STRUCTURELLEMENT comme desequilibre de l'ecriture tant qu'une
+    ligne de contrepartie ne l'absorbe pas — cette fonction l'ajoute
+    automatiquement : un ecart NEGATIF (manquant en caisse) ajoute une
+    ligne DEBIT sur le premier `AccAccount.TYPE_EXPENSE` ("perte de
+    caisse") ; un ecart POSITIF (surplus) ajoute une ligne CREDIT sur le
+    premier `AccAccount.TYPE_INCOME` ("gain de caisse") — meme discipline
+    de resolution "par signe, faute d'un type de compte dedie" que
+    `create_stock_adjustment_entry_from_source` (aucun type "ecart de
+    caisse" n'existe dans `AccAccount.TYPE_CHOICES`). Un ecart nul n'ajoute
+    aucune ligne.
+
+    Journal : premier `AccJournal.TYPE_CASH` du tenant. Periode : premiere
+    periode OUVERTE couvrant `date`. Retourne `None` (jamais une
+    exception) si le journal, la periode, ou un compte par defaut requis
+    sont introuvables — meme discipline "gap de configuration a la charge
+    du tenant" que le reste de ce module ; un desequilibre debit/credit
+    residuel (ne devrait jamais survenir si `income_amount_mga`/
+    `tax_amount_mga`/`cash_variance_mga` sont coherents avec
+    `payment_totals`) reste propage tel quel par `post_move` (RG-ACC-1),
+    jamais avale.
+
+    **Ecart assume au patron "toujours draft" des gaps facture/ajustement
+    de stock** (disclosed, meme raisonnement que le gap paie) : la
+    cloture d'une session de caisse EST une operation terminale et
+    immuable cote `pos` (POS-9) des sa validation — publier immediatement
+    l'ecriture (`post_move`), jamais la laisser en `draft`, est coherent
+    avec cette finalite plutot qu'une facture (qui reste soumise a
+    approbation avant publication)."""
+    journal = AccJournal.objects.filter(tenant=tenant, type=AccJournal.TYPE_CASH).first()
+    if journal is None:
+        return None
+
+    period = (
+        AccPeriod.objects.filter(
+            tenant=tenant,
+            state=AccPeriod.STATE_OPEN,
+            date_start__lte=date,
+            date_end__gte=date,
+        )
+        .order_by("date_start")
+        .first()
+    )
+    if period is None:
+        return None
+
+    if not payment_totals and cash_variance_mga == 0:
+        return None
+
+    default_accounts_by_type: dict[str, AccAccount | None] = {}
+
+    def _default_account(account_type: str) -> AccAccount | None:
+        if account_type not in default_accounts_by_type:
+            default_accounts_by_type[account_type] = AccAccount.objects.filter(
+                tenant=tenant, type=account_type
+            ).first()
+        return default_accounts_by_type[account_type]
+
+    resolved_lines: list[dict[str, Any]] = []
+
+    for entry in payment_totals:
+        account: AccAccount | None = None
+        account_id = entry.get("account_id")
+        if account_id is not None:
+            account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
+        if account is None:
+            account_type = (
+                AccAccount.TYPE_CASH
+                if entry.get("default_account_type") == "cash"
+                else AccAccount.TYPE_BANK
+            )
+            account = _default_account(account_type)
+        if account is None:
+            return None
+        resolved_lines.append({"account": account, "amount": entry["amount"], "label": label})
+
+    if income_amount_mga:
+        income_account = _default_account(AccAccount.TYPE_INCOME)
+        if income_account is None:
+            return None
+        resolved_lines.append(
+            {"account": income_account, "amount": -income_amount_mga, "label": label}
+        )
+
+    if tax_amount_mga:
+        tax_account = _default_account(AccAccount.TYPE_TAX)
+        if tax_account is None:
+            return None
+        resolved_lines.append({"account": tax_account, "amount": -tax_amount_mga, "label": label})
+
+    if cash_variance_mga:
+        variance_account = _default_account(
+            AccAccount.TYPE_EXPENSE if cash_variance_mga < 0 else AccAccount.TYPE_INCOME
+        )
+        if variance_account is None:
+            return None
+        resolved_lines.append(
+            {"account": variance_account, "amount": -cash_variance_mga, "label": label}
         )
 
     move = create_draft_move(

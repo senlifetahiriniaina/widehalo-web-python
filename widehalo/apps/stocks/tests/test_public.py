@@ -23,6 +23,8 @@ from apps.stocks.services.public import (
     check_and_reserve_stock,
     deliver_reserved_stock,
     get_available_stock_qty,
+    receive_pos_return,
+    sell_from_stock,
 )
 from apps.stocks.tests.factories import (
     StkLocationFactory,
@@ -226,3 +228,83 @@ def test_get_available_stock_qty_aggregates_across_internal_quants(tenant) -> No
 
 def test_get_available_stock_qty_is_zero_for_unknown_variant(tenant) -> None:
     assert get_available_stock_qty(uuid.uuid4()) == Decimal(0)
+
+
+def test_sell_from_stock_moves_qty_without_any_prior_reservation(tenant) -> None:
+    """Gap ajoute pour le module `pos` (POS distribution) : a la difference
+    de `check_and_reserve_stock`/`deliver_reserved_stock`, aucune
+    `StkReservation` n'est jamais creee sur ce chemin."""
+    variant_id = uuid.uuid4()
+    warehouse = StkWarehouseFactory(tenant=tenant)
+    internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+    client_location = StkLocationFactory(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT
+    )
+    quant = StkQuantFactory(
+        tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(20)
+    )
+
+    picking_id = sell_from_stock(
+        tenant,
+        variant_id=variant_id,
+        qty=Decimal(6),
+        warehouse_id=warehouse.id,
+        date=dt.date(2026, 1, 15),
+        source_document="TICKET-1",
+    )
+
+    picking = StkPicking.objects.get(id=picking_id)
+    assert picking.type == StkPicking.TYPE_SORTIE
+    assert picking.state == StkPicking.STATE_DONE
+    assert picking.location_from_id == internal_location.id
+    assert picking.location_to_id == client_location.id
+    assert StkReservation.objects.count() == 0
+
+    quant.refresh_from_db()
+    assert quant.qty == Decimal(14)
+
+
+def test_sell_from_stock_returns_none_without_enough_qty_or_a_client_location(tenant) -> None:
+    variant_id = uuid.uuid4()
+    warehouse = StkWarehouseFactory(tenant=tenant)
+    internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+    StkQuantFactory(tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(3))
+
+    # Stock insuffisant.
+    assert (
+        sell_from_stock(
+            tenant, variant_id=variant_id, qty=Decimal(5), warehouse_id=warehouse.id, date=dt.date(2026, 1, 15)
+        )
+        is None
+    )
+    # Aucun emplacement virtuel client configure pour cet entrepot.
+    assert (
+        sell_from_stock(
+            tenant, variant_id=variant_id, qty=Decimal(1), warehouse_id=warehouse.id, date=dt.date(2026, 1, 15)
+        )
+        is None
+    )
+
+
+def test_receive_pos_return_puts_qty_back_into_the_first_internal_location(tenant) -> None:
+    variant_id = uuid.uuid4()
+    warehouse = StkWarehouseFactory(tenant=tenant)
+    internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+    StkLocationFactory(tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT)
+
+    picking_id = receive_pos_return(
+        tenant,
+        variant_id=variant_id,
+        qty=Decimal(2),
+        warehouse_id=warehouse.id,
+        date=dt.date(2026, 1, 16),
+        source_document="AVOIR-1",
+    )
+
+    picking = StkPicking.objects.get(id=picking_id)
+    assert picking.type == StkPicking.TYPE_ENTREE
+    assert picking.state == StkPicking.STATE_DONE
+    assert picking.location_to_id == internal_location.id
+
+    quant = StkQuant.objects.get(location=internal_location, variant_id=variant_id)
+    assert quant.qty == Decimal(2)

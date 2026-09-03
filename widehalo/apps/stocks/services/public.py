@@ -28,7 +28,14 @@ from django.db.models import F
 from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
-from apps.stocks.models import StkLocation, StkPicking, StkQuant, StkReservation, StkValuationLayer
+from apps.stocks.models import (
+    StkLocation,
+    StkPicking,
+    StkQuant,
+    StkReservation,
+    StkValuationLayer,
+    StkWarehouse,
+)
 from apps.stocks.services.pickings import add_picking_line, create_picking, mark_picking_ready, validate_picking
 from apps.stocks.services.quants import available_qty
 from apps.stocks.services.reservations import release_reservation, reserve_stock
@@ -196,6 +203,150 @@ def deliver_reserved_stock(
     validate_picking(picking, date_done=date)
     release_reservation(reservation)
     return picking.id
+
+
+@transaction.atomic
+def sell_from_stock(
+    tenant: Tenant,
+    *,
+    variant_id: Any,
+    qty: Decimal,
+    warehouse_id: Any,
+    date: dt.date,
+    source_document: str = "",
+    operator: User | None = None,
+) -> UUID | None:
+    """Gap ajoute pour le module `pos` (cahier §13.5, POS distribution) :
+    a la difference de la chaine `check_and_reserve_stock` ->
+    `deliver_reserved_stock` de `sales` (reservation PUIS livraison, deux
+    temps espaces dans le workflow devis/commande), le point de vente
+    encaisse et sort le stock en UN SEUL GESTE synchrone — pas de
+    reservation prealable, jamais un `StkReservation` cree ici.
+
+    Meme simplification assumee que `check_and_reserve_stock` (cf. sa
+    docstring) : resout un emplacement interne UNIQUE de l'entrepot
+    `warehouse_id` capable de couvrir `qty` a lui seul (aucun
+    fractionnement sur plusieurs emplacements). Cree+valide directement un
+    `StkPicking` de sortie (`draft -> ready -> done`, meme moteur ST2/ST4
+    reutilise que `deliver_reserved_stock`) vers l'emplacement virtuel
+    client de cet entrepot.
+
+    Retourne `None`, jamais une exception, si l'entrepot n'existe pas, si
+    aucun emplacement/quant unique ne peut couvrir `qty` (stock
+    insuffisant — cas normal, a charge de l'appelant `pos` de refuser la
+    vente), ou si aucun emplacement virtuel client n'existe pour cet
+    entrepot (meme discipline "gap de configuration a la charge du
+    tenant" que le reste de ce module). Retourne l'UUID du `StkPicking`
+    cree (ticket de caisse valant bon de sortie) sinon."""
+    warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
+    if warehouse is None:
+        return None
+
+    quant = (
+        StkQuant.objects.filter(
+            tenant=tenant,
+            variant_id=variant_id,
+            location__type=StkLocation.TYPE_INTERNE,
+            location__warehouse=warehouse,
+        )
+        .annotate(available=F("qty") - F("qty_reserved"))
+        .filter(available__gte=qty)
+        .order_by("id")
+        .first()
+    )
+    if quant is None:
+        return None
+
+    client_location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT
+    ).first()
+    if client_location is None:
+        return None
+
+    picking = create_picking(
+        tenant=tenant,
+        type=StkPicking.TYPE_SORTIE,
+        location_from=quant.location,
+        location_to=client_location,
+        date_scheduled=date,
+        source_document=source_document,
+    )
+    add_picking_line(
+        picking,
+        variant_id=quant.variant_id,
+        qty=qty,
+        uom=quant.uom,
+        unit_cost_mga=quant.unit_cost_mga,
+        lot=quant.lot,
+        operator=operator,
+    )
+    mark_picking_ready(picking)
+    validate_picking(picking, date_done=date)
+    picking_id: UUID = picking.id
+    return picking_id
+
+
+@transaction.atomic
+def receive_pos_return(
+    tenant: Tenant,
+    *,
+    variant_id: Any,
+    qty: Decimal,
+    warehouse_id: Any,
+    date: dt.date,
+    source_document: str = "",
+    operator: User | None = None,
+) -> UUID | None:
+    """Pendant retour de `sell_from_stock` ci-dessus, pour un retour/avoir
+    POS (cahier §13.5, "Retour, échange, avoir") — remet `qty` en stock,
+    de l'emplacement virtuel client vers le PREMIER emplacement interne de
+    l'entrepot (simplification assumee et disclosee : le point de vente ne
+    trace pas de quel emplacement interne precis la marchandise retournee
+    provenait a l'origine, un retour rejoint donc l'emplacement interne
+    "principal" de l'entrepot plutot qu'un emplacement reconstitue —
+    meme esprit que `apply_landed_cost_to_valuation`, qui documente
+    egalement une repartition simplifiee faute d'un signal plus precis).
+
+    Retourne `None`, jamais une exception, si l'entrepot n'existe pas, si
+    aucun emplacement interne n'existe pour cet entrepot, ou si aucun
+    emplacement virtuel client n'existe (memes gardes de configuration que
+    `sell_from_stock`). Retourne l'UUID du `StkPicking` d'entree cree
+    sinon."""
+    warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
+    if warehouse is None:
+        return None
+
+    internal_location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_INTERNE
+    ).first()
+    if internal_location is None:
+        return None
+
+    client_location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT
+    ).first()
+    if client_location is None:
+        return None
+
+    picking = create_picking(
+        tenant=tenant,
+        type=StkPicking.TYPE_ENTREE,
+        location_from=client_location,
+        location_to=internal_location,
+        date_scheduled=date,
+        source_document=source_document,
+    )
+    add_picking_line(
+        picking,
+        variant_id=variant_id,
+        qty=qty,
+        uom="",
+        operator=operator,
+    )
+    mark_picking_ready(picking)
+    validate_picking(picking, date_done=date)
+    picking_id: UUID = picking.id
+    return picking_id
 
 
 def get_available_stock_qty(variant_id: Any) -> Decimal:

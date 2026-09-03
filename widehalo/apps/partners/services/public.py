@@ -10,6 +10,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
+
 from apps.core.models.tenant import Tenant
 from apps.core.services.entity_resolution import (
     ResolutionConfidence,
@@ -60,6 +62,29 @@ def get_partner_display_name(partner_id: Any) -> str:
 def partner_has_role(partner_id: Any, role: str) -> bool:
     partner = Partner.objects.filter(id=partner_id).first()
     return partner is not None and role in partner.roles
+
+
+def search_partners(tenant: Tenant, query: str, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap ajoute pour le module `pos` (§13.5) : identification optionnelle
+    du client sur un ticket/facture de caisse ("un ticket anonyme est
+    autorisé ; une facture nominative exige un tiers identifié"). Filtre
+    texte sur le nom OU l'identifiant fiscal (NIF), insensible a la casse
+    — a la difference de `find_partner_by_name` (correspondance EXACTE,
+    usage RG-QUALIF), une recherche a la frappe doit accepter une
+    correspondance PARTIELLE. Une chaine vide renvoie une liste vide
+    (jamais tous les partenaires du tenant par defaut : contrairement au
+    catalogue produit, la liste des clients n'a pas vocation a s'afficher
+    en entier sur un simple focus de champ)."""
+    query = query.strip()
+    if not query:
+        return []
+    partners = Partner.objects.filter(tenant=tenant, is_placeholder=False).filter(
+        Q(name__icontains=query) | Q(nif__icontains=query)
+    )
+    return [
+        {"id": str(partner.id), "name": partner.name, "nif": partner.nif}
+        for partner in partners.order_by("name")[:limit]
+    ]
 
 
 def find_partner_by_name(tenant: Tenant, name: str) -> ResolutionResult:

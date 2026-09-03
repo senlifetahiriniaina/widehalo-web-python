@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -83,6 +84,40 @@ def list_sellable_variants() -> list[dict[str, Any]]:
             "label": f"{variant.reference} — {variant.template.name}",
         }
         for variant in variants
+    ]
+
+
+def search_sellable_variants(query: str, *, limit: int = 20) -> list[dict[str, Any]]:
+    """Gap ajoute pour le module `pos` (§13.5, POS-1/POS-2 — "recherche
+    article à la frappe ou au scan") : variante de `list_sellable_variants`
+    ci-dessus avec un filtre texte (reference OU nom produit, insensible a
+    la casse) et une pagination bornee, adaptee a une recherche interactive
+    plutot qu'a un chargement complet. Le prix DE LISTE (sans partenaire,
+    cf. `get_variant_price`) est inclus directement pour eviter un aller-
+    retour supplementaire depuis l'ecran de caisse — le prix specifique a
+    un client identifie, lui, reste resolu separement via
+    `get_variant_price(variant_id, partner_id=...)` a l'ajout reel de la
+    ligne (cf. `apps.pos.services.orders.add_line`).
+
+    Une chaine vide retourne les `limit` premieres variantes vendables
+    (comportement de "catalogue par defaut" a l'ouverture de l'ecran de
+    vente), jamais une exception ni une liste vide artificielle."""
+    variants = ProductVariant.objects.filter(
+        is_active=True, template__is_sellable=True, template__is_active=True
+    ).select_related("template")
+    query = query.strip()
+    if query:
+        variants = variants.filter(
+            Q(reference__icontains=query) | Q(template__name__icontains=query)
+        )
+    return [
+        {
+            "id": str(variant.id),
+            "reference": variant.reference,
+            "label": f"{variant.reference} — {variant.template.name}",
+            "unit_price_mga": get_price(variant),
+        }
+        for variant in variants.order_by("reference")[:limit]
     ]
 
 

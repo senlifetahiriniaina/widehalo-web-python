@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{% trans "Point de vente" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Point de vente" %}</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Point de vente" %}</h1>
+  <a href="{% url 'pos:sale' %}" class="btn btn-primary">{% trans "Ouvrir l'écran de vente" %}</a>
+</div>
+<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <a role="tab" class="tab {% if active_tab == 'registers' %}tab-active{% endif %}" href="{% url 'pos:registers' %}">{% trans "Points de caisse" %}</a>
+  <a role="tab" class="tab {% if active_tab == 'payment_methods' %}tab-active{% endif %}" href="{% url 'pos:payment_methods' %}">{% trans "Moyens de paiement" %}</a>
+  <a role="tab" class="tab {% if active_tab == 'sessions' %}tab-active{% endif %}" href="{% url 'pos:sessions' %}">{% trans "Sessions de caisse" %}</a>
+  <a role="tab" class="tab {% if active_tab == 'sync_log' %}tab-active{% endif %}" href="{% url 'pos:sync_log' %}">{% trans "Journal de synchronisation" %}</a>
+</nav>
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+{% if active_tab == "registers" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Entrepôt lié" %}</th><th>{% trans "Actif" %}</th></tr></thead>
+    <tbody>
+      {% for register in registers %}
+        <tr>
+          <td>{{ register.code }}</td>
+          <td>{{ register.name }}</td>
+          <td>{{ register.warehouse_id|default:"—" }}</td>
+          <td>{% if register.is_active %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="4">{% trans "Aucun point de caisse." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if can_edit %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="code" placeholder="{% trans 'Code (préfixe des tickets)' %}" required>
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <input type="text" name="warehouse_id" placeholder="{% trans 'ID entrepôt (optionnel)' %}">
+    <c-button variant="primary" type="submit">{% trans "Créer un point de caisse" %}</c-button>
+  </form>
+  {% endif %}
+{% endif %}
+
+{% if active_tab == "payment_methods" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Type" %}</th><th>{% trans "Référence obligatoire" %}</th></tr></thead>
+    <tbody>
+      {% for method in methods %}
+        <tr>
+          <td>{{ method.code }}</td>
+          <td>{{ method.name }}</td>
+          <td><span class="badge">{{ method.get_type_display }}</span></td>
+          <td>{% if method.requires_reference %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="4">{% trans "Aucun moyen de paiement." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if can_edit %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+    <select name="type">{% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <label><input type="checkbox" name="requires_reference"> {% trans "Référence de transaction obligatoire" %}</label>
+    <c-button variant="primary" type="submit">{% trans "Créer un moyen de paiement" %}</c-button>
+  </form>
+  {% endif %}
+{% endif %}
+
+{% if active_tab == "sessions" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Caisse" %}</th><th>{% trans "Caissier" %}</th><th>{% trans "État" %}</th><th>{% trans "Ouverte le" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for session in sessions %}
+        <tr>
+          <td>{{ session.register.code }}</td>
+          <td>{{ session.cashier.email }}</td>
+          <td><span class="badge {{ session.state|state_badge_class }}">{{ session.get_state_display }}</span></td>
+          <td>{{ session.opened_at }}</td>
+          <td><a href="{% url 'pos:session_detail' session_id=session.id %}">{% trans "Détail" %}</a></td>
+        </tr>
+      {% empty %}<tr><td colspan="5">{% trans "Aucune session." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+
+  {% if selected_session %}
+    <h2>{% trans "Session" %} — {{ selected_session.register.code }} ({{ selected_session.opened_at }})</h2>
+    <p>{% trans "Fond de caisse d'ouverture" %} : {{ selected_session.opening_cash_amount }} MGA</p>
+    {% if selected_session.state == "open" %}
+      <p>{% trans "Encours espèces attendu (théorique)" %} : {{ expected_cash }} MGA</p>
+
+      {% if can_manage %}
+      <h3>{% trans "Mouvement d'espèces" %}</h3>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cash_movement">
+        <select name="direction">
+          <option value="in">{% trans "Entrée" %}</option>
+          <option value="out">{% trans "Sortie" %}</option>
+        </select>
+        <input type="number" step="0.01" name="amount" placeholder="{% trans 'Montant' %}" required>
+        <input type="text" name="reason" placeholder="{% trans 'Motif (obligatoire)' %}" required>
+        <c-button type="submit">{% trans "Enregistrer le mouvement" %}</c-button>
+      </form>
+
+      <h3>{% trans "Clôturer la session" %}</h3>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="close">
+        <input type="number" step="0.01" name="counted_cash" placeholder="{% trans 'Espèces comptées' %}" required>
+        <input type="text" name="variance_reason" placeholder="{% trans 'Motif de l’écart (si écart)' %}">
+        <c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button>
+      </form>
+      {% endif %}
+
+      <h3>{% trans "Mouvements d'espèces" %}</h3>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Sens" %}</th><th>{% trans "Montant" %}</th><th>{% trans "Motif" %}</th></tr></thead>
+        <tbody>
+          {% for movement in cash_movements %}
+            <tr><td>{{ movement.get_direction_display }}</td><td>{{ movement.amount }} MGA</td><td>{{ movement.reason }}</td></tr>
+          {% empty %}<tr><td colspan="3">{% trans "Aucun mouvement." %}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p><strong>{% trans "Session clôturée" %}</strong></p>
+      <p>{% trans "Espèces comptées" %} : {{ selected_session.closing_cash_counted }} MGA</p>
+      <p>{% trans "Espèces attendues" %} : {{ selected_session.closing_cash_expected }} MGA</p>
+      <p>{% trans "Écart" %} : {{ selected_session.cash_variance }} MGA
+        {% if selected_session.cash_variance_reason %} — {{ selected_session.cash_variance_reason }}{% endif %}</p>
+      <p>{% trans "Écriture comptable" %} : {{ selected_session.closing_move_id|default:"—" }}</p>
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+{% if active_tab == "sync_log" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Caisse" %}</th><th>{% trans "Séq. locale" %}</th><th>{% trans "Résultat" %}</th><th>{% trans "Détail" %}</th><th>{% trans "Synchronisé le" %}</th></tr></thead>
+    <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>{{ log.register.code }}</td>
+          <td>{{ log.local_sequence|default:"—" }}</td>
+          <td><span class="badge {{ log.outcome|state_badge_class }}">{{ log.get_outcome_display }}</span></td>
+          <td>{{ log.detail }}</td>
+          <td>{{ log.synced_at }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="5">{% trans "Aucune synchronisation." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

@@ -128,6 +128,7 @@
                 <ul class="app-menu-dropdown" x-show="open" x-cloak>
                   {% if "crm" in visible_app_labels %}<li><a href="/crm/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-briefcase"></use></svg>{% trans "CRM" %}</a></li>{% endif %}
                   {% if "sales" in visible_app_labels %}<li><a href="/sales/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-trending-up"></use></svg>{% trans "Ventes" %}</a></li>{% endif %}
+                  {% if "pos" in visible_app_labels %}<li><a href="/pos/sale/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shopping-cart"></use></svg>{% trans "Point de vente" %}</a></li>{% endif %}
                   {% if "feasibility" in visible_app_labels %}<li><a href="/feasibility/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>{% trans "Études de faisabilité" %}</a></li>{% endif %}
                 </ul>
               </li>
