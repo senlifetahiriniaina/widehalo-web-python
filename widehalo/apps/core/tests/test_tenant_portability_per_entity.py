@@ -104,6 +104,8 @@ _FACTORY_MODULES = [
     "apps.analytics.tests.factories",
     # `bi` (chantier module Business Intelligence, cahier §13.1) : idem.
     "apps.bi.tests.factories",
+    # `forecast` (chantier module Forecast, cahier §13.2) : idem.
+    "apps.forecast.tests.factories",
 ]
 
 

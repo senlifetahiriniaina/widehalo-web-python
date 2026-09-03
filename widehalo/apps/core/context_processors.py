@@ -43,6 +43,12 @@ _ADMIN_ROLE_CODES = {"admin", "direction"}
 # large : "consultation" (view) est accordee aux 13 roles, seule la
 # creation/edition de rapports (add/change) reste reservee a
 # admin/direction/controleur_gestion, cf. `ROLE_APP_PERMISSIONS`).
+# "forecast" ajoute par le chantier module Forecast (cahier §13.2) : lien
+# sidebar "Prévision", groupe accordeon "finance-pilotage" (comme
+# `analytics`/`simulation`, PAS "pour-tous" comme `bi`) et memes
+# utilisateurs restreints (admin/direction/controleur_gestion) — un outil
+# de pilotage technique (retrotest, ajustement, calendrier), pas un module
+# a large audience.
 _MODULE_APP_LABELS: tuple[str, ...] = (
     "accounting",
     "crm",
@@ -65,6 +71,7 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "simulation",
     "analytics",
     "bi",
+    "forecast",
 )
 _RISK_MENU_KEY = "risks"
 _RISK_PERMISSION_CODENAME = "core.view_riskitem"
@@ -77,7 +84,7 @@ _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),
-    "finance-pilotage": ("accounting", "financing", "automation", "simulation", "analytics"),
+    "finance-pilotage": ("accounting", "financing", "automation", "simulation", "analytics", "forecast"),
     "rh": ("presence", "payroll"),
     "projets-risques": ("projects", _RISK_MENU_KEY),
 }

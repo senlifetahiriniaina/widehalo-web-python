@@ -64,6 +64,7 @@ urlpatterns = [
     path("simulation/", include("apps.simulation.urls")),
     path("analytics/", include("apps.analytics.urls")),
     path("bi/", include("apps.bi.urls")),
+    path("forecast/", include("apps.forecast.urls")),
 ]
 
 if settings.DEBUG:

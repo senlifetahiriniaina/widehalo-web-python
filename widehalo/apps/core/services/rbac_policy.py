@@ -117,6 +117,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # acces complet, meme discipline transverse que le reste de la
         # matrice pour ce role.
         "bi": {"view", "add", "change"},
+        # `forecast` (chantier module Forecast, cahier Phase 2 §13.2) :
+        # acces complet, meme discipline transverse que le reste de la
+        # matrice pour ce role.
+        "forecast": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -186,6 +190,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `direction` comme co-proprietaire du dictionnaire/des rapports
         # gouvernes, pas seulement un consultateur/valideur, §13.1).
         "bi": {"view", "add", "change"},
+        # `forecast` (chantier module Forecast, cahier Phase 2 §13.2) :
+        # meme discipline/persona que `simulation`/`analytics` ci-dessus —
+        # un outil de pilotage technique (rétrotest, ajustement, calendrier),
+        # pas un module a large audience comme `bi`.
+        "forecast": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -456,6 +465,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # self-service et les tableaux de bord, memes discipline et
         # justification que `analytics`/`simulation` ci-dessus.
         "bi": {"view", "add", "change"},
+        # `forecast` (chantier module Forecast, cahier Phase 2 §13.2) : le
+        # controleur de gestion est le proprietaire naturel de l'atelier de
+        # prevision (rétrotest, ajustement, publication) — meme persona que
+        # `simulation`/`analytics`/`bi` ci-dessus.
+        "forecast": {"view", "add", "change"},
         "reporting": {"view", "add"},
         "accounting": {"view"},
         "sales": {"view"},

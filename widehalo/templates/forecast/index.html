@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Prévision" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Prévision" %}</c-breadcrumb>
+
+<div class="page-head">
+  <h1>{% trans "Prévision" %}</h1>
+  <a href="{% url 'forecast:workbench' %}" class="btn btn-primary">{% trans "Atelier de prévision" %}</a>
+</div>
+
+<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <a role="tab" class="tab {% if tab == 'consolidee' %}tab-active{% endif %}" href="?tab=consolidee">{% trans "Prévision consolidée" %}</a>
+  <a role="tab" class="tab {% if tab == 'qualite' %}tab-active{% endif %}" href="?tab=qualite">{% trans "Qualité de prévision" %}</a>
+  <a role="tab" class="tab {% if tab == 'tresorerie' %}tab-active{% endif %}" href="?tab=tresorerie">{% trans "Trésorerie à 12 mois" %}</a>
+  <a role="tab" class="tab {% if tab == 'calendrier' %}tab-active{% endif %}" href="?tab=calendrier">{% trans "Calendrier" %}</a>
+  <a role="tab" class="tab {% if tab == 'publications' %}tab-active{% endif %}" href="?tab=publications">{% trans "Publications" %}</a>
+</nav>
+
+{% if tab == "qualite" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Série" %}</th><th>{% trans "Période" %}</th><th>{% trans "Erreur statistique" %}</th><th>{% trans "Erreur ajustée" %}</th></tr></thead>
+    <tbody>
+      {% for f in forecasts %}
+        <tr>
+          <td>{{ f.dimension_type }}:{{ f.dimension_value }}</td>
+          <td>{{ f.period|date:"m/Y" }}</td>
+          <td>{{ f.statistical_error_pct|floatformat:1 }} %</td>
+          <td>{% if f.adjustment_error_pct != None %}{{ f.adjustment_error_pct|floatformat:1 }} %{% else %}—{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune période échue mesurée pour l'instant." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "tresorerie" %}
+  <div class="wh-panel">
+    <p>{% trans "Délai moyen de règlement retenu" %} : {{ projection.assumption_avg_delay_days }} {% trans "jours" %}</p>
+    <p class="help-text">{{ projection.assumption_note }}</p>
+  </div>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Mois" %}</th><th>{% trans "Encaissements prévus" %}</th></tr></thead>
+    <tbody>
+      {% for row in projection.monthly_inflows %}
+        <tr><td>{{ row.period|date:"m/Y" }}</td><td>{{ row.value }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2">{% trans "Aucune prévision de canal calculée — lancez l'atelier de prévision sur la série « canal »." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "calendrier" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Nom" %}</th></tr></thead>
+    <tbody>
+      {% for h in holidays %}
+        <tr><td>{{ h.date }}</td><td>{{ h.name }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2">{% trans "Aucun jour férié enregistré." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "publications" %}
+  {% if can_manage %}
+    <form method="post" action="{% url 'forecast:publish' %}">
+      {% csrf_token %}
+      <c-button variant="primary" type="submit">{% trans "Publier l'état courant" %}</c-button>
+    </form>
+  {% endif %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Version" %}</th><th>{% trans "Publiée le" %}</th><th>{% trans "Période" %}</th></tr></thead>
+    <tbody>
+      {% for p in publications %}
+        <tr><td>{{ p.version }}</td><td>{{ p.published_at|date:"d/m/Y H:i" }}</td><td>{{ p.period_start|date:"m/Y" }} — {{ p.period_end|date:"m/Y" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucune publication." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% else %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Série" %}</th><th>{% trans "Période" %}</th><th>{% trans "Modèle" %}</th><th>{% trans "Valeur retenue" %}</th></tr></thead>
+    <tbody>
+      {% for f in forecasts %}
+        <tr>
+          <td><a href="{% url 'forecast:workbench' %}?dimension_type={{ f.dimension_type }}&dimension_value={{ f.dimension_value }}">{{ f.dimension_type }}:{{ f.dimension_value }}</a></td>
+          <td>{{ f.period|date:"m/Y" }}</td>
+          <td>{{ f.get_selected_model_display }}</td>
+          <td>{{ f.final_value }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucune prévision calculée. Utilisez l'atelier de prévision." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Atelier de prévision" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'forecast:index' %}">{% trans "Prévision" %}</a> / {% trans "Atelier" %}</c-breadcrumb>
+
+<h1>{% trans "Atelier de prévision" %}</h1>
+
+<form method="get" action="{% url 'forecast:workbench' %}">
+  <label>{% trans "Dimension" %}
+    <select name="dimension_type">
+      <option value="canal" {% if dimension_type == "canal" %}selected{% endif %}>{% trans "Canal" %}</option>
+      <option value="famille" {% if dimension_type == "famille" %}selected{% endif %}>{% trans "Famille" %}</option>
+      <option value="article" {% if dimension_type == "article" %}selected{% endif %}>{% trans "Article" %}</option>
+      <option value="client" {% if dimension_type == "client" %}selected{% endif %}>{% trans "Client" %}</option>
+    </select>
+  </label>
+  <label>{% trans "Valeur" %} <input type="text" name="dimension_value" value="{{ dimension_value }}"></label>
+  <c-button variant="secondary" type="submit">{% trans "Charger" %}</c-button>
+</form>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+{% if can_manage %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="dimension_type" value="{{ dimension_type }}">
+    <input type="hidden" name="dimension_value" value="{{ dimension_value }}">
+    <input type="hidden" name="action" value="compute">
+    <c-button variant="primary" type="submit">{% trans "Recalculer (6 mois)" %}</c-button>
+  </form>
+{% endif %}
+
+<h2>{% trans "Historique" %}</h2>
+<table class="smart-table">
+  <thead><tr><th>{% trans "Période" %}</th><th>{% trans "Valeur observée" %}</th><th>{% trans "Point exceptionnel" %}</th></tr></thead>
+  <tbody>
+    {% for period, value in history %}
+      <tr>
+        <td>{{ period|date:"m/Y" }}</td>
+        <td>{{ value }}</td>
+        <td>
+          {% if period in excluded_periods %}
+            <span class="badge b-warning">{% trans "Exclu de l'apprentissage" %}</span>
+          {% elif can_manage %}
+            <form method="post" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="dimension_type" value="{{ dimension_type }}">
+              <input type="hidden" name="dimension_value" value="{{ dimension_value }}">
+              <input type="hidden" name="action" value="mark_exceptional">
+              <input type="hidden" name="period" value="{{ period|date:'Y-m-d' }}">
+              <input type="text" name="reason" placeholder="{% trans "Motif" %}" required>
+              <button type="submit" class="btn btn-ghost btn-sm">{% trans "Marquer exceptionnel" %}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3">{% trans "Aucun historique disponible pour cette série." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Diagnostic et prévision" %}</h2>
+<table class="smart-table">
+  <thead>
+    <tr>
+      <th>{% trans "Période" %}</th>
+      <th>{% trans "Référence naïve" %}</th>
+      <th>{% trans "Modèle retenu" %}</th>
+      <th>{% trans "Erreur (rétrotest)" %}</th>
+      <th>{% trans "Biais" %}</th>
+      <th>{% trans "Valeur statistique" %}</th>
+      <th>{% trans "Valeur ajustée" %}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in forecasts %}
+      <tr>
+        <td>{{ f.period|date:"m/Y" }}</td>
+        <td>{{ f.reference_naive_value }} {% if f.reference_naive_beats_selected %}<span class="badge b-warning">{% trans "bat le modèle" %}</span>{% endif %}</td>
+        <td>{{ f.get_selected_model_display }} ({{ f.selected_model_score }})
+          {% if f.insufficient_history_for_seasonality %}<span class="badge b-warning">{% trans "historique insuffisant pour la saisonnalité" %}</span>{% endif %}
+        </td>
+        <td>{% if f.error_mae_pct != None %}{{ f.error_mae_pct|floatformat:1 }} % (MAE) / {{ f.error_weighted_pct|floatformat:1 }} % (pondérée){% else %}—{% endif %}</td>
+        <td>{% if f.error_bias_pct != None %}{{ f.error_bias_pct|floatformat:1 }} %{% else %}—{% endif %}</td>
+        <td>{{ f.statistical_value }}</td>
+        <td>{{ f.adjusted_value|default:"—" }}</td>
+        <td>
+          {% if can_manage %}
+            <form method="post" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="dimension_type" value="{{ dimension_type }}">
+              <input type="hidden" name="dimension_value" value="{{ dimension_value }}">
+              <input type="hidden" name="action" value="adjust">
+              <input type="hidden" name="forecast_id" value="{{ f.id }}">
+              <input type="number" step="0.0001" name="new_value" placeholder="{% trans "Nouvelle valeur" %}" required>
+              <input type="text" name="reason" placeholder="{% trans "Motif" %}" required>
+              <button type="submit" class="btn btn-ghost btn-sm">{% trans "Ajuster" %}</button>
+            </form>
+            {% if f.adjusted_value != None %}
+              <form method="post" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="dimension_type" value="{{ dimension_type }}">
+                <input type="hidden" name="dimension_value" value="{{ dimension_value }}">
+                <input type="hidden" name="action" value="revert">
+                <input type="hidden" name="forecast_id" value="{{ f.id }}">
+                <input type="text" name="reason" placeholder="{% trans "Motif du retour" %}">
+                <button type="submit" class="btn btn-ghost btn-sm">{% trans "Revenir à la statistique" %}</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8">{% trans "Aucune prévision calculée pour cette série." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.simulation",
     "apps.analytics",
     "apps.bi",
+    "apps.forecast",
 ]
 
 MIDDLEWARE = [
