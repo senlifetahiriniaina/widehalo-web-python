@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% if report %}{{ report.name }}{% else %}{% trans "Nouveau rapport" %}{% endif %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'bi:index' %}">{% trans "Business Intelligence" %}</a> / {% if report %}{{ report.name }}{% else %}{% trans "Nouveau rapport" %}{% endif %}</c-breadcrumb>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+{% if not report %}
+  <h1>{% trans "Nouveau rapport" %}</h1>
+  <form method="post" action="{% url 'bi:report_new' %}">
+    {% csrf_token %}
+    <label>{% trans "Nom" %} <input type="text" name="name" required></label>
+    <label>{% trans "Domaine" %} <input type="text" name="domaine"></label>
+    <label>{% trans "Définition (JSON)" %}
+      <textarea name="definition_json" rows="6" placeholder='{"metric_codes": ["sales.ca_ht"], "dimensions": ["temps"], "filters": [], "chart_type": "table"}'></textarea>
+    </label>
+    <p class="help-text">{% trans "Codes d'indicateur et d'axe déjà déclarés uniquement — aucun SQL, aucune expression libre." %}</p>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+  </form>
+
+{% else %}
+  <h1>{{ report.name }}</h1>
+
+  {% if result.scope_notes %}
+    <div class="wh-panel">
+      <p>{% trans "Périmètre adapté à votre rôle :" %}</p>
+      <ul>{% for note in result.scope_notes %}<li>{{ note }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  {% for code, payload in result.metrics.items %}
+    <h2>{{ payload.libelle }} {% if payload.unite %}({{ payload.unite }}){% endif %}</h2>
+    <table class="smart-table c-chart" data-metric-code="{{ code }}">
+      <tbody>
+        {% for row in payload.rows %}
+          <tr>
+            {% for key, value in row.items %}
+              {% if key != "value" %}<td>{{ value }}</td>{% endif %}
+            {% endfor %}
+            <td class="c-metric-value">{{ row.value }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% empty %}
+    <p>{% trans "Aucun indicateur visible pour votre rôle dans ce rapport." %}</p>
+  {% endfor %}
+
+  <form method="post" action="{% url 'bi:report_export' report.id %}" style="display:inline">
+    {% csrf_token %}
+    <select name="format">
+      <option value="xlsx">XLSX</option>
+      <option value="csv">CSV</option>
+      <option value="json">JSON</option>
+    </select>
+    <c-button variant="secondary" type="submit">{% trans "Exporter" %}</c-button>
+  </form>
+
+  {% if can_change %}
+    <h2>{% trans "Définition" %}</h2>
+    <form method="post" action="{% url 'bi:report_detail' report.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_definition">
+      <textarea name="definition_json" rows="6">{{ definition_json }}</textarea>
+      <label><input type="checkbox" name="is_published" {% if report.is_published %}checked{% endif %}> {% trans "Publié au catalogue" %}</label>
+      <c-button variant="secondary" type="submit">{% trans "Enregistrer la définition" %}</c-button>
+    </form>
+
+    <h2>{% trans "Diffusion planifiée" %}</h2>
+    <form method="post" action="{% url 'bi:report_detail' report.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_diffusion">
+      <label><input type="checkbox" name="diffusion_enabled" {% if report.diffusion_enabled %}checked{% endif %}> {% trans "Activée" %}</label>
+      <select name="diffusion_frequency">
+        <option value="">—</option>
+        <option value="daily" {% if report.diffusion_frequency == "daily" %}selected{% endif %}>{% trans "Quotidienne" %}</option>
+        <option value="weekly" {% if report.diffusion_frequency == "weekly" %}selected{% endif %}>{% trans "Hebdomadaire" %}</option>
+        <option value="monthly" {% if report.diffusion_frequency == "monthly" %}selected{% endif %}>{% trans "Mensuelle" %}</option>
+      </select>
+      <label>{% trans "Destinataires (e-mails séparés par une virgule)" %}
+        <input type="text" name="diffusion_recipients" value="{{ report.diffusion_recipients|join:', ' }}">
+      </label>
+      <c-button variant="secondary" type="submit">{% trans "Enregistrer la diffusion" %}</c-button>
+    </form>
+  {% endif %}
+{% endif %}
+{% endblock %}

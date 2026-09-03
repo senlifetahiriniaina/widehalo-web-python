@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.pos",
     "apps.simulation",
     "apps.analytics",
+    "apps.bi",
 ]
 
 MIDDLEWARE = [

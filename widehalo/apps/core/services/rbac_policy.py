@@ -113,6 +113,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # en etoile + dictionnaire d'indicateurs) : acces complet, meme
         # discipline transverse que le reste de la matrice pour ce role.
         "analytics": {"view", "add", "change"},
+        # `bi` (chantier module Business Intelligence, cahier §13.1) :
+        # acces complet, meme discipline transverse que le reste de la
+        # matrice pour ce role.
+        "bi": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -177,6 +181,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # de l'entrepot sont des actes de gouvernance/pilotage, pas une
         # simple consultation.
         "analytics": {"view", "add", "change"},
+        # `bi` : meme raisonnement que `simulation`/`analytics` ci-dessus —
+        # EXCEPTION au reste de ce role, acces COMPLET (le cahier decrit
+        # `direction` comme co-proprietaire du dictionnaire/des rapports
+        # gouvernes, pas seulement un consultateur/valideur, §13.1).
+        "bi": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -192,6 +201,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "pos": {"view"},
         "catalog": {"view"},
         "reporting": {"view", "add"},
+        # `bi` (chantier module Business Intelligence, cahier §13.1) :
+        # "view" seul, meme baseline transverse que les autres roles non
+        # admin/direction/controleur_gestion ci-dessous — consulte les
+        # tableaux de bord/rapports auxquels son role donne droit (filtre
+        # au niveau indicateur par `AnMetricDefinition.roles_autorises`),
+        # ne cree pas de rapport self-service dans ce premier chantier.
+        "bi": {"view"},
         # `financing` : role "domaine cible" (assemblage du dossier
         # bancaire, plan de financement, garanties, CREDOC) — acces complet.
         "financing": {"view", "add", "change"},
@@ -218,6 +234,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "catalog": {"view"},
         "sales": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
@@ -234,6 +252,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # `rh` plus bas pour la decision de conception complete.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         # Responsable de departement identifie (cf. plan `strategy`,
         # `DEPARTMENT_HEAD_ROLES`) : cree/gere les objectifs departement
         # scopes a son propre departement (`apply_scope`/`scope_objectives_
@@ -262,6 +282,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "partners": {"view", "add", "change"},
         "catalog": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         # Retenu comme responsable de departement "achats" faute d'un role
         # dedie (cf. plan `strategy`, a verifier/affiner si un role
         # "resp_achats" est cree plus tard).
@@ -276,6 +298,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         "strategy": {"view", "add", "change"},
         # `feasibility` (FEA1-3) : role "domaine cible" cote production
         # (cf. commentaire du role `resp_commercial` ci-dessus pour le
@@ -295,6 +319,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # RG-PAY-9 : idem `resp_commercial` ci-dessus.
         "payroll": {"view"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
@@ -312,6 +338,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # role dedie "logisticien" dans les 11 roles acquis du CDC.
         "logistics": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
@@ -322,6 +350,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "presence": {"view", "add", "change"},
         "payroll": {"view", "add", "change"},
         "reporting": {"view", "add"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus.
+        "bi": {"view"},
         # Responsable de departement identifie (cf. plan `strategy`) —
         # idem `resp_commercial` ci-dessus.
         "strategy": {"view", "add", "change"},
@@ -343,6 +373,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # droit (§RG-PAY-9, "own") restent portes par `RegisteredReport.
         # permission` propre a chaque module, pas par ce role transverse.
         "reporting": {"view"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus (§reporting).
+        "bi": {"view"},
         "presence": {"view"},
         "payroll": {"view"},
         # "add" : un collaborateur cree ses propres objectifs individuels
@@ -398,6 +430,8 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # independamment de son domaine cible `pos`.
         "strategy": {"view", "add", "change"},
         "reporting": {"view"},
+        # `bi` : meme raisonnement que `comptable` ci-dessus (§reporting).
+        "bi": {"view"},
         "helpdesk": {"view", "add"},
     },
     # `controleur_gestion` (13e role, chantier module Simulation financiere
@@ -417,6 +451,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # d'indicateurs gouverne et du pilotage de l'entrepot decisionnel
         # (meme persona que `simulation` ci-dessus, cf. cahier Phase 2 §3).
         "analytics": {"view", "add", "change"},
+        # `bi` (chantier module Business Intelligence, cahier §13.1) : acces
+        # complet — le controleur de gestion cree/publie les rapports
+        # self-service et les tableaux de bord, memes discipline et
+        # justification que `analytics`/`simulation` ci-dessus.
+        "bi": {"view", "add", "change"},
         "reporting": {"view", "add"},
         "accounting": {"view"},
         "sales": {"view"},

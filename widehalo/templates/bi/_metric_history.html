@@ -1,0 +1,28 @@
+{% load i18n %}
+<tr>
+  <td colspan="5">
+    <strong>{% trans "Historique de" %} {{ code }}</strong>
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Version" %}</th><th>{% trans "Libellé" %}</th><th>{% trans "Formule" %}</th><th>{% trans "Courante" %}</th><th>{% trans "Mise à jour" %}</th></tr></thead>
+      <tbody>
+        {% for v in versions %}
+          <tr>
+            <td>{{ v.version }}</td>
+            <td>{{ v.libelle }}</td>
+            <td>{{ v.formule|default:"—" }}</td>
+            <td>{% if v.is_current %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
+            <td>{{ v.updated_at|date:"d/m/Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <strong>{% trans "Rapports impactés" %}</strong>
+    <ul>
+      {% for report in impacted_reports %}
+        <li><a href="{% url 'bi:report_detail' report.id %}">{{ report.name }}</a></li>
+      {% empty %}
+        <li>{% trans "Aucun." %}</li>
+      {% endfor %}
+    </ul>
+  </td>
+</tr>

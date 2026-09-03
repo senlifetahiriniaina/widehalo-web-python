@@ -101,6 +101,7 @@
             </a>
             <ul class="app-menu-dropdown" x-show="open" x-cloak>
               {% if "reporting" in visible_app_labels %}<li><a href="/reporting/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>{% trans "Rapports" %}</a></li>{% endif %}
+              {% if "bi" in visible_app_labels %}<li><a href="/bi/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layout-dashboard"></use></svg>{% trans "Business Intelligence" %}</a></li>{% endif %}
               {% if "strategy" in visible_app_labels %}<li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Stratégie et pilotage" %}</a></li>{% endif %}
               {% if "helpdesk" in visible_app_labels %}<li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>{% endif %}
             </ul>

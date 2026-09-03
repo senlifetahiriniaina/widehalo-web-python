@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{% trans "Business Intelligence" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "Business Intelligence" %}</c-breadcrumb>
+
+<div class="page-head">
+  <h1>{% trans "Business Intelligence" %}</h1>
+  {% if can_manage %}<a href="{% url 'bi:report_new' %}" class="btn btn-primary">{% trans "Nouveau rapport" %}</a>{% endif %}
+</div>
+
+<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <a role="tab" class="tab {% if tab == 'dashboards' %}tab-active{% endif %}" href="?tab=dashboards">{% trans "Tableaux de bord" %}</a>
+  <a role="tab" class="tab {% if tab == 'catalogue' %}tab-active{% endif %}" href="?tab=catalogue">{% trans "Catalogue de rapports" %}</a>
+  <a role="tab" class="tab {% if tab == 'journal' %}tab-active{% endif %}" href="?tab=journal">{% trans "Journal" %}</a>
+  <a role="tab" class="tab {% if tab == 'gouvernance' %}tab-active{% endif %}" href="?tab=gouvernance">{% trans "Gouvernance du dictionnaire" %}</a>
+</nav>
+
+{% if tab == "catalogue" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Domaine" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for report in reports %}
+        <tr>
+          <td><a href="{% url 'bi:report_detail' report.id %}">{{ report.name }}</a></td>
+          <td>{{ report.domaine|default:"—" }}</td>
+          <td></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun rapport publié." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "journal" %}
+  <h2>{% trans "État du rafraîchissement de l'entrepôt" %}</h2>
+  <div class="wh-panel">
+    {% if refresh_summary %}
+      <p>{% trans "Statut" %} : {{ refresh_summary.status }}</p>
+      <p>{% trans "Durée" %} : {% if refresh_summary.duration_seconds %}{{ refresh_summary.duration_seconds|floatformat:1 }} s{% else %}—{% endif %}</p>
+      <p>{% trans "Lignes traitées" %} : {{ refresh_summary.rows_processed }}</p>
+      {% if refresh_summary.error_message %}<p class="form-error">{{ refresh_summary.error_message }}</p>{% endif %}
+      <p>{% trans "Réconciliation" %} :
+        {% if refresh_summary.reconciliation_ok == True %}<span class="badge b-success">{% trans "OK" %}</span>
+        {% elif refresh_summary.reconciliation_ok == False %}<span class="badge b-danger">{% trans "Écart détecté" %}</span>
+        {% else %}—{% endif %}
+      </p>
+    {% else %}
+      <p>{% trans "Aucun rafraîchissement n'a encore eu lieu." %}</p>
+    {% endif %}
+    <a href="/analytics/?tab=etat">{% trans "Voir l'historique complet" %}</a>
+  </div>
+
+  <h2>{% trans "Journal de diffusion" %}</h2>
+  <table class="smart-table">
+    <thead>
+      <tr><th>{% trans "Envoyé le" %}</th><th>{% trans "Rapport" %}</th><th>{% trans "Destinataire" %}</th><th>{% trans "Canal" %}</th><th>{% trans "Périmètre" %}</th><th>{% trans "Statut" %}</th></tr>
+    </thead>
+    <tbody>
+      {% for log in diffusion_logs %}
+        <tr>
+          <td>{{ log.sent_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ log.report.name }}</td>
+          <td>{{ log.recipient }}</td>
+          <td>{{ log.channel }}</td>
+          <td>{{ log.scope_summary|default:"—" }}</td>
+          <td>{% if log.status == "sent" %}<span class="badge b-success">{% trans "Envoyé" %}</span>{% else %}<span class="badge b-danger">{% trans "Échec" %}</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune diffusion enregistrée." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "gouvernance" %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Libellé" %}</th><th>{% trans "Module" %}</th><th>{% trans "Maille minimale" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for metric in metrics %}
+        <tr>
+          <td>{{ metric.code }}</td>
+          <td>{{ metric.libelle }}</td>
+          <td>{{ metric.module_source }}</td>
+          <td>{{ metric.maille_minimale|default:"—" }}</td>
+          <td><a href="{% url 'bi:metric_history' metric.code %}" hx-get="{% url 'bi:metric_history' metric.code %}" hx-target="closest tr" hx-swap="afterend">{% trans "Historique" %}</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun indicateur publié." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% else %}
+  {% for board in dashboards %}
+    <h2>{{ board.name }}</h2>
+    <div class="c-dashboard-grid">
+      {% for tile in board.tiles %}
+        {% with report=reports_by_id|dict_get:tile.report_id %}
+          {% if report %}
+            <div class="wh-panel c-metric-value" data-size="{{ tile.size|default:'md' }}">
+              <a href="{% url 'bi:report_detail' report.id %}">{{ report.name }}</a>
+            </div>
+          {% endif %}
+        {% endwith %}
+      {% empty %}
+        <p>{% trans "Ce tableau de bord ne comporte aucune tuile." %}</p>
+      {% endfor %}
+    </div>
+  {% empty %}
+    <p>{% trans "Aucun tableau de bord pour votre rôle. Consultez le catalogue de rapports." %}</p>
+  {% endfor %}
+{% endif %}
+{% endblock %}

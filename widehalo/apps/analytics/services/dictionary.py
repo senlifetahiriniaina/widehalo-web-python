@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from django.db import transaction
+
 from apps.analytics.models import AnMetricDefinition
 
 if TYPE_CHECKING:
@@ -15,6 +17,7 @@ if TYPE_CHECKING:
     from apps.core.models.user import User
 
 
+@transaction.atomic
 def register_metric(
     tenant: Tenant,
     *,
@@ -31,13 +34,15 @@ def register_metric(
     statut: str = AnMetricDefinition.STATUT_BROUILLON,
     date_effet: Any = None,
 ) -> AnMetricDefinition:
-    """Crée ou met à jour (par `code`) une entrée du dictionnaire —
-    idempotent, appelable depuis `apps.py::ready()` d'un module consommateur
-    (même patron que `apps.core.services.data_query_tool_registry.
-    register_data_query_tool`) ou depuis une commande de chargement initiale.
-    Toute mise à jour incrémente `version` (cf. docstring du modèle : pas de
-    préservation de l'historique des formules dans cette itération)."""
-    existing = AnMetricDefinition.objects.filter(tenant=tenant, code=code).first()
+    """Crée ou fait évoluer (par `code`) une entrée du dictionnaire —
+    idempotent au sens "même appelant, mêmes valeurs, appelable sans
+    risque à chaque démarrage" (même patron que `apps.core.services.
+    data_query_tool_registry.register_data_query_tool`), mais chaque appel
+    dont les valeurs diffèrent de la version courante INSÈRE une nouvelle
+    ligne `version+1` plutôt que d'écraser la précédente (BI-9, cf.
+    docstring du modèle) — la ligne précédente reste en base, `is_current`
+    bascule atomiquement de l'une à l'autre."""
+    current = AnMetricDefinition.objects.filter(tenant=tenant, code=code, is_current=True).first()
     defaults = {
         "libelle": libelle,
         "module_source": module_source,
@@ -51,13 +56,23 @@ def register_metric(
         "statut": statut,
         "date_effet": date_effet,
     }
-    if existing is None:
-        return AnMetricDefinition.objects.create(tenant=tenant, code=code, **defaults)
-    for field, value in defaults.items():
-        setattr(existing, field, value)
-    existing.version += 1
-    existing.save()
-    return existing
+    if current is None:
+        return AnMetricDefinition.objects.create(tenant=tenant, code=code, version=1, **defaults)
+    if all(getattr(current, field) == value for field, value in defaults.items()):
+        return current
+    current.is_current = False
+    current.save(update_fields=["is_current"])
+    return AnMetricDefinition.objects.create(
+        tenant=tenant, code=code, version=current.version + 1, **defaults
+    )
+
+
+def list_metric_history(tenant: Tenant, code: str) -> list[AnMetricDefinition]:
+    """Toutes les versions d'un indicateur, la plus récente en premier
+    (BI-9 : « conserve la précédente ») — y compris la version courante."""
+    return list(
+        AnMetricDefinition.objects.filter(tenant=tenant, code=code).order_by("-version")
+    )
 
 
 def list_metrics_for_user(tenant: Tenant, user: User) -> list[AnMetricDefinition]:
@@ -71,7 +86,7 @@ def list_metrics_for_user(tenant: Tenant, user: User) -> list[AnMetricDefinition
     registry`."""
     user_roles = set(user.groups.values_list("name", flat=True))
     metrics = AnMetricDefinition.objects.filter(
-        tenant=tenant, statut=AnMetricDefinition.STATUT_PUBLIE
+        tenant=tenant, statut=AnMetricDefinition.STATUT_PUBLIE, is_current=True
     ).order_by("module_source", "code")
     return [
         metric

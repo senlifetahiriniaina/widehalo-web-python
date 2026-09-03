@@ -23,22 +23,34 @@ from apps.analytics.models import (
 )
 
 
+_MOIS_LIBELLES = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+]  # fmt: skip
+_JOURS_LIBELLES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+
+
 class AnDimTempsFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = AnDimTemps
 
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
-    date = dt.date(2026, 9, 1)
-    annee = 2026
-    trimestre = 3
-    mois = 9
-    mois_libelle = "Septembre"
-    semaine_iso = 36
-    jour_du_mois = 1
-    jour_semaine_iso = 2
-    jour_semaine_libelle = "Mardi"
-    est_weekend = False
-    exercice_fiscal = 2026
+    # Sequence (pas une date fixe) : `AnDimTemps` porte une contrainte
+    # d'unicite (tenant, date) — un test qui cree plusieurs faits pour le
+    # meme tenant sans dim_temps explicite ne doit jamais entrer en
+    # collision avec lui-meme (cf. `services/refresh.py::_ensure_dim_temps`
+    # pour le calcul reel des champs derives, reproduit ici a l'identique).
+    date = factory.Sequence(lambda n: dt.date(2026, 9, 1) + dt.timedelta(days=n))
+    annee = factory.LazyAttribute(lambda o: o.date.year)
+    trimestre = factory.LazyAttribute(lambda o: (o.date.month - 1) // 3 + 1)
+    mois = factory.LazyAttribute(lambda o: o.date.month)
+    mois_libelle = factory.LazyAttribute(lambda o: _MOIS_LIBELLES[o.date.month - 1])
+    semaine_iso = factory.LazyAttribute(lambda o: o.date.isocalendar()[1])
+    jour_du_mois = factory.LazyAttribute(lambda o: o.date.day)
+    jour_semaine_iso = factory.LazyAttribute(lambda o: o.date.isocalendar()[2])
+    jour_semaine_libelle = factory.LazyAttribute(lambda o: _JOURS_LIBELLES[o.date.isocalendar()[2] - 1])
+    est_weekend = factory.LazyAttribute(lambda o: o.date.isocalendar()[2] in (6, 7))
+    exercice_fiscal = factory.LazyAttribute(lambda o: o.date.year)
 
 
 class AnDimTiersFactory(factory.django.DjangoModelFactory):

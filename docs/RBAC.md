@@ -146,6 +146,7 @@ jamais (§1).
 | `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* | — | — |
 | `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
 | `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v | v,a |
+| `bi` | v,a,c | v,a,c | v | v | v | v | v | v | v | v | v | v | v,a,c |
 | `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c | — | — |
 | `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — | — |
 | `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — | — |
@@ -153,24 +154,38 @@ jamais (§1).
 
 Légende : v = view, a = add, c = change.
 
-**`simulation` : EXCEPTION à la discipline habituelle de `direction`** —
-`v,a,c` (accès complet) et non le `v,c` transverse habituel de ce rôle
-(comme `strategy`/`reporting`/`automation`/`feasibility`, cf. le
-commentaire dédié dans `rbac_policy.py`) : le cahier nomme littéralement
-« Dirigeant » comme l'un des deux seuls rôles autorisés à manipuler
-l'atelier de scénarios, pas seulement à consulter/valider un
-enregistrement créé par un autre rôle.
+**`simulation`/`analytics` : EXCEPTION à la discipline habituelle de
+`direction`** — `v,a,c` (accès complet) et non le `v,c` transverse
+habituel de ce rôle (comme `strategy`/`reporting`/`automation`/
+`feasibility`, cf. le commentaire dédié dans `rbac_policy.py`) : le cahier
+nomme littéralement « Dirigeant » comme l'un des deux seuls rôles
+autorisés à manipuler l'atelier de scénarios (§13.6) ; publier/dépublier
+un indicateur du dictionnaire gouverné ou déclencher un rafraîchissement
+de l'entrepôt (§12) relève de la même logique de pilotage, jamais une
+simple consultation/validation d'un enregistrement créé par un autre
+rôle. `analytics` n'est le domaine cible d'aucun des 13 rôles autres que
+`admin`/`direction`/`controleur_gestion` : c'est un écran de gouvernance/
+pilotage technique, contrairement à `bi` ci-dessous, qui consomme cet
+entrepôt pour une audience large.
 
-**`analytics` : même exception, même raisonnement** — `direction` reçoit
-`v,a,c` (chantier fondations Phase 2, cahier §12) : publier/dépublier un
-indicateur du dictionnaire gouverné ou déclencher un rafraîchissement de
-l'entrepôt sont des actes de pilotage, pas une simple consultation/
-validation d'un enregistrement créé par un autre rôle — même discipline
-que `simulation` ci-dessus. `analytics` n'est le domaine cible d'aucun des
-13 rôles autres que `admin`/`direction`/`controleur_gestion` : c'est un
-écran de gouvernance/pilotage technique, pas un module à large audience
-(contrairement au futur module BI, Phase 2 §13.1, qui consommera cet
-entrepôt avec une audience plus large).
+**`bi` : PREMIER module dont les 13 rôles portent tous une entrée** (les
+autres lignes « transverses » — `strategy`/`reporting`/`helpdesk` —
+accordent déjà `view` à tous, mais jamais un rôle totalement absent de la
+matrice comme `simulation`/`analytics` ci-dessus) — cohérent avec le
+cahier §13.1 : « qu'un utilisateur métier obtienne une réponse chiffrée
+juste... sans passer par l'éditeur », une consultation large est le but
+même du module. Seuls `admin`/`direction`/`controleur_gestion` (même
+exception `direction` que `simulation`/`analytics` ci-dessus) reçoivent
+`add`/`change` (création/publication de rapports self-service,
+configuration de la diffusion planifiée) — restriction délibérée
+disclosée : le constructeur self-service complet ouvert à tout rôle (le
+cahier décrit "user personnalise") est différé, ce premier chantier livre
+la consultation large + la création par les rôles de pilotage. Le
+filtrage RÉEL par indicateur (BI-6, "y compris en agrégé") passe par
+`AnMetricDefinition.roles_autorises`/`maille_minimale` (§12), jamais par
+cette matrice N2 — un rôle avec `bi: {view}` peut ouvrir n'importe quel
+rapport publié, mais `apps.bi.services.query.run_report` retire chaque
+indicateur non autorisé pour son rôle AVANT tout calcul.
 
 \* `payroll` en `view` seul pour `resp_commercial`/`resp_production`/
 `chef_atelier` (les 3 rôles « manager » identifiés, cf. §4.2) donne accès à
@@ -494,14 +509,14 @@ registres — en particulier :
 - toute nouvelle entrée dans `SENSITIVE_FIELDS` → ajouter une ligne au
   tableau du §6.
 
-Ce document couvre l'état du dépôt au moment de sa dernière révision (21
+Ce document couvre l'état du dépôt au moment de sa dernière révision (22
 modules métier réels sous `apps/`, hors `core`/`chat`/`automation`/`ai` ;
 ces 2 derniers traités séparément au §3.2 comme infrastructure transverse
 disposant néanmoins d'une entrée RBAC). Le décompte exact des modules
-métier au moment de la rédaction : `accounting`, `analytics`, `catalog`,
-`crm`, `feasibility`, `financing`, `helpdesk`, `logistics`, `mrp`,
-`partners`, `patronage`, `payroll`, `pos`, `presence`, `projects`,
+métier au moment de la rédaction : `accounting`, `analytics`, `bi`,
+`catalog`, `crm`, `feasibility`, `financing`, `helpdesk`, `logistics`,
+`mrp`, `partners`, `patronage`, `payroll`, `pos`, `presence`, `projects`,
 `purchase`, `reporting`, `sales`, `simulation`, `stocks`, `strategy` —
-soit 21, pas 22 ; si un module supplémentaire existe dans une version
+soit 22, pas 23 ; si un module supplémentaire existe dans une version
 ultérieure du dépôt, ce compte et la matrice du §3 doivent être révisés
 en conséquence.

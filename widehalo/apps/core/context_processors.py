@@ -35,7 +35,14 @@ _ADMIN_ROLE_CODES = {"admin", "direction"}
 # pilotage" et memes utilisateurs restreints que `simulation`
 # (admin/direction/controleur_gestion, cf. `ROLE_APP_PERMISSIONS`) — un
 # ecran de gouvernance/pilotage, pas un module a large audience comme le
-# futur module BI (Phase 2 §13.1) qui le consommera.
+# module BI (Phase 2 §13.1, ci-dessous) qui le consomme.
+# "bi" ajoute par le chantier module Business Intelligence (cahier §13.1) :
+# lien sidebar "Business Intelligence", groupe accordeon "pour-tous" (PAS
+# "finance-pilotage" comme `analytics`/`simulation` — a la difference de
+# ces deux ecrans de pilotage restreints, `bi` est concu pour une audience
+# large : "consultation" (view) est accordee aux 13 roles, seule la
+# creation/edition de rapports (add/change) reste reservee a
+# admin/direction/controleur_gestion, cf. `ROLE_APP_PERMISSIONS`).
 _MODULE_APP_LABELS: tuple[str, ...] = (
     "accounting",
     "crm",
@@ -57,6 +64,7 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "automation",
     "simulation",
     "analytics",
+    "bi",
 )
 _RISK_MENU_KEY = "risks"
 _RISK_PERMISSION_CODENAME = "core.view_riskitem"
@@ -65,7 +73,7 @@ _RISK_PERMISSION_CODENAME = "core.view_riskitem"
 # cf. static/js/ui_patterns.js), chacun associe aux app labels/cles
 # `visible_app_labels` de ses liens.
 _MENU_GROUPS: dict[str, tuple[str, ...]] = {
-    "pour-tous": ("reporting", "strategy", "helpdesk"),
+    "pour-tous": ("reporting", "strategy", "helpdesk", "bi"),
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),

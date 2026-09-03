@@ -360,12 +360,24 @@ class AnRefreshRun(BaseModel):
 
 class AnMetricDefinition(BaseModel):
     """Dictionnaire d'indicateurs gouverné (§12) — SEULE voie déclarée
-    d'accès aux données décisionnelles (cf. docstring de module). Pas de
-    plage de validité façon `RegulatoryParameter` (simplification assumée
-    et disclosée) : une évolution de définition incrémente `version` et
-    remplace la ligne courante, elle ne préserve pas les formules
-    historiques exactes déjà utilisées par des rapports passés — à
-    revisiter si ce besoin de reproductibilité stricte apparaît."""
+    d'accès aux données décisionnelles (cf. docstring de module).
+
+    Versionné par INSERTION, jamais par écrasement (BI-9, cahier Phase 2
+    §13.1 : « toute modification de définition d'un indicateur crée une
+    version, conserve la précédente, liste les rapports impactés » —
+    corrige une simplification assumée à tort lors du chantier fondateur,
+    qui écrasait la ligne courante) : `(tenant, code, version)` est la clef
+    d'unicité réelle, `is_current` marque la SEULE ligne active par
+    `(tenant, code)` à un instant donné — `services/dictionary.py::
+    register_metric` insère toujours une nouvelle ligne `version+1` et
+    bascule `is_current` de l'ancienne à la nouvelle dans la même
+    transaction, jamais de `UPDATE` en place sur une ligne existante. Une
+    ligne non courante reste interrogeable via `services/dictionary.py::
+    list_metric_history` — c'est la définition exacte utilisée par un
+    rapport déjà généré qui doit rester reconstituable, pas seulement le
+    diff générique du journal d'audit (déjà couvert automatiquement,
+    `AnMetricDefinition` héritant de `BaseModel`, cf. `apps.core.
+    audit_signals`)."""
 
     STATUT_BROUILLON = "brouillon"
     STATUT_PUBLIE = "publie"
@@ -398,13 +410,24 @@ class AnMetricDefinition(BaseModel):
     statut = models.CharField(max_length=16, choices=STATUT_CHOICES, default=STATUT_BROUILLON)
     version = models.PositiveIntegerField(default=1)
     date_effet = models.DateField(null=True, blank=True)
+    # Cf. docstring de classe : la SEULE ligne active par (tenant, code) —
+    # `register_metric` bascule ce booléen atomiquement à chaque nouvelle
+    # version, jamais de suppression ni d'écrasement d'une ligne existante.
+    is_current = models.BooleanField(default=True)
 
     class Meta:
         db_table = "an_metric_definition"
         constraints = [
-            models.UniqueConstraint(fields=["tenant", "code"], name="uniq_an_metric_definition")
+            models.UniqueConstraint(
+                fields=["tenant", "code", "version"], name="uniq_an_metric_definition_version"
+            ),
+            models.UniqueConstraint(
+                fields=["tenant", "code"],
+                condition=models.Q(is_current=True),
+                name="uniq_an_metric_definition_current",
+            ),
         ]
-        ordering = ["module_source", "code"]
+        ordering = ["module_source", "code", "-version"]
 
     def __str__(self) -> str:
         return f"{self.code} ({self.statut})"

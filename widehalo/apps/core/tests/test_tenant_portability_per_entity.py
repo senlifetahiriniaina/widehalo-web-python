@@ -102,6 +102,8 @@ _FACTORY_MODULES = [
     # livraison de ce module, pas en rattrapage — cf. le commentaire
     # ci-dessus sur `pos`/`simulation`.
     "apps.analytics.tests.factories",
+    # `bi` (chantier module Business Intelligence, cahier §13.1) : idem.
+    "apps.bi.tests.factories",
 ]
 
 

@@ -15,6 +15,7 @@ from apps.accounting.api import router as accounting_router  # noqa: E402
 from apps.ai.api import router as ai_router  # noqa: E402
 from apps.analytics.api import router as analytics_router  # noqa: E402
 from apps.automation.api import router as automation_router  # noqa: E402
+from apps.bi.api import router as bi_router  # noqa: E402
 from apps.catalog.api import router as catalog_router  # noqa: E402
 from apps.chat.api import router as chat_router  # noqa: E402
 from apps.core.api_auth import router as auth_router  # noqa: E402
@@ -53,6 +54,7 @@ api.add_router("/core", backup_router)
 api.add_router("", accounting_router)
 api.add_router("", ai_router)
 api.add_router("", analytics_router)
+api.add_router("", bi_router)
 api.add_router("", chat_router)
 api.add_router("", crm_router)
 api.add_router("", logistics_router)
