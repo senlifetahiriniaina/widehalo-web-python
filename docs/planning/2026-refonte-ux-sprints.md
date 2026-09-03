@@ -308,12 +308,27 @@ historique, aucun barème en dur). 5 tests (`test_x2_quick_entry.py`).
   *Critère* : ✅ écriture équilibrée obligatoire avant publication (le service refuse déjà
   toute écriture déséquilibrée) ; ✅ contrepartie suggérée à partir de l'historique.
 
+Livré (commit `7e25f1a`) pour la **migration du catalogue existant du domaine (Sprint 9)** :
+premier ré-habillage réel d'écrans CRUD existants vers Tailwind/DaisyUI/cotton depuis le
+début du projet (les Sprints 1 et 2 documentaient déjà ce même report pour les écrans
+racine/catalog/mrp/purchase — aucun n'avait encore été fait). Prérequis découvert en cours
+de route : `tailwind-input.css` ne scannait (`@source`) que `templates/cotton/**` et les
+fichiers `tw-*.html` — une classe Tailwind ajoutée directement dans un écran existant
+n'aurait eu aucun effet sans élargir ce scan ; élargi à `templates/accounting/**/*.html` et
+`templates/payroll/**/*.html`, `tailwind.css` reconstruit. Les 18 écrans `accounting`
+(factures, X2, configuration, imports, rapports) et les 3 écrans `payroll` (mes bulletins,
+détail bulletin, tableau de bord RH) reçoivent `<c-breadcrumb>` (fil d'Ariane, A.7) et
+`<c-button>` pour les actions de formulaire.
+
+- **Critères d'acceptation** : ✅ fil d'Ariane présent sur chaque écran migré ; ⚠️ pas tous
+  les écrans composés *exclusivement* de composants cotton (les tableaux
+  `<table class="smart-table">` restent en l'état, `<c-table>` n'existe pas encore).
+- **Raffinement effectué** : `variant="danger"` sur les actions destructrices (annulation de
+  facture, écartement de ligne d'import) pour une distinction visuelle immédiate.
+
 **Reporté** (hors périmètre traité cette semaine) :
-- **Migration du catalogue existant du domaine** (Sprint 9, 6 JT) : `accounting` (15 écrans,
-  desormais 18 avec X2) et `payroll` vers le nouveau design system — *non traitée* cette
-  session, ni lors d'aucun sprint précédent (Sprints 1 et 2 documentent déjà ce même report
-  pour les écrans racine/catalog/mrp/purchase) : c'est un chantier de ré-habillage réel,
-  jamais entamé sur ce dépôt à ce jour.
+- **Portage de `_smart_table.html` vers un composant `<c-table>`** : chantier séparé, non
+  entamé — les tableaux des écrans migrés restent donc visuellement inchangés.
 - **Raffinement renforcé** : écarts PCG 2005 vs SYSCOHADA — sans objet, aucun tenant
   SYSCOHADA de test disponible pour valider visuellement la distinction.
 
