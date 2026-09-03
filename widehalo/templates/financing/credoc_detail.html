@@ -10,8 +10,24 @@
   <p>{% trans "Banque émettrice" %} : {{ credoc.bank }}</p>
   <p>{% trans "Banque notificatrice" %} : {{ credoc.advising_bank|default:"—" }}</p>
   <p>{% trans "Bénéficiaire" %} : {{ credoc.beneficiary }}</p>
-  <p>{% trans "Montant" %} : {{ credoc.amount_mga }} {{ credoc.currency }}</p>
+  <p>{% trans "Montant constaté à l'ouverture" %} : {{ credoc.amount_mga }} MGA</p>
+  {% if credoc.currency != "MGA" %}
+    <p>{% trans "Montant en devise d'origine" %} : {{ credoc.amount_foreign|default:"—" }} {{ credoc.currency }}</p>
+  {% endif %}
   <p>{% trans "Date de validité" %} : {{ credoc.validity_date }}</p>
+
+  {% if fx_variance %}
+    <div class="{% if fx_variance.is_material %}form-error{% else %}hint{% endif %}">
+      <p>
+        {% trans "Écart de change (taux du jour vs. constaté à l'ouverture)" %} :
+        <strong>{{ fx_variance.variance_mga }} MGA ({{ fx_variance.variance_pct|floatformat:1 }} %)</strong>
+        {% if fx_variance.is_material %} — {% trans "écart matériel, à examiner" %}{% endif %}
+      </p>
+      <p>
+        {% trans "Montant reconverti au taux du jour" %} : {{ fx_variance.current_amount_mga }} MGA
+      </p>
+    </div>
+  {% endif %}
 
   {% if credoc.state == "demande" %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="open"><button type="submit">{% trans "Ouvrir" %}</button></form>

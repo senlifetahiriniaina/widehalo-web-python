@@ -23,6 +23,7 @@ from apps.financing.models import FinCredoc, FinGuarantee, FinLoanApplication
 from apps.financing.services.credoc import (
     close_credoc,
     create_credoc,
+    credoc_fx_variance,
     open_credoc,
     pay_credoc,
     receive_documents,
@@ -168,6 +169,7 @@ def credoc_create(request: HttpRequest) -> HttpResponse:
     error = None
     if request.method == "POST":
         try:
+            amount_foreign_raw = request.POST.get("amount_foreign", "").strip()
             credoc = create_credoc(
                 tenant,
                 purchase_order_id=request.POST.get("purchase_order_id", ""),
@@ -175,6 +177,8 @@ def credoc_create(request: HttpRequest) -> HttpResponse:
                 beneficiary=request.POST.get("beneficiary", ""),
                 amount_mga=Decimal(request.POST.get("amount_mga", "0")),
                 validity_date=dt.date.fromisoformat(request.POST.get("validity_date", "")),
+                currency=request.POST.get("currency", "MGA") or "MGA",
+                amount_foreign=Decimal(amount_foreign_raw) if amount_foreign_raw else None,
             )
             return redirect("financing:credoc-detail", credoc_id=credoc.id)
         except (ValidationError, InvalidOperation, ValueError) as exc:
@@ -197,4 +201,8 @@ def credoc_detail(request: HttpRequest, credoc_id: str) -> HttpResponse:
                 error = str(exc)
             credoc.refresh_from_db()
 
-    return render(request, "financing/credoc_detail.html", {"credoc": credoc, "error": error})
+    return render(
+        request,
+        "financing/credoc_detail.html",
+        {"credoc": credoc, "error": error, "fx_variance": credoc_fx_variance(credoc)},
+    )

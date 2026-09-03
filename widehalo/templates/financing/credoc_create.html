@@ -21,8 +21,16 @@
       <input id="beneficiary" type="text" name="beneficiary" required>
     </div>
     <div class="form-field">
-      <label for="amount_mga">{% trans "Montant (MGA)" %}</label>
+      <label for="amount_mga">{% trans "Montant constaté (MGA)" %}</label>
       <input id="amount_mga" type="number" step="0.01" name="amount_mga" required>
+    </div>
+    <div class="form-field">
+      <label for="currency">{% trans "Devise d'origine" %}</label>
+      <input id="currency" type="text" name="currency" value="MGA" maxlength="3">
+    </div>
+    <div class="form-field">
+      <label for="amount_foreign">{% trans "Montant en devise d'origine (requis si devise ≠ MGA, suivi de l'écart de change)" %}</label>
+      <input id="amount_foreign" type="number" step="0.01" name="amount_foreign">
     </div>
     <div class="form-field">
       <label for="validity_date">{% trans "Date de validité" %}</label>

@@ -346,6 +346,16 @@ class FinCredoc(BaseModel, ReferenceMixin):
     beneficiary = models.CharField(max_length=255)
     amount_mga = models.DecimalField(max_digits=18, decimal_places=4)
     currency = models.CharField(max_length=3, default="MGA")
+    # T3 (L3 Textile, "alerte sur écart de change Ariary") : montant réel
+    # négocié avec la banque émettrice, dans `currency` — `None` quand
+    # `currency == "MGA"` (aucun risque de change à suivre). `amount_mga`
+    # reste le montant CONSTATÉ à l'ouverture (jamais recalculé après
+    # coup, même discipline que `AccMove` immuable une fois publiée) ;
+    # `amount_foreign` est ce qui permet de reconvertir au taux du jour
+    # pour détecter un écart (`services.credoc.credoc_fx_variance`).
+    amount_foreign = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True
+    )
     validity_date = models.DateField()
     incoterm = models.CharField(max_length=8, choices=INCOTERM_CHOICES, blank=True)
     # Checklist documentaire RUU 600 (ex. ["facture commerciale",

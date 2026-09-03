@@ -860,3 +860,21 @@ def list_supplier_invoices_for_partner(
         .order_by("-date")[:limit]
         .values("id", "reference", "date", "invoice_state", "total_debit")
     ]
+
+
+def convert_amount_to_mga(
+    amount: Decimal, currency: str, date: dt.date, *, tenant: Tenant
+) -> Decimal:
+    """Gap ajouté pour T3 (L3 Textile, cf. docs/planning/
+    2026-refonte-ux-sprints.md §5, "alerte sur écart de change Ariary")
+    : `financing.services.credoc.credoc_fx_variance` a besoin de
+    reconvertir un montant en devise étrangère au taux du JOUR pour le
+    comparer au montant MGA constaté à l'ouverture d'un crédit
+    documentaire — enveloppe fine de `services.currency.convert_to_mga`
+    (seule l'implémentation réelle, déjà utilisée par RG-ACC-7 dans
+    `services.payments.register_payment`, jamais dupliquée ici), pour que
+    `financing` n'importe jamais `apps.accounting.services.currency`
+    directement (règle de couplage n°1)."""
+    from apps.accounting.services.currency import convert_to_mga
+
+    return convert_to_mga(amount, currency, date, tenant=tenant)

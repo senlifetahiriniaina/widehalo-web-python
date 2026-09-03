@@ -22,6 +22,13 @@ from apps.core.services.sequences import next_reference
 from apps.core.services.workflow import attempt_transition
 from apps.financing.models import FinCredoc, FinLoanApplication
 
+# Ecart de change juge materiel a partir de ce seuil (%, valeur absolue) —
+# seuil assume et disclosed, le CDC ne fixe aucun chiffre pour "l'alerte
+# sur ecart de change Ariary" (T3). Meme discipline que DEFAULT_WINDOW_DAYS
+# de `stocks.services.consistency` : un defaut documente plutot qu'un
+# silence du cahier des charges laisse a interpreter au hasard.
+FX_VARIANCE_ALERT_THRESHOLD_PCT = Decimal("2")
+
 
 def create_credoc(
     tenant: Tenant,
@@ -32,6 +39,7 @@ def create_credoc(
     amount_mga: Decimal,
     validity_date: dt.date,
     currency: str = "MGA",
+    amount_foreign: Decimal | None = None,
     advising_bank: str = "",
     log_shipment_id: Any | None = None,
     incoterm: str = "",
@@ -40,6 +48,13 @@ def create_credoc(
 ) -> FinCredoc:
     if amount_mga <= 0:
         raise ValidationError(_("Le montant du crédit documentaire doit être strictement positif."))
+    if currency != "MGA" and not amount_foreign:
+        raise ValidationError(
+            _(
+                "Le montant en devise d'origine est requis pour un crédit documentaire "
+                "libellé dans une devise autre que MGA (suivi de l'écart de change, T3)."
+            )
+        )
     reference = next_reference(tenant, "FINCREDOC", validity_date.year)
     return FinCredoc.objects.create(
         tenant=tenant,
@@ -52,10 +67,46 @@ def create_credoc(
         beneficiary=beneficiary,
         amount_mga=amount_mga,
         currency=currency,
+        amount_foreign=amount_foreign,
         validity_date=validity_date,
         incoterm=incoterm,
         documents_required=documents_required or [],
     )
+
+
+def credoc_fx_variance(credoc: FinCredoc, *, as_of: dt.date | None = None) -> dict[str, Any] | None:
+    """T3 : "alerte sur écart de change Ariary" — reconvertit
+    `amount_foreign` au taux `as_of` (aujourd'hui par défaut) et compare
+    au montant MGA constaté à l'ouverture (`amount_mga`, jamais
+    recalculé). Retourne `None`, jamais une exception, pour un CREDOC
+    libellé en MGA (aucun risque de change) ou sans `amount_foreign`
+    renseigné — cas normal, pas une erreur.
+
+    `is_material` : `True` si l'écart absolu dépasse
+    `FX_VARIANCE_ALERT_THRESHOLD_PCT` — c'est ce champ, pas la simple
+    présence d'un écart non nul (quasi toujours vrai en change flottant),
+    que l'écran doit utiliser pour décider d'afficher une alerte visible
+    plutôt qu'une simple information."""
+    if credoc.currency == "MGA" or not credoc.amount_foreign:
+        return None
+
+    from apps.accounting.services.public import convert_amount_to_mga
+
+    as_of = as_of or dt.date.today()
+    current_amount_mga = convert_amount_to_mga(
+        credoc.amount_foreign, credoc.currency, as_of, tenant=credoc.tenant
+    )
+    variance_mga = current_amount_mga - credoc.amount_mga
+    variance_pct = (
+        (variance_mga / credoc.amount_mga * Decimal(100)) if credoc.amount_mga else Decimal(0)
+    )
+    return {
+        "booked_amount_mga": credoc.amount_mga,
+        "current_amount_mga": current_amount_mga,
+        "variance_mga": variance_mga,
+        "variance_pct": variance_pct,
+        "is_material": abs(variance_pct) >= FX_VARIANCE_ALERT_THRESHOLD_PCT,
+    }
 
 
 def _publish_state_changed(credoc: FinCredoc) -> None:
