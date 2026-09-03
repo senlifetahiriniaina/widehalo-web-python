@@ -2,7 +2,16 @@
 (cf. docs/planning/2026-refonte-ux-sprints.md §5). Vue Django classique
 (HTMX), pas django-ninja -- meme partition que le reste du depot entre
 fragments HTMX et API publique (cf. docs/planning/ECART_ARCHITECTURE.md
-§3), meme idiome que `apps.core.views.pages.notifications_bell_fragment`."""
+§3), meme idiome que `apps.core.views.pages.notifications_bell_fragment`.
+
+**Autorisation par objet (gap detecte lors de la revision complete
+Sprints 0-9)** : au-dela du filtre tenant deja assure par `BaseModel`/RLS,
+`_can_view_chatter_object` consulte `apps.core.services.
+chatter_guard_registry` -- une app peut enregistrer une garde fine par
+modele (ex. RG-PAY-9 pour `payroll.PayPayslip`, "l'employe proprietaire OU
+un role staff", jamais un simple droit Django par modele) ; a defaut de
+garde enregistree, retombe sur `user.has_perm(f"{app_label}.view_{model}")`
+-- meme patron que `apps.core.services.search.global_search`."""
 
 from __future__ import annotations
 
@@ -16,6 +25,7 @@ from django.shortcuts import get_object_or_404, render
 from apps.core.models.base import BaseModel
 from apps.core.models.user import User
 from apps.core.services.chatter import post_message, thread_for
+from apps.core.services.chatter_guard_registry import get_object_guard
 
 
 def _resolve_instance(app_label: str, model: str, object_id: str) -> BaseModel | None:
@@ -24,6 +34,15 @@ def _resolve_instance(app_label: str, model: str, object_id: str) -> BaseModel |
     if model_class is None or not issubclass(model_class, BaseModel):
         return None
     return get_object_or_404(model_class, pk=object_id)
+
+
+def _can_view_chatter_object(
+    request: HttpRequest, app_label: str, model: str, instance: BaseModel
+) -> bool:
+    guard = get_object_guard(app_label, model)
+    if guard is not None:
+        return guard(request, instance)
+    return cast(User, request.user).has_perm(f"{app_label}.view_{model.lower()}")
 
 
 @login_required
@@ -36,6 +55,8 @@ def chatter_thread(
     instance = _resolve_instance(app_label, model, object_id)
     if instance is None:
         return HttpResponse(status=404)
+    if not _can_view_chatter_object(request, app_label, model, instance):
+        return HttpResponse(status=403)
 
     if request.method == "POST":
         body = request.POST.get("body", "").strip()
