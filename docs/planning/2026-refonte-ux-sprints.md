@@ -222,10 +222,17 @@ brut). 5 tests (`test_credoc_fx_variance.py`).
   notificatrice → bénéficiaire, coût de revient débarqué par SKU).
   *Critère* : ✅ statuts CREDOC conformes au flux (préexistant) ; ✅ alerte sur écart de
   change Ariary (`credoc_fx_variance`, seuil 2 %).
-- **Migration du catalogue existant du domaine** (Sprint 5, 16 JT) : les 45 écrans déjà
-  livrés dans `catalog` (16), `mrp` (12) et `purchase` (17) passent au nouveau design
-  system, écran par écran, en réutilisant les composants L0/L1/L2 — pas de reconstruction
-  fonctionnelle, uniquement re-habillage + accessibilité + responsive.
+Livré (commit `d2df8cb`) pour la **migration du catalogue existant du domaine (Sprint 5)** :
+les 45 écrans déjà livrés dans `catalog` (16), `mrp` (12 — `kanban.html` exclu, écran neuf
+de la semaine qui évite volontairement Tailwind) et `purchase` (17) passent au nouveau
+design system, même traitement que les Sprints 7/9 (`<c-breadcrumb>` + `<c-button>`,
+`variant="danger"` sur les actions destructrices/de blocage : annulation, rejet, ouverture
+de litige, déclaration de rupture). `tailwind-input.css` élargi à
+`templates/catalog/**/*.html`, `templates/mrp/**/*.html` et `templates/purchase/**/*.html`.
+
+- **Critères d'acceptation** : ✅ fil d'Ariane présent sur chaque écran migré ; ⚠️ pas tous
+  les écrans composés *exclusivement* de composants cotton (les tableaux
+  `<table class="smart-table">` restent en l'état, `<c-table>` n'existe pas encore).
 - **Raffinement renforcé (les deux sprints)** : ergonomie de la grille éditable
   tailles×couleurs (saisie clavier rapide), lisibilité du kanban atelier sur tablette en
   conditions de réseau faible.
