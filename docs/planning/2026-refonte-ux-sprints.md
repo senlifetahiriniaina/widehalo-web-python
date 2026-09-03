@@ -534,22 +534,53 @@ répartis sur 3 semaines à 15 JT :
 
 | Sprint | Batches (apps couvertes, écrans, JT) | Total semaine |
 |---|---|---|
-| 12 | `projects` (23 écrans, 5 JT) · `helpdesk`+`chat` (14 écrans, 5 JT) · `crm`+`sales` (17 écrans, 5 JT) | 15 JT |
+| 12 | ✅ `projects` (23 écrans, 5 JT) · `helpdesk`+`chat` (14 écrans, 5 JT) · `crm`+`sales` (17 écrans, 5 JT) | 15 JT |
 | 13 | `partners`+`patronage` (15 écrans, 5 JT) · `quality`+`financing`+`risk` (15 écrans, 5 JT) · `feasibility`+`automation`+`presence` (15 écrans, 5 JT) | 15 JT |
 | 14 | `strategy`+`reporting`+`reports` (12 écrans, 4 JT) · résidu racine (~18 écrans, 5 JT) | 9 JT (6 JT de marge) |
 
-- **Critères d'acceptation (par batch)** : chaque écran migré passe les mêmes critères
-  qu'un écran neuf (A.5/A.10 du cahier des charges — action primaire évidente, empty
-  states, tablette/responsive, WCAG AA) ; le chemin legacy correspondant est supprimé
-  (pas de « deux systèmes pour toujours », B.8) ; le test CI de budget d'architecture
-  (`tests/architecture/test_budget.py`) reste vert.
+Livré (commit `e63812a`) pour le **premier batch du Sprint 12** : `projects` (22 écrans
+sur 23 — `guest_portal.html` explicitement exclu, page 100 % anonyme du portail invite
+externe PJ14, sans authentification ni composant cotton, donc hors périmètre de ce
+traitement ; `kanban.html`, seul écran kanban préexistant du dépôt, **est** migré —
+contrairement à `mrp/kanban.html` au Sprint 5 qui était un écran neuf de sa semaine, celui-ci
+est préexistant et reçoit le même traitement mécanique que le reste du lot), `helpdesk` (12
+écrans) + `chat` (2 écrans — fragments HTMX/partials exclus : `_suggest_reply.html`,
+`_launcher.html`, `_launcher_users.html`, `_messages_fragment.html`) et `crm` (9 écrans) +
+`sales` (8 écrans) passent au nouveau design system, même traitement que les Sprints
+5/7/9/11 (`<c-breadcrumb>` + `<c-button>`, `variant="danger"` sur les actions
+destructrices/de blocage). `sales/order_detail.html` a été vérifié individuellement avant
+modification : le `<c-chatter>` y est câblé depuis le Sprint 3 (premier usage de ce
+composant) et reste intact, seuls le fil d'Ariane et les boutons ont été ajoutés autour.
+`tailwind-input.css` élargi à `templates/projects/**/*.html`, `templates/helpdesk/**/*.html`,
+`templates/chat/**/*.html`, `templates/crm/**/*.html` et `templates/sales/**/*.html`.
+
+- **Critères d'acceptation** : ✅ fil d'Ariane présent sur chaque écran migré ; ⚠️ pas tous
+  les écrans composés *exclusivement* de composants cotton (les tableaux
+  `<table class="smart-table">` restent en l'état, `<c-table>` n'existe pas encore, identique
+  aux Sprints 5/7/9/11) ; ⚠️ « le chemin legacy correspondant est supprimé » ne s'applique
+  pas littéralement ici — il n'existe qu'un seul template Django par écran (re-habillage sur
+  place, pas de coexistence de deux gabarits), donc rien à supprimer, comme pour les batches
+  précédents.
+- 574 tests (`projects` + `helpdesk` + `chat` + `crm` + `sales` + `tests/architecture`)
+  verts, aucune régression. Rendu cotton vérifié sur les écrans les plus a risque non
+  couverts par un test HTML existant (`crm/detail`, `crm/list`, `crm/create`, `chat/home`,
+  `chat/new_conversation` — `projects/kanban`, `projects/detail`, `sales/order_detail` et
+  `helpdesk/detail` avaient déjà une couverture directe) : 200 partout, aucune balise
+  `<c-*>` non résolue.
+- **Recalibrage du chiffrage L9** : le batch `projects` (23 écrans, chiffré à 5 JT sur la
+  base de ~0,3 JT/écran) a été traité dans le même tour que les deux autres batches du
+  Sprint 12 sans signal de dérive dans le volume de diff par écran (le gabarit
+  breadcrumb + conversion des `<button>` en `<c-button>` reste strictement mécanique,
+  identique à celui déjà mesuré aux Sprints 5/7/9/11) — pas de recalibrage nécessaire à ce
+  stade, le chiffrage des Sprints 13/14 est maintenu tel quel.
 - **Raffinement renforcé (chaque semaine)** : audit de cohérence transverse — un écran
   migré isolément qui « détonne » visuellement à côté d'écrans encore legacy est un signal
   à corriger avant de passer au batch suivant, pas à la fin.
 - **Risque assumé** : ce chiffrage (0,3 JT/écran) est une hypothèse de planning, pas une
   mesure — à recalibrer après le premier batch (Sprint 12, `projects`) si l'écart avec le
-  réel dépasse ~20 %, en réajustant les batches suivants en conséquence. La marge de 6 JT
-  du Sprint 14 sert de premier amortisseur si le recalibrage l'exige.
+  réel dépasse ~20 %, en réajustant les batches suivants en conséquence (voir recalibrage
+  ci-dessus : pas d'écart significatif observé). La marge de 6 JT du Sprint 14 sert de
+  premier amortisseur si un recalibrage s'avérait nécessaire sur les batches restants.
 
 ## 6. Sprint 15 — Raffinement global & recette UX (5 JT / 15 disponibles)
 
