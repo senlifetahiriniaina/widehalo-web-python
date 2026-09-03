@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Sauvegardes" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Sauvegarde et restauration" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Sauvegarde et restauration" %}</h1>
 </div>
@@ -10,7 +11,7 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="backup_now">
-    <button type="submit">{% trans "Sauvegarder maintenant" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Sauvegarder maintenant" %}</c-button>
   </form>
 
   <h2>{% trans "Sauvegardes précédentes" %}</h2>
@@ -75,7 +76,7 @@
       <label for="restore_confirm">{% blocktrans with code=tenant.code %}Tapez « {{ code }} » pour confirmer{% endblocktrans %}</label>
       <input id="restore_confirm" type="text" name="confirm" required>
     </div>
-    <button type="submit">{% trans "Restaurer" %}</button>
+    <c-button variant="danger" type="submit">{% trans "Restaurer" %}</c-button>
   </form>
 
   <p><a href="{% url 'backup_schedule' %}">{% trans "Configurer la planification" %}</a></p>

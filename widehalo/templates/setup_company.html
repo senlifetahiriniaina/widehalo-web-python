@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Paramétrage de la société" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Paramétrage de la société" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Bienvenue — paramétrez la première société de cette instance" %}</h1>
 </div>
@@ -31,6 +32,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Créer la société" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer la société" %}</c-button>
   </form>
 {% endblock %}

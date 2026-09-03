@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Générer un rapport" %} — {{ code }}{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'reporting:catalog' %}">{% trans "Catalogue des rapports" %}</a>
+  <span>/</span> {{ report.label }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Générer" %} {{ report.label }}</h1>
 </div>
@@ -17,7 +21,7 @@
         {% if report.supports_pdf %}<option value="pdf">PDF</option>{% endif %}
       </select>
     </label>
-    <button type="submit">{% trans "Générer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Générer" %}</c-button>
   </form>
   <div id="job-result"></div>
 {% endblock %}

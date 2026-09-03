@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Réinitialiser les données" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'backup_list' %}">{% trans "Sauvegarde et restauration" %}</a>
+  <span>/</span> {% trans "Réinitialiser les données" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Réinitialiser les données de cette société" %}</h1>
 </div>
@@ -15,7 +19,7 @@
       <label for="reset_confirm">{% blocktrans with code=tenant.code %}Tapez « {{ code }} » pour confirmer{% endblocktrans %}</label>
       <input id="reset_confirm" type="text" name="confirm" required>
     </div>
-    <button type="submit" class="btn-danger">{% trans "Réinitialiser définitivement" %}</button>
+    <c-button variant="danger" type="submit">{% trans "Réinitialiser définitivement" %}</c-button>
     <a href="{% url 'backup_list' %}">{% trans "Annuler" %}</a>
   </form>
 {% endblock %}

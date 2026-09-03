@@ -2,13 +2,14 @@
 {% load i18n %}
 {% block title %}{% trans "Capacité de charge a 90 jours" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Capacité de charge" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Capacité de charge" %}</h1>
 </div>
   <form method="get">
     <label for="horizon_days">{% trans "Horizon (jours)" %}</label>
     <input type="number" id="horizon_days" name="horizon_days" value="{{ horizon_days }}" min="7" step="1">
-    <button type="submit">{% trans "Actualiser" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Actualiser" %}</c-button>
   </form>
   <p>
     {% blocktrans %}Seuil de surcharge : au-dela de {{ overload_threshold_pct }}% de la capacité disponible, la direction et le responsable production sont notifies.{% endblocktrans %}

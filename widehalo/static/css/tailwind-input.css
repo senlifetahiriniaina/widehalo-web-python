@@ -197,6 +197,21 @@
 @source "../../templates/automation/**/*.html";
 @source "../../templates/presence/**/*.html";
 
+/* Sprint 14 (L9 rattrapage du catalogue existant, cf.
+   docs/planning/2026-refonte-ux-sprints.md §5 bis), batch 3 (final) :
+   strategy + reporting migres normalement ; reports/** exclu (documents
+   PDF/impression rendus via `reports/_base.html`, sans shell base.html ni
+   composant cotton -- pas des "ecrans" au sens de ce lot). Le "residu
+   racine" (fichiers .html directement sous templates/, hors sous-dossier
+   d'app) est cible individuellement via le glob non recursif ci-dessous --
+   login.html et confirm_email.html (pages anonymes pre-authentification,
+   sans shell/cotton, memes motifs que guest_portal.html exclu au
+   Sprint 12) et base.html (le layout lui-meme, pas un ecran) restent en
+   dehors du perimetre ; tw-*.html deja couverts par le glob Sprint 0. */
+@source "../../templates/strategy/**/*.html";
+@source "../../templates/reporting/**/*.html";
+@source "../../templates/*.html";
+
 /* Habillage minimal du fragment de resultats de recherche instantanee
    (templates/components/_instant_search_results.html, HTML nu reutilise
    tel quel par la command palette du nouveau shell -- cf. cotton/shell.html)

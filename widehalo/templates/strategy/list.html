@@ -2,10 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Objectifs (OKR)" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Objectifs (OKR)" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Objectifs (OKR)" %}</h1>
 </div>
-  <p><a href="{% url 'strategy:create' %}">{% trans "Nouvel objectif" %}</a></p>
+  <p><a href="{% url 'strategy:create' %}" class="btn btn-primary">{% trans "Nouvel objectif" %}</a></p>
   <p><a href="{% url 'strategy:benchmarks' %}">{% trans "Référentiel sectoriel" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

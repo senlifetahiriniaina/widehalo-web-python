@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Mon profil" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Mon profil" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Mon profil" %}</h1>
 </div>
@@ -29,7 +30,7 @@
         {% endfor %}
       </select>
     </div>
-    <noscript><button type="submit">{% trans "Changer de société" %}</button></noscript>
+    <noscript><c-button variant="primary" type="submit">{% trans "Changer de société" %}</c-button></noscript>
   </form>
   <form method="post">
     {% csrf_token %}
@@ -53,6 +54,6 @@
         {% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

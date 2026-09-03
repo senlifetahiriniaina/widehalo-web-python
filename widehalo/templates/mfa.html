@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Authentification a deux facteurs" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Authentification a deux facteurs" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Authentification a deux facteurs" %}</h1>
 </div>
@@ -16,7 +17,7 @@
       <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
              maxlength="6" required autofocus autocomplete="one-time-code">
     </div>
-    <button type="submit">{% trans "Vérifier" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Vérifier" %}</c-button>
   </form>
 {% else %}
   <p>
@@ -32,7 +33,7 @@
       <input id="token" type="text" inputmode="numeric" pattern="[0-9]*" name="token"
              maxlength="6" required autofocus autocomplete="one-time-code">
     </div>
-    <button type="submit">{% trans "Activer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Activer" %}</c-button>
   </form>
 {% endif %}
 {% endblock %}

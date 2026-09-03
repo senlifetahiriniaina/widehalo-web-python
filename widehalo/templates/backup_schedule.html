@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Planification des sauvegardes" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'backup_list' %}">{% trans "Sauvegarde et restauration" %}</a>
+  <span>/</span> {% trans "Planification des sauvegardes" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Planification des sauvegardes" %}</h1>
 </div>
@@ -27,7 +31,7 @@
         {% trans "Planification active" %}
       </label>
     </div>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     <a href="{% url 'backup_list' %}">{% trans "Annuler" %}</a>
   </form>
 

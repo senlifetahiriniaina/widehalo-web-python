@@ -2,6 +2,10 @@
 {% load static i18n %}
 {% block title %}{% trans "Profil de l'entreprise" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'settings' %}">{% trans "Paramètres" %}</a>
+    <span>/</span> {% trans "Profil de l'entreprise" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Profil de l'entreprise" %}</h1>
   </div>
@@ -31,6 +35,6 @@
       <label for="email">{% trans "E-mail" %}</label>
       <input id="email" type="email" name="email" value="{{ tenant.email }}">
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-upload"></use></svg> {% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-upload"></use></svg> {% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

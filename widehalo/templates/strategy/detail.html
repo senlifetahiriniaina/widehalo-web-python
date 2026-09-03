@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ objective.title }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'strategy:list' %}">{% trans "Objectifs (OKR)" %}</a>
+  <span>/</span> {{ objective.title }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ objective.title }}</h1>
 </div>
@@ -43,7 +47,7 @@
     <input type="text" name="target_value" placeholder="{% trans 'Cible' %}" required
            aria-label="{% trans 'Cible' %}">
     <input type="text" name="unit" placeholder="{% trans 'Unite' %}" aria-label="{% trans 'Unite' %}">
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <h3>{% trans "Ajouter un check-in" %}</h3>
@@ -60,6 +64,6 @@
            aria-label="{% trans 'Valeur' %}">
     <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}"
            aria-label="{% trans 'Commentaire' %}">
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Modifier" %} {{ target_user.email }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'admin_user_list' %}">{% trans "Utilisateurs" %}</a>
+  <span>/</span> {{ target_user.email }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Modifier l'utilisateur" %}</h1>
 </div>
@@ -54,7 +58,7 @@
         </label>
       {% endfor %}
     </fieldset>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     <a href="{% url 'admin_user_list' %}">{% trans "Annuler" %}</a>
   </form>
 {% endblock %}
