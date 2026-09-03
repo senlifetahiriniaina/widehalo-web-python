@@ -224,12 +224,26 @@ conformément au docstring de `select_lot_fefo` lui-même). 4 tests dans
   le libellé initial du dossier — écart assumé, déjà documenté dans le code existant avant
   cette session.
 
+Livré (commit `8839f45`) pour **A2** : `MrpOrder` couvrait déjà tout le cycle de vie
+draft→...→closed, mais ne créait jusque-là aucun mouvement de stock ni lot — écart déjà
+documenté (`apps.stocks.services.consistency.production_consistency_report`) comme un
+manque RG-STK-6 réel. Nouveau modèle `StkLotGenealogy` (lien parent/enfant entre lots) +
+`apps.stocks.services.genealogy` (arbre amont/aval, garde anti-cycle) ; `stocks.services.public`
+étendu (`receive_production_output`, `record_lot_genealogy`, `lot_genealogy_tree`,
+`get_or_create_lot`, `list_locations`) — seule surface que `mrp` est autorisé à importer
+(`test_module_boundaries`, respecté). Côté `mrp` : `services/transformation.py`
+(`finish_transformation_order`, `record_component_consumption`, `order_yield`,
+`order_genealogy`) et un champ `MrpOrder.output_lot_name`. Écran étendu : lot de sortie +
+emplacement de réception à la clôture, saisie du lot/quantité consommée par composant,
+rendement réel vs théorique et généalogie amont affichés. 100 % rétrocompatible (un ordre
+sans lot de sortie renseigné se comporte exactement comme avant). 9 tests
+(`test_lot_genealogy.py`, `test_transformation.py`).
+
+- **Écran A2** — Ordre de transformation + rendement + généalogie de lot.
+  *Critère* : ✅ rendement réel (`qty_produced`) vs théorique (`qty`) affiché ;
+  ✅ généalogie amont/aval consultable depuis le lot de sortie.
+
 **Reporté** (hors périmètre traité cette semaine) :
-- **Écran A2** — Ordre de transformation + recette (BOM process) + rendement/généalogie de
-  lot amont/aval : *non réalisé*. Aucun domaine « ordre de transformation »/« recette
-  process » n'existe dans le dépôt (le `MrpBomLine` couvre la nomenclature produit, pas un
-  process de transformation agro avec rendement) — nécessite un nouveau modèle métier,
-  hors budget de cette session.
 - **Écran A3** — Contrôle qualité HACCP + non-conformité + rappel produit : *non réalisé*.
   `QltInspection` existe mais sans mécanisme de blocage/déblocage (hold/release) ni de
   rappel produit ; aucun modèle de rappel n'existe dans le dépôt — nécessite conception et
