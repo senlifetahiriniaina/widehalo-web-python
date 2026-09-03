@@ -15,7 +15,7 @@
   <form method="get" style="margin-bottom:1em;">
     <label for="variant_id">{% trans "Filtrer par article (UUID)" %}</label>
     <input id="variant_id" type="text" name="variant_id" value="{{ variant_id }}">
-    <button type="submit">{% trans "Filtrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Filtrer" %}</c-button>
   </form>
 
   <table class="smart-table">

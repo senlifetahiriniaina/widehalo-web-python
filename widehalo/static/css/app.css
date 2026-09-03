@@ -185,7 +185,12 @@ table.smart-table td,
   font-weight: var(--fw-600);
   letter-spacing: var(--tr-caps);
   text-transform: uppercase;
-  color: var(--slate-500);
+  /* Sprint 15 (recette UX) : `--slate-500` (calibre pour du texte sur fond
+     clair, cf. `--fg-3`) ne respecte pas le contraste WCAG AA (3.93:1) sur
+     le fond sombre `--slate-900` de la sidebar -- audit axe-core reel,
+     cf. tests/e2e/test_accessibility_axe.py. `--slate-400` (7.09:1) est le
+     jeton le plus proche qui passe AA sans introduire de nouvelle couleur. */
+  color: var(--slate-400);
   padding: var(--spacing-md) var(--spacing-sm) var(--spacing-xs);
 }
 
@@ -376,7 +381,13 @@ main#main-content {
 .app-footer {
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--border-subtle);
-  color: var(--fg-3);
+  /* Sprint 15 (recette UX) : `--fg-3` (slate-500) sur `--bg-app`
+     (slate-50) ne donne que 4.42:1 -- sous le seuil WCAG AA 4.5:1 pour du
+     texte normal (`--fs-13` n'est pas assez grand pour l'exemption "grand
+     texte") -- audit axe-core reel, cf.
+     tests/e2e/test_accessibility_axe.py. `--fg-2` (slate-600, 7.25:1)
+     passe confortablement. */
+  color: var(--fg-2);
   font-size: var(--fs-13);
   text-align: center;
 }
@@ -795,6 +806,15 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   border-radius: var(--r-md);
   padding: var(--spacing-sm) var(--spacing);
   margin: var(--spacing-sm) 0;
+}
+/* Sprint 15 (recette UX) : un lien a l'interieur d'un `.form-error` herite
+   de la meme couleur que le texte environnant (`--danger-fg`) -- sans
+   soulignement, il n'est distinguable que par la couleur, ce que WCAG 2.x
+   (regle axe-core "link-in-text-block") interdit pour un lien noye dans un
+   bloc de texte. Le reset global `a { text-decoration: none }` (app.css:60)
+   est volontairement leve ici, uniquement dans ce contexte. */
+.form-error a {
+  text-decoration: underline;
 }
 
 /* ============== Bandeau de workflow / panneau lateral ============== */

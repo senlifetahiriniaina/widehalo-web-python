@@ -2,7 +2,24 @@
 HTMX minimaux du Lot 2 Madagascar (U1) : un aller-retour liste -> creation
 -> detail -> transition de workflow par module, sans rechargement de page
 complete (verifie indirectement : la navigation reste sur les URLs
-attendues sans requete de navigation complete pour les actions HTMX)."""
+attendues sans requete de navigation complete pour les actions HTMX).
+
+Sprint 15 (recette UX) : `page.click("button[type=submit]")` seul est
+ambigu sur TOUTE page authentifiee du shell legacy (`base.html`) -- le
+menu compte porte, depuis le Sprint 1, un second
+`<button type="submit" class="account-menu-link-button">` ("Essayer la
+nouvelle interface (bêta)", toggle strangler pattern), present dans le DOM
+avant le contenu de page meme s'il est visuellement cache tant que le menu
+n'est pas ouvert. Playwright resout alors l'ambiguite en choisissant ce
+premier bouton non visible et time out en l'attendant. Latent depuis le
+Sprint 1, jamais detecte car ce fichier tourne en CI dans un job dedie
+(`tests/e2e -m playwright`, cf. `.github/workflows/ci.yml`) qui ne l'avait
+encore jamais execute en meme temps qu'un run complet du reste de la
+suite -- reproduit et corrige ici (recette de clôture, premiere execution
+de la suite complete en une seule fois) en scopant chaque selecteur au
+conteneur de contenu de page (`#main-content`, deja expose par
+`base.html`/`cotton/shell.html`), jamais en touchant le menu compte
+lui-meme (comportement intentionnel, hors perimetre de ce correctif)."""
 
 from __future__ import annotations
 
@@ -57,7 +74,7 @@ def test_accounting_invoice_journey(logged_in_page, live_server, e2e_tenant_and_
     page.fill("#label", "Vente Playwright")
     page.fill("#amount", "150000")
     page.fill("#date", "2026-01-10")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/accounting/**")
     assert "Vente Playwright" in page.content() or "150000" in page.content()
 
@@ -73,7 +90,7 @@ def test_crm_lead_journey(logged_in_page, live_server, e2e_tenant_and_user) -> N
     page = logged_in_page
     page.goto(f"{live_server.url}/crm/new/")
     page.fill("#name", "Opportunite Playwright")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/crm/**")
     assert "Opportunite Playwright" in page.content()
 
@@ -91,7 +108,7 @@ def test_mrp_order_journey(logged_in_page, live_server, e2e_tenant_and_user) -> 
     page.select_option("#bom_id", label="BOM-E2E")
     page.select_option("#workshop_id", label="Atelier E2E")
     page.fill("#qty", "4")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/mrp/**")
     page.click("button[value=confirm]")
     page.wait_for_url(f"{live_server.url}/mrp/**")
@@ -115,7 +132,7 @@ def test_patronage_pattern_journey(logged_in_page, live_server, e2e_tenant_and_u
     page.fill("#code", "PAT-E2E")
     page.fill("#name", "Patron Playwright")
     page.select_option("#size_chart_id", label="T-shirt E2E")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/patronage/**")
     assert "Patron Playwright" in page.content()
 
@@ -138,7 +155,7 @@ def test_sales_quotation_journey(logged_in_page, live_server, e2e_tenant_and_use
         str(uuid.uuid4()),
     )
     page.fill("#date", "2026-01-10")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/sales/**")
     page.click("button[value=send]")
     page.wait_for_url(f"{live_server.url}/sales/**")
@@ -177,7 +194,7 @@ def test_purchase_requisition_journey(logged_in_page, live_server, e2e_tenant_an
     page.fill("#department", "Production")
     page.fill("#date_needed", "2026-02-01")
     page.fill("#justification", "Reapprovisionnement fil polyester")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/purchase/requisitions/**")
     # `submit_requisition` (RG-PUR-1) refuse une demande sans ligne — ajouter
     # une ligne d'abord, meme discipline que
@@ -223,7 +240,7 @@ def test_stocks_move_journey(logged_in_page, live_server, e2e_tenant_and_user) -
     page.fill("input[name=qty]", "10")
     page.select_option("select[name=location_from_id]", label="FRS-E2E")
     page.select_option("select[name=location_to_id]", label="A1-E2E")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     # `create_move` redirige vers la LISTE (`stocks:move_list`), pas vers le
     # detail — ouvrir le mouvement fraichement cree (le seul de ce tenant)
     # avant de le valider, meme parcours que
@@ -243,7 +260,7 @@ def test_logistics_shipment_journey(logged_in_page, live_server, e2e_tenant_and_
     page.goto(f"{live_server.url}/logistics/shipments/new/")
     page.fill("#origin", "Guangzhou")
     page.fill("#destination", "Toamasina")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_url(f"{live_server.url}/logistics/shipments/**")
     page.click("button[value=book]")
     page.wait_for_url(f"{live_server.url}/logistics/shipments/**")

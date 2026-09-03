@@ -14,6 +14,10 @@ def test_login_journey(page, live_server, e2e_tenant_and_user) -> None:
     page.goto(f"{live_server.url}/login/")
     page.fill("#email", user.email)
     page.fill("#password", "Str0ngPassw0rd!23")
+    # `/login/` est une page anonyme autonome (pas de `base.html`/shell,
+    # donc pas de `#main-content` ni de menu compte ambigu, cf.
+    # docs/planning/2026-refonte-ux-sprints.md Sprint 14) -- selecteur non
+    # scope ici, a la difference des ecrans authentifies ci-dessous.
     page.click("button[type=submit]")
     page.wait_for_url(f"{live_server.url}/dashboard/")
     assert page.url == f"{live_server.url}/dashboard/"
@@ -23,9 +27,9 @@ def test_partner_creation_journey(logged_in_page, live_server) -> None:
     page = logged_in_page
     page.goto(f"{live_server.url}/partners/new/")
     page.fill("#name", "Textiles Playwright")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     page.wait_for_selector("#credit_limit_mga")
-    page.click("button[type=submit]")
+    page.click("#main-content button[type=submit]")
     # Le formulaire de l'assistant est en `hx-post` : la redirection finale
     # (`partners:detail`) est suivie par htmx en AJAX et son contenu est
     # swape dans le conteneur, sans navigation de page complete — l'URL du

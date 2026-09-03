@@ -19,7 +19,7 @@
         <span class="flex flex-col">
           <span class="text-sm">{{ n.notification_type }}</span>
           {% if n.payload.message %}<span class="text-xs text-base-content/60 font-normal">{{ n.payload.message }}</span>{% endif %}
-          <span class="text-xs text-base-content/40 font-normal">{{ n.created_at }}</span>
+          <span class="text-xs text-base-content/60 font-normal">{{ n.created_at }}</span>
           {% if n.payload.action_url %}
             {# Notification contextuelle avec action (Sprint 3 / L2, cf.
                docs/planning/2026-refonte-ux-sprints.md §5) : convention

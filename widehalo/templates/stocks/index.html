@@ -53,7 +53,7 @@
         <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
         <select name="type">{% for value, label in warehouse_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <input type="text" name="address" placeholder="{% trans 'Adresse' %}">
-        <button type="submit">{% trans "Créer un entrepôt" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer un entrepôt" %}</c-button>
       </form>
 
       <h2>{% trans "Emplacements" %}</h2>
@@ -74,7 +74,7 @@
         <select name="loc_type">{% for value, label in location_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <select name="parent_id"><option value="">{% trans "(aucun parent)" %}</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
         <label><input type="checkbox" name="is_scrap"> {% trans "Rebut" %}</label>
-        <button type="submit">{% trans "Créer un emplacement" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer un emplacement" %}</c-button>
       </form>
     {% endif %}
 
@@ -95,7 +95,7 @@
         <select name="category">{% for value, label in category_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <select name="severity">{% for value, label in severity_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         <input type="text" name="default_action" placeholder="{% trans 'Action par defaut' %}">
-        <button type="submit">{% trans "Créer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>
     {% endif %}
 
@@ -114,7 +114,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="revoke">
                   <input type="hidden" name="exception_id" value="{{ exception.id }}">
-                  <button type="submit">{% trans "Révoquer" %}</button>
+                  <c-button variant="danger" type="submit">{% trans "Révoquer" %}</c-button>
                 </form>
               </td>
             </tr>
@@ -126,7 +126,7 @@
         <input type="hidden" name="action" value="grant">
         <input type="text" name="variant_id" placeholder="{% trans 'Produit (UUID)' %}" required>
         <input type="text" name="reason" placeholder="{% trans 'Motif' %}" required>
-        <button type="submit">{% trans "Accorder l'exception" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Accorder l'exception" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -142,7 +142,7 @@
         <option value="">{% trans "(tous les emplacements)" %}</option>
         {% for location in locations %}<option value="{{ location.id }}" {% if location_id == location.id|stringformat:"s" %}selected{% endif %}>{{ location.code }}</option>{% endfor %}
       </select>
-      <button type="submit">{% trans "Filtrer" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Filtrer" %}</c-button>
     </form>
     {% if conversion %}
       <p>{% trans "Conversion textile (RG-STK-5)" %}: {{ conversion }}</p>
@@ -178,8 +178,8 @@
         {% csrf_token %}
         <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}"
                aria-label="{% trans 'Motif (annulation)' %}">
-        {% if move.state == "draft" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
-        <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+        {% if move.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>
+        <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
       </form>
       <p><a href="{% url 'stocks:move_list' %}">{% trans "Retour a la liste" %}</a></p>
     {% else %}
@@ -208,7 +208,7 @@
                aria-label="{% trans 'Document d origine' %}">
         <input type="number" name="unit_cost_mga" step="0.0001" placeholder="{% trans 'Cout unitaire' %}"
                aria-label="{% trans 'Cout unitaire' %}">
-        <button type="submit">{% trans "Créer (brouillon)" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer (brouillon)" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -271,15 +271,15 @@
               <div id="fefo-suggestion"></div>
             </fieldset>
           {% endif %}
-          <button type="submit">{% trans "Ajouter" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
         </form>
       {% endif %}
       <form method="post">
         {% csrf_token %}
         <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
-        {% if picking.state == "draft" or picking.state == "waiting" %}<button type="submit" name="action" value="ready">{% trans "Marquer prêt" %}</button>{% endif %}
-        {% if picking.state == "ready" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
-        {% if picking.state != "done" and picking.state != "cancelled" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+        {% if picking.state == "draft" or picking.state == "waiting" %}<c-button variant="primary" type="submit" name="action" value="ready">{% trans "Marquer prêt" %}</c-button>{% endif %}
+        {% if picking.state == "ready" %}<c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>{% endif %}
+        {% if picking.state != "done" and picking.state != "cancelled" %}<c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
       </form>
       <p><a href="{% url 'stocks:picking_list' %}">{% trans "Retour a la liste" %}</a></p>
     {% else %}
@@ -302,7 +302,7 @@
         <input type="text" name="partner_id" placeholder="{% trans 'Tiers (UUID, optionnel)' %}">
         <input type="date" name="date_scheduled">
         <input type="text" name="source_document" placeholder="{% trans 'Document d origine' %}">
-        <button type="submit">{% trans "Créer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -320,7 +320,7 @@
       <input type="number" name="theoretical_value" step="0.0001" placeholder="{% trans 'Valeur theorique' %}">
       <input type="text" name="device" placeholder="{% trans 'Instrument' %}">
       <input type="text" name="partner_id_for_dispute" placeholder="{% trans 'Fournisseur (UUID, pour litige si ecart)' %}">
-      <button type="submit">{% trans "Enregistrer" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     </form>
     <table class="smart-table">
       <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Type" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Écart (%)" %}</th></tr></thead>
@@ -356,7 +356,7 @@
       <input type="number" name="defect_qty" step="0.0001" value="0">
       <input type="text" name="description" placeholder="{% trans 'Description' %}">
       <select name="relocate_location_id"><option value="">{% trans "(pas de déplacement)" %}</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-      <button type="submit">{% trans "Classer" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Classer" %}</c-button>
     </form>
   {% endif %}
 
@@ -377,7 +377,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="release">
                   <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
-                  <button type="submit">{% trans "Libérer" %}</button>
+                  <c-button variant="primary" type="submit">{% trans "Libérer" %}</c-button>
                 </form>
               {% endif %}
             </td>
@@ -392,7 +392,7 @@
       <input type="text" name="quant_id" placeholder="{% trans 'Quant (UUID)' %}" required>
       <input type="number" name="qty" step="0.0001" value="1">
       <input type="date" name="date">
-      <button type="submit">{% trans "Réserver" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Réserver" %}</c-button>
     </form>
   {% endif %}
 
@@ -417,7 +417,7 @@
                     <input type="hidden" name="line_id" value="{{ line.id }}">
                     <input type="number" name="qty_counted" step="0.0001" required>
                     <input type="text" name="reason" placeholder="{% trans 'Motif si ecart' %}">
-                    <button type="submit">{% trans "Compter" %}</button>
+                    <c-button variant="primary" type="submit">{% trans "Compter" %}</c-button>
                   </form>
                 {% endif %}
               </td>
@@ -432,15 +432,15 @@
           <input type="hidden" name="action" value="add_line">
           <input type="text" name="variant_id" placeholder="{% trans 'Produit (UUID)' %}" required>
           <select name="location_id" required>{% for location in inventory.warehouse.locations.all %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-          <button type="submit">{% trans "Ajouter" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
         </form>
       {% endif %}
       <form method="post">
         {% csrf_token %}
         <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}">
-        {% if inventory.state == "draft" %}<button type="submit" name="action" value="start">{% trans "Démarrer" %}</button>{% endif %}
-        {% if inventory.state == "in_progress" %}<button type="submit" name="action" value="validate">{% trans "Valider" %}</button>{% endif %}
-        {% if inventory.state == "draft" or inventory.state == "in_progress" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+        {% if inventory.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="start">{% trans "Démarrer" %}</c-button>{% endif %}
+        {% if inventory.state == "in_progress" %}<c-button variant="primary" type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>{% endif %}
+        {% if inventory.state == "draft" or inventory.state == "in_progress" %}<c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
       </form>
       <p><a href="{% url 'stocks:report_inventory' inventory_id=inventory.id %}">{% trans "Telecharger la feuille d'inventaire (STK-INV)" %}</a></p>
       <p><a href="{% url 'stocks:inventory_list' %}">{% trans "Retour a la liste" %}</a></p>
@@ -461,7 +461,7 @@
         <select name="warehouse_id" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}">{{ warehouse.code }}</option>{% endfor %}</select>
         <input type="date" name="date">
         <select name="type">{% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-        <button type="submit">{% trans "Créer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -481,19 +481,19 @@
           <input type="hidden" name="action" value="assess">
           <select name="quality_state">{% for value, label in quality_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
           <select name="decision">{% for value, label in decision_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-          <button type="submit">{% trans "Évaluer" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Évaluer" %}</c-button>
         </form>
         <h3>{% trans "Traiter" %}</h3>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="process">
           <select name="location_to_id" required>{% for location in locations %}<option value="{{ location.id }}">{{ location.code }}</option>{% endfor %}</select>
-          <button type="submit">{% trans "Traiter (mouvement réel)" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Traiter (mouvement réel)" %}</c-button>
         </form>
         <form method="post">
           {% csrf_token %}
           <input type="text" name="reason" placeholder="{% trans 'Motif' %}">
-          <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
+          <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>
         </form>
       {% endif %}
       <p><a href="{% url 'stocks:return_list' %}">{% trans "Retour a la liste" %}</a></p>
@@ -517,7 +517,7 @@
         <input type="date" name="date">
         <input type="text" name="reason" placeholder="{% trans 'Motif' %}" required>
         <input type="text" name="source_document" placeholder="{% trans 'Commande d origine' %}">
-        <button type="submit">{% trans "Créer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -529,7 +529,7 @@
     <h2>{% trans "Tracabilite d'un lot" %}</h2>
     <form method="get">
       <input type="text" name="lot_name" placeholder="{% trans 'Nom du lot' %}" value="{{ lot_name }}" required>
-      <button type="submit">{% trans "Rechercher" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Rechercher" %}</c-button>
     </form>
     {% if lot_name and not lot %}<p>{% trans "Aucun lot trouve pour ce nom." %}</p>{% endif %}
     {% if result %}
@@ -567,7 +567,7 @@
           <input id="reason" type="text" name="reason" required
                  placeholder="{% trans 'Ex. dépassement de seuil bactériologique COA n° ...' %}">
         </div>
-        <button type="submit">{% trans "Déclarer un rappel sur ce lot" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Déclarer un rappel sur ce lot" %}</c-button>
       </form>
     {% endif %}
   {% endif %}
@@ -603,7 +603,7 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="recall_id" value="{{ recall.id }}">
-              <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
+              <c-button variant="danger" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>
             </form>
             {% endif %}
           </td>
@@ -652,7 +652,7 @@
     <h2>{% trans "Classification ABC (STK-ABC1)" %}</h2>
     <form method="post">
       {% csrf_token %}
-      <button type="submit" name="action" value="recompute">{% trans "Recalculer" %}</button>
+      <c-button variant="primary" type="submit" name="action" value="recompute">{% trans "Recalculer" %}</c-button>
     </form>
     <table class="smart-table">
       <thead><tr><th>{% trans "Produit" %}</th><th>{% trans "Classe" %}</th><th>{% trans "Valeur consommation" %}</th><th>{% trans "Prochain comptage" %}</th></tr></thead>

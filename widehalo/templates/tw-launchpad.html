@@ -39,17 +39,17 @@
     </div>
 
     <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Aperçu" %}</h2>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60 mb-3">{% trans "Aperçu" %}</h2>
       <div class="flex flex-wrap gap-3">
         {% for kpi in kpis %}
           <c-kpi-tile label="{{ kpi.label }}" value="{{ kpi.value }}" tone="{{ kpi.tone }}" href="{{ kpi.href }}" />
         {% endfor %}
       </div>
-      <p class="text-xs text-base-content/40 mt-2">{% trans "D’autres indicateurs par rôle (OF en retard, lots proches DLC…) arrivent avec les lots métier (L3-L5)." %}</p>
+      <p class="text-xs text-base-content/60 mt-2">{% trans "D’autres indicateurs par rôle (OF en retard, lots proches DLC…) arrivent avec les lots métier (L3-L5)." %}</p>
     </section>
 
     <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Vos applications" %}</h2>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60 mb-3">{% trans "Vos applications" %}</h2>
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {% if "crm" in visible_app_labels %}<c-launchpad-tile label="{% trans 'CRM' %}" href="/crm/">C</c-launchpad-tile>{% endif %}
         {% if "sales" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Ventes' %}" href="/sales/">V</c-launchpad-tile>{% endif %}
@@ -77,8 +77,8 @@
     </section>
 
     <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-3">{% trans "Favoris" %}</h2>
-      <div class="card bg-base-100 border border-dashed border-base-300 p-6 text-center text-sm text-base-content/50">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60 mb-3">{% trans "Favoris" %}</h2>
+      <div class="card bg-base-100 border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
         {% trans "Vous n’avez pas encore d’écran favori — la personnalisation utilisateur arrive avec le lot L6." %}
       </div>
     </section>

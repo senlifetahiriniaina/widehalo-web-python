@@ -24,6 +24,11 @@ pre-commit>=4.0
 django-debug-toolbar>=4.4
 ipython>=8.28
 pytest-playwright>=0.5
+# Sprint 15 (recette UX) : audit accessibilite automatise reel (axe-core)
+# sur un echantillon d'ecrans representatif, en complement de
+# tests/ui/test_accessibility.py (labels/aria-label, sans regles WCAG
+# completes) -- cf. docs/planning/2026-refonte-ux-sprints.md Sprint 15.
+axe-playwright-python>=0.1.8
 django-test-migrations>=1.4
 bandit[toml]>=1.7
 pip-audit>=2.7

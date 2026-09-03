@@ -19,7 +19,7 @@
       <label for="date_to">{% trans "Au" %}</label>
       <input id="date_to" type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
     </div>
-    <button type="submit">{% trans "Filtrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Filtrer" %}</c-button>
   </form>
 
   <h2>{% trans "Satisfaction client (CSAT)" %}</h2>

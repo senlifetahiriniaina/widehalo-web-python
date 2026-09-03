@@ -50,7 +50,13 @@
 
   --yellow-50:  #FFF6DB;
   --yellow-500: #C99403;
-  --yellow-600: #9B7102;
+  /* Sprint 15 (recette UX) : #9B7102 sur --yellow-50 ne donne que 4.09:1,
+     sous le seuil WCAG AA 4.5:1 pour du texte normal -- utilise comme
+     --warn-fg sur les badges "en attente/envoye" (`.badge.b-pending`,
+     `.badge.b-sent`), donc largement visible dans le catalogue. Assombri
+     a #8A6402 (4.98:1) -- audit axe-core reel, cf.
+     tests/e2e/test_accessibility_axe.py. */
+  --yellow-600: #8A6402;
 
   /* ---------- Semantique ---------- */
   --fg-1: var(--slate-900);
