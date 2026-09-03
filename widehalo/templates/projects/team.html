@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Équipe" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Équipe" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Équipe du projet" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -27,7 +32,7 @@
             <form method="post" style="display:inline">{% csrf_token %}
               <input type="hidden" name="action" value="remove">
               <input type="hidden" name="member_id" value="{{ member.member_id }}">
-              <button type="submit">{% trans "Retirer" %}</button>
+              <c-button variant="danger" type="submit">{% trans "Retirer" %}</c-button>
             </form>
           </td>
         </tr>
@@ -44,6 +49,6 @@
     <input type="text" name="user_id" placeholder="{% trans 'Identifiant utilisateur (UUID)' %}" required>
     <input type="text" name="role" placeholder="{% trans 'Role (ex. chef de projet, developpeur)' %}">
     <input type="number" name="allocation_pct" min="0" max="100" placeholder="{% trans 'Allocation %' %}" required>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 {% endblock %}

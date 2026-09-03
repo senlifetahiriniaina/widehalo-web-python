@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Liens invite" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Portail invite" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Portail invite" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -40,7 +45,7 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="action" value="revoke">
                 <input type="hidden" name="guest_access_id" value="{{ guest_access.id }}">
-                <button type="submit">{% trans "Révoquer" %}</button>
+                <c-button variant="danger" type="submit">{% trans "Révoquer" %}</c-button>
               </form>
             {% endif %}
           </td>
@@ -57,7 +62,7 @@
     <input type="hidden" name="action" value="create">
     <input type="email" name="guest_email" placeholder="{% trans 'Email invite' %}" required>
     <label>{% trans "Expire le" %} <input type="datetime-local" name="expires_at" required></label>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 
   <p><a href="{% url 'projects:detail' project.id %}">{% trans "Retour au projet" %}</a></p>

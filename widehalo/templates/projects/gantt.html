@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Gantt" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Gantt" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Gantt" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -28,7 +33,7 @@
     <label>{% trans "Début" %} <input type="date" name="start_date"></label>
     <label>{% trans "Fin" %} <input type="date" name="end_date"></label>
     <label>{% trans "Durée (jours)" %} <input type="number" name="duration_days" min="0"></label>
-    <button type="submit">{% trans "Mettre a jour" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Mettre a jour" %}</c-button>
   </form>
 
   <p><a href="{% url 'projects:detail' project.id %}">{% trans "Retour au projet" %}</a></p>

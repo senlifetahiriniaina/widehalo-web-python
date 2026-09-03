@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Pipelines" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'crm:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Pipelines" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Pipelines" %}</h1>
   </div>
@@ -41,6 +45,6 @@
         {% trans "Pipeline par défaut" %}
       </label>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

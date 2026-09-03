@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Calendrier" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Calendrier" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Calendrier" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>

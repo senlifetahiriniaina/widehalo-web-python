@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Champs personnalises" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> {% trans "Configuration — Champs personnalisés" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Configuration — Champs personnalises (projets/taches)" %}</h1>
 </div>
@@ -51,6 +55,6 @@
     <input type="text" name="choices" placeholder="{% trans 'Choix (separes par des virgules, si type Choix)' %}">
     <input type="number" step="any" name="min" placeholder="{% trans 'Min (si type Nombre)' %}">
     <input type="number" step="any" name="max" placeholder="{% trans 'Max (si type Nombre)' %}">
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
+    <span>/</span> {{ order.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ order.state|state_badge_class }}">{{ order.get_state_display }}</span>
     {% if order.blocked_reason %}<p>{% trans "Motif de blocage" %}: {{ order.blocked_reason }}</p>{% endif %}
@@ -10,15 +14,15 @@
       {% csrf_token %}
       <input type="text" name="reason" placeholder="{% trans 'Motif (annulation)' %}"
              aria-label="{% trans 'Motif (annulation)' %}">
-      {% if order.state == "draft" %}<button type="submit" name="action" value="send">{% trans "Envoyer" %}</button>{% endif %}
-      {% if order.state == "draft" or order.state == "sent" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
-      {% if order.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Débloquer" %}</button>{% endif %}
-      {% if order.state == "confirmed" %}<button type="submit" name="action" value="start_preparation">{% trans "Démarrer la préparation" %}</button>{% endif %}
-      {% if order.state == "in_preparation" %}<button type="submit" name="action" value="deliver_partial">{% trans "Livrer partiellement" %}</button>{% endif %}
-      {% if order.state == "in_preparation" or order.state == "partially_delivered" %}<button type="submit" name="action" value="deliver_full">{% trans "Livrer complètement" %}</button>{% endif %}
-      {% if order.state == "delivered" %}<button type="submit" name="action" value="invoice">{% trans "Facturer" %}</button>{% endif %}
-      {% if order.state == "invoiced" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
-      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>{% endif %}
+      {% if order.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="send">{% trans "Envoyer" %}</c-button>{% endif %}
+      {% if order.state == "draft" or order.state == "sent" %}<c-button variant="primary" type="submit" name="action" value="confirm">{% trans "Confirmer" %}</c-button>{% endif %}
+      {% if order.state == "blocked" %}<c-button variant="primary" type="submit" name="action" value="unblock">{% trans "Débloquer" %}</c-button>{% endif %}
+      {% if order.state == "confirmed" %}<c-button variant="primary" type="submit" name="action" value="start_preparation">{% trans "Démarrer la préparation" %}</c-button>{% endif %}
+      {% if order.state == "in_preparation" %}<c-button variant="primary" type="submit" name="action" value="deliver_partial">{% trans "Livrer partiellement" %}</c-button>{% endif %}
+      {% if order.state == "in_preparation" or order.state == "partially_delivered" %}<c-button variant="primary" type="submit" name="action" value="deliver_full">{% trans "Livrer complètement" %}</c-button>{% endif %}
+      {% if order.state == "delivered" %}<c-button variant="primary" type="submit" name="action" value="invoice">{% trans "Facturer" %}</c-button>{% endif %}
+      {% if order.state == "invoiced" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>{% endif %}
+      {% if order.state != "closed" and order.state != "cancelled" and order.state != "invoiced" %}<c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -107,7 +111,7 @@
         <option value="on_production_progress">{% trans "A l'avancement de production" %}</option>
       </select>
     </div>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <section class="panel" style="margin-top: var(--spacing-lg);">

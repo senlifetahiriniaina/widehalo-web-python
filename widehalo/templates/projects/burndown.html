@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Burndown" %} — {{ sprint.name }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Burndown" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Burndown" %} — {{ sprint.name }} ({{ project.reference }})</h1>
 </div>

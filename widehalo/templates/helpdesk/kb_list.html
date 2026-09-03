@@ -2,10 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Base de connaissances" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Base de connaissances" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Base de connaissances" %}</h1>
 </div>
-  <p><a href="{% url 'helpdesk:kb_create' %}">{% trans "Nouvel article" %}</a></p>
+  <p><a href="{% url 'helpdesk:kb_create' %}" class="btn btn-primary">{% trans "Nouvel article" %}</a></p>
 
   <form method="get">
     <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'Rechercher...' %}">

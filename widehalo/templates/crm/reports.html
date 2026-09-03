@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports CRM" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'crm:list' %}">{% trans "Opportunités" %}</a>
+    <span>/</span> {% trans "Rapports" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Rapports CRM" %}</h1>
   </div>
@@ -22,7 +26,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 
@@ -43,7 +47,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 
@@ -57,7 +61,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 
@@ -71,7 +75,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 {% endblock %}

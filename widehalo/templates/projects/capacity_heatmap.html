@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Heatmap de capacité" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> {% trans "Heatmap de capacité" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Heatmap de capacité" %} — {{ target_user }}</h1>
 </div>

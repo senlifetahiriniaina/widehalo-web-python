@@ -2,10 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Messagerie" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Messagerie" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Messagerie" %}</h1>
 </div>
-  <p><a href="{% url 'chat:new_conversation' %}">{% trans "Nouvelle conversation" %}</a></p>
+  <p><a href="{% url 'chat:new_conversation' %}" class="btn btn-primary">{% trans "Nouvelle conversation" %}</a></p>
   <div style="display:flex; gap:2rem;">
     <ul style="flex:1;">
       {% for channel in channels %}
@@ -32,7 +33,7 @@
             <label for="attachment">{% trans "Pièce jointe" %}</label>
             <input id="attachment" type="file" name="attachment">
           </div>
-          <button type="submit">{% trans "Envoyer" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
         </form>
       {% else %}
         <p>{% trans "Sélectionnez un canal." %}</p>

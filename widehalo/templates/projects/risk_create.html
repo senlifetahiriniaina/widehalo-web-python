@@ -2,6 +2,12 @@
 {% load i18n static %}
 {% block title %}{% trans "Signaler un risque" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> <a href="{% url 'projects:risks' project.id %}">{% trans "Risques" %}</a>
+  <span>/</span> {% trans "Signaler un risque" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Signaler un risque" %} — {{ project.name }}</h1>
 </div>
@@ -14,6 +20,6 @@
     <input type="number" id="impact" name="impact" min="1" max="5" required>
     <label for="mitigation_plan">{% trans "Plan d'atténuation" %}</label>
     <textarea id="mitigation_plan" name="mitigation_plan"></textarea>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Signaler" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Signaler" %}</c-button>
   </form>
 {% endblock %}

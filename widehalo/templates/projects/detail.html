@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> {{ project.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Projet" %} {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -66,7 +70,7 @@
     <input type="hidden" name="action" value="link_objective">
     <input type="text" name="objective_id" placeholder="{% trans 'UUID objectif' %}"
            value="{{ project.linked_objective_id|default:'' }}">
-    <button type="submit">{% trans "Lier / Délier l'objectif" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Lier / Délier l'objectif" %}</c-button>
   </form>
 
   <h2>{% trans "Taches" %}</h2>
@@ -92,44 +96,44 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="start">
-                <button type="submit">{% trans "Démarrer" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Démarrer" %}</c-button>
               </form>
             {% elif task.state == "in_progress" %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="block">
-                <button type="submit">{% trans "Bloquer" %}</button>
+                <c-button variant="danger" type="submit">{% trans "Bloquer" %}</c-button>
               </form>
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="finish">
-                <button type="submit">{% trans "Terminer" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Terminer" %}</c-button>
               </form>
             {% elif task.state == "blocked" %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="unblock">
-                <button type="submit">{% trans "Débloquer" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Débloquer" %}</c-button>
               </form>
             {% endif %}
             {% if task.state == "todo" or task.state == "in_progress" or task.state == "blocked" %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="cancel">
-                <button type="submit">{% trans "Annuler" %}</button>
+                <c-button variant="danger" type="submit">{% trans "Annuler" %}</c-button>
               </form>
             {% endif %}
             {% if task.id in running_task_ids %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="stop_timer">
-                <button type="submit">{% trans "Arrêter le chrono" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Arrêter le chrono" %}</c-button>
               </form>
             {% else %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="task_id" value="{{ task.id }}">
                 <input type="hidden" name="action" value="start_timer">
-                <button type="submit">{% trans "Démarrer le chrono" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Démarrer le chrono" %}</c-button>
               </form>
             {% endif %}
           </td>
@@ -149,6 +153,6 @@
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}
     </select>
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 {% endblock %}

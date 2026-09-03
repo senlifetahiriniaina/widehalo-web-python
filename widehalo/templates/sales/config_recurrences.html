@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Récurrences de vente" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
+    <span>/</span> {% trans "Récurrences" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Gabarits de récurrence (RG-SAL-6)" %}</h1>
   </div>
@@ -55,6 +59,6 @@
         {% for order in templates %}<option value="{{ order.id }}">{{ order }}</option>{% endfor %}
       </select>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

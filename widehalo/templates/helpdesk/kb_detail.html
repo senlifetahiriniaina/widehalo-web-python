@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{{ article.title }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:kb_list' %}">{% trans "Base de connaissances" %}</a>
+  <span>/</span> {{ article.title }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ article.title }}</h1>
 </div>
@@ -19,8 +23,8 @@
   <form method="post" style="display:inline">
     {% csrf_token %}
     <input type="hidden" name="action" value="feedback">
-    <button type="submit" name="helpful" value="1">{% trans "Oui" %}</button>
-    <button type="submit" name="helpful" value="0">{% trans "Non" %}</button>
+    <c-button variant="primary" type="submit" name="helpful" value="1">{% trans "Oui" %}</c-button>
+    <c-button variant="primary" type="submit" name="helpful" value="0">{% trans "Non" %}</c-button>
   </form>
 
   {% if can_manage %}
@@ -28,9 +32,9 @@
     <form method="post" style="display:inline">
       {% csrf_token %}
       {% if article.is_published %}
-        <button type="submit" name="action" value="unpublish">{% trans "Depublier" %}</button>
+        <c-button variant="danger" type="submit" name="action" value="unpublish">{% trans "Depublier" %}</c-button>
       {% else %}
-        <button type="submit" name="action" value="publish">{% trans "Publier" %}</button>
+        <c-button variant="primary" type="submit" name="action" value="publish">{% trans "Publier" %}</c-button>
       {% endif %}
     </form>
   {% endif %}

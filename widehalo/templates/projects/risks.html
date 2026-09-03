@@ -2,10 +2,15 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Risques" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Risques" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Registre des risques" %} — {{ project.name }}</h1>
 </div>
-  <p><a href="{% url 'projects:risk_create' project.id %}">{% trans "Signaler un risque" %}</a></p>
+  <p><a href="{% url 'projects:risk_create' project.id %}" class="btn btn-primary">{% trans "Signaler un risque" %}</a></p>
   <table>
     <thead>
       <tr>

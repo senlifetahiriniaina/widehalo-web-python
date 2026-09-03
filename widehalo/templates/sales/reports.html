@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Ventes" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
+    <span>/</span> {% trans "Rapports" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Rapports Ventes (§5.5.7)" %}</h1>
   </div>
@@ -37,7 +41,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Analyse de marge (SAL-MARGE)" %}</h2>
@@ -51,7 +55,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Commandes en retard (SAL-RET)" %}</h2>
@@ -64,7 +68,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Réalisation des objectifs (SAL-OBJ)" %}</h2>
@@ -81,7 +85,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Prévisions (SAL-PREV)" %}</h2>
@@ -102,6 +106,6 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 {% endblock %}

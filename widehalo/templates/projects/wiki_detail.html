@@ -2,7 +2,12 @@
 {% load i18n %}
 {% block title %}{{ page.title }} — {{ project.reference }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'projects:wiki' project.id %}">&larr; {% trans "Retour au wiki" %}</a></p>
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> <a href="{% url 'projects:wiki' project.id %}">{% trans "Wiki" %}</a>
+  <span>/</span> {{ page.title }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ page.title }}</h1>
 </div>
@@ -16,7 +21,7 @@
     <input id="title" type="text" name="title" value="{{ page.title }}" required>
     <label for="body">{% trans "Contenu" %}</label>
     <textarea id="body" name="body" rows="10">{{ page.body }}</textarea>
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
   </form>
 
   <h2>{% trans "Documents" %}</h2>
@@ -32,6 +37,6 @@
     <input type="hidden" name="action" value="upload_document">
     <label for="document-upload">{% trans "Ajouter un document" %}</label>
     <input id="document-upload" type="file" name="document" required>
-    <button type="submit">{% trans "Envoyer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
   </form>
 {% endblock %}

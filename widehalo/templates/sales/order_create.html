@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle commande" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
+    <span>/</span> {% trans "Nouvelle commande" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Nouvelle commande" %}</h1>
   </div>
@@ -75,10 +79,10 @@
         </template>
       </tbody>
     </table>
-    <button type="button" @click="addLine()"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Ajouter une ligne" %}</button>
+    <c-button variant="primary" type="button" @click="addLine()"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Ajouter une ligne" %}</c-button>
 
     <div class="form-field">
-      <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+      <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
     </div>
   </form>
 {% endblock %}

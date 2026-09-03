@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Sprints" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Sprints" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Sprints agiles" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -38,14 +43,14 @@
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
                 <input type="hidden" name="action" value="start">
-                <button type="submit">{% trans "Démarrer" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Démarrer" %}</c-button>
               </form>
             {% endif %}
             {% if sprint.status == "active" or sprint.status == "planned" %}
               <form method="post" style="display:inline">{% csrf_token %}
                 <input type="hidden" name="sprint_id" value="{{ sprint.id }}">
                 <input type="hidden" name="action" value="complete">
-                <button type="submit">{% trans "Clôturer" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button>
               </form>
             {% endif %}
             {% if sprint.status == "completed" or sprint.status == "active" %}
@@ -67,6 +72,6 @@
     <input type="date" name="start_date" required>
     <input type="date" name="end_date" required>
     <input type="text" name="goal" placeholder="{% trans 'Objectif du sprint' %}">
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

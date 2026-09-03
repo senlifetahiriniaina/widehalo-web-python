@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Politiques de SLA" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Politiques de SLA" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Politiques de SLA" %}</h1>
 </div>
@@ -31,6 +35,6 @@
     </div>
     <div class="form-field"><label>{% trans "1re réponse (minutes)" %}</label><input type="number" name="first_response_minutes" min="0" required></div>
     <div class="form-field"><label>{% trans "Résolution (minutes)" %}</label><input type="number" name="resolution_minutes" min="0" required></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

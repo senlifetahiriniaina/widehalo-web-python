@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration CRM" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'crm:list' %}">{% trans "Opportunités" %}</a>
+    <span>/</span> {% trans "Configuration" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Configuration CRM" %}</h1>
   </div>

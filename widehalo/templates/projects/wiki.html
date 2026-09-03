@@ -2,6 +2,11 @@
 {% load i18n %}
 {% block title %}{% trans "Wiki" %} — {{ project.reference }}{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Wiki" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Wiki du projet" %} — {{ project.name }}</h1>
 </div>
@@ -30,6 +35,6 @@
     <input id="title" type="text" name="title" required>
     <label for="body">{% trans "Contenu" %}</label>
     <textarea id="body" name="body"></textarea>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

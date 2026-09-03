@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Gabarits de réponse" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Gabarits de réponse" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Gabarits de réponse" %}</h1>
 </div>
@@ -24,6 +28,6 @@
     <div class="form-field"><label>{% trans "Nom" %}</label><input type="text" name="name" required></div>
     <div class="form-field"><label>{% trans "Catégorie" %}</label><input type="text" name="category"></div>
     <div class="form-field"><label>{% trans "Contenu" %}</label><textarea name="body"></textarea></div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

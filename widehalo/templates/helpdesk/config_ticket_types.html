@@ -2,6 +2,10 @@
 {% load i18n static core_extras %}
 {% block title %}{% trans "Catalogue de types de tickets" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Catalogue de types de tickets" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Catalogue de types de tickets" %}</h1>
 </div>
@@ -70,6 +74,6 @@
       <label for="related_module">{% trans "Module lie (optionnel, purement indicatif)" %}</label>
       <input id="related_module" type="text" name="related_module">
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

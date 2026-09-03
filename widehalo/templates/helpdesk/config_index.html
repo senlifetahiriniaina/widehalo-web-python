@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Configuration Support" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:list' %}">{% trans "Tickets support" %}</a>
+  <span>/</span> {% trans "Configuration" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Configuration Support" %}</h1>
 </div>

@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Kanban" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Kanban" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Kanban" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>

@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle opportunité" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'crm:list' %}">{% trans "Opportunités" %}</a>
+    <span>/</span> {% trans "Nouvelle opportunité" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Nouvelle opportunité" %}</h1>
   </div>
@@ -90,6 +94,6 @@
       </div>
     </fieldset>
 
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

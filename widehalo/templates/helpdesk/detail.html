@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ ticket.subject }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'helpdesk:list' %}">{% trans "Tickets support" %}</a>
+  <span>/</span> {{ ticket.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ ticket.subject }}</h1>
 </div>
@@ -24,7 +28,7 @@
   <form hx-post="{% url 'helpdesk:ticket_suggest_reply' ticket_id=ticket.id %}"
         hx-target="#suggest-reply-result">
     {% csrf_token %}
-    <button type="submit">{% trans "Suggestion de réponse (IA)" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Suggestion de réponse (IA)" %}</c-button>
   </form>
   <div id="suggest-reply-result"></div>
 
@@ -34,14 +38,14 @@
     <h2>{% trans "Transitions" %}</h2>
     <form method="post" style="display:inline">
       {% csrf_token %}
-      <button type="submit" name="action" value="assign">{% trans "Prendre en charge" %}</button>
-      <button type="submit" name="action" value="request_more_info">{% trans "Demander des informations" %}</button>
-      <button type="submit" name="action" value="resume">{% trans "Reprendre" %}</button>
-      <button type="submit" name="action" value="resolve">{% trans "Résoudre" %}</button>
-      <button type="submit" name="action" value="reopen">{% trans "Reouvrir" %}</button>
-      <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
-      <button type="submit" name="action" value="escalate">{% trans "Escalader" %}</button>
-      <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
+      <c-button variant="primary" type="submit" name="action" value="assign">{% trans "Prendre en charge" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="request_more_info">{% trans "Demander des informations" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="resume">{% trans "Reprendre" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="resolve">{% trans "Résoudre" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="reopen">{% trans "Reouvrir" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>
+      <c-button variant="primary" type="submit" name="action" value="escalate">{% trans "Escalader" %}</c-button>
+      <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>
     </form>
   {% else %}
     <p><em>{% trans "Seuls le demandeur, l'assigne ou un gestionnaire peuvent agir sur ce ticket." %}</em></p>
@@ -76,7 +80,7 @@
         <label for="comment">{% trans "Commentaire (optionnel)" %}</label>
         <textarea id="comment" name="comment"></textarea>
       </div>
-      <button type="submit">{% trans "Envoyer" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
     </form>
   {% endif %}
 
@@ -92,7 +96,7 @@
       <div class="form-field">
         <label><input type="checkbox" name="is_internal_note"> {% trans "Note interne" %}</label>
       </div>
-      <button type="submit">{% trans "Envoyer" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
     </form>
   {% endif %}
 {% endblock %}

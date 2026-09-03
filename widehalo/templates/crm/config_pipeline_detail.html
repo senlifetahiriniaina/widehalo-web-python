@@ -2,7 +2,11 @@
 {% load i18n %}
 {% block title %}{{ pipeline.name }} — WideHalo{% endblock %}
 {% block content %}
-  <p><a href="{% url 'crm:config_pipelines' %}">&larr; {% trans "Pipelines" %}</a></p>
+  <c-breadcrumb>
+    <a href="{% url 'crm:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> <a href="{% url 'crm:config_pipelines' %}">{% trans "Pipelines" %}</a>
+    <span>/</span> {{ pipeline.name }}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{{ pipeline.name }}</h1>
   </div>
@@ -72,6 +76,6 @@
         {% trans "Motif de perte requis" %}
       </label>
     </div>
-    <button type="submit">{% trans "Ajouter l'étape" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter l'étape" %}</c-button>
   </form>
 {% endblock %}

@@ -2,11 +2,12 @@
 {% load i18n %}
 {% block title %}{% trans "Devis" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>{% trans "Devis" %}</c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Devis" %}</h1>
   </div>
   <p>
-    <a href="{% url 'sales:quotation_create' %}">{% trans "Nouveau devis" %}</a>
+    <a href="{% url 'sales:quotation_create' %}" class="btn btn-primary">{% trans "Nouveau devis" %}</a>
     | <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
     | <a href="{% url 'sales:reports_index' %}">{% trans "Rapports" %}</a>
   </p>

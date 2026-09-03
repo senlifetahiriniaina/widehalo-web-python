@@ -2,6 +2,11 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Budget" %} — {{ project.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'projects:list' %}">{% trans "Projets" %}</a>
+  <span>/</span> <a href="{% url 'projects:detail' project.id %}">{{ project.reference }}</a>
+  <span>/</span> {% trans "Budget" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Budget & valeur acquise (EVM)" %} — {{ project.reference }} — {{ project.name }}</h1>
 </div>
@@ -75,7 +80,7 @@
     <input type="date" name="period" required>
     <input type="number" step="0.01" name="planned_amount" placeholder="{% trans 'Montant planifie' %}" required>
     <input type="number" step="0.01" name="actual_amount" placeholder="{% trans 'Montant reel' %}">
-    <button type="submit">{% trans "Ajouter" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
   </form>
 
   <h2>{% trans "Courbe en S CAPEX/OPEX (valeurs cumulées par mois)" %}</h2>

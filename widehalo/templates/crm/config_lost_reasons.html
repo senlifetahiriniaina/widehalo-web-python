@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Motifs de perte" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'crm:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Motifs de perte" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Motifs de perte" %}</h1>
   </div>
@@ -27,6 +31,6 @@
       <label for="name">{% trans "Nom" %}</label>
       <input id="name" type="text" name="name" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}
