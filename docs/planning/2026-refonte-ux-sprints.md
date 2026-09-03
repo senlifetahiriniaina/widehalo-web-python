@@ -243,15 +243,36 @@ sans lot de sortie renseigné se comporte exactement comme avant). 9 tests
   *Critère* : ✅ rendement réel (`qty_produced`) vs théorique (`qty`) affiché ;
   ✅ généalogie amont/aval consultable depuis le lot de sortie.
 
+Livré (commit `e0c0b02`) pour **A3** : `StkQualityState.STATE_EN_QUARANTAINE` existait déjà
+comme classification, mais rien n'empêchait de continuer à expédier/consommer un lot pourtant
+mis en quarantaine (aucun `StkMove` n'était bloqué pour cet état). `StkLot.is_held()` dérive
+l'état courant du lot depuis son dernier `StkQualityState` ; `services.moves.create_move`
+(RG-STK-11) refuse désormais tout mouvement d'un lot bloqué (`en_quarantaine`/
+`defaut_majeur`/`rebut`) sauf vers un emplacement de quarantaine/rebut lui-même — sans
+régression pour `apply_quality_decision` (déjà testé, continue de fonctionner). Nouveau
+modèle `StkRecall` (journal horodaté, `ReferenceMixin`) + `services/recall.py` :
+`declare_recall` calcule le périmètre impacté (lot + tous ses descendants, en réutilisant
+`services.genealogy.genealogy_tree` d'A2), le fige dans le journal, place chaque lot impacté
+en quarantaine et capture l'exposition client connue (`services.traceability.
+lot_traceability`, A1/ST8) — aucune logique de traçabilité réinventée, uniquement composée.
+Écran : bouton « Déclarer un rappel » sur l'écran de traçabilité existant + nouvel onglet
+« Rappels produit » (liste + clôture) — aucun nouveau gabarit créé (le plafond de 90 écrans,
+`test_budget`, est déjà quasi atteint ; extension de `stocks/index.html` comme tout le reste
+du module). 5 tests (`test_recall.py`).
+
+- **Écran A3** — Contrôle qualité + hold/release + rappel produit.
+  *Critère* : ✅ un lot suspect liste ses lots finis impactés (généalogie multi-niveaux) et
+  son exposition client connue ; ✅ journal horodaté (incident, timestamp, initiateur,
+  périmètre) ; ⚠️ HACCP/non-conformité au sens strict (checklist `QltInspection`) non relié à
+  ce flux — `QltInspection` reste un enregistrement ponctuel indépendant, non modifié cette
+  session.
+
 **Reporté** (hors périmètre traité cette semaine) :
-- **Écran A3** — Contrôle qualité HACCP + non-conformité + rappel produit : *non réalisé*.
-  `QltInspection` existe mais sans mécanisme de blocage/déblocage (hold/release) ni de
-  rappel produit ; aucun modèle de rappel n'existe dans le dépôt — nécessite conception et
-  implémentation dédiées.
 - **Migration du catalogue existant du domaine** (Sprint 7, 7 JT) : `stocks` et `logistics`
   vers le nouveau design system — *non traitée* cette session.
 - **Raffinement renforcé** : clarté visuelle des statuts hold/release et parcours de
-  traçabilité d'urgence — sans objet tant que A2/A3 ne sont pas construits.
+  traçabilité d'urgence — non traité (priorité donnée à la logique métier réelle plutôt
+  qu'au raffinement visuel, en l'absence d'écran de démonstration navigable).
 
 ### Sprints 8–9 — L5 Compta/Paie Madagascar (16 JT / 30 disponibles) — RÉALISÉ (partiellement)
 
