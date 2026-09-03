@@ -478,17 +478,48 @@ environnement-only déjà connus avant ce chantier (`test_health_ready_reports_d
 `test_raw_sql_cannot_bypass_rls`, `test_raw_sql_without_tenant_setting_sees_nothing`,
 `test_cross_tenant_insert_is_rejected_by_rls`), aucune régression.
 
-### Sprint 11 — L7 IA gateway (8 JT / 15 disponibles)
+### Sprint 11 — L7 IA gateway (8 JT / 15 disponibles) — ✅ livré
+
 `widehalo-ai-gateway` (FastAPI, Ollama local par défaut, repli Mistral), function-calling
 contre des endpoints django-ninja en lecture seule, explicitement whitelistés — **pas de
-text-to-SQL** (5 JT).
+text-to-SQL** (5 JT). **Décision architecturale actée avant ce sprint** (documentée dans le
+code, `apps/ai/services/data_query_gateway.py`) : le microservice FastAPI séparé décrit
+littéralement ci-dessus a été explicitement écarté — un microservice mono-tenant ne peut
+pas porter proprement l'isolation RLS multi-tenant de ce dépôt. À la place : une boucle de
+tool-calling **intégrée au process Django** (chantier GW1-GW5, déjà livré avant ce sprint) —
+`core.services.data_query_tool_registry` (liste blanche de tools, chacun avec un
+`required_permission` filtré par `user.has_perm()` **avant** d'offrir le catalogue au LLM,
+deny-by-default testé) et `ai.models.AiRequest`/`AiDataQuery` (journalisation par appel déjà
+en place). `core.services.ai_assistant.OpenAICompatibleAIProvider` parle déjà le protocole
+OpenAI-compatible qu'Ollama et Mistral implémentent tous deux nativement.
 
-- **Migration du catalogue existant du domaine** (3 JT) : les 7 écrans de l'app `ai`
-  migrés vers le nouveau design system.
-- **Critère d'acceptation** : les tools n'exposent que les données du tenant courant (RLS),
-  aucun droit DDL/écriture côté rôle DB de l'IA, chaque appel journalisé.
-- **Raffinement renforcé** : présentation des réponses/actions IA dans l'UI (feedback clair
-  sur ce que l'IA a fait, jamais une boîte de dialogue opaque).
+- ✅ **Migration du catalogue existant du domaine** (3 JT) : les 7 écrans de l'app `ai`
+  (`usage_budget`, `assist`, `search`, `anomalies_list`, `insights_list`, `recommendations`,
+  `data_query`) migrés vers le design system — `<c-breadcrumb>` + `<c-button variant=
+  "primary">` sur chaque écran (aucune action destructrice/de blocage dans ce module, donc
+  aucun `variant="danger"` requis), même traitement que les Sprints 5/7/9.
+- **Critère d'acceptation** : ✅ les tools n'exposent que les données du tenant courant (RLS,
+  hérité du reste du dépôt) ; ✅ chaque appel journalisé (`AiRequest`/`AiDataQuery`,
+  déjà en place avant ce sprint) ; ⚠️ **« aucun droit DDL/écriture côté rôle DB de l'IA »
+  non satisfait au niveau du rôle DB lui-même** — l'isolation aujourd'hui est uniquement
+  applicative (liste blanche + RBAC par tool, `user.has_perm()` avant même d'offrir un tool
+  au LLM). Le process qui exécute ces tools tourne sous le même rôle Postgres
+  (`widehalo_app`) que le reste de l'application ; il n'existe pas de rôle Postgres dédié,
+  moindre privilège, réservé au chemin IA. Provisionner un tel rôle (`CREATE ROLE` + `GRANT
+  SELECT` seul, appliqué au déploiement) est un travail d'infra/ops hors périmètre d'une
+  session sans accès à un cluster de production — écart assumé, documenté dans le code
+  (docstring de `core.services.data_query_tool_registry`), même discipline que le FEFO
+  « suggéré non appliqué automatiquement » des Sprints 6-7.
+- ✅ **Raffinement renforcé** : présentation des réponses/actions IA dans l'UI —
+  `templates/ai/data_query.html` affiche désormais un bloc « Sources consultées »
+  listant, avec leur libellé lisible du registre (pas seulement le `code` technique), les
+  tools réellement invoqués par le LLM pour composer sa réponse (`tools_called` enrichi
+  côté vue via `data_query_tool_registry.get_data_query_tool()`), jamais une boîte noire.
+- **Repli Mistral** : ajouté comme exemple de configuration documenté dans
+  `AI_PROVIDER_CONFIG` (`config/settings/base.py`) — l'API Mistral est compatible
+  OpenAI chat-completions, donc couverte par le connecteur `OpenAICompatibleAIProvider`
+  existant sans nouveau code, en complément (pas en remplacement) de l'exemple
+  DeepSeek/Kimi déjà présent.
 
 ## 5 bis. Sprints 12–14 — L9 Rattrapage du catalogue existant (39 JT / 45 disponibles)
 
