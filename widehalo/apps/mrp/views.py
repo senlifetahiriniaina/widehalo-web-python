@@ -41,7 +41,6 @@ from apps.mrp.services.orders import (
     create_order,
     create_work_order,
     done_work_order,
-    finish_order,
     pause_work_order,
     receive_from_subcontractor,
     reserve_order,
@@ -53,6 +52,13 @@ from apps.mrp.services.orders import (
     suspend_order,
 )
 from apps.mrp.services.procurement import get_or_create_procurement_state
+from apps.mrp.services.transformation import (
+    available_output_locations,
+    finish_transformation_order,
+    order_genealogy,
+    order_yield,
+    record_component_consumption,
+)
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -67,8 +73,13 @@ _ACTIONS = {
     "suspend": lambda order, user, post: suspend_order(order, user, reason=post.get("reason", "")),
     "resume": lambda order, user, _post: resume_order(order, user),
     "send_to_quality_control": lambda order, user, _post: send_to_quality_control(order, user),
-    "finish": lambda order, user, post: finish_order(
-        order, user, qty_produced=Decimal(post.get("qty_produced") or "0")
+    "finish": lambda order, user, post: finish_transformation_order(
+        order,
+        user,
+        qty_produced=Decimal(post.get("qty_produced") or "0"),
+        qty_scrapped=Decimal(post.get("qty_scrapped") or "0"),
+        output_lot_name=post.get("output_lot_name", ""),
+        location_to_id=post.get("location_to_id") or None,
     ),
     "close": lambda order, user, _post: close_order(order, user),
     "cancel": lambda order, user, post: cancel_order(order, user, reason=post.get("reason", "")),
@@ -213,6 +224,15 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
                     qty=Decimal(post.get("scrap_qty") or "0"),
                     reason=post.get("scrap_reason", ""),
                 )
+            elif action == "record_component_consumption":
+                component = get_object_or_404(
+                    MrpOrderComponent, id=post.get("component_id"), order=order
+                )
+                record_component_consumption(
+                    component,
+                    lot_name=post.get("consumption_lot", ""),
+                    qty_consumed=Decimal(post.get("consumption_qty") or "0"),
+                )
             elif action in _PROCUREMENT_ACTIONS:
                 component = get_object_or_404(
                     MrpOrderComponent, id=post.get("component_id"), order=order
@@ -238,6 +258,9 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "cri_entries": order.cri_entries.all(),
             "scraps": order.scraps.all(),
             "error": error,
+            "yield_data": order_yield(order),
+            "genealogy": order_genealogy(order),
+            "output_locations": available_output_locations(order),
         },
     )
 

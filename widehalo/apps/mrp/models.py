@@ -264,6 +264,13 @@ class MrpOrder(BaseModel, ReferenceMixin):
     cost_total_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     suspend_reason = models.TextField(blank=True)
     cancel_reason = models.TextField(blank=True)
+    # A2 (L4 Agro, docs/planning/2026-refonte-ux-sprints.md §5) : nom du
+    # lot de sortie de production, renseigne a la cloture par
+    # `services.transformation.finish_transformation_order`. Convention
+    # `StkLot.name` cote `stocks` (pas de FK, regle de couplage n1) —
+    # permet de retrouver la genealogie du lot (`stocks.services.public.
+    # lot_genealogy_tree`) depuis l'ordre qui l'a produit.
+    output_lot_name = models.CharField(max_length=64, blank=True)
 
     class Meta:
         db_table = "mrp_order"

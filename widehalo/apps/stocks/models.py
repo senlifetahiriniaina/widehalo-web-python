@@ -282,6 +282,43 @@ class StkLot(BaseModel):
         return f"{self.name} ({self.variant_id})"
 
 
+class StkLotGenealogy(BaseModel):
+    """A2 (L4 Agro, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
+    généalogie de lot — un lot enfant (ex. lot de produit fini issu d'une
+    transformation) est produit à partir d'un ou plusieurs lots parents
+    (matières premières/composants consommés), pour permettre la
+    traçabilité "amont/aval" exigée par l'écran A2/A3 (un lot suspect doit
+    permettre de retrouver tous les lots finis impactés, et réciproquement).
+
+    Pas de FK vers `apps.mrp` (règle de couplage n°1) : `source_document`
+    (CharField libre) porte la référence de l'ordre à l'origine du lien,
+    même convention que `StkMove.source_document` (cf. docstring de ce
+    champ et `apps.stocks.services.consistency`, qui documente déjà cette
+    corrélation par correspondance de chaîne pour `MrpOrder.reference`).
+
+    `parent_lot`/`child_lot` sont `PROTECT` : un lot déjà impliqué dans une
+    généalogie ne peut pas être supprimé sans casser la traçabilité — même
+    discipline que les autres FK de document déjà validées par
+    `MrpOrderComponent.bom_line` (cf. `test_structural_constraints.py`)."""
+
+    parent_lot = models.ForeignKey(StkLot, on_delete=models.PROTECT, related_name="child_links")
+    child_lot = models.ForeignKey(StkLot, on_delete=models.PROTECT, related_name="parent_links")
+    qty = models.DecimalField(max_digits=18, decimal_places=4)
+    source_document = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        db_table = "stk_lot_genealogy"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["parent_lot", "child_lot", "source_document"],
+                name="uniq_stk_lot_genealogy_link",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.parent_lot} -> {self.child_lot}"
+
+
 class StkQuant(BaseModel):
     """Photo instantanee de la quantite/valeur disponible pour un couple
     (produit, emplacement, lot) — **vue materialisee derivee de l'historique

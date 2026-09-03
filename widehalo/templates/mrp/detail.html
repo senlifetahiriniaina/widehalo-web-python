@@ -11,6 +11,16 @@
              aria-label="{% trans 'Motif (suspension/annulation)' %}">
       <input type="number" name="qty_produced" placeholder="{% trans 'Quantite produite' %}" step="0.0001"
              aria-label="{% trans 'Quantite produite' %}">
+      {% if order.state == "quality_control" %}
+      <input type="number" name="qty_scrapped" placeholder="{% trans 'Quantite rebutee' %}" step="0.0001"
+             aria-label="{% trans 'Quantite rebutee' %}">
+      <input type="text" name="output_lot_name" placeholder="{% trans 'N° de lot de sortie (optionnel)' %}"
+             aria-label="{% trans 'N° de lot de sortie' %}">
+      <select name="location_to_id" aria-label="{% trans 'Emplacement de réception' %}">
+        <option value="">{% trans "— Emplacement de réception —" %}</option>
+        {% for loc in output_locations %}<option value="{{ loc.id }}">{{ loc.code }} — {{ loc.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
       {% if order.state == "draft" %}<button type="submit" name="action" value="confirm">{% trans "Confirmer" %}</button>{% endif %}
       {% if order.state == "confirmed" %}<button type="submit" name="action" value="reserve">{% trans "Réserver" %}</button>{% endif %}
       {% if order.state == "reserved" %}<button type="submit" name="action" value="start">{% trans "Démarrer" %}</button>{% endif %}
@@ -28,6 +38,28 @@
 </div>
   <p>{% trans "Quantité" %}: {{ order.qty }} {{ order.uom_code }}</p>
   <p>{% trans "Quantité produite" %}: {{ order.qty_produced }}</p>
+
+  <h2>{% trans "Rendement" %}</h2>
+  <p>
+    {% trans "Théorique" %}: {{ yield_data.qty_target }} —
+    {% trans "Réel" %}: {{ yield_data.qty_produced }}
+    {% if yield_data.yield_pct is not None %}(<strong>{{ yield_data.yield_pct|floatformat:1 }} %</strong>){% endif %}
+    {% if yield_data.qty_scrapped %} — {% trans "Rebuts" %}: {{ yield_data.qty_scrapped }}{% endif %}
+  </p>
+
+  {% if order.output_lot_name %}
+  <h2>{% trans "Généalogie du lot de sortie" %} ({{ order.output_lot_name }})</h2>
+  {% if genealogy %}
+    <h3>{% trans "Lots parents (amont)" %}</h3>
+    <ul>
+      {% for parent in genealogy.ancestors %}
+        <li>{{ parent.lot_name }} — {% trans "qté consommée" %}: {{ parent.qty }}</li>
+      {% empty %}
+        <li>{% trans "Aucun lot parent enregistré." %}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% endif %}
 
   <h2>{% trans "Rapports" %}</h2>
   <ul>
@@ -52,6 +84,11 @@
             <form method="post" style="display:inline;">
               {% csrf_token %}
               <input type="hidden" name="component_id" value="{{ component.id }}">
+              <input type="text" name="consumption_lot" placeholder="{% trans 'N° de lot' %}" value="{{ component.lot }}"
+                     style="width:8em;" aria-label="{% trans 'N° de lot consommé' %}">
+              <input type="number" name="consumption_qty" placeholder="{% trans 'Qté consommée' %}" step="0.0001"
+                     value="{{ component.qty_consumed }}" style="width:6em;" aria-label="{% trans 'Quantité consommée' %}">
+              <button type="submit" name="action" value="record_component_consumption">{% trans "Enregistrer" %}</button>
               {% if not proc_state or proc_state.state == "a_commander" %}
                 <button type="submit" name="action" value="request_sample">{% trans "Demander échantillon" %}</button>
                 <button type="submit" name="action" value="validate_supplier">{% trans "Valider fournisseur" %}</button>

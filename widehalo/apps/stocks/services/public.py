@@ -141,3 +141,147 @@ def decide_stock_import_qualification(
 
     approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
     decide_qualification(approval_request, decided_by, approved=approved, comment=comment)
+
+
+# --------------------------------------------------------------------------
+# A2 (L4 Agro, cf. docs/planning/2026-refonte-ux-sprints.md §5) : premiere
+# consommation de cette surface par `mrp` — jusqu'ici `mrp` ne creait aucun
+# `StkMove` (cf. docstring de
+# `apps.stocks.services.consistency.production_consistency_report`, qui
+# documente explicitement ce manque pour RG-STK-6). Les fonctions
+# ci-dessous ferment ce manque pour le seul cas "reception de la production
+# d'un ordre de transformation", sans reconstruire une integration
+# MRP/stocks complete (reservation/consommation des composants reste hors
+# perimetre A2, deja couverte cote utilisateur par le flux de picking
+# existant).
+# --------------------------------------------------------------------------
+
+from apps.stocks.models import StkLot, StkMove  # noqa: E402
+from apps.stocks.services.genealogy import genealogy_tree, record_consumption  # noqa: E402
+from apps.stocks.services.moves import create_move, validate_move  # noqa: E402
+
+
+def list_locations(tenant: Tenant) -> list[dict[str, Any]]:
+    """Primitives uniquement (jamais `StkLocation`) pour alimenter un
+    sélecteur d'emplacement côté appelant (ex. formulaire de clôture d'un
+    ordre de transformation `mrp`)."""
+    return [
+        {"id": location.id, "code": location.code, "name": location.name, "type": location.type}
+        for location in StkLocation.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    ]
+
+
+def get_or_create_lot(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    name: str,
+    date_production: dt.date | None = None,
+    date_expiry: dt.date | None = None,
+) -> UUID:
+    """Résout un lot existant par `(tenant, variant_id, name)`
+    (`UniqueConstraint` déjà en place sur `StkLot`) ou le crée. Ne met
+    jamais à jour un lot déjà existant (un lot est un identifiant, pas un
+    enregistrement mutable au fil des appels) — les dates ne sont
+    appliquées qu'à la création."""
+    lot, _created = StkLot.objects.get_or_create(
+        tenant=tenant,
+        variant_id=variant_id,
+        name=name,
+        defaults={"date_production": date_production, "date_expiry": date_expiry},
+    )
+    lot_id: UUID = lot.id
+    return lot_id
+
+
+def receive_production_output(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    qty: Decimal,
+    location_to_id: Any,
+    date: dt.date,
+    source_document: str,
+    lot_name: str = "",
+    unit_cost_mga: Decimal = Decimal(0),
+) -> UUID:
+    """Réception en stock de la production d'un ordre de transformation
+    (`mrp.MrpOrder`) : crée+valide un `StkMove` `production_in`, comblant
+    le manque documenté par RG-STK-6 (jusqu'à A2, `mrp` ne créait aucun
+    mouvement — `production_consistency_report` ne trouvait donc jamais de
+    quantité réellement entrée en stock pour un ordre clos). `location_from`
+    est toujours l'emplacement virtuel `TYPE_PRODUCTION` du même entrepôt
+    que `location_to` (créé s'il n'existe pas encore) — même convention
+    que les autres mouvements virtuel->interne du module (réception
+    fournisseur, retour client)."""
+    location_to = StkLocation.objects.get(tenant=tenant, id=location_to_id)
+    location_from, _created = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=location_to.warehouse,
+        type=StkLocation.TYPE_PRODUCTION,
+        defaults={"code": f"{location_to.warehouse.code}-PROD", "name": "Production (virtuel)"},
+    )
+    lot = None
+    if lot_name:
+        lot_id = get_or_create_lot(tenant=tenant, variant_id=variant_id, name=lot_name)
+        lot = StkLot.objects.get(id=lot_id)
+    move = create_move(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom="",
+        location_from=location_from,
+        location_to=location_to,
+        date=date,
+        move_type=StkMove.TYPE_PRODUCTION_IN,
+        source_document=source_document,
+        unit_cost_mga=unit_cost_mga,
+        lot=lot,
+    )
+    validate_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
+def record_lot_genealogy(
+    *,
+    tenant: Tenant,
+    parent_variant_id: Any,
+    parent_lot_name: str,
+    child_variant_id: Any,
+    child_lot_name: str,
+    qty: Decimal,
+    source_document: str = "",
+) -> UUID | None:
+    """Lie un lot parent (matière/composant consommé) à un lot enfant
+    (sortie de transformation), pour la traçabilité amont/aval A2/A3.
+    Crée les deux lots s'ils n'existent pas déjà (discipline "jamais de
+    faux positif" : un appelant qui fournit un nom de lot inédit doit voir
+    le lien créé, pas silencieusement ignoré). Retourne `None` uniquement
+    si `qty <= 0` (rien à enregistrer), jamais une exception — l'appelant
+    (`mrp`) ne doit pas avoir à gérer un cas d'erreur pour une entrée de
+    consommation simplement vide/non renseignée."""
+    if qty <= 0:
+        return None
+    parent_id = get_or_create_lot(tenant=tenant, variant_id=parent_variant_id, name=parent_lot_name)
+    child_id = get_or_create_lot(tenant=tenant, variant_id=child_variant_id, name=child_lot_name)
+    link = record_consumption(
+        tenant=tenant,
+        parent_lot=StkLot.objects.get(id=parent_id),
+        child_lot=StkLot.objects.get(id=child_id),
+        qty=qty,
+        source_document=source_document,
+    )
+    link_id: UUID = link.id
+    return link_id
+
+
+def lot_genealogy_tree(*, tenant: Tenant, variant_id: Any, name: str) -> dict[str, Any] | None:
+    """Arbre de traçabilité amont/aval du lot `(tenant, variant_id, name)`
+    — `None`, jamais une exception, si ce lot n'existe pas (ex. l'ordre de
+    transformation n'a pas encore été clôturé avec un nom de lot de
+    sortie)."""
+    lot = StkLot.objects.filter(tenant=tenant, variant_id=variant_id, name=name).first()
+    if lot is None:
+        return None
+    return genealogy_tree(lot)

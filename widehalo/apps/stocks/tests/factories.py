@@ -19,6 +19,7 @@ from apps.stocks.models import (
     StkInventoryLine,
     StkLocation,
     StkLot,
+    StkLotGenealogy,
     StkMeasurement,
     StkMove,
     StkNegativeStockException,
@@ -71,6 +72,16 @@ class StkLotFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     variant_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"LOT-{n}")
+
+
+class StkLotGenealogyFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkLotGenealogy
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    parent_lot = factory.SubFactory(StkLotFactory, tenant=factory.SelfAttribute("..tenant"))
+    child_lot = factory.SubFactory(StkLotFactory, tenant=factory.SelfAttribute("..tenant"))
+    qty = Decimal("1")
 
 
 class StkQuantFactory(factory.django.DjangoModelFactory):
