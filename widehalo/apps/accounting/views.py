@@ -13,6 +13,7 @@ from typing import cast
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
@@ -31,7 +32,9 @@ from apps.accounting.services.invoices import (
     create_invoice,
     validate_invoice,
 )
+from apps.accounting.services.moves import add_line, create_draft_move, post_move
 from apps.accounting.services.payments import register_payment
+from apps.accounting.services.quick_entry import suggest_counterpart_account
 from apps.core.models.audit import AuditLog
 from apps.core.models.document import Document
 from apps.core.models.user import User
@@ -225,5 +228,118 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
             ),
             "error": error,
             "today": date.today(),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Saisie comptable rapide (X2, Sprint 8 / L5)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def quick_entry_list(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    drafts = AccMove.objects.filter(
+        tenant=tenant, move_type=AccMove.TYPE_ENTRY, state=AccMove.STATE_DRAFT, is_active=True
+    ).order_by("-created_at")
+    posted = AccMove.objects.filter(
+        tenant=tenant, move_type=AccMove.TYPE_ENTRY, state=AccMove.STATE_POSTED, is_active=True
+    ).order_by("-date")[:50]
+    return render(
+        request, "accounting/quick_entry_list.html", {"drafts": drafts, "posted": posted}
+    )
+
+
+@login_required
+def quick_entry_create(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    journals = AccJournal.objects.filter(tenant=tenant).order_by("code")
+    periods = AccPeriod.objects.filter(tenant=tenant, state=AccPeriod.STATE_OPEN).order_by(
+        "date_start"
+    )
+    default_journal = journals.first()
+    default_period = periods.first()
+    error = None
+
+    if request.method == "POST":
+        try:
+            journal = get_object_or_404(
+                AccJournal, id=request.POST.get("journal_id"), tenant=tenant
+            )
+            period = get_object_or_404(AccPeriod, id=request.POST.get("period_id"), tenant=tenant)
+            move = create_draft_move(
+                tenant=tenant,
+                journal=journal,
+                period=period,
+                date=date.fromisoformat(request.POST.get("date") or date.today().isoformat()),
+                narration=request.POST.get("narration", ""),
+            )
+        except (ValidationError, InvalidOperation) as exc:
+            error = str(exc)
+        else:
+            return redirect("accounting:quick_entry_detail", move_id=move.id)
+
+    return render(
+        request,
+        "accounting/quick_entry_create.html",
+        {
+            "journals": journals,
+            "periods": periods,
+            "default_journal_id": default_journal.id if default_journal else None,
+            "default_period_id": default_period.id if default_period else None,
+            "error": error,
+            "today": date.today(),
+        },
+    )
+
+
+@login_required
+def quick_entry_detail(request: HttpRequest, move_id: str) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    move = get_object_or_404(AccMove, id=move_id, tenant=tenant, move_type=AccMove.TYPE_ENTRY)
+    error = None
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "add_line":
+                account = get_object_or_404(
+                    AccAccount, id=request.POST.get("account_id"), tenant=tenant
+                )
+                add_line(
+                    move,
+                    account=account,
+                    label=request.POST.get("label", ""),
+                    debit=Decimal(request.POST.get("debit") or "0"),
+                    credit=Decimal(request.POST.get("credit") or "0"),
+                )
+            elif action == "post":
+                post_move(move)
+        except (ValidationError, InvalidOperation) as exc:
+            error = str(exc)
+        else:
+            return redirect("accounting:quick_entry_detail", move_id=move.id)
+
+    lines = list(move.lines.select_related("account").all())
+    totals = move.lines.aggregate(debit=Sum("debit"), credit=Sum("credit"))
+    total_debit = totals["debit"] or Decimal(0)
+    total_credit = totals["credit"] or Decimal(0)
+    suggested_account = (
+        suggest_counterpart_account(tenant=tenant, account=lines[-1].account) if lines else None
+    )
+
+    return render(
+        request,
+        "accounting/quick_entry_detail.html",
+        {
+            "move": move,
+            "lines": lines,
+            "accounts": AccAccount.objects.filter(tenant=tenant, is_active=True).order_by("code"),
+            "total_debit": total_debit,
+            "total_credit": total_credit,
+            "balance": total_debit - total_credit,
+            "suggested_account": suggested_account,
+            "error": error,
         },
     )

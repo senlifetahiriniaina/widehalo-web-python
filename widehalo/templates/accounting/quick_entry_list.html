@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{% trans "Saisie comptable rapide" %} — WideHalo{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Saisie comptable rapide" %}</h1>
+  </div>
+  <p><a href="{% url 'accounting:quick_entry_create' %}">{% trans "Nouvelle écriture" %}</a></p>
+  <p><a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a></p>
+
+  <h2>{% trans "Brouillons en cours" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Journal" %}</th><th>{% trans "Date" %}</th><th>{% trans "Libellé" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for move in drafts %}
+      <tr>
+        <td>{{ move.journal.name }}</td>
+        <td>{{ move.date }}</td>
+        <td>{{ move.narration }}</td>
+        <td><a href="{% url 'accounting:quick_entry_detail' move_id=move.id %}">{% trans "Continuer la saisie" %}</a></td>
+      </tr>
+      {% empty %}
+        <tr><td colspan="4">{% trans "Aucun brouillon en cours." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% trans "Écritures publiées récentes" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Journal" %}</th><th>{% trans "Date" %}</th><th>{% trans "Débit" %}</th><th>{% trans "Crédit" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for move in posted %}
+      <tr>
+        <td>{{ move.reference }}</td>
+        <td>{{ move.journal.name }}</td>
+        <td>{{ move.date }}</td>
+        <td class="col-num">{{ move.total_debit }}</td>
+        <td class="col-num">{{ move.total_credit }}</td>
+        <td><a href="{% url 'accounting:quick_entry_detail' move_id=move.id %}">{% trans "Voir" %}</a></td>
+      </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune écriture publiée." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

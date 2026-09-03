@@ -7,6 +7,9 @@ app_name = "accounting"
 urlpatterns = [
     path("", views.invoice_list, name="list"),
     path("new/", views.invoice_create, name="create"),
+    path("quick-entry/", views.quick_entry_list, name="quick_entry_list"),
+    path("quick-entry/new/", views.quick_entry_create, name="quick_entry_create"),
+    path("quick-entry/<uuid:move_id>/", views.quick_entry_detail, name="quick_entry_detail"),
     path("reports/", views_reports.reports_index, name="reports_index"),
     path(
         "reports/trial-balance/",

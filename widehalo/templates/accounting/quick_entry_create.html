@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouvelle écriture" %} — WideHalo{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Nouvelle écriture (saisie rapide)" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if not journals or not periods %}
+    <p class="form-error">
+      {% trans "Configuration comptable incomplète (aucun journal, ou aucune période ouverte)." %}
+      <a href="{% url 'accounting:config_journals' %}">{% trans "Configurer les journaux" %}</a>
+      &middot;
+      <a href="{% url 'accounting:config_periods' %}">{% trans "Configurer les périodes" %}</a>
+    </p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="journal_id">{% trans "Journal" %}</label>
+      <select id="journal_id" name="journal_id" required>
+        {% for journal in journals %}
+          <option value="{{ journal.id }}" {% if journal.id == default_journal_id %}selected{% endif %}>{{ journal.code }} — {{ journal.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="period_id">{% trans "Période" %}</label>
+      <select id="period_id" name="period_id" required>
+        {% for period in periods %}
+          <option value="{{ period.id }}" {% if period.id == default_period_id %}selected{% endif %}>{{ period.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="date">{% trans "Date" %}</label>
+      <input id="date" type="date" name="date" value="{{ today|date:'Y-m-d' }}" required>
+    </div>
+    <div class="form-field">
+      <label for="narration">{% trans "Libellé de l'écriture" %}</label>
+      <input id="narration" type="text" name="narration">
+    </div>
+    <button type="submit">{% trans "Démarrer la saisie des lignes" %}</button>
+  </form>
+{% endblock %}
