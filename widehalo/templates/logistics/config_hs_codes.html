@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Codes du système harmonise" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Codes SH" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Codes du système harmonise (RG-LOG-6)" %}</h1>
 </div>
@@ -35,6 +39,6 @@
     <input type="number" name="duty_rate_pct" step="0.001" placeholder="{% trans 'Taux de droits (%)' %}" required>
     <input type="date" name="valid_from">
     <input type="date" name="valid_to">
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

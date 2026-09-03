@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports Logistique" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:vehicle_list' %}">{% trans "Logistique" %}</a>
+  <span>/</span> {% trans "Rapports" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Rapports Logistique (§5.7)" %}</h1>
 </div>
@@ -16,7 +20,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Statut des expéditions" %}</h2>
@@ -29,7 +33,7 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 
   <h2>{% trans "Synthèse des droits de douane" %}</h2>
@@ -42,6 +46,6 @@
         <option value="xlsx">XLSX</option>
       </select>
     </div>
-    <button type="submit">{% trans "Telecharger" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
   </form>
 {% endblock %}

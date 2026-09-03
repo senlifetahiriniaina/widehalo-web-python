@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ vehicle.plate_number }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
+  <span>/</span> {{ vehicle.plate_number }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{{ vehicle.plate_number }}</h1>
 </div>
@@ -40,7 +44,7 @@
     <input type="date" name="issue_date" placeholder="{% trans 'Date d emission' %}">
     <input type="date" name="expiry_date" placeholder="{% trans 'Date d echeance' %}">
     <input type="number" name="alert_days_before" value="30">
-    <button type="submit">{% trans "Ajouter un document" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter un document" %}</c-button>
   </form>
 
   <h2>{% trans "Coûts" %}</h2>
@@ -74,6 +78,6 @@
     <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant' %}" required>
     <input type="number" name="odometer_km" step="0.01" placeholder="{% trans 'Kilometrage' %}">
     <input type="text" name="note" placeholder="{% trans 'Note' %}">
-    <button type="submit">{% trans "Ajouter un coût" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter un coût" %}</c-button>
   </form>
 {% endblock %}

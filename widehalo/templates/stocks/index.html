@@ -2,26 +2,27 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Stocks" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "Stocks" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Stocks" %}</h1>
 </div>
-  <nav class="app-menu-dropdown" style="position:static;display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
-    <a href="{% url 'stocks:stock_view' %}">{% trans "Vue stock" %}</a>
-    <a href="{% url 'stocks:move_list' %}">{% trans "Mouvements" %}</a>
-    <a href="{% url 'stocks:picking_list' %}">{% trans "Opérations (pickings)" %}</a>
-    <a href="{% url 'stocks:measurement_create' %}">{% trans "Mesures" %}</a>
-    <a href="{% url 'stocks:quality_list' %}">{% trans "Qualité" %}</a>
-    <a href="{% url 'stocks:reservation_list' %}">{% trans "Réservations" %}</a>
-    <a href="{% url 'stocks:inventory_list' %}">{% trans "Inventaires" %}</a>
-    <a href="{% url 'stocks:return_list' %}">{% trans "Retours" %}</a>
-    <a href="{% url 'stocks:traceability_lookup' %}">{% trans "Tracabilite" %}</a>
-    <a href="{% url 'stocks:recall_list' %}">{% trans "Rappels produit" %}</a>
-    <a href="{% url 'stocks:redistribution_view' %}">{% trans "Redistribution" %}</a>
-    <a href="{% url 'stocks:obsolescence_view' %}">{% trans "Obsolescence" %}</a>
-    <a href="{% url 'stocks:abc_view' %}">{% trans "Classification ABC" %}</a>
-    <a href="{% url 'stocks:reports_index' %}">{% trans "Rapports" %}</a>
-    <a href="{% url 'stocks:config_index' %}">{% trans "Configuration" %}</a>
-    <a href="{% url 'stocks:imports_index' %}">{% trans "Import quantités initiales" %}</a>
+  <nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+    <a role="tab" class="tab {% if active_tab == 'stock' %}tab-active{% endif %}" href="{% url 'stocks:stock_view' %}">{% trans "Vue stock" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'moves' %}tab-active{% endif %}" href="{% url 'stocks:move_list' %}">{% trans "Mouvements" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'pickings' %}tab-active{% endif %}" href="{% url 'stocks:picking_list' %}">{% trans "Opérations (pickings)" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'measurements' %}tab-active{% endif %}" href="{% url 'stocks:measurement_create' %}">{% trans "Mesures" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'quality' %}tab-active{% endif %}" href="{% url 'stocks:quality_list' %}">{% trans "Qualité" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'reservations' %}tab-active{% endif %}" href="{% url 'stocks:reservation_list' %}">{% trans "Réservations" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'inventories' %}tab-active{% endif %}" href="{% url 'stocks:inventory_list' %}">{% trans "Inventaires" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'returns' %}tab-active{% endif %}" href="{% url 'stocks:return_list' %}">{% trans "Retours" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'traceability' %}tab-active{% endif %}" href="{% url 'stocks:traceability_lookup' %}">{% trans "Tracabilite" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'recall' %}tab-active{% endif %}" href="{% url 'stocks:recall_list' %}">{% trans "Rappels produit" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'redistribution' %}tab-active{% endif %}" href="{% url 'stocks:redistribution_view' %}">{% trans "Redistribution" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'obsolescence' %}tab-active{% endif %}" href="{% url 'stocks:obsolescence_view' %}">{% trans "Obsolescence" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'abc' %}tab-active{% endif %}" href="{% url 'stocks:abc_view' %}">{% trans "Classification ABC" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'reports' %}tab-active{% endif %}" href="{% url 'stocks:reports_index' %}">{% trans "Rapports" %}</a>
+    <a role="tab" class="tab {% if active_tab == 'config' %}tab-active{% endif %}" href="{% url 'stocks:config_index' %}">{% trans "Configuration" %}</a>
+    <a role="tab" class="tab" href="{% url 'stocks:imports_index' %}">{% trans "Import quantités initiales" %}</a>
   </nav>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 

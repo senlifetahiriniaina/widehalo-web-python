@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Chauffeurs" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:vehicle_list' %}">{% trans "Logistique" %}</a>
+  <span>/</span> {% trans "Chauffeurs" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Chauffeurs" %}</h1>
 </div>
@@ -40,6 +44,6 @@
       <input type="checkbox" name="consent_geolocation" value="1">
       {% trans "Consentement explicite a la geolocalisation (RG-LOG-GEO1)" %}
     </label>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

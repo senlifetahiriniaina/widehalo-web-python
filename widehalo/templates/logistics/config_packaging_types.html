@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Types d'emballage" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Types d'emballage" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Types d'emballage (RG-LOG-5)" %}</h1>
 </div>
@@ -39,6 +43,6 @@
     <input type="number" name="tare_weight_kg" step="0.001" placeholder="{% trans 'Poids a vide (kg)' %}">
     <input type="number" name="max_weight_kg" step="0.001" placeholder="{% trans 'Poids max (kg)' %}">
     <input type="number" name="volume_m3" step="0.0001" placeholder="{% trans 'Volume (m3)' %}">
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

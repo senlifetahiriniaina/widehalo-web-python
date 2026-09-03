@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ trip.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
+    <span>/</span> {{ trip.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ trip.status|state_badge_class }}">{{ trip.get_status_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
@@ -10,7 +14,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="start">
         <input type="number" name="start_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de depart' %}" required>
-        <button type="submit">{% trans "Démarrer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Démarrer" %}</c-button>
       </form>
     {% endif %}
     {% if trip.status == "in_progress" %}
@@ -18,7 +22,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="close">
         <input type="number" name="end_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de fin' %}" required>
-        <button type="submit">{% trans "Clôturer" %}</button>
+        <c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button>
       </form>
     {% endif %}
   </div>
@@ -63,6 +67,6 @@
     <input type="datetime-local" name="actual_time" required>
     <input type="text" name="signed_by" placeholder="{% trans 'Signe par' %}">
     <input type="file" name="proof_file">
-    <button type="submit">{% trans "Enregistrer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
   </form>
 {% endblock %}

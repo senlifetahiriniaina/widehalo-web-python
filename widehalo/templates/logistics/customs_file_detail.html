@@ -2,13 +2,17 @@
 {% load i18n core_extras %}
 {% block title %}{{ customs_file.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'logistics:shipment_detail' shipment_id=customs_file.shipment_id %}">{{ customs_file.shipment.reference|default:"Expédition" }}</a>
+    <span>/</span> {{ customs_file.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ customs_file.state|state_badge_class }}">{{ customs_file.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" style="display:inline;">
       {% csrf_token %}
-      {% if customs_file.state == "open" %}<button type="submit" name="action" value="mark_cleared">{% trans "Marquer dédouané" %}</button>{% endif %}
-      {% if customs_file.state == "cleared" %}<button type="submit" name="action" value="close">{% trans "Clôturer (transfert des coûts d'approche)" %}</button>{% endif %}
+      {% if customs_file.state == "open" %}<c-button variant="primary" type="submit" name="action" value="mark_cleared">{% trans "Marquer dédouané" %}</c-button>{% endif %}
+      {% if customs_file.state == "cleared" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer (transfert des coûts d'approche)" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -64,7 +68,7 @@
       <input type="number" name="insurance_value_mga" step="0.0001" placeholder="{% trans 'Assurance' %}">
       <input type="number" name="other_non_recoverable_taxes_mga" step="0.0001" placeholder="{% trans 'Autres taxes non recuperables' %}">
       <input type="number" name="transit_cost_mga" step="0.0001" placeholder="{% trans 'Transit' %}">
-      <button type="submit">{% trans "Ajouter" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
     </form>
   {% endif %}
 {% endblock %}

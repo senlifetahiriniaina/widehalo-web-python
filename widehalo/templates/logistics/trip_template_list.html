@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Gabarits de tournée" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
+  <span>/</span> {% trans "Gabarits de tournée" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Gabarits de tournée (LOG-REC1)" %}</h1>
 </div>
@@ -47,6 +51,6 @@
     <input type="date" name="start_date" required>
     <input type="date" name="end_date">
     <textarea name="stop_addresses" rows="3" placeholder="{% trans 'Arrets (une adresse par ligne)' %}" required></textarea>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

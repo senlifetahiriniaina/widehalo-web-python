@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle expédition" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:shipment_list' %}">{% trans "Expéditions" %}</a>
+  <span>/</span> {% trans "Nouvelle" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouvelle expédition" %}</h1>
 </div>
@@ -30,6 +34,6 @@
         {% for value, label in incoterm_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

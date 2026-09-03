@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ shipment.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'logistics:shipment_list' %}">{% trans "Expéditions" %}</a>
+    <span>/</span> {{ shipment.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ shipment.state|state_badge_class }}">{{ shipment.get_state_display }}</span>
     {% if shipment.block_reason %}<p>{% trans "Motif de blocage" %}: {{ shipment.block_reason }}</p>{% endif %}
@@ -9,16 +13,16 @@
     <form method="post" style="display:inline;">
       {% csrf_token %}
       <input type="text" name="reason" placeholder="{% trans 'Motif (blocage)' %}">
-      {% if shipment.state == "planned" %}<button type="submit" name="action" value="book">{% trans "Réserver" %}</button>{% endif %}
-      {% if shipment.state == "booked" %}<button type="submit" name="action" value="pick_up">{% trans "Enlever" %}</button>{% endif %}
-      {% if shipment.state == "picked_up" %}<button type="submit" name="action" value="mark_in_transit">{% trans "Marquer en transit" %}</button>{% endif %}
-      {% if shipment.state == "in_transit" %}<button type="submit" name="action" value="mark_arrived_at_port">{% trans "Marquer arrivée au port" %}</button>{% endif %}
-      {% if shipment.state == "arrived_at_port" %}<button type="submit" name="action" value="start_customs_clearance">{% trans "Mettre en dédouanement" %}</button>{% endif %}
-      {% if shipment.state == "customs_clearance" %}<button type="submit" name="action" value="mark_customs_cleared">{% trans "Marquer dédouanée" %}</button>{% endif %}
-      {% if shipment.state == "customs_cleared" %}<button type="submit" name="action" value="deliver">{% trans "Marquer livrée" %}</button>{% endif %}
-      {% if shipment.state == "delivered" %}<button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>{% endif %}
-      {% if shipment.state == "blocked" %}<button type="submit" name="action" value="unblock">{% trans "Débloquer" %}</button>{% endif %}
-      {% if shipment.state == "booked" or shipment.state == "picked_up" or shipment.state == "in_transit" or shipment.state == "arrived_at_port" or shipment.state == "customs_clearance" %}<button type="submit" name="action" value="block">{% trans "Bloquer" %}</button>{% endif %}
+      {% if shipment.state == "planned" %}<c-button variant="primary" type="submit" name="action" value="book">{% trans "Réserver" %}</c-button>{% endif %}
+      {% if shipment.state == "booked" %}<c-button variant="primary" type="submit" name="action" value="pick_up">{% trans "Enlever" %}</c-button>{% endif %}
+      {% if shipment.state == "picked_up" %}<c-button variant="primary" type="submit" name="action" value="mark_in_transit">{% trans "Marquer en transit" %}</c-button>{% endif %}
+      {% if shipment.state == "in_transit" %}<c-button variant="primary" type="submit" name="action" value="mark_arrived_at_port">{% trans "Marquer arrivée au port" %}</c-button>{% endif %}
+      {% if shipment.state == "arrived_at_port" %}<c-button variant="primary" type="submit" name="action" value="start_customs_clearance">{% trans "Mettre en dédouanement" %}</c-button>{% endif %}
+      {% if shipment.state == "customs_clearance" %}<c-button variant="primary" type="submit" name="action" value="mark_customs_cleared">{% trans "Marquer dédouanée" %}</c-button>{% endif %}
+      {% if shipment.state == "customs_cleared" %}<c-button variant="primary" type="submit" name="action" value="deliver">{% trans "Marquer livrée" %}</c-button>{% endif %}
+      {% if shipment.state == "delivered" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer" %}</c-button>{% endif %}
+      {% if shipment.state == "blocked" %}<c-button variant="primary" type="submit" name="action" value="unblock">{% trans "Débloquer" %}</c-button>{% endif %}
+      {% if shipment.state == "booked" or shipment.state == "picked_up" or shipment.state == "in_transit" or shipment.state == "arrived_at_port" or shipment.state == "customs_clearance" %}<c-button variant="danger" type="submit" name="action" value="block">{% trans "Bloquer" %}</c-button>{% endif %}
     </form>
   </div>
 
@@ -36,7 +40,7 @@
     <input type="hidden" name="action" value="refactor_freight">
     <input type="text" name="partner_id" placeholder="{% trans 'Client (UUID)' %}" required>
     <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant (par defaut : cout reel)' %}">
-    <button type="submit">{% trans "Refacturer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Refacturer" %}</c-button>
   </form>
 
   <h2>{% trans "Étapes de transport (legs)" %}</h2>
@@ -83,7 +87,7 @@
     </select>
     <input type="date" name="departure_date">
     <input type="date" name="arrival_date">
-    <button type="submit">{% trans "Ajouter une étape" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ajouter une étape" %}</c-button>
   </form>
 
   <h2>{% trans "Dossiers douaniers (RG-LOG-6)" %}</h2>
@@ -101,6 +105,6 @@
       <option value="">-</option>
       {% for carrier in carriers %}<option value="{{ carrier.id }}">{{ carrier.name }}</option>{% endfor %}
     </select>
-    <button type="submit">{% trans "Ouvrir un dossier douanier" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Ouvrir un dossier douanier" %}</c-button>
   </form>
 {% endblock %}

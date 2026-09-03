@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Prestataires et tarifs de fret" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:config_index' %}">{% trans "Configuration" %}</a>
+  <span>/</span> {% trans "Prestataires et tarifs" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Prestataires et tarifs de fret (LOG3)" %}</h1>
 </div>
@@ -40,7 +44,7 @@
     </select>
     <input type="text" name="contact_phone" placeholder="{% trans 'Telephone' %}">
     <input type="email" name="contact_email" placeholder="{% trans 'Email' %}">
-    <button type="submit">{% trans "Créer le prestataire" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer le prestataire" %}</c-button>
   </form>
 
   <h2>{% trans "Tarifs de fret" %}</h2>
@@ -81,6 +85,6 @@
     <input type="number" name="transit_days" placeholder="{% trans 'Delai (jours)' %}" required>
     <input type="date" name="valid_from">
     <input type="date" name="valid_to">
-    <button type="submit">{% trans "Créer le tarif" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer le tarif" %}</c-button>
   </form>
 {% endblock %}

@@ -2,13 +2,17 @@
 {% load i18n %}
 {% block title %}{% trans "Trajets" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:vehicle_list' %}">{% trans "Logistique" %}</a>
+  <span>/</span> {% trans "Trajets" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Trajets" %}</h1>
 </div>
   <p>
-    <a href="{% url 'logistics:trip_create' %}">{% trans "Nouveau trajet" %}</a>
-    | <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournée" %}</a>
-    | <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
+    <a href="{% url 'logistics:trip_create' %}" class="btn btn-primary">{% trans "Nouveau trajet" %}</a>
+    <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournée" %}</a>
+    <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
   </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

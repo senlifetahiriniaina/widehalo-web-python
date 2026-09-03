@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouveau trajet" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
+  <span>/</span> {% trans "Nouveau" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Nouveau trajet" %}</h1>
 </div>
@@ -28,6 +32,6 @@
       <label for="stop_addresses">{% trans "Arrêts (une adresse par ligne)" %}</label>
       <textarea id="stop_addresses" name="stop_addresses" rows="5" required></textarea>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer" %}</c-button>
   </form>
 {% endblock %}
