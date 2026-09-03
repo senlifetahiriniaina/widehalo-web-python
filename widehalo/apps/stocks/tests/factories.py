@@ -26,6 +26,7 @@ from apps.stocks.models import (
     StkPicking,
     StkQualityState,
     StkQuant,
+    StkRecall,
     StkReservation,
     StkReturn,
     StkValuationLayer,
@@ -208,6 +209,16 @@ class StkReturnFactory(factory.django.DjangoModelFactory):
     qty = Decimal("1")
     date = factory.LazyFunction(dt.date.today)
     state = StkReturn.STATE_DRAFT
+
+
+class StkRecallFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StkRecall
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    reference = factory.Sequence(lambda n: f"RECALL-{n}")
+    lot = factory.SubFactory(StkLotFactory, tenant=factory.SelfAttribute("..tenant"))
+    reason = "Test"
 
 
 class StkNegativeStockExceptionFactory(factory.django.DjangoModelFactory):

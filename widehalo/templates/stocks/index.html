@@ -15,6 +15,7 @@
     <a href="{% url 'stocks:inventory_list' %}">{% trans "Inventaires" %}</a>
     <a href="{% url 'stocks:return_list' %}">{% trans "Retours" %}</a>
     <a href="{% url 'stocks:traceability_lookup' %}">{% trans "Tracabilite" %}</a>
+    <a href="{% url 'stocks:recall_list' %}">{% trans "Rappels produit" %}</a>
     <a href="{% url 'stocks:redistribution_view' %}">{% trans "Redistribution" %}</a>
     <a href="{% url 'stocks:obsolescence_view' %}">{% trans "Obsolescence" %}</a>
     <a href="{% url 'stocks:abc_view' %}">{% trans "Classification ABC" %}</a>
@@ -557,7 +558,60 @@
           {% for loc in result.current_locations %}<tr><td>{{ loc.location_code }}</td><td>{{ loc.qty }}</td></tr>{% empty %}<tr><td colspan="2">{% trans "Aucun stock actuel." %}</td></tr>{% endfor %}
         </tbody>
       </table>
+      <h3>{% trans "Rappel produit (RG-STK-11)" %}</h3>
+      <form method="post" action="{% url 'stocks:recall_declare' lot_id=lot.id %}">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="reason">{% trans "Motif du rappel" %}</label>
+          <input id="reason" type="text" name="reason" required
+                 placeholder="{% trans 'Ex. dépassement de seuil bactériologique COA n° ...' %}">
+        </div>
+        <button type="submit">{% trans "Déclarer un rappel sur ce lot" %}</button>
+      </form>
     {% endif %}
+  {% endif %}
+
+  {# --------------------------------------------------------------- #}
+  {# Rappel produit (StkRecall, RG-STK-11, A3)                        #}
+  {# --------------------------------------------------------------- #}
+  {% if active_tab == "recall" %}
+    <h2>{% trans "Rappels produit" %}</h2>
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>{% trans "Référence" %}</th><th>{% trans "Lot déclencheur" %}</th>
+          <th>{% trans "Motif" %}</th><th>{% trans "Lots impactés" %}</th>
+          <th>{% trans "Expositions client" %}</th><th>{% trans "Statut" %}</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for recall in recalls %}
+        <tr>
+          <td>{{ recall.reference }}</td>
+          <td>{{ recall.lot.name }}</td>
+          <td>{{ recall.reason }}</td>
+          <td>{{ recall.impacted_lot_names|join:", " }}</td>
+          <td>
+            {% for exposure in recall.client_exposures %}
+              {{ exposure.lot_name }} → {{ exposure.source_document|default:"?" }} ({{ exposure.qty }})<br>
+            {% empty %}{% trans "Aucune livraison client connue." %}{% endfor %}
+          </td>
+          <td><span class="badge {{ recall.state|state_badge_class }}">{{ recall.get_state_display }}</span></td>
+          <td>
+            {% if recall.state == "open" %}
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="recall_id" value="{{ recall.id }}">
+              <button type="submit" name="action" value="close">{% trans "Clôturer" %}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+          <tr><td colspan="7">{% trans "Aucun rappel déclaré." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   {% endif %}
 
   {# --------------------------------------------------------------- #}

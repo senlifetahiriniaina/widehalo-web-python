@@ -138,7 +138,19 @@ def create_move(
     """Cree un mouvement en `draft`. Refuse (garde de service, doublee par
     le CHECK DB `stk_move_from_ne_to` sur `location_from`/`location_to`
     pour la seconde garde) si `qty <= 0` ou `location_from == location_to`
-    — RG-STK-1, discipline "ceinture et bretelles" identique a RG-ACC-1."""
+    — RG-STK-1, discipline "ceinture et bretelles" identique a RG-ACC-1.
+
+    **RG-STK-11 (A3, hold/release qualite)** : refuse egalement tout
+    mouvement d'un `lot` actuellement bloque (`StkLot.is_held()` —
+    dernier `StkQualityState` en `en_quarantaine`/`defaut_majeur`/`rebut`)
+    SAUF si `location_to` est elle-meme un emplacement de
+    quarantaine/rebut (`TYPE_INVENTAIRE`/`TYPE_REBUT`) — c'est exactement
+    le mouvement que `services.quality.apply_quality_decision` cree pour
+    isoler physiquement un lot deja classe defectueux, qui doit rester
+    possible. Avant A3, AUCUNE garde n'empechait de continuer a expedier/
+    consommer un lot pourtant place en quarantaine (cf. docstring de
+    `services.quality`, "en_quarantaine ne declenche aucun StkMove") — ce
+    gap est celui que A3 comble."""
     if qty <= 0:
         raise ValidationError(
             _("La quantité d'un mouvement de stock doit être strictement positive.")
@@ -146,6 +158,14 @@ def create_move(
     if location_from.id == location_to.id:
         raise ValidationError(
             _("Un mouvement de stock ne peut pas avoir la même origine et la même destination.")
+        )
+    if (
+        lot is not None
+        and lot.is_held()
+        and location_to.type not in (StkLocation.TYPE_INVENTAIRE, StkLocation.TYPE_REBUT)
+    ):
+        raise ValidationError(
+            _("Ce lot est bloqué pour raison qualité et ne peut pas être déplacé/expédié.")
         )
     reference = next_reference(tenant, "STKMV", date.year)
     return StkMove.objects.create(

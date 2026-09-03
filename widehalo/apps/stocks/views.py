@@ -52,6 +52,7 @@ from apps.stocks.models import (
     StkPicking,
     StkQualityState,
     StkQuant,
+    StkRecall,
     StkReservation,
     StkReturn,
 )
@@ -76,6 +77,7 @@ from apps.stocks.services.pickings import (
 )
 from apps.stocks.services.quality import apply_quality_decision, set_quality_state
 from apps.stocks.services.quants import select_lot_fefo
+from apps.stocks.services.recall import close_recall, declare_recall
 from apps.stocks.services.redistribution import suggest_redistribution
 from apps.stocks.services.reservations import release_reservation, reserve_stock
 from apps.stocks.services.returns import assess_return, cancel_return, create_return, process_return
@@ -690,6 +692,50 @@ def traceability_lookup(request: HttpRequest) -> HttpResponse:
         if lot is not None:
             result = lot_traceability(lot)
     return _render(request, "traceability", {"lot_name": lot_name, "lot": lot, "result": result})
+
+
+# ---------------------------------------------------------------------------
+# Rappel produit (StkRecall, RG-STK-11, A3)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def recall_declare(request: HttpRequest, lot_id: str) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    user = cast(User, request.user)
+    lot = get_object_or_404(StkLot, id=lot_id, tenant=tenant)
+    if request.method == "POST":
+        try:
+            declare_recall(lot=lot, reason=request.POST.get("reason", ""), initiated_by=user)
+        except _EXC as exc:
+            return _render(
+                request,
+                "traceability",
+                {
+                    "lot_name": lot.name,
+                    "lot": lot,
+                    "result": lot_traceability(lot),
+                    "error": _error_message(exc),
+                },
+            )
+    return redirect("stocks:recall_list")
+
+
+@login_required
+def recall_list(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    user = cast(User, request.user)
+    error = None
+    if request.method == "POST" and request.POST.get("action") == "close":
+        try:
+            recall = get_object_or_404(StkRecall, id=request.POST.get("recall_id"), tenant=tenant)
+            close_recall(recall, closed_by=user)
+        except _EXC as exc:
+            error = _error_message(exc)
+        else:
+            return redirect("stocks:recall_list")
+    recalls = StkRecall.objects.filter(tenant=tenant, is_active=True).order_by("-created_at")
+    return _render(request, "recall", {"recalls": recalls, "error": error})
 
 
 # ---------------------------------------------------------------------------

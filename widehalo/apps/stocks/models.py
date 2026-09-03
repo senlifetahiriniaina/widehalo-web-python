@@ -281,6 +281,37 @@ class StkLot(BaseModel):
     def __str__(self) -> str:
         return f"{self.name} ({self.variant_id})"
 
+    def current_quality_state(self) -> str | None:
+        """A3 (L4 Agro, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
+        dernier `StkQualityState` enregistré pour CE lot (`state=None` si
+        aucun n'existe encore) — `StkQualityState` est un journal
+        d'événements (une ligne par décision), jamais un champ mutable
+        unique ; "l'état courant" du lot est donc toujours dérivé de la
+        décision la plus récente, jamais stocké en double sur `StkLot`
+        lui-même (une seule source de vérité).
+
+        Référence `StkQualityState` par son nom de classe uniquement au
+        moment de l'APPEL (jamais à la définition de cette méthode) — ce
+        module l'importe donc sans souci d'ordre malgré sa définition plus
+        bas dans ce même fichier."""
+        latest = self.quality_states.order_by("-decided_at", "-id").first()
+        return latest.state if latest else None
+
+    def is_held(self) -> bool:
+        """Vrai si la dernière décision qualité de ce lot est un état qui
+        doit bloquer sa sortie du périmètre interne (`en_quarantaine`,
+        posé explicitement par un contrôleur, ou `defaut_majeur`/`rebut`,
+        qui impliquent déjà une relocalisation physique via
+        `services.quality.apply_quality_decision`). Consommé par
+        `services.moves.create_move` (RG-STK-11, A3) pour refuser un
+        mouvement qui sortirait ce lot vers un emplacement autre que la
+        quarantaine/le rebut eux-mêmes."""
+        return self.current_quality_state() in (
+            StkQualityState.STATE_EN_QUARANTAINE,
+            StkQualityState.STATE_DEFAUT_MAJEUR,
+            StkQualityState.STATE_REBUT,
+        )
+
 
 class StkLotGenealogy(BaseModel):
     """A2 (L4 Agro, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
@@ -1182,6 +1213,61 @@ class StkReturn(BaseModel, ReferenceMixin):
 
     class Meta:
         db_table = "stk_return"
+
+    def __str__(self) -> str:
+        return self.reference or str(self.id)
+
+
+class StkRecall(BaseModel, ReferenceMixin):
+    """A3 (L4 Agro, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
+    rappel produit — journal horodaté d'un incident déclenché sur un lot
+    suspect, avec le PÉRIMÈTRE calculé et figé au moment de la déclaration
+    (`ReferenceMixin` : un rappel est un vrai document numéroté, même
+    catégorie que `StkReturn`/`StkInventory`, jamais un enregistrement
+    dérivé comme `StkQualityState`).
+
+    **Périmètre figé, jamais recalculé a posteriori** : `impacted_lot_ids`/
+    `impacted_lot_names`/`client_exposures` sont des `JSONField` qui
+    SNAPSHOTTENT le résultat de `services.genealogy.genealogy_tree`/
+    `services.traceability.lot_traceability` au moment de
+    `services.recall.declare_recall` — un choix délibéré : la généalogie
+    réelle peut continuer d'évoluer après coup (de nouveaux lots enfants
+    créés plus tard à partir d'un lot déjà rappelé, par exemple), mais le
+    journal d'incident doit rester une preuve immuable de "ce qui était
+    su et déclaré à cet instant", jamais un rapport qui se réécrit tout
+    seul. Consulter la généalogie ACTUELLE d'un lot reste possible à tout
+    moment via `lot_genealogy_tree`/`genealogy_tree`, indépendamment de
+    ce snapshot.
+
+    `client_exposures` : liste de dicts primitifs `{"lot_name",
+    "source_document", "qty"}` — `source_document` reprend la même
+    convention par correspondance de chaîne que `StkMove.source_document`
+    (référence de la commande/livraison client d'origine, jamais une FK
+    vers `apps.sales`, règle de couplage n°1)."""
+
+    STATE_OPEN = "open"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [
+        (STATE_OPEN, "Ouvert"),
+        (STATE_CLOSED, "Clos"),
+    ]
+
+    lot = models.ForeignKey(StkLot, on_delete=models.PROTECT, related_name="recalls")
+    reason = models.TextField()
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_OPEN)
+    initiated_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    impacted_lot_ids = models.JSONField(default=list, blank=True)
+    impacted_lot_names = models.JSONField(default=list, blank=True)
+    client_exposures = models.JSONField(default=list, blank=True)
+    closed_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "stk_recall"
 
     def __str__(self) -> str:
         return self.reference or str(self.id)
