@@ -42,7 +42,23 @@ masques par role la ou necessaire (`margin_report`, RG-SAL-5). Un futur
 module `payroll`/`presence` qui voudrait s'enregistrer ici DOIT documenter
 explicitement, dans son propre adaptateur, comment il respecte le meme
 niveau de masquage par role que son ecran/API existants — jamais une
-exposition brute de donnees individuelles a un LLM."""
+exposition brute de donnees individuelles a un LLM.
+
+**Ecart assume (Sprint 11, L7 IA gateway)** : l'isolation garantie
+aujourd'hui par ce registre est UNIQUEMENT applicative — liste blanche de
+tools + `required_permission` filtre par `user.has_perm()` avant meme
+d'offrir le catalogue au LLM (cf. plus haut). Le processus Django qui
+execute ces tools tourne cependant sous le MEME role de base Postgres que
+le reste de l'application (`widehalo_app`, cf. `apps.core.management.
+commands.apply_rls`) — il n'existe PAS de role Postgres dedie, moindre
+privilege (sans droit DDL/ecriture), reserve au chemin d'appel IA. Le
+critere d'acceptation du CDC "aucun droit DDL/ecriture cote role DB de
+l'IA" n'est donc PAS satisfait au niveau du role DB lui-meme, seulement au
+niveau fonctionnel (le LLM n'a jamais d'acces SQL/ORM direct, seulement
+des fonctions de lecture agregee deja testees). Provisionner un role
+Postgres dedie (CREATE ROLE + GRANT SELECT uniquement, applique au
+deploiement) est un travail d'infra/ops hors perimetre de ce sprint, qui
+reste un ecart honnetement documente plutot qu'un correctif simule."""
 
 from __future__ import annotations
 

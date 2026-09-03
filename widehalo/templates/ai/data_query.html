@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Questions-donnees IA" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "IA" %} <span>/</span> {% trans "Questions-données" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Questions-donnees IA" %}</h1>
 </div>
@@ -10,7 +11,7 @@
     <label>{% trans "Question" %}
       <textarea name="question" rows="3" placeholder="{% trans 'ex. quel est le chiffre d affaires du mois dernier par client ?' %}">{{ question }}</textarea>
     </label>
-    <button type="submit">{% trans "Poser la question" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Poser la question" %}</c-button>
   </form>
   {% if result %}
     <div class="wh-data-query-result">
@@ -20,13 +21,18 @@
         {% else %}{% trans "Analyse incomplète (fournisseur IA non configure, budget épuisé, ou erreur)." %}
         {% endif %}
       </small></p>
-      {% if result.tools_called %}
-        <p><small>{% trans "Rapports utilises :" %}</small></p>
-        <ul>
-          {% for tool_call in result.tools_called %}
-            <li>{{ tool_call.code }}</li>
-          {% endfor %}
-        </ul>
+      {% if tool_sources %}
+        <div class="wh-data-query-sources" role="note" aria-label="{% trans 'Sources consultées' %}">
+          <p><small><strong>{% trans "Sources consultées :" %}</strong> {% trans "cette réponse s'appuie uniquement sur les rapports listés ci-dessous, jamais sur une requête libre." %}</small></p>
+          <ul>
+            {% for source in tool_sources %}
+              <li>
+                <strong>{{ source.label }}</strong>
+                {% if source.module %}<small>({{ source.module }})</small>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
       {% endif %}
     </div>
   {% endif %}

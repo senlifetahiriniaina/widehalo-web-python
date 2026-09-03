@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Assistant IA" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "IA" %} <span>/</span> {% trans "Assistant contextuel" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Assistant IA contextuel" %}</h1>
 </div>
@@ -18,7 +19,7 @@
     <label>{% trans "Action en cours" %}
       <input type="text" name="action" placeholder="{% trans 'ex. consulter, creer, valider...' %}">
     </label>
-    <button type="submit">{% trans "Obtenir une guidance" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Obtenir une guidance" %}</c-button>
   </form>
   <div id="assist-result"></div>
 {% endblock %}

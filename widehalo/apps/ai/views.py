@@ -19,6 +19,7 @@ from apps.ai.services.usage_budget import current_month_token_usage, get_or_crea
 from apps.core.context import get_current_tenant_id
 from apps.core.models.tenant import Tenant
 from apps.core.services.ai_context_registry import list_registered_contexts
+from apps.core.services.data_query_tool_registry import get_data_query_tool
 from apps.core.services.permissions import user_role_codes
 
 
@@ -160,9 +161,28 @@ def data_query_screen(request: HttpRequest) -> HttpResponse:
     `apps/ai/api.py`)."""
     question = request.GET.get("question", "").strip()
     result = None
+    tool_sources: list[dict[str, str]] = []
     if question:
         tenant = Tenant.objects.get(id=get_current_tenant_id())
         result = run_data_query_ask(
             question, tenant=tenant, user=request.user, locale=request.user.preferred_language
         )
-    return render(request, "ai/data_query.html", {"question": question, "result": result})
+        # "Sources consultées" (raffinement UI Sprint 11, L7) : `tools_called`
+        # ne persiste que `code`/`args` (cf. `AiDataQuery.tools_called`) — on
+        # enrichit ici, cote vue, avec le label/module lisible du registre
+        # (`data_query_tool_registry`), sans toucher la boucle de tool-calling
+        # elle-meme ni le format persiste en base.
+        for tool_call in result.tools_called:
+            tool = get_data_query_tool(tool_call.get("code", ""))
+            tool_sources.append(
+                {
+                    "code": tool_call.get("code", ""),
+                    "label": tool.label if tool else tool_call.get("code", ""),
+                    "module": tool.module if tool else "",
+                }
+            )
+    return render(
+        request,
+        "ai/data_query.html",
+        {"question": question, "result": result, "tool_sources": tool_sources},
+    )

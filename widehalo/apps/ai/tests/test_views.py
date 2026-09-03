@@ -102,6 +102,54 @@ def test_recommendations_screen_renders_without_query_params(web_ai) -> None:
     assert b"Recommandations d'action" in response.content
 
 
+def test_data_query_screen_renders_without_question(web_ai) -> None:
+    tenant, user = web_ai
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/data-query/")
+    assert response.status_code == 200
+    assert b"Questions-donnees IA" in response.content
+
+
+def test_data_query_screen_surfaces_consulted_tool_labels(web_ai, monkeypatch) -> None:
+    # Sprint 11 (L7 IA gateway) — "presentation des reponses/actions IA" :
+    # l'ecran doit lister LISIBLEMENT (label du registre, pas juste le
+    # `code` technique persiste dans `AiDataQuery.tools_called`) les tools
+    # reellement consultes par le LLM pour composer sa reponse, jamais
+    # presenter la reponse comme une boite noire.
+    tenant, user = web_ai
+
+    def _fake_ask(question, *, tenant, user, locale):
+        from apps.ai.tests.factories import AiDataQueryFactory
+
+        return AiDataQueryFactory(
+            tenant=tenant,
+            question=question,
+            tools_called=[{"code": "sales.revenue_report", "args": {}}],
+        )
+
+    monkeypatch.setattr("apps.ai.views.run_data_query_ask", _fake_ask)
+
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get("/ai/data-query/", {"question": "quel est le CA du mois dernier ?"})
+    assert response.status_code == 200
+    assert b"Sources consult\xc3\xa9es" in response.content
+    # Le label lisible du registre (pas seulement le code technique) doit
+    # apparaitre dans le rendu (apostrophe HTML-echappee par Django, donc
+    # verifiee sur la partie sans apostrophe du libelle).
+    assert b"SAL-CA" in response.content
+    assert b"sales" in response.content
+
+
 def test_recommendations_screen_renders_suggestions_for_a_context(web_ai, monkeypatch) -> None:
     tenant, user = web_ai
 

@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Recherche en langage naturel" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>{% trans "IA" %} <span>/</span> {% trans "Recherche en langage naturel" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Recherche en langage naturel" %}</h1>
 </div>
@@ -10,7 +11,7 @@
     <label>{% trans "Question" %}
       <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'ex. factures impayees de plus de 500000 pour le Senegal' %}">
     </label>
-    <button type="submit">{% trans "Rechercher" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Rechercher" %}</c-button>
   </form>
   {% if result %}
     <div class="wh-nl-search-result">

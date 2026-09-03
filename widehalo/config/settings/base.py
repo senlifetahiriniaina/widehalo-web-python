@@ -372,6 +372,20 @@ BUDGET_MAX_SCREENS = 240
 # factice non verifiee par Ollama (son endpoint compatible OpenAI ignore
 # l'en-tete Authorization), mais requise non-vide par
 # `OpenAICompatibleAIProvider`/`get_ai_provider()` ci-dessus.
+#
+# Sprint 11 (L7 IA gateway) : le CDC nomme explicitement un "repli Mistral"
+# comme fournisseur cloud de secours. L'API Mistral ("La Plateforme") est
+# elle aussi compatible OpenAI chat-completions, donc couverte par le meme
+# `OpenAICompatibleAIProvider` — AUCUN nouveau connecteur necessaire, un
+# simple exemple de configuration documente ici, additionnel a l'exemple
+# DeepSeek/Kimi ci-dessus (ne le remplace pas) :
+# {"backend": "mistral", "base_url": "https://api.mistral.ai/v1",
+# "api_key": "...", "model": "mistral-small-latest"}. Comme pour
+# DeepSeek/Kimi/Ollama, "backend" reste une simple etiquette de diagnostic
+# (`AiRequest.provider_backend`, cf. `apps.ai.services.usage_budget.
+# _resolve_backend_label`) — un seul fournisseur est actif a la fois
+# (celui configure dans `AI_PROVIDER_CONFIG`), il n'y a pas ici de chaine
+# de repli automatique multi-fournisseurs.
 AI_PROVIDER_CONFIG: dict[str, str] = {}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :

@@ -166,6 +166,10 @@
 @source "../../templates/catalog/**/*.html";
 @source "../../templates/mrp/**/*.html";
 @source "../../templates/purchase/**/*.html";
+/* Sprint 11 (L7 IA gateway) : meme elargissement pour les 7 ecrans de
+   l'app `ai` (usage_budget, assist, search, anomalies_list, insights_list,
+   recommendations, data_query) migres vers <c-breadcrumb>/<c-button>. */
+@source "../../templates/ai/**/*.html";
 
 /* Habillage minimal du fragment de resultats de recherche instantanee
    (templates/components/_instant_search_results.html, HTML nu reutilise
