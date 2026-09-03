@@ -14,6 +14,7 @@ from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.chatter import post_message
 from apps.core.services.sequences import next_reference
 from apps.core.services.workflow import attempt_transition
 from apps.mrp.models import (
@@ -185,6 +186,54 @@ def done_work_order(
     work_order.save(
         update_fields=["state", "qty_done", "qty_rejected", "date_end", "duration_real_min"]
     )
+    return work_order
+
+
+def advance_work_order(
+    work_order: MrpWorkOrder,
+    user: User,
+    *,
+    qty_done: Decimal,
+    qty_rejected: Decimal = Decimal(0),
+) -> MrpWorkOrder:
+    """T2 (L3 Textile, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
+    "déplacer une carte [du kanban atelier] change l'état et journalise
+    dans le chatter" — termine `work_order` (`done_work_order`, inchangé),
+    démarre automatiquement le prochain ordre de travail EN ATTENTE de la
+    même gamme (`sequence` strictement supérieure, le plus proche) s'il en
+    existe un, et journalise la transition d'étape sur le fil de
+    discussion de l'ORDRE (pas de l'ordre de travail lui-même — un seul
+    fil par ordre de fabrication, cohérent avec le seul autre usage du
+    chatter à ce jour, `sales.SalesOrder`).
+
+    Ne démarre jamais automatiquement un ordre de travail qui n'est pas
+    `pending` (ex. déjà en pause par un opérateur) — l'automatisation ne
+    doit jamais écraser une décision humaine explicite."""
+    order = work_order.order
+    workcenter_label = work_order.workcenter.get_type_display()
+    work_order = done_work_order(work_order, qty_done=qty_done, qty_rejected=qty_rejected)
+
+    next_work_order = (
+        order.work_orders.filter(state=MrpWorkOrder.STATE_PENDING, sequence__gt=work_order.sequence)
+        .order_by("sequence")
+        .first()
+    )
+    if next_work_order is not None:
+        start_work_order(next_work_order, operator=user)
+        next_label = next_work_order.workcenter.get_type_display()
+        note = _("Étape %(from)s terminée (%(done)s bonnes, %(rejected)s rejetées) → %(to)s.") % {
+            "from": workcenter_label,
+            "done": qty_done,
+            "rejected": qty_rejected,
+            "to": next_label,
+        }
+    else:
+        note = _(
+            "Étape %(from)s terminée (%(done)s bonnes, %(rejected)s rejetées) — "
+            "fin de gamme, aucune étape suivante en attente."
+        ) % {"from": workcenter_label, "done": qty_done, "rejected": qty_rejected}
+
+    post_message(order, author=user, body=note, is_note=True)
     return work_order
 
 

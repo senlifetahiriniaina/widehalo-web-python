@@ -7,6 +7,7 @@ app_name = "mrp"
 urlpatterns = [
     path("", views.order_list, name="list"),
     path("new/", views.order_create, name="create"),
+    path("kanban/", views.work_order_kanban, name="kanban"),
     path("<uuid:order_id>/", views.order_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/workshops/", views_config.config_workshops, name="config_workshops"),

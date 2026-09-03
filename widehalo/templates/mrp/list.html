@@ -5,6 +5,9 @@
 <div class="page-head">
   <h1>{% trans "Ordres de fabrication" %}</h1>
 </div>
-  <p><a href="{% url 'mrp:create' %}">{% trans "Nouvel ordre" %}</a></p>
+  <p>
+    <a href="{% url 'mrp:create' %}">{% trans "Nouvel ordre" %}</a>
+    <a href="{% url 'mrp:kanban' %}">{% trans "Atelier (kanban)" %}</a>
+  </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

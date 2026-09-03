@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{% trans "Atelier (kanban)" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Atelier (kanban)" %}</h1>
+</div>
+  <p><a href="{% url 'mrp:list' %}">{% trans "Ordres de fabrication" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  <p class="hint">
+    {% trans "Terminer une étape démarre automatiquement la suivante (si elle est en attente) et journalise la transition dans le fil de l'ordre." %}
+  </p>
+
+  <div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
+    {% for code, label, cards in columns %}
+      <div style="flex:1; min-width:220px;">
+        <h2>{{ label }} ({{ cards|length }})</h2>
+        {% for wo in cards %}
+          <div class="card panel-body" style="margin-bottom:.75rem;">
+            <p>
+              <strong>
+                {% if wo.order.reference %}
+                  <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{{ wo.order.reference }}</a>
+                {% else %}
+                  <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{% trans "(brouillon)" %}</a>
+                {% endif %}
+              </strong>
+            </p>
+            <p>{% trans "Qté planifiée" %} : {{ wo.qty_planned }}</p>
+            <p><span class="badge {{ wo.state|state_badge_class }}">{{ wo.get_state_display }}</span></p>
+            {% if wo.fpy is not None %}<p>{% trans "FPY" %} : {{ wo.fpy|floatformat:1 }} %</p>{% endif %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="work_order_id" value="{{ wo.id }}">
+              <label class="sr-only" for="qty-done-{{ wo.id }}">{% trans "Quantité bonne" %}</label>
+              <input id="qty-done-{{ wo.id }}" type="number" name="qty_done" step="0.0001"
+                     placeholder="{% trans 'Qté bonne' %}" value="{{ wo.qty_planned }}"
+                     style="min-height:44px;width:100%;margin-bottom:.35rem;">
+              <label class="sr-only" for="qty-rejected-{{ wo.id }}">{% trans "Quantité rejetée" %}</label>
+              <input id="qty-rejected-{{ wo.id }}" type="number" name="qty_rejected" step="0.0001"
+                     placeholder="{% trans 'Qté rejetée' %}" value="0"
+                     style="min-height:44px;width:100%;margin-bottom:.35rem;">
+              <c-button variant="primary" type="submit" style="min-height:44px;width:100%;">
+                {% trans "Terminer l'étape →" %}
+              </c-button>
+            </form>
+          </div>
+        {% empty %}
+          <p class="hint">{% trans "Aucune carte." %}</p>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

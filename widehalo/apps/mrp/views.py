@@ -35,6 +35,7 @@ from apps.mrp.services import procurement
 from apps.mrp.services.cra import create_cra, reject_cra, submit_cra, validate_cra
 from apps.mrp.services.interventions import close_cri, create_cri, declare_scrap
 from apps.mrp.services.orders import (
+    advance_work_order,
     cancel_order,
     close_order,
     confirm_order,
@@ -52,6 +53,7 @@ from apps.mrp.services.orders import (
     suspend_order,
 )
 from apps.mrp.services.procurement import get_or_create_procurement_state
+from apps.mrp.services.quality import first_pass_yield
 from apps.mrp.services.transformation import (
     available_output_locations,
     finish_transformation_order,
@@ -261,6 +263,15 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "yield_data": order_yield(order),
             "genealogy": order_genealogy(order),
             "output_locations": available_output_locations(order),
+            "first_pass_yield": first_pass_yield(order),
+            # Chatter (Sprint 3 / L2) : premiere utilisation dans `mrp`,
+            # meme patron que `apps.sales.views` (cf. templates/cotton/
+            # chatter.html) — un seul fil par ordre de fabrication,
+            # alimente automatiquement par `advance_work_order` (T2) a
+            # chaque changement d'etape kanban.
+            "chatter_app_label": order._meta.app_label,
+            "chatter_model": order._meta.model_name,
+            "chatter_object_id": str(order.id),
         },
     )
 
@@ -299,4 +310,60 @@ def order_create(request: HttpRequest) -> HttpResponse:
             "default_workshop_id": default_workshop.id if default_workshop else None,
             "error": error,
         },
+    )
+
+
+@login_required
+def work_order_kanban(request: HttpRequest) -> HttpResponse:
+    """T2 (L3 Textile, cf. docs/planning/2026-refonte-ux-sprints.md §5) :
+    tableau atelier — une colonne par type de poste de charge
+    (`MrpWorkcenter.TYPE_CHOICES` couvre déjà coupe/couture/broderie/
+    impression/finition/contrôle/emballage, aucun nouveau champ), une
+    carte par ordre de travail non terminé. "Déplacer une carte" se fait
+    par bouton (jamais de glisser-déposer — cohérent avec l'unique autre
+    kanban du dépôt, `apps.projects`, lui aussi sans drag-and-drop) :
+    `advance_work_order` termine l'étape, démarre la suivante si elle
+    existe et journalise dans le chatter de l'ordre."""
+    tenant = resolve_tenant(request)
+    user = cast(User, request.user)
+    error = None
+
+    if request.method == "POST":
+        try:
+            work_order = get_object_or_404(
+                MrpWorkOrder, id=request.POST.get("work_order_id"), tenant=tenant
+            )
+            advance_work_order(
+                work_order,
+                user,
+                qty_done=Decimal(request.POST.get("qty_done") or "0"),
+                qty_rejected=Decimal(request.POST.get("qty_rejected") or "0"),
+            )
+        except (ValidationError, InvalidOperation) as exc:
+            error = str(exc)
+        else:
+            return redirect("mrp:kanban")
+
+    work_orders = (
+        MrpWorkOrder.objects.filter(tenant=tenant, is_active=True)
+        .exclude(state=MrpWorkOrder.STATE_DONE)
+        .select_related("workcenter", "order")
+        .order_by("sequence")
+    )
+    fpy_by_order: dict[UUID, Decimal] = {}
+    cards_by_type: dict[str, list[MrpWorkOrder]] = {}
+    for work_order in work_orders:
+        if work_order.order_id not in fpy_by_order:
+            fpy_by_order[work_order.order_id] = first_pass_yield(work_order.order)
+        work_order.fpy = fpy_by_order[work_order.order_id]  # type: ignore[attr-defined]
+        cards_by_type.setdefault(work_order.workcenter.type, []).append(work_order)
+
+    columns = [
+        (code, label, cards_by_type.get(code, [])) for code, label in MrpWorkcenter.TYPE_CHOICES
+    ]
+
+    return render(
+        request,
+        "mrp/kanban.html",
+        {"columns": columns, "error": error},
     )

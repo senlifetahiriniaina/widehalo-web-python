@@ -46,6 +46,7 @@
     {% if yield_data.yield_pct is not None %}(<strong>{{ yield_data.yield_pct|floatformat:1 }} %</strong>){% endif %}
     {% if yield_data.qty_scrapped %} — {% trans "Rebuts" %}: {{ yield_data.qty_scrapped }}{% endif %}
   </p>
+  <p>{% trans "First Pass Yield (atelier)" %}: <strong>{{ first_pass_yield|floatformat:1 }} %</strong></p>
 
   {% if order.output_lot_name %}
   <h2>{% trans "Généalogie du lot de sortie" %} ({{ order.output_lot_name }})</h2>
@@ -380,4 +381,7 @@
     </div>
     <button type="submit">{% trans "Déclarer" %}</button>
   </form>
+
+  <h2>{% trans "Discussion" %}</h2>
+  <c-chatter app_label="{{ chatter_app_label }}" model="{{ chatter_model }}" object_id="{{ chatter_object_id }}" />
 {% endblock %}
