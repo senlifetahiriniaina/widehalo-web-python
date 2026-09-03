@@ -2,17 +2,21 @@
 {% load i18n core_extras %}
 {% block title %}{{ invoice.reference }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a>
+    <span>/</span> {{ invoice.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ invoice.invoice_state|state_badge_class }}">{{ invoice.get_invoice_state_display }}</span>
     <form method="post" style="display:inline;">
       {% csrf_token %}
       {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
-        <button type="submit" name="action" value="validate">{% trans "Valider" %}</button>
+        <c-button type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>
       {% endif %}
       {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
         <input type="text" name="motif" placeholder="{% trans 'Motif d annulation' %}"
                aria-label="{% trans 'Motif d annulation' %}">
-        <button type="submit" name="action" value="cancel">{% trans "Annuler" %}</button>
+        <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>
       {% endif %}
     </form>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
@@ -73,7 +77,7 @@
                  aria-label="{% trans 'Montant' %}">
           <input type="date" name="payment_date" value="{{ today|date:'Y-m-d' }}"
                  aria-label="{% trans 'Date de paiement' %}">
-          <button type="submit">{% trans "Enregistrer le paiement" %}</button>
+          <c-button variant="primary" type="submit">{% trans "Enregistrer le paiement" %}</c-button>
         </form>
       {% else %}
         <p>{% trans "Le paiement n est disponible que pour une facture publiée." %}</p>
@@ -107,7 +111,7 @@
         {% csrf_token %}
         <label for="document-upload">{% trans "Ajouter un document" %}</label>
         <input id="document-upload" type="file" name="document" required>
-        <button type="submit">{% trans "Envoyer" %}</button>
+        <c-button type="submit">{% trans "Envoyer" %}</c-button>
       </form>
     </div>
 

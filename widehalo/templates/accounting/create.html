@@ -2,6 +2,10 @@
 {% load i18n static %}
 {% block title %}{% trans "Nouvelle facture" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a>
+    <span>/</span> {% trans "Nouvelle facture" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Nouvelle facture client" %}</h1>
   </div>
@@ -52,6 +56,6 @@
       <label for="amount">{% trans "Montant (MGA)" %}</label>
       <input id="amount" type="number" name="amount" step="0.0001" min="0" required>
     </div>
-    <button type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer la facture" %}</button>
+    <c-button variant="primary" type="submit"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-plus"></use></svg> {% trans "Créer la facture" %}</c-button>
   </form>
 {% endblock %}

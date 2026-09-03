@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Taxes" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Taxes" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Taxes" %}</h1>
   </div>
@@ -87,6 +91,6 @@
       <label for="valid_to">{% trans "Valide jusqu'à" %}</label>
       <input id="valid_to" type="date" name="valid_to">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

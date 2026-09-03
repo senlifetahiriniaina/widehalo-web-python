@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Lot d'import" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:imports_index' %}">{% trans "Imports" %}</a>
+    <span>/</span> {{ batch.source_filename|default:batch.id }}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Lot d'import" %} — {{ batch.source_filename|default:batch.id }}</h1>
   </div>
@@ -38,8 +42,8 @@
                     <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
                   {% endfor %}
                 </select>
-                <button type="submit">{% trans "Corriger" %}</button>
-                <button type="submit" name="discard" value="1">{% trans "Écarter" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Corriger" %}</c-button>
+                <c-button variant="danger" type="submit" name="discard" value="1">{% trans "Écarter" %}</c-button>
               </form>
             {% elif row.status == "needs_qualification" %}
               <form method="post" action="{% url 'accounting:imports_cash_journal_row_qualify' row.id %}">
@@ -55,7 +59,7 @@
                 {% if row.uses_placeholder_partner %}
                   <input type="text" name="partner_id" placeholder="{% trans 'UUID du partenaire réel' %}">
                 {% endif %}
-                <button type="submit">{% trans "Qualifier" %}</button>
+                <c-button variant="primary" type="submit">{% trans "Qualifier" %}</c-button>
               </form>
               {% if row.move %}
                 <a href="{% url 'accounting:detail' row.move.id %}">{% trans "Voir l'écriture" %}</a>

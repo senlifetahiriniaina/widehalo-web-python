@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Conditions de paiement" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Conditions de paiement" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Conditions de paiement" %}</h1>
   </div>
@@ -56,6 +60,6 @@
       <label for="days">{% trans "Jours" %}</label>
       <input id="days" type="number" name="days" min="0" value="0" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

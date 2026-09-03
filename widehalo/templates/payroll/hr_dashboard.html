@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Tableau de bord Paie" %} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'payroll:my_payslips' %}">{% trans "Paie" %}</a>
+  <span>/</span> {% trans "Tableau de bord" %}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Périodes de paie" %}</h1>
 </div>

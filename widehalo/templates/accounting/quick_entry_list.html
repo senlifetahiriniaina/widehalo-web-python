@@ -2,11 +2,17 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Saisie comptable rapide" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Saisie comptable rapide" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Saisie comptable rapide" %}</h1>
   </div>
-  <p><a href="{% url 'accounting:quick_entry_create' %}">{% trans "Nouvelle écriture" %}</a></p>
-  <p><a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a></p>
+  <p>
+    <a href="{% url 'accounting:quick_entry_create' %}" class="btn btn-primary">{% trans "Nouvelle écriture" %}</a>
+    <a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a>
+  </p>
 
   <h2>{% trans "Brouillons en cours" %}</h2>
   <table class="smart-table">

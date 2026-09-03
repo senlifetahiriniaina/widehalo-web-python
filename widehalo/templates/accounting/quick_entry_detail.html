@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{% trans "Écriture" %} {{ move.reference|default:"(brouillon)" }} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:quick_entry_list' %}">{% trans "Saisie comptable rapide" %}</a>
+    <span>/</span> {{ move.reference|default:"(brouillon)" }}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Écriture" %} {{ move.reference|default:"(brouillon)" }}</h1>
   </div>
@@ -69,12 +73,12 @@
         <label for="credit">{% trans "Crédit" %}</label>
         <input id="credit" type="number" name="credit" step="0.0001" min="0" value="0">
       </div>
-      <button type="submit">{% trans "Ajouter la ligne" %}</button>
+      <c-button type="submit">{% trans "Ajouter la ligne" %}</c-button>
     </form>
 
     <form method="post">
       {% csrf_token %}
-      <button type="submit" name="action" value="post">{% trans "Publier l'écriture" %}</button>
+      <c-button variant="primary" type="submit" name="action" value="post">{% trans "Publier l'écriture" %}</c-button>
     </form>
   {% endif %}
 

@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Périodes" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Périodes" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Périodes comptables" %}</h1>
   </div>
@@ -61,7 +65,7 @@
       <label for="date_end">{% trans "Fin" %}</label>
       <input id="date_end" type="date" name="date_end" required>
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
   {% endif %}
 {% endblock %}

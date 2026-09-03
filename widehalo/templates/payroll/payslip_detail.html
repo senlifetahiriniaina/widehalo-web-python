@@ -2,6 +2,10 @@
 {% load i18n core_extras %}
 {% block title %}{{ payslip.reference }} — WideHalo{% endblock %}
 {% block content %}
+<c-breadcrumb>
+  <a href="{% url 'payroll:my_payslips' %}">{% trans "Mes bulletins de paie" %}</a>
+  <span>/</span> {{ payslip.reference }}
+</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Bulletin de paie" %} {{ payslip.reference }}</h1>
 </div>
@@ -45,6 +49,6 @@
 
 <p>
   <a href="{% url 'payroll:payslip_download' payslip_id=payslip.id %}" class="btn btn-primary">{% trans "Télécharger le PDF" %}</a>
-  <a href="{% url 'payroll:my_payslips' %}">{% trans "Retour à la liste" %}</a>
+  <a href="{% url 'payroll:my_payslips' %}" class="btn btn-ghost">{% trans "Retour à la liste" %}</a>
 </p>
 {% endblock %}

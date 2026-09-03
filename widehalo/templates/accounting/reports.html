@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Rapports comptables" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Rapports" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Rapports comptables" %}</h1>
   </div>
@@ -22,7 +26,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 
@@ -50,7 +54,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 
@@ -78,7 +82,7 @@
           <option value="xlsx">XLSX</option>
         </select>
       </label>
-      <button type="submit">{% trans "Telecharger" %}</button>
+      <c-button variant="primary" type="submit">{% trans "Telecharger" %}</c-button>
     </form>
   </section>
 {% endblock %}

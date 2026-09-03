@@ -2,10 +2,16 @@
 {% load i18n %}
 {% block title %}{% trans "Factures clients" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:quick_entry_list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Factures clients" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Factures clients" %}</h1>
   </div>
-  <p><a href="{% url 'accounting:create' %}">{% trans "Nouvelle facture" %}</a></p>
-  <p><a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a></p>
+  <p>
+    <a href="{% url 'accounting:create' %}" class="btn btn-primary">{% trans "Nouvelle facture" %}</a>
+    <a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

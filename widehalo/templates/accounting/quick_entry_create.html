@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Nouvelle écriture" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:quick_entry_list' %}">{% trans "Saisie comptable rapide" %}</a>
+    <span>/</span> {% trans "Nouvelle écriture" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Nouvelle écriture (saisie rapide)" %}</h1>
   </div>
@@ -40,6 +44,6 @@
       <label for="narration">{% trans "Libellé de l'écriture" %}</label>
       <input id="narration" type="text" name="narration">
     </div>
-    <button type="submit">{% trans "Démarrer la saisie des lignes" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Démarrer la saisie des lignes" %}</c-button>
   </form>
 {% endblock %}

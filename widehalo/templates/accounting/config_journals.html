@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Journaux" %} — WideHalo{% endblock %}
 {% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Journaux" %}
+  </c-breadcrumb>
   <div class="page-head">
     <h1>{% trans "Journaux" %}</h1>
   </div>
@@ -68,6 +72,6 @@
       <label for="currency">{% trans "Devise" %}</label>
       <input id="currency" type="text" name="currency" value="MGA" maxlength="3">
     </div>
-    <button type="submit">{% trans "Créer" %}</button>
+    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
 {% endblock %}

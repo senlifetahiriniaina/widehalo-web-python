@@ -111,6 +111,13 @@
 @source "../../templates/cotton/**/*.html";
 @source "../../apps/**/templates/**/tw-*.html";
 @source "../../templates/tw-*.html";
+/* Sprint 9 (L5 Compta/Paie, cf. docs/planning/2026-refonte-ux-sprints.md
+   §5) : premiers ecrans CRUD existants migres vers Tailwind/cotton sans
+   renommage en tw-*.html (convention deja etablie par le shell/launchpad)
+   -- ajout explicite de leurs repertoires au scan plutot que de renommer
+   ~20 fichiers deja references par de nombreuses vues/tests. */
+@source "../../templates/accounting/**/*.html";
+@source "../../templates/payroll/**/*.html";
 
 /* Habillage minimal du fragment de resultats de recherche instantanee
    (templates/components/_instant_search_results.html, HTML nu reutilise
