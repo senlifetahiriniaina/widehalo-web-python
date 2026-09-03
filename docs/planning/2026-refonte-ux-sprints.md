@@ -267,12 +267,22 @@ du module). 5 tests (`test_recall.py`).
   ce flux — `QltInspection` reste un enregistrement ponctuel indépendant, non modifié cette
   session.
 
+Livré (commit `733bea7`) pour la **migration du catalogue existant du domaine (Sprint 7)** :
+`stocks` (application mono-page pilotée par `active_tab`, plafond de 90 écrans déjà quasi
+atteint — aucun nouveau gabarit possible) et `logistics` (17 écrans) migrés. La barre d'onglets
+legacy de `stocks/index.html` devient une barre DaisyUI (`tabs tabs-boxed`) avec l'onglet
+courant surligné — plus adapté à cette architecture mono-page qu'un fil d'Ariane classique ;
+les 2 écrans d'import restés en gabarit séparé reçoivent `<c-breadcrumb>`. `logistics` reçoit
+le même traitement que Sprint 9 (`<c-breadcrumb>` + `<c-button>`, `variant="danger"` sur
+l'action « Bloquer » une expédition).
+
+- **Raffinement effectué** : barre d'onglets `stocks` avec état actif visuellement distinct
+  (`tab-active`) — clarté de navigation directement utile au parcours de traçabilité
+  d'urgence (rappel produit, A3).
+
 **Reporté** (hors périmètre traité cette semaine) :
-- **Migration du catalogue existant du domaine** (Sprint 7, 7 JT) : `stocks` et `logistics`
-  vers le nouveau design system — *non traitée* cette session.
-- **Raffinement renforcé** : clarté visuelle des statuts hold/release et parcours de
-  traçabilité d'urgence — non traité (priorité donnée à la logique métier réelle plutôt
-  qu'au raffinement visuel, en l'absence d'écran de démonstration navigable).
+- **Portage de `_smart_table.html` vers `<c-table>`** : identique au report du Sprint 9, seul
+  chantier de migration restant, non entamé.
 
 ### Sprints 8–9 — L5 Compta/Paie Madagascar (16 JT / 30 disponibles) — RÉALISÉ (partiellement)
 
