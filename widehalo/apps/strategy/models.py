@@ -111,6 +111,20 @@ class StgKeyResult(BaseModel):
     target_value = models.DecimalField(max_digits=18, decimal_places=4)
     current_value = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal(0))
     unit = models.CharField(max_length=32, blank=True)
+    # Cahier Phase 2 §13.3, STR-1 : « chaque résultat clé est adossé à un
+    # indicateur du dictionnaire [gouverné, `apps.analytics.
+    # AnMetricDefinition`] avec sa cible et son échéance ; l'avancement se
+    # calcule, il ne se déclare pas. » Référence le CODE d'un indicateur
+    # PUBLIÉ du dictionnaire — `blank=True` uniquement pour compatibilité
+    # ascendante avec les `StgKeyResult` créés avant ce chantier (jamais
+    # blanc pour un résultat clé créé désormais, cf.
+    # `services/objectives.py::add_key_result`, qui l'exige). Un résultat
+    # clé adossé à un indicateur se rafraîchit via `services/objectives.py
+    # ::refresh_key_result_from_dictionary` — jamais via un `StgCheckIn`
+    # manuel, qui reste réservé aux résultats clés SANS indicateur
+    # gouverné (compatibilité ascendante, cf. `kpi_source_module` ci-
+    # dessous, mécanisme antérieur toujours actif pour eux).
+    metric_code = models.CharField(max_length=64, blank=True)
     # Texte libre optionnel — jamais valide contre une liste fermee de
     # modules (dette assumee : une faute de frappe donne juste un rafraichi-
     # ssement impossible, signale explicitement par
@@ -204,3 +218,191 @@ class StgNote(BaseModel):
 
     def __str__(self) -> str:
         return self.title
+
+
+class StgBudget(BaseModel):
+    """Budget versionné et verrouillable (cahier §13.3, STR-3/STR-4).
+
+    **Immuabilité des chiffres engagés (STR-3, §17.2 « y compris pour un
+    administrateur »)** : une fois `is_locked=True`, `lines`/`name`/
+    `period_*`/`source_*`/`version`/`previous_version` deviennent
+    immuables — pas seulement côté service Python, un trigger Postgres
+    (migration dédiée, même patron que `AccMove`/RG-ACC-2) rejette toute
+    tentative en base, y compris un appel direct à l'API ou une
+    modification manuelle. `variance_comments` reste volontairement
+    modifiable après verrouillage (cf. docstring de la migration : STR-6
+    exige un commentaire de gestion sur un écart constaté APRÈS
+    verrouillage, pendant la revue). Une révision des chiffres crée une
+    NOUVELLE ligne (`version` incrémenté, `previous_version` pointant vers
+    l'ancienne, TOUJOURS non verrouillée à la création) — jamais une
+    modification en place.
+
+    `lines`/`variance_comments` en JSON plutôt que des modèles dédiés
+    (simplification assumée et disclosée, économie de 2 modèles sur le
+    budget d'architecture) :
+    - `lines` : ``[{"axis_type": "famille"|"point_vente"|"compte",
+      "axis_value": str, "metric_code": str, "period": "YYYY-MM-DD",
+      "budgeted_value": str(Decimal)}, ...]`` — `metric_code` référence
+      TOUJOURS un indicateur du dictionnaire gouverné (STR-5 : l'écart
+      doit comparer la même définition des deux côtés).
+    - `variance_comments` : ``[{"line_key": str, "author_id": str, "at":
+      iso, "text": str}, ...]`` — `line_key` = concaténation stable
+      `axis_type:axis_value:period` d'une ligne ci-dessus (STR-6, un
+      commentaire est rattaché À LA LIGNE, jamais à un document séparé)."""
+
+    SOURCE_MANUAL = "manual"
+    SOURCE_SIMULATION = "simulation_scenario"
+    SOURCE_FORECAST = "forecast_publication"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, _("Saisie manuelle")),
+        (SOURCE_SIMULATION, _("Scénario de simulation")),
+        (SOURCE_FORECAST, _("Prévision publiée")),
+    ]
+
+    name = models.CharField(max_length=200)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    source_type = models.CharField(max_length=24, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    # Référence de la source d'initialisation (STR-4 : « conservation de la
+    # référence et de la version de la source ») — {"scenario_id": str}
+    # ou {"publication_version": int, "published_at": iso}. Vide pour
+    # `SOURCE_MANUAL`.
+    source_reference = models.JSONField(default=dict, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    previous_version = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
+    )
+    is_locked = models.BooleanField(default=False)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    lines = models.JSONField(default=list, blank=True)
+    variance_comments = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "stg_budget"
+        ordering = ["name", "-version"]
+
+    def __str__(self) -> str:
+        return f"{self.name} v{self.version}"
+
+
+class StgInitiative(BaseModel):
+    """Action rattachée à un objectif (écran « Initiatives et plans
+    d'action », cahier §13.3) — le chatter (« réutilise... le chatter de la
+    Phase 1 ») n'est PAS un champ ici : un canal `apps.chat.ChatChannel`
+    générique est ouvert à la demande sur cette instance via
+    `apps.chat.services.public.get_or_create_document_channel`, même
+    mécanisme que n'importe quel autre document métier du dépôt. **Pas de
+    moteur de workflow/approbation** (simplification assumée et
+    disclosée) : l'écran ne décrit que des champs d'état simples
+    (« responsable, échéance, état, avancement »), pas une validation
+    formelle — `apps.core.services.workflow` (ApprovalRule) reste
+    disponible pour une extension future si un besoin réel apparaît."""
+
+    STATE_NOT_STARTED = "not_started"
+    STATE_IN_PROGRESS = "in_progress"
+    STATE_DONE = "done"
+    STATE_BLOCKED = "blocked"
+    STATE_CHOICES = [
+        (STATE_NOT_STARTED, _("Non démarrée")),
+        (STATE_IN_PROGRESS, _("En cours")),
+        (STATE_DONE, _("Terminée")),
+        (STATE_BLOCKED, _("Bloquée")),
+    ]
+
+    objective = models.ForeignKey(
+        StgObjective, on_delete=models.CASCADE, related_name="initiatives"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    owner = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    due_date = models.DateField(null=True, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_NOT_STARTED)
+    progress_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal(0))
+
+    class Meta:
+        db_table = "stg_initiative"
+        ordering = ["objective", "due_date"]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class StgReviewPack(BaseModel):
+    """Pack de revue figé et horodaté (cahier §13.3, STR-7 : « affiche
+    exactement les mêmes valeurs, les mêmes définitions et les mêmes
+    commentaires qu'à sa génération »). Immuable dès la création — AUCUNE
+    étape de verrouillage distincte (contrairement à `StgBudget`) : un
+    trigger Postgres (même migration que `StgBudget`) rejette toute
+    modification de `snapshot`/`period_start`/`period_end`/`budget`, y
+    compris pour un administrateur ; seuls les champs de bibliothèque
+    `is_active`/`archived_at` (soft-delete, retrait de la liste) restent
+    modifiables.
+
+    `snapshot` (JSONField) fige tout ce qui doit rester identique à la
+    réouverture : ``{"objectives": [...valeurs+définitions des indicateurs
+    à cette date...], "variance_lines": [...écarts+commentaires...],
+    "risks": [...cartographie à cette date...]}``."""
+
+    budget = models.ForeignKey(
+        StgBudget, null=True, blank=True, on_delete=models.PROTECT, related_name="review_packs"
+    )
+    period_start = models.DateField()
+    period_end = models.DateField()
+    generated_at = models.DateTimeField()
+    generated_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "stg_review_pack"
+        ordering = ["-generated_at"]
+
+    def __str__(self) -> str:
+        return f"Pack de revue {self.period_start:%Y-%m} — {self.generated_at:%Y-%m-%d}"
+
+
+class StgRisk(BaseModel):
+    """Cartographie des risques d'entreprise (cahier §13.3, STR-8) — liée
+    aux objectifs (`linked_objective`, optionnel) comme le demande le
+    cadrage. `last_reassessed_at`/`last_reassessed_by` changent à chaque
+    réévaluation ; le journal d'audit capture automatiquement CE
+    changement comme toute autre écriture (`StgRisk` hérite de
+    `BaseModel`, cf. `apps.core.audit_signals`) — aucun mécanisme dédié à
+    construire ici pour satisfaire « toute réévaluation apparaît au
+    journal d'audit »."""
+
+    PROBABILITY_CHOICES = [(i, str(i)) for i in range(1, 6)]
+    IMPACT_CHOICES = [(i, str(i)) for i in range(1, 6)]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    linked_objective = models.ForeignKey(
+        StgObjective, null=True, blank=True, on_delete=models.SET_NULL, related_name="risks"
+    )
+    probability = models.PositiveSmallIntegerField(choices=PROBABILITY_CHOICES)
+    impact = models.PositiveSmallIntegerField(choices=IMPACT_CHOICES)
+    control_measure = models.TextField(blank=True)
+    owner = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    last_reassessed_at = models.DateTimeField(null=True, blank=True)
+    last_reassessed_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "stg_risk"
+        ordering = ["-probability", "-impact"]
+
+    def __str__(self) -> str:
+        return self.title
+
+    @property
+    def risk_score(self) -> int:
+        return self.probability * self.impact

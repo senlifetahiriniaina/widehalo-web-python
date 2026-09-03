@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Pack de revue" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'strategy:pilotage' %}?tab=revue">{% trans "Pilotage" %}</a> / {% trans "Pack de revue" %}</c-breadcrumb>
+
+<h1>{% trans "Pack de revue" %} — {{ pack.period_start|date:"m/Y" }} — {{ pack.period_end|date:"m/Y" }}</h1>
+<p>{% trans "Généré le" %} {{ pack.generated_at|date:"d/m/Y H:i" }} {% trans "par" %} {{ pack.generated_by.email|default:"—" }}</p>
+<p class="help-text">{% trans "Document figé : les valeurs, définitions et commentaires ci-dessous ne changeront jamais, quelle que soit l'évolution ultérieure des données." %}</p>
+
+<h2>{% trans "Objectifs" %}</h2>
+{% for objective in pack.snapshot.objectives %}
+  <div class="wh-panel">
+    <h3>{{ objective.title }} ({{ objective.level }}) — {{ objective.status }}</h3>
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Résultat clé" %}</th><th>{% trans "Indicateur" %}</th><th>{% trans "Cible" %}</th><th>{% trans "Valeur" %}</th><th>{% trans "Avancement" %}</th></tr></thead>
+      <tbody>
+        {% for kr in objective.key_results %}
+          <tr>
+            <td>{{ kr.metric_name }}</td>
+            <td>{% if kr.metric_definition %}{{ kr.metric_definition.libelle }} (v{{ kr.metric_definition.version }}){% else %}—{% endif %}</td>
+            <td>{{ kr.target_value }}</td>
+            <td>{{ kr.current_value }}</td>
+            <td>{{ kr.progress_pct }} %</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% empty %}
+  <p>{% trans "Aucun objectif." %}</p>
+{% endfor %}
+
+<h2>{% trans "Écarts budgétaires" %}</h2>
+<table class="smart-table">
+  <thead><tr><th>{% trans "Ligne" %}</th><th>{% trans "Budget" %}</th><th>{% trans "Réel" %}</th><th>{% trans "Écart %" %}</th><th>{% trans "Commentaires" %}</th></tr></thead>
+  <tbody>
+    {% for row in pack.snapshot.variance_lines %}
+      <tr>
+        <td>{{ row.axis_type }}:{{ row.axis_value }} ({{ row.period }})</td>
+        <td>{{ row.budgeted_value }}</td>
+        <td>{{ row.actual_value|default:"—" }}</td>
+        <td>{{ row.variance_pct|default:"—" }}</td>
+        <td>{% for c in row.comments %}<p>{{ c.text }}</p>{% endfor %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5">{% trans "Aucune ligne de budget." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Cartographie des risques" %}</h2>
+<table class="smart-table">
+  <thead><tr><th>{% trans "Risque" %}</th><th>{% trans "Score" %}</th><th>{% trans "Maîtrise" %}</th><th>{% trans "Propriétaire" %}</th></tr></thead>
+  <tbody>
+    {% for r in pack.snapshot.risks %}
+      <tr><td>{{ r.title }}</td><td>{{ r.risk_score }}</td><td>{{ r.control_measure|default:"—" }}</td><td>{{ r.owner_email|default:"—" }}</td></tr>
+    {% empty %}
+      <tr><td colspan="4">{% trans "Aucun risque." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -199,6 +199,19 @@ rôle que `admin`/`direction`/`comptable`/`resp_commercial` (`view` seul) ni
 qui alimente le socle de simulation, ne crée/modifie jamais d'écriture)
 n'a d'entrée `accounting` dans la matrice.
 
+**`strategy` : limite de granularité disclosée sur le budget/les risques
+d'entreprise (Phase 2 §13.3)** — `StgBudget`/`StgReviewPack`/`StgRisk`
+héritent du même octroi `v,a,c` que le reste de `strategy` pour les 13
+rôles (matrice ci-dessus, ligne `strategy`), alors que le cahier classe
+ces données « Sensible » (accès attendu plus étroit que le reste de la
+cascade OKR). Le mécanisme RBAC de ce dépôt reste **par app, jamais par
+modèle** (`ROLE_APP_PERMISSIONS`) : restreindre finement ces 3 modèles
+sans affecter `StgObjective`/`StgKeyResult`/`StgInitiative` (déjà larges
+par conception) demanderait un mécanisme de permission par modèle qui
+n'existe pas encore dans ce socle — écart assumé et disclosé (cf.
+commentaire dédié dans `rbac_policy.py`, au-dessus de la première entrée
+`"strategy"`), pas un oubli.
+
 ### 3.2 Modules d'infrastructure transverse (`ai`, `automation`)
 
 Ces deux modules ne sont pas des modules métier au même titre que ceux

@@ -18,14 +18,17 @@ from ninja import Router, Schema
 
 from apps.core.models.tenant import Tenant
 from apps.core.services.permissions import require_permission
-from apps.strategy.models import StgKeyResult, StgObjective, StgSectorBenchmark
+from apps.strategy.models import StgBudget, StgKeyResult, StgObjective, StgRisk, StgSectorBenchmark
 from apps.strategy.services.benchmarks import create_note, get_benchmarks_for_sector
+from apps.strategy.services.budget import compute_variance, lock_budget, serialize_variance_row
 from apps.strategy.services.objectives import (
+    activate_objective,
     add_key_result,
     create_objective,
     record_check_in,
     refresh_key_result_from_source,
 )
+from apps.strategy.services.risks import create_risk
 from apps.strategy.services.scoping import assert_can_manage_level, scope_objectives_for_user
 
 router = Router(tags=["strategy"])
@@ -47,6 +50,7 @@ class KeyResultIn(Schema):
     metric_name: str
     target_value: Decimal
     unit: str = ""
+    metric_code: str = ""
     kpi_source_module: str = ""
     kpi_source_function: str = ""
 
@@ -182,14 +186,18 @@ def add_key_result_endpoint(
     request: Any, objective_id: str, payload: KeyResultIn
 ) -> dict[str, Any]:
     objective = _get_objective_in_scope(request, objective_id)
-    key_result = add_key_result(
-        objective,
-        metric_name=payload.metric_name,
-        target_value=payload.target_value,
-        unit=payload.unit,
-        kpi_source_module=payload.kpi_source_module,
-        kpi_source_function=payload.kpi_source_function,
-    )
+    try:
+        key_result = add_key_result(
+            objective,
+            metric_name=payload.metric_name,
+            target_value=payload.target_value,
+            unit=payload.unit,
+            metric_code=payload.metric_code,
+            kpi_source_module=payload.kpi_source_module,
+            kpi_source_function=payload.kpi_source_function,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     return _serialize_key_result(key_result)
 
 
@@ -241,3 +249,80 @@ def create_note_endpoint(request: Any, payload: NoteIn) -> dict[str, Any]:
         tenant, title=payload.title, body=payload.body, objective=objective, author=request.auth
     )
     return {"id": str(note.id), "title": note.title}
+
+
+@router.post("/strategy/objectives/{objective_id}/activate")
+@require_permission("strategy.change_stgobjective")
+def activate_objective_endpoint(request: Any, objective_id: str) -> dict[str, Any]:
+    objective = _get_objective_in_scope(request, objective_id)
+    try:
+        activate_objective(objective)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return {"id": str(objective.id), "status": objective.status}
+
+
+@router.get("/strategy/budgets/{budget_id}/variance")
+@require_permission("strategy.view_stgbudget")
+def get_budget_variance_endpoint(request: Any, budget_id: str) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    budget = get_object_or_404(StgBudget, id=budget_id)
+    rows = compute_variance(tenant, budget, user=request.auth)
+    return {"results": [serialize_variance_row(row) for row in rows]}
+
+
+@router.post("/strategy/budgets/{budget_id}/lock")
+@require_permission("strategy.change_stgbudget")
+def lock_budget_endpoint(request: Any, budget_id: str) -> dict[str, Any]:
+    budget = get_object_or_404(StgBudget, id=budget_id)
+    try:
+        lock_budget(budget, user=request.auth)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return {"id": str(budget.id), "is_locked": budget.is_locked, "locked_at": budget.locked_at}
+
+
+@router.get("/strategy/risks")
+@require_permission("strategy.view_stgrisk")
+def list_risks_endpoint(request: Any) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    risks = StgRisk.objects.filter(tenant=tenant).order_by("-probability", "-impact")
+    return {
+        "results": [
+            {
+                "id": str(r.id),
+                "title": r.title,
+                "probability": r.probability,
+                "impact": r.impact,
+                "risk_score": r.risk_score,
+                "owner_email": r.owner.email if r.owner else "",
+                "last_reassessed_at": r.last_reassessed_at,
+            }
+            for r in risks
+        ]
+    }
+
+
+class RiskIn(Schema):
+    title: str
+    probability: int
+    impact: int
+    description: str = ""
+    control_measure: str = ""
+
+
+@router.post("/strategy/risks")
+@require_permission("strategy.add_stgrisk")
+def create_risk_endpoint(request: Any, payload: RiskIn) -> dict[str, Any]:
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    risk = create_risk(
+        tenant,
+        title=payload.title,
+        probability=payload.probability,
+        impact=payload.impact,
+        description=payload.description,
+        control_measure=payload.control_measure,
+        owner=request.auth,
+        created_by=request.auth,
+    )
+    return {"id": str(risk.id), "risk_score": risk.risk_score}

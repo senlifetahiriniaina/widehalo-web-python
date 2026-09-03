@@ -1,12 +1,13 @@
 """Contrat public de l'app `bi` — seule surface que les autres apps métier
-(le futur module WhatsApp, cahier Phase 2 §13.4, au premier chef — "les
-diffuse" dans la chaîne BI→Forecast→Strategy→WhatsApp du résumé exécutif)
-ont le droit d'importer (cf. tests/architecture/test_module_boundaries.py).
-Aucun consommateur réel dans ce lot — même discipline que `pos.services.
-public`/`analytics.services.public` à leur livraison initiale."""
+(le module `strategy`, cahier Phase 2 §13.3 — STR-1/STR-5, un résultat
+clé/une ligne de budget adossés à un indicateur du dictionnaire ; le futur
+module WhatsApp, §13.4, "les diffuse" dans la chaîne BI→Forecast→
+Strategy→WhatsApp du résumé exécutif) ont le droit d'importer (cf.
+tests/architecture/test_module_boundaries.py)."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from apps.bi.models import BiReport
@@ -35,3 +36,29 @@ def get_report_result(tenant: Tenant, code: str, user: User) -> dict[str, Any] |
     if report is None:
         return None
     return run_report(tenant, report, user)
+
+
+def get_metric_current_value(tenant: Tenant, code: str, user: User) -> Decimal | None:
+    """Valeur agrégée courante (totale, sans ventilation) d'UN indicateur
+    du dictionnaire gouverné — utilisé par `strategy` (STR-1 : « chaque
+    résultat clé est adossé à un indicateur... l'avancement se calcule,
+    il ne se déclare pas » ; STR-5 : l'écart budgétaire doit comparer la
+    MÊME définition que le réel, donc passer par CE calcul et aucun autre).
+    `None` si l'indicateur est inconnu, non publié, non autorisé pour le
+    rôle de `user`, ou non raccordé à un fait calculable (mêmes
+    garde-fous que `services/query.py::run_report`, jamais dupliqués)."""
+    from apps.bi.services.metric_computers import METRIC_FACTS
+    from apps.bi.services.query import _is_metric_authorized, _user_role_codes
+    from apps.analytics.services.public import aggregate_fact, get_metric_definition
+
+    metric = get_metric_definition(tenant, code)
+    if metric is None or not _is_metric_authorized(metric, _user_role_codes(user)):
+        return None
+    fact = METRIC_FACTS.get(code)
+    if fact is None:
+        return None
+    rows = aggregate_fact(tenant, fact=fact, dimensions=[], filters=[])
+    if not rows:
+        return None
+    value = rows[0]["value"]
+    return value if isinstance(value, Decimal) else Decimal(str(value))

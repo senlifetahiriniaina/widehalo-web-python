@@ -14,10 +14,13 @@ import factory
 
 from apps.strategy.models import (
     SECTOR_TEXTILE,
+    StgBudget,
     StgCheckIn,
+    StgInitiative,
     StgKeyResult,
     StgNote,
     StgObjective,
+    StgRisk,
     StgSectorBenchmark,
 )
 
@@ -73,3 +76,33 @@ class StgNoteFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     title = factory.Sequence(lambda n: f"Note {n}")
     body = "Contenu redige par la direction."
+
+
+class StgBudgetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StgBudget
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    name = factory.Sequence(lambda n: f"Budget {n}")
+    period_start = datetime.date(2026, 1, 1)
+    period_end = datetime.date(2026, 12, 31)
+    lines = factory.LazyFunction(list)
+
+
+class StgInitiativeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StgInitiative
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    objective = factory.SubFactory(StgObjectiveFactory, tenant=factory.SelfAttribute("..tenant"))
+    title = factory.Sequence(lambda n: f"Initiative {n}")
+
+
+class StgRiskFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StgRisk
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    title = factory.Sequence(lambda n: f"Risque {n}")
+    probability = 3
+    impact = 3

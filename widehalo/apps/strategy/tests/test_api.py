@@ -103,6 +103,102 @@ def test_collaborateur_cannot_create_company_objective_via_api(api_strategy) -> 
     assert response.status_code == 403
 
 
+def test_activate_objective_via_api_requires_measurable_key_result(api_strategy) -> None:
+    tenant, user = api_strategy
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/strategy/objectives",
+        {
+            "title": "Objectif a activer",
+            "level": "individual",
+            "period_start": "2026-01-01",
+            "period_end": "2026-12-31",
+        },
+        content_type="application/json",
+        **headers,
+    )
+    objective_id = create_response.json()["id"]
+
+    blocked = client.post(f"/api/v1/strategy/objectives/{objective_id}/activate", **headers)
+    assert blocked.status_code == 400
+
+    with use_tenant(tenant.id):
+        from apps.analytics.models import AnMetricDefinition
+        from apps.analytics.services.dictionary import register_metric
+
+        register_metric(
+            tenant,
+            code="sales.ca_ht",
+            libelle="CA HT",
+            module_source="sales",
+            statut=AnMetricDefinition.STATUT_PUBLIE,
+        )
+
+    client.post(
+        f"/api/v1/strategy/objectives/{objective_id}/key-results",
+        {"metric_name": "CA MGA", "target_value": "1000000", "metric_code": "sales.ca_ht"},
+        content_type="application/json",
+        **headers,
+    )
+    activated = client.post(f"/api/v1/strategy/objectives/{objective_id}/activate", **headers)
+    assert activated.status_code == 200
+    # `status` reste TOUJOURS calcule (jamais force par l'activation, cf.
+    # docstring `services/objectives.py::activate_objective`) — 0% de
+    # progression -> a risque, pas "active".
+    assert activated.json()["status"] == "at_risk"
+
+
+def test_lock_and_read_budget_variance_via_api(api_strategy) -> None:
+    tenant, user = api_strategy
+    with use_tenant(tenant.id):
+        from apps.strategy.services.budget import create_budget
+
+        budget = create_budget(
+            tenant,
+            name="Budget API",
+            period_start="2026-01-01",
+            period_end="2026-12-31",
+            lines=[],
+        )
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    variance_response = client.get(f"/api/v1/strategy/budgets/{budget.id}/variance", **headers)
+    assert variance_response.status_code == 200
+    assert variance_response.json()["results"] == []
+
+    lock_response = client.post(f"/api/v1/strategy/budgets/{budget.id}/lock", **headers)
+    assert lock_response.status_code == 200
+    assert lock_response.json()["is_locked"] is True
+
+    second_lock = client.post(f"/api/v1/strategy/budgets/{budget.id}/lock", **headers)
+    assert second_lock.status_code == 400
+
+
+def test_create_and_list_risks_via_api(api_strategy) -> None:
+    tenant, user = api_strategy
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
+    create_response = client.post(
+        "/api/v1/strategy/risks",
+        {"title": "Risque API", "probability": 4, "impact": 5},
+        content_type="application/json",
+        **headers,
+    )
+    assert create_response.status_code == 200
+    assert create_response.json()["risk_score"] == 20
+
+    list_response = client.get("/api/v1/strategy/risks", **headers)
+    assert list_response.status_code == 200
+    assert len(list_response.json()["results"]) == 1
+
+
 def test_list_benchmarks_via_api(api_strategy) -> None:
     tenant, user = api_strategy
     with use_tenant(tenant.id):

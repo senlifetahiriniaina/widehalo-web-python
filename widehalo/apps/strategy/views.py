@@ -5,6 +5,7 @@ de service, jamais l'API ninja."""
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 from decimal import Decimal, InvalidOperation
 from typing import cast
@@ -12,19 +13,43 @@ from typing import cast
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.models.user import User
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.strategy.models import SECTOR_CHOICES, StgKeyResult, StgObjective
+from apps.strategy.models import (
+    SECTOR_CHOICES,
+    StgBudget,
+    StgInitiative,
+    StgKeyResult,
+    StgObjective,
+    StgReviewPack,
+    StgRisk,
+)
 from apps.strategy.services.benchmarks import get_benchmarks_for_sector
+from apps.strategy.services.budget import (
+    add_variance_comment,
+    compute_variance,
+    create_budget,
+    create_budget_from_forecast_publication,
+    create_budget_from_simulation_scenario,
+    lock_budget,
+    revise_budget,
+)
 from apps.strategy.services.capacity_review import (
     DEFAULT_HORIZON_DAYS,
     DEFAULT_OVERLOAD_THRESHOLD_PCT,
     build_capacity_outlook,
 )
-from apps.strategy.services.objectives import add_key_result, create_objective, record_check_in
+from apps.strategy.services.objectives import (
+    activate_objective,
+    add_key_result,
+    create_objective,
+    record_check_in,
+)
+from apps.strategy.services.review_pack import generate_review_pack
+from apps.strategy.services.risks import create_risk, reassess_risk
 from apps.strategy.services.scoping import assert_can_manage_level, scope_objectives_for_user
 
 COLUMNS = [
@@ -167,3 +192,267 @@ def capacity_outlook(request: HttpRequest) -> HttpResponse:
             "overload_threshold_pct": DEFAULT_OVERLOAD_THRESHOLD_PCT,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Pilotage (cahier §13.3, STR-3..STR-8) — budget, initiatives, revue, risques
+# ---------------------------------------------------------------------------
+
+
+def _error_message(exc: Exception) -> str:
+    return "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+
+
+@login_required
+def pilotage(request: HttpRequest) -> HttpResponse:
+    if not request.user.has_perm("strategy.view_stgbudget"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    tab = request.GET.get("tab", "budget")
+    can_manage = request.user.has_perm("strategy.add_stgbudget")
+    context = {"tab": tab, "can_manage": can_manage, "error": request.GET.get("error", "")}
+
+    if tab == "initiatives":
+        context["initiatives"] = StgInitiative.objects.filter(tenant=tenant).select_related(
+            "objective"
+        )
+    elif tab == "revue":
+        context["budgets"] = StgBudget.objects.filter(tenant=tenant)
+        context["packs"] = StgReviewPack.objects.filter(tenant=tenant).order_by("-generated_at")
+        budget_id = request.GET.get("budget_id")
+        if budget_id:
+            budget = StgBudget.objects.filter(tenant=tenant, id=budget_id).first()
+            if budget is not None:
+                context["selected_budget"] = budget
+                context["variance_rows"] = compute_variance(tenant, budget, user=request.user)
+    elif tab == "risques":
+        context["risks"] = StgRisk.objects.filter(tenant=tenant).order_by("-probability", "-impact")
+    elif tab == "tableau_direction":
+        context["at_risk_objectives"] = StgObjective.objects.filter(
+            tenant=tenant, status=StgObjective.STATUS_AT_RISK, is_active=True
+        )[:2]
+        context["top_risks"] = StgRisk.objects.filter(tenant=tenant).order_by(
+            "-probability", "-impact"
+        )[:2]
+        latest_budget = (
+            StgBudget.objects.filter(tenant=tenant, is_locked=True).order_by("-version").first()
+        )
+        context["latest_budget"] = latest_budget
+        if latest_budget is not None:
+            variances = compute_variance(tenant, latest_budget, user=request.user)
+            context["significant_variances"] = [v for v in variances if v["exceeds_threshold"]][:2]
+        from apps.forecast.services.public import get_latest_published_forecast
+
+        context["latest_forecast"] = get_latest_published_forecast(tenant)
+    else:
+        context["budgets"] = StgBudget.objects.filter(tenant=tenant)
+    return render(request, "strategy/pilotage.html", context)
+
+
+@login_required
+def budget_create(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.add_stgbudget"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    source = request.POST.get("source", StgBudget.SOURCE_MANUAL)
+    name = request.POST.get("name", "").strip()
+    try:
+        if source == StgBudget.SOURCE_SIMULATION:
+            create_budget_from_simulation_scenario(
+                tenant,
+                scenario_id=request.POST.get("scenario_id", ""),
+                name=name,
+                period_start=request.POST.get("period_start"),
+                period_end=request.POST.get("period_end"),
+                created_by=request.user,
+            )
+        elif source == StgBudget.SOURCE_FORECAST:
+            create_budget_from_forecast_publication(tenant, name=name, created_by=request.user)
+        else:
+            create_budget(
+                tenant,
+                name=name,
+                period_start=request.POST.get("period_start"),
+                period_end=request.POST.get("period_end"),
+                lines=[],
+                created_by=request.user,
+            )
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(f"/strategy/pilotage/?tab=budget&error={quote(_error_message(exc))}")
+    return redirect("/strategy/pilotage/?tab=budget")
+
+
+@login_required
+def budget_lock(request: HttpRequest, budget_id: str) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.change_stgbudget"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    budget = get_object_or_404(StgBudget, tenant=tenant, id=budget_id)
+    with contextlib.suppress(ValidationError):
+        lock_budget(budget, user=request.user)
+    return redirect("/strategy/pilotage/?tab=budget")
+
+
+@login_required
+def budget_revise(request: HttpRequest, budget_id: str) -> HttpResponse:
+    """STR-3 : « une révision crée une version horodatée, l'ancienne reste
+    consultable et comparable. » Écran minimal (cohérent avec `budget_
+    create`, qui n'expose pas non plus d'éditeur de `lines` détaillé) :
+    reprend TELLES QUELLES les lignes de la version précédente — l'ajustement
+    des montants se fait aujourd'hui via l'API (`revise_budget` accepte des
+    `lines` explicites), jamais un éditeur de grille sur cet écran."""
+    if request.method != "POST" or not request.user.has_perm("strategy.add_stgbudget"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    budget = get_object_or_404(StgBudget, tenant=tenant, id=budget_id)
+    try:
+        revise_budget(budget, lines=budget.lines, created_by=request.user)
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(f"/strategy/pilotage/?tab=budget&error={quote(_error_message(exc))}")
+    return redirect("/strategy/pilotage/?tab=budget")
+
+
+@login_required
+def budget_variance_comment(request: HttpRequest, budget_id: str) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.change_stgbudget"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    budget = get_object_or_404(StgBudget, tenant=tenant, id=budget_id)
+    try:
+        add_variance_comment(
+            budget,
+            line_key_value=request.POST.get("line_key", ""),
+            text=request.POST.get("text", ""),
+            user=request.user,
+        )
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(
+            f"/strategy/pilotage/?tab=revue&budget_id={budget_id}&error={quote(_error_message(exc))}"
+        )
+    return redirect(f"/strategy/pilotage/?tab=revue&budget_id={budget_id}")
+
+
+@login_required
+def initiative_create(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.add_stginitiative"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    objective = get_object_or_404(StgObjective, tenant=tenant, id=request.POST.get("objective_id"))
+    initiative = StgInitiative(
+        tenant=tenant,
+        objective=objective,
+        title=request.POST.get("title", ""),
+        description=request.POST.get("description", ""),
+        due_date=request.POST.get("due_date") or None,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    with contextlib.suppress(ValidationError):
+        initiative.full_clean()
+        initiative.save()
+        from apps.chat.services.public import get_or_create_document_channel
+
+        get_or_create_document_channel(
+            tenant=tenant,
+            content_object=initiative,
+            participants=[request.user],
+            title=initiative.title,
+        )
+    return redirect("/strategy/pilotage/?tab=initiatives")
+
+
+@login_required
+def review_pack_generate(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.add_stgreviewpack"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    budget_id = request.POST.get("budget_id")
+    budget = StgBudget.objects.filter(tenant=tenant, id=budget_id).first() if budget_id else None
+    try:
+        generate_review_pack(
+            tenant,
+            budget=budget,
+            period_start=request.POST.get("period_start"),
+            period_end=request.POST.get("period_end"),
+            user=request.user,
+        )
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(f"/strategy/pilotage/?tab=revue&error={quote(_error_message(exc))}")
+    return redirect("/strategy/pilotage/?tab=revue")
+
+
+@login_required
+def review_pack_detail(request: HttpRequest, pack_id: str) -> HttpResponse:
+    if not request.user.has_perm("strategy.view_stgreviewpack"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    pack = get_object_or_404(StgReviewPack, tenant=tenant, id=pack_id)
+    return render(request, "strategy/review_pack_detail.html", {"pack": pack})
+
+
+@login_required
+def risk_create(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.add_stgrisk"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    with contextlib.suppress(ValidationError, ValueError):
+        create_risk(
+            tenant,
+            title=request.POST.get("title", ""),
+            probability=int(request.POST.get("probability", 1)),
+            impact=int(request.POST.get("impact", 1)),
+            description=request.POST.get("description", ""),
+            control_measure=request.POST.get("control_measure", ""),
+            owner=request.user,
+            created_by=request.user,
+        )
+    return redirect("/strategy/pilotage/?tab=risques")
+
+
+@login_required
+def risk_reassess(request: HttpRequest, risk_id: str) -> HttpResponse:
+    if request.method != "POST" or not request.user.has_perm("strategy.change_stgrisk"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    risk = get_object_or_404(StgRisk, tenant=tenant, id=risk_id)
+    with contextlib.suppress(ValidationError, ValueError):
+        reassess_risk(
+            risk,
+            probability=int(request.POST.get("probability", risk.probability)),
+            impact=int(request.POST.get("impact", risk.impact)),
+            control_measure=request.POST.get("control_measure", risk.control_measure),
+            user=request.user,
+        )
+    return redirect("/strategy/pilotage/?tab=risques")
+
+
+@login_required
+def objective_activate(request: HttpRequest, objective_id: str) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    objective = get_object_or_404(StgObjective, tenant=tenant, id=objective_id)
+    try:
+        assert_can_manage_level(
+            request.user,
+            level=objective.level,
+            department_id=objective.department_id,
+            tenant=tenant,
+        )
+    except PermissionDenied:
+        return HttpResponse(status=403)
+    try:
+        activate_objective(objective)
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(f"/strategy/{objective_id}/?error={quote(_error_message(exc))}")
+    return redirect("strategy:detail", objective_id=objective.id)

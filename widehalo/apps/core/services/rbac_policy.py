@@ -51,6 +51,19 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "add", "change"},
         "logistics": {"view", "add", "change"},
         "presence": {"view", "add", "change"},
+        # `strategy` : **limite assumee et disclosee** — le chantier
+        # budget/revue/risques (cahier Phase 2 §13.3) classe budget non
+        # publie/objectifs/cartographie des risques en donnee "Sensible"
+        # (§8.2, "acces restreint aux roles de direction et de controle"),
+        # mais la granularite de ce registre reste PAR APP (cf. commentaire
+        # de tete du fichier) : `StgBudget`/`StgReviewPack`/`StgRisk`
+        # heritent donc du meme acces {view,add,change} que le reste du
+        # module `strategy` pour TOUS les roles ci-dessous, pas seulement
+        # direction/controle — memes discipline et limite deja assumees
+        # ailleurs dans ce registre (granularite par modele non couverte,
+        # cf. docstring de tete). A restreindre via un scope N3/une
+        # permission personnalisee dediee si un besoin reel de cloisonnement
+        # plus strict est exprime.
         "strategy": {"view", "add", "change"},
         # §5.11 reporting : catalogue/generation pour tous les roles
         # (le filtrage reel par rapport passe par `RegisteredReport.

@@ -81,9 +81,25 @@ def add_key_result(
     target_value: Decimal,
     unit: str = "",
     current_value: Decimal = Decimal(0),
+    metric_code: str = "",
     kpi_source_module: str = "",
     kpi_source_function: str = "",
 ) -> StgKeyResult:
+    """`metric_code` (cahier §13.3, STR-1) : quand fourni, DOIT référencer
+    un indicateur PUBLIÉ du dictionnaire gouverné (`apps.analytics.
+    AnMetricDefinition`) — validé ici, jamais un code inventé. Un résultat
+    clé sans `metric_code` ni `kpi_source_module`/`kpi_source_function`
+    reste possible (compatibilité ascendante) mais ne compte PAS pour la
+    condition d'activation STR-1 (cf. `activate_objective`)."""
+    if metric_code:
+        from apps.analytics.services.public import get_metric_definition
+
+        metric = get_metric_definition(objective.tenant, metric_code)
+        if metric is None or metric["statut"] != "publie":
+            raise ValidationError(
+                _("Code indicateur inconnu ou non publié dans le dictionnaire : %(code)s")
+                % {"code": metric_code}
+            )
     key_result = StgKeyResult(
         tenant=objective.tenant,
         objective=objective,
@@ -91,6 +107,7 @@ def add_key_result(
         target_value=target_value,
         current_value=current_value,
         unit=unit,
+        metric_code=metric_code,
         kpi_source_module=kpi_source_module,
         kpi_source_function=kpi_source_function,
     )
@@ -98,6 +115,76 @@ def add_key_result(
     key_result.save()
     recompute_objective_status(objective)
     return key_result
+
+
+def activate_objective(objective: StgObjective) -> StgObjective:
+    """STR-1 : « la création d'un objectif SANS indicateur mesurable est
+    refusée. » Le cycle `create_objective`/`add_key_result` reste en 2
+    temps (compatibilité ascendante avec le modèle déjà livré) : c'est
+    donc CETTE fonction, appelée explicitement par l'utilisateur avant de
+    considérer un objectif comme officiellement suivi, qui porte la
+    contrainte STR-1 — jamais `create_objective` seul (un objectif
+    fraîchement créé, sans résultat clé, reste un brouillon légitime le
+    temps de sa construction).
+
+    **N'effectue AUCUNE transition manuelle de `status`** (porte de
+    validation pure, lève `ValidationError` ou ne fait rien) : `status`
+    reste TOUJOURS un champ calculé par `recompute_objective_status`,
+    jamais un cycle de vie piloté par l'utilisateur (cf. docstring de tête
+    de `models.py`) — et `recompute_objective_status` a de toute façon déjà
+    fait sortir l'objectif de `STATUS_DRAFT` dès l'ajout du résultat clé
+    qui satisfait la condition ci-dessous (`add_key_result` l'appelle),
+    donc une transition `DRAFT -> ACTIVE` ici serait un code mort qui ne
+    s'exécuterait jamais."""
+    has_measurable_key_result = (
+        objective.key_results.filter(is_active=True).exclude(metric_code="").exists()
+    )
+    if not has_measurable_key_result:
+        raise ValidationError(
+            _(
+                "Un objectif sans résultat clé adossé à un indicateur du dictionnaire "
+                "ne peut pas être activé."
+            )
+        )
+    return objective
+
+
+def compute_cascade_contribution(objective: StgObjective) -> list[dict[str, Any]]:
+    """STR-2 : « la cascade affiche la contribution de chaque niveau au
+    niveau supérieur et consolide l'avancement sans double comptage. »
+    Retourne le chemin racine -> `objective` (inclus), une entrée par
+    niveau, `contribution_pct` = progression PROPRE de ce niveau (jamais
+    la moyenne des enfants, qui compterait deux fois la même donnée si un
+    enfant a lui-même des enfants — la consolidation reste donc
+    STRICTEMENT verticale, un niveau ne voit que sa propre progression et
+    celle de son parent direct, jamais un agrégat transversal de tous ses
+    descendants)."""
+    chain: list[StgObjective] = []
+    current: StgObjective | None = objective
+    while current is not None:
+        chain.append(current)
+        current = current.parent
+    chain.reverse()
+
+    key_results_cache: dict[Any, list[StgKeyResult]] = {
+        obj.id: list(obj.key_results.filter(is_active=True)) for obj in chain
+    }
+
+    def _progress(obj: StgObjective) -> Decimal:
+        key_results = key_results_cache[obj.id]
+        if not key_results:
+            return Decimal(0)
+        return sum((kr.progress_pct() for kr in key_results), Decimal(0)) / len(key_results)
+
+    return [
+        {
+            "objective_id": obj.id,
+            "title": obj.title,
+            "level": obj.level,
+            "own_progress_pct": _progress(obj),
+        }
+        for obj in chain
+    ]
 
 
 def record_check_in(
@@ -196,6 +283,33 @@ def refresh_key_result_from_source(tenant: Tenant, key_result: StgKeyResult) -> 
     if raw_value is None:
         raise ValidationError(_("Aucune valeur disponible pour cette source KPI pour l'instant."))
     key_result.current_value = Decimal(str(raw_value))
+    key_result.full_clean()
+    key_result.save(update_fields=["current_value", "updated_at"])
+    recompute_objective_status(key_result.objective)
+    return key_result
+
+
+def refresh_key_result_from_dictionary(
+    tenant: Tenant, key_result: StgKeyResult, *, user: User
+) -> StgKeyResult:
+    """STR-1 : « l'avancement est calculé depuis l'indicateur, jamais saisi
+    à la main. » Chemin PRÉFÉRÉ pour un résultat clé adossé au dictionnaire
+    gouverné (`metric_code` renseigné) — passe par `bi.services.public.
+    get_metric_current_value` (mêmes droits/garde-fous que le module BI,
+    §13.1), jamais par le mécanisme `kpi_source_module`/`kpi_source_function`
+    antérieur (conservé uniquement pour compatibilité ascendante, cf.
+    `refresh_key_result_from_source`)."""
+    if not key_result.metric_code:
+        raise ValidationError(_("Ce résultat clé n'est adossé à aucun indicateur du dictionnaire."))
+    from apps.bi.services.public import get_metric_current_value
+
+    value = get_metric_current_value(tenant, key_result.metric_code, user)
+    if value is None:
+        raise ValidationError(
+            _("Aucune valeur disponible pour l'indicateur %(code)s pour l'instant.")
+            % {"code": key_result.metric_code}
+        )
+    key_result.current_value = value
     key_result.full_clean()
     key_result.save(update_fields=["current_value", "updated_at"])
     recompute_objective_status(key_result.objective)

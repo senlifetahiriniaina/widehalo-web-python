@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Pilotage" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'strategy:list' %}">{% trans "Stratégie" %}</a> / {% trans "Pilotage" %}</c-breadcrumb>
+
+<h1>{% trans "Pilotage" %}</h1>
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <a role="tab" class="tab {% if tab == 'budget' %}tab-active{% endif %}" href="?tab=budget">{% trans "Budget" %}</a>
+  <a role="tab" class="tab {% if tab == 'initiatives' %}tab-active{% endif %}" href="?tab=initiatives">{% trans "Initiatives" %}</a>
+  <a role="tab" class="tab {% if tab == 'revue' %}tab-active{% endif %}" href="?tab=revue">{% trans "Revue budgétaire" %}</a>
+  <a role="tab" class="tab {% if tab == 'risques' %}tab-active{% endif %}" href="?tab=risques">{% trans "Cartographie des risques" %}</a>
+  <a role="tab" class="tab {% if tab == 'tableau_direction' %}tab-active{% endif %}" href="?tab=tableau_direction">{% trans "Tableau de bord dirigeant" %}</a>
+</nav>
+
+{% if tab == "initiatives" %}
+  {% if can_manage %}
+    <form method="post" action="{% url 'strategy:initiative_create' %}">
+      {% csrf_token %}
+      <input type="text" name="objective_id" placeholder="{% trans "ID objectif" %}" required>
+      <input type="text" name="title" placeholder="{% trans "Titre" %}" required>
+      <input type="date" name="due_date">
+      <c-button variant="primary" type="submit">{% trans "Créer l'initiative" %}</c-button>
+    </form>
+  {% endif %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Objectif" %}</th><th>{% trans "Titre" %}</th><th>{% trans "Responsable" %}</th><th>{% trans "Échéance" %}</th><th>{% trans "État" %}</th><th>{% trans "Avancement" %}</th></tr></thead>
+    <tbody>
+      {% for i in initiatives %}
+        <tr>
+          <td>{{ i.objective.title }}</td>
+          <td>{{ i.title }}</td>
+          <td>{{ i.owner.email|default:"—" }}</td>
+          <td>{{ i.due_date|default:"—" }}</td>
+          <td>{{ i.get_state_display }}</td>
+          <td>{{ i.progress_pct }} %</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucune initiative." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "revue" %}
+  {% if can_manage %}
+    <form method="post" action="{% url 'strategy:review_pack_generate' %}">
+      {% csrf_token %}
+      <select name="budget_id">
+        <option value="">{% trans "Sans budget" %}</option>
+        {% for b in budgets %}<option value="{{ b.id }}">{{ b.name }} v{{ b.version }}</option>{% endfor %}
+      </select>
+      <input type="date" name="period_start" required>
+      <input type="date" name="period_end" required>
+      <c-button variant="primary" type="submit">{% trans "Générer le pack de revue" %}</c-button>
+    </form>
+  {% endif %}
+
+  <h2>{% trans "Écarts budgétaires" %}</h2>
+  <form method="get">
+    <input type="hidden" name="tab" value="revue">
+    <select name="budget_id" onchange="this.form.submit()">
+      <option value="">{% trans "Choisir un budget" %}</option>
+      {% for b in budgets %}<option value="{{ b.id }}" {% if selected_budget.id == b.id %}selected{% endif %}>{{ b.name }} v{{ b.version }}</option>{% endfor %}
+    </select>
+  </form>
+  {% if variance_rows %}
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Ligne" %}</th><th>{% trans "Budget" %}</th><th>{% trans "Réel" %}</th><th>{% trans "Écart" %}</th><th>{% trans "Écart %" %}</th><th>{% trans "Commentaire" %}</th></tr></thead>
+      <tbody>
+        {% for row in variance_rows %}
+          <tr {% if row.exceeds_threshold %}class="row-warning"{% endif %}>
+            <td>{{ row.axis_type }}:{{ row.axis_value }} ({{ row.period }})</td>
+            <td>{{ row.budgeted_value }}</td>
+            <td>{{ row.actual_value|default:"—" }}</td>
+            <td>{{ row.variance_value|default:"—" }}</td>
+            <td>{{ row.variance_pct|floatformat:1|default:"—" }}</td>
+            <td>
+              {% if row.comments %}{% for c in row.comments %}<p>{{ c.text }}</p>{% endfor %}{% endif %}
+              {% if row.exceeds_threshold and not row.has_comment and can_manage %}
+                <form method="post" action="{% url 'strategy:budget_variance_comment' selected_budget.id %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="line_key" value="{{ row.line_key }}">
+                  <input type="text" name="text" placeholder="{% trans "Motif" %}" required>
+                  <button type="submit" class="btn btn-ghost btn-sm">{% trans "Commenter" %}</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <h2>{% trans "Packs de revue générés" %}</h2>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Période" %}</th><th>{% trans "Généré le" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for p in packs %}
+        <tr><td>{{ p.period_start|date:"m/Y" }} — {{ p.period_end|date:"m/Y" }}</td><td>{{ p.generated_at|date:"d/m/Y H:i" }}</td><td><a href="{% url 'strategy:review_pack_detail' p.id %}">{% trans "Consulter" %}</a></td></tr>
+      {% empty %}
+        <tr><td colspan="3">{% trans "Aucun pack généré." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "risques" %}
+  {% if can_manage %}
+    <form method="post" action="{% url 'strategy:risk_create' %}">
+      {% csrf_token %}
+      <input type="text" name="title" placeholder="{% trans "Titre" %}" required>
+      <select name="probability">{% for i in "12345" %}<option value="{{ i }}">{{ i }}</option>{% endfor %}</select>
+      <select name="impact">{% for i in "12345" %}<option value="{{ i }}">{{ i }}</option>{% endfor %}</select>
+      <input type="text" name="control_measure" placeholder="{% trans "Mesure de maîtrise" %}">
+      <c-button variant="primary" type="submit">{% trans "Ajouter un risque" %}</c-button>
+    </form>
+  {% endif %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Risque" %}</th><th>{% trans "Probabilité" %}</th><th>{% trans "Impact" %}</th><th>{% trans "Score" %}</th><th>{% trans "Maîtrise" %}</th><th>{% trans "Propriétaire" %}</th><th>{% trans "Dernière réévaluation" %}</th></tr></thead>
+    <tbody>
+      {% for r in risks %}
+        <tr>
+          <td>{{ r.title }}</td>
+          <td>{{ r.probability }}</td>
+          <td>{{ r.impact }}</td>
+          <td>{{ r.risk_score }}</td>
+          <td>{{ r.control_measure|default:"—" }}</td>
+          <td>{{ r.owner.email|default:"—" }}</td>
+          <td>{{ r.last_reassessed_at|date:"d/m/Y"|default:"—" }}
+            {% if can_manage %}
+              <form method="post" action="{% url 'strategy:risk_reassess' r.id %}" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="probability" value="{{ r.probability }}">
+                <input type="hidden" name="impact" value="{{ r.impact }}">
+                <input type="hidden" name="control_measure" value="{{ r.control_measure }}">
+                <button type="submit" class="btn btn-ghost btn-sm">{% trans "Réévaluer maintenant" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">{% trans "Aucun risque enregistré." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% elif tab == "tableau_direction" %}
+  <div class="c-dashboard-grid">
+    <div class="wh-panel"><h3>{% trans "Objectifs à risque" %}</h3>{% for o in at_risk_objectives %}<p>{{ o.title }}</p>{% empty %}<p>{% trans "Aucun." %}</p>{% endfor %}</div>
+    <div class="wh-panel"><h3>{% trans "Écarts significatifs" %}</h3>{% for v in significant_variances %}<p>{{ v.axis_value }} : {{ v.variance_pct|floatformat:1 }} %</p>{% empty %}<p>{% trans "Aucun." %}</p>{% endfor %}</div>
+    <div class="wh-panel"><h3>{% trans "Trésorerie projetée" %}</h3>{% if latest_forecast %}<p>{% trans "Publication" %} v{{ latest_forecast.version }}</p>{% else %}<p>{% trans "Aucune prévision publiée." %}</p>{% endif %}</div>
+    <div class="wh-panel"><h3>{% trans "Risques principaux" %}</h3>{% for r in top_risks %}<p>{{ r.title }} ({{ r.risk_score }})</p>{% empty %}<p>{% trans "Aucun." %}</p>{% endfor %}</div>
+    <div class="wh-panel"><h3>{% trans "Budget verrouillé courant" %}</h3>{% if latest_budget %}<p>{{ latest_budget.name }} v{{ latest_budget.version }}</p>{% else %}<p>{% trans "Aucun budget verrouillé." %}</p>{% endif %}</div>
+  </div>
+
+{% else %}
+  {% if can_manage %}
+    <form method="post" action="{% url 'strategy:budget_create' %}">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="{% trans "Nom du budget" %}" required>
+      <select name="source">
+        <option value="manual">{% trans "Saisie manuelle" %}</option>
+        <option value="simulation_scenario">{% trans "Scénario de simulation" %}</option>
+        <option value="forecast_publication">{% trans "Dernière prévision publiée" %}</option>
+      </select>
+      <input type="text" name="scenario_id" placeholder="{% trans "ID scénario (si simulation)" %}">
+      <input type="date" name="period_start">
+      <input type="date" name="period_end">
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Version" %}</th><th>{% trans "Période" %}</th><th>{% trans "Source" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for b in budgets %}
+        <tr>
+          <td>{{ b.name }}</td>
+          <td>{{ b.version }}</td>
+          <td>{{ b.period_start|date:"m/Y" }} — {{ b.period_end|date:"m/Y" }}</td>
+          <td>{{ b.get_source_type_display }}</td>
+          <td>{% if b.is_locked %}<span class="badge b-success">{% trans "Verrouillé" %}</span>{% else %}<span class="badge b-warning">{% trans "Ouvert" %}</span>{% endif %}</td>
+          <td>
+            {% if can_manage and not b.is_locked %}
+              <form method="post" action="{% url 'strategy:budget_lock' b.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm">{% trans "Verrouiller" %}</button>
+              </form>
+            {% elif can_manage and b.is_locked %}
+              <form method="post" action="{% url 'strategy:budget_revise' b.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm">{% trans "Réviser (nouvelle version)" %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun budget." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

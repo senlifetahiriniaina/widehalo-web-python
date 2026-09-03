@@ -8,5 +8,6 @@
 </div>
   <p><a href="{% url 'strategy:create' %}" class="btn btn-primary">{% trans "Nouvel objectif" %}</a></p>
   <p><a href="{% url 'strategy:benchmarks' %}">{% trans "Référentiel sectoriel" %}</a></p>
+  <p><a href="{% url 'strategy:pilotage' %}">{% trans "Pilotage (budget, initiatives, revue, risques)" %}</a></p>
   {% include "components/_smart_table.html" %}
 {% endblock %}
