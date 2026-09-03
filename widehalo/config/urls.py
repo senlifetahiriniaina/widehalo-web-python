@@ -6,6 +6,8 @@ from apps.core.views.auth_web import (
     logout_view,
     mfa_view,
     profile_view,
+    set_language_view,
+    set_preference_view,
     setup_company_view,
 )
 from django.conf import settings
@@ -25,6 +27,11 @@ urlpatterns = [
     path("profile/", profile_view, name="profile"),
     path("setup/", setup_company_view, name="setup_company"),
     path("mfa/", mfa_view, name="mfa"),
+    # Sprint 10 (L6 Personnalisation & offline) : URL conventionnelle de la
+    # vue integree Django (`django.conf.urls.i18n.set_language`), mais
+    # notre propre implementation -- cf. docstring de `set_language_view`.
+    path("i18n/setlang/", set_language_view, name="set_language"),
+    path("settings/preferences/", set_preference_view, name="set_preference"),
     # UXR1 : lien de confirmation d'e-mail (vue PUBLIQUE, cf. docstring de
     # `confirm_email_view`) — hors `apps.core.urls` (dont toutes les
     # entrees supposent une session), au meme niveau que `login/`.

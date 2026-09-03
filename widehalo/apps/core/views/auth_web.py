@@ -11,6 +11,7 @@ premiere societe de l'instance."""
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
@@ -18,7 +19,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.management import call_command
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import translation
 from django.utils.translation import gettext as _
+from django.views.decorators.http import require_POST
 from django_otp import login as otp_login
 
 from apps.core.models.regulatory import CountryDefaultsProfile
@@ -28,6 +31,75 @@ from apps.core.services import mfa as mfa_service
 from apps.core.services.email_change import confirm_email_change
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.smart_defaults import apply_country_defaults
+
+
+@require_POST
+def set_language_view(request: HttpRequest) -> HttpResponse:
+    """Bascule la langue de l'interface -- Sprint 10 (L6 Personnalisation &
+    offline). Reprend l'URL conventionnelle de la vue integree de Django
+    (`django.conf.urls.i18n.set_language`, `POST /i18n/setlang/`) mais en
+    reimplemente la logique nous-memes, parce que la vue integree se
+    contente d'un cookie (`LANGUAGE_COOKIE_NAME`) : ici, pour un
+    utilisateur authentifie, on persiste EN PLUS le choix sur
+    `User.preferred_language` (source de verite reprise par
+    `apps.core.middleware.UserLocaleMiddleware` a chaque requete
+    suivante, y compris depuis un autre appareil/navigateur) -- jamais un
+    cookie seul, qui se perdrait au changement de navigateur.
+
+    Formulaire HTML pur (`<form method="post">` + `<select name="language">`
+    + bouton de soumission, cf. `templates/cotton/shell.html`) : fonctionne
+    sans JS (le `onchange="this.form.submit()"` est une simple
+    amelioration progressive par-dessus, meme discipline que le selecteur
+    de societe de `profile.html`)."""
+    code = request.POST.get("language", "").strip()
+    valid_codes = {lang_code for lang_code, _label in settings.LANGUAGES}
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER", "")
+    if not next_url or not next_url.startswith("/"):
+        next_url = "/"
+
+    response = redirect(next_url)
+    if code in valid_codes:
+        translation.activate(code)
+        response.set_cookie(settings.LANGUAGE_COOKIE_NAME, code)
+        user = request.user
+        if getattr(user, "is_authenticated", False):
+            user.preferred_language = code
+            user.save(update_fields=["preferred_language"])
+    return response
+
+
+@login_required
+@require_POST
+def set_preference_view(request: HttpRequest) -> HttpResponse:
+    """Enregistre `theme`/`density` (Sprint 10, L6 Personnalisation) --
+    meme patron que `set_language_view` ci-dessus (formulaire HTML pur,
+    persistance directe sur `User`, redirection vers `next`/le referrer).
+    Une seule vue pour les deux preferences (postees separement par deux
+    petits formulaires du menu compte, cf. `templates/cotton/shell.html`)
+    : seul le champ effectivement present dans le POST est modifie."""
+    from apps.core.models.user import DENSITY_CHOICES, THEME_CHOICES
+
+    user = request.user
+    update_fields: list[str] = []
+
+    theme = request.POST.get("theme")
+    if theme is not None and theme in {code for code, _label in THEME_CHOICES}:
+        user.theme = theme
+        update_fields.append("theme")
+
+    density = request.POST.get("density")
+    if density is not None and density in {code for code, _label in DENSITY_CHOICES}:
+        user.density = density
+        update_fields.append("density")
+
+    if update_fields:
+        user.save(update_fields=update_fields)
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER", "")
+    if not next_url or not next_url.startswith("/"):
+        next_url = "/"
+    return redirect(next_url)
 
 
 def login_view(request: HttpRequest) -> HttpResponse:

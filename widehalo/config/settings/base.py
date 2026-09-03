@@ -80,6 +80,11 @@ MIDDLEWARE = [
     # passe temporaire du compte admin par defaut avant d'enroler MFA dessus.
     "apps.core.middleware.OnboardingMiddleware",
     "apps.core.middleware.MFAEnforcementMiddleware",
+    # Sprint 10 (L6 Personnalisation) : APRES LocaleMiddleware (l'override
+    # explicitement, cf. sa docstring) et APRES AuthenticationMiddleware
+    # (a besoin de request.user pour lire `preferred_language`) -- ne
+    # jamais la deplacer avant l'une des deux.
+    "apps.core.middleware.UserLocaleMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
@@ -96,6 +101,7 @@ TEMPLATES = [
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
+                "django.template.context_processors.i18n",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.tenant",
@@ -142,8 +148,11 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalisation (etape 6) : francais par defaut, anglais disponible.
+# "mg" (Malagasy) ajoute au Sprint 10 (L6 Personnalisation) -- catalogue
+# `locale/mg/` volontairement vide pour l'instant, cf. sa note d'en-tete et
+# `apps.core.models.user.PREFERRED_LANGUAGE_CHOICES`.
 LANGUAGE_CODE = "fr"
-LANGUAGES = [("fr", "Français"), ("en", "English")]
+LANGUAGES = [("fr", "Français"), ("en", "English"), ("mg", "Malagasy")]
 LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "UTC"
 DISPLAY_TIME_ZONE = "Indian/Antananarivo"

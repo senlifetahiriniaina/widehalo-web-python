@@ -77,7 +77,13 @@
    Format OKLCH non requis par DaisyUI v5 -- les couleurs hex de
    tokens.css sont acceptees directement par --color-*. */
 @plugin "daisyui" {
-  themes: widehalo --default;
+  /* Sprint 10 (L6 Personnalisation & offline) : "widehalo-dark" ajoute --
+     "widehalo" reste le theme par defaut (server-side, `theme="system"`
+     se resout en "widehalo", cf. `apps.core.context_processors.account`).
+     La bascule reelle se fait par `<html data-theme="...">` (jamais
+     --prefersdark ici : le rendu par defaut serveur doit rester
+     deterministe pour fonctionner sans JS). */
+  themes: widehalo --default, widehalo-dark;
 }
 
 @plugin "daisyui/theme" {
@@ -100,6 +106,36 @@
   --color-error-content: #ffffff;
   --color-info: var(--halo-400);
   --color-info-content: var(--slate-900);
+  --radius-box: var(--r-lg);
+  --radius-field: var(--r-md);
+  --radius-selector: var(--r-sm);
+}
+
+/* ---- Theme DaisyUI "widehalo-dark" (Sprint 10, L6 Personnalisation) ----
+   Meme palette de tokens que "widehalo" ci-dessus (halo/amber/slate),
+   surfaces/premier-plan simplement inverses sur l'echelle slate -- pas de
+   nouvelle palette inventee. */
+@plugin "daisyui/theme" {
+  name: "widehalo-dark";
+  color-scheme: dark;
+  --color-primary: var(--halo-400);
+  --color-primary-content: var(--slate-950);
+  --color-secondary: var(--amber-400);
+  --color-secondary-content: var(--slate-950);
+  --color-base-100: var(--slate-900);
+  --color-base-200: var(--slate-950);
+  --color-base-300: var(--slate-800);
+  --color-base-content: var(--slate-50);
+  --color-neutral: var(--slate-300);
+  --color-neutral-content: var(--slate-900);
+  --color-success: var(--green-500);
+  --color-success-content: var(--slate-950);
+  --color-warning: var(--yellow-500);
+  --color-warning-content: var(--slate-950);
+  --color-error: var(--red-500);
+  --color-error-content: var(--slate-50);
+  --color-info: var(--halo-300);
+  --color-info-content: var(--slate-950);
   --radius-box: var(--r-lg);
   --radius-field: var(--r-md);
   --radius-selector: var(--r-sm);

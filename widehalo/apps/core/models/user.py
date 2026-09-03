@@ -10,7 +10,27 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel
 
-PREFERRED_LANGUAGE_CHOICES = [("fr", "Français"), ("en", "English")]
+PREFERRED_LANGUAGE_CHOICES = [
+    ("fr", "Français"),
+    ("en", "English"),
+    # Sprint 10 (L6 Personnalisation) : catalogue de traductions vide pour
+    # l'instant (cf. locale/mg/LC_MESSAGES/django.po) -- l'utilisateur qui
+    # choisit "Malagasy" voit donc l'application dans la langue source
+    # (francais) tant qu'une traduction professionnelle n'a pas ete
+    # fournie, jamais une erreur ni un fallback silencieux vers l'anglais.
+    ("mg", "Malagasy"),
+]
+
+THEME_CHOICES = [
+    ("light", "Clair"),
+    ("dark", "Sombre"),
+    ("system", "Système"),
+]
+
+DENSITY_CHOICES = [
+    ("comfortable", "Confortable"),
+    ("compact", "Compacte"),
+]
 
 
 class UserManager(DjangoUserManager["User"]):
@@ -58,6 +78,15 @@ class User(AbstractUser):
     preferred_language = models.CharField(
         max_length=5, choices=PREFERRED_LANGUAGE_CHOICES, default="fr"
     )
+    # Sprint 10 (L6 Personnalisation & offline) : `theme`/`density` sont de
+    # simples preferences d'affichage (jamais de logique metier dessus).
+    # "system" (defaut) se resout cote serveur en "light" (cf.
+    # `apps.core.context_processors.account`) -- la resolution reelle du
+    # `prefers-color-scheme` du systeme reste une amelioration cote client
+    # (petit script inline dans base.html), coherente avec la discipline
+    # "fonctionne sans JS, degrade proprement" du reste de ce chantier.
+    theme = models.CharField(max_length=8, choices=THEME_CHOICES, default="system")
+    density = models.CharField(max_length=12, choices=DENSITY_CHOICES, default="comfortable")
     must_change_password = models.BooleanField(default=False)
     auth_provider = models.CharField(max_length=16, default="local")
     """Point d'extension pour un futur SSO OIDC (V2) : seul 'local' est

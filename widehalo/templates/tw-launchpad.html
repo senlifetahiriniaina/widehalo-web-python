@@ -1,16 +1,36 @@
 {% load i18n static %}<!doctype html>
-<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}" data-theme="{{ resolved_theme|default:'widehalo' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% trans "Accueil" %} — WideHalo</title>
+  <link rel="manifest" href="{% static 'manifest.json' %}">
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
+  <script src="{% static 'js/offline_queue.js' %}" defer></script>
   <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
+  {% if theme_is_system %}
+  <script>
+    (function () {
+      try {
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.setAttribute("data-theme", "widehalo-dark");
+        }
+      } catch (e) { /* prefers-color-scheme indisponible : rendu serveur conserve */ }
+    })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% static 'js/sw.js' %}").catch(function () {});
+      });
+    }
+  </script>
 </head>
-<body>
+<body class="{{ density_class|default:'density-comfortable' }}">
 <c-shell>
   <div class="max-w-6xl mx-auto flex flex-col gap-8">
     <div>

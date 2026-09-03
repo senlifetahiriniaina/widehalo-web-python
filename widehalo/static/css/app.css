@@ -348,6 +348,22 @@ table.smart-table td,
   margin: var(--spacing-xs) 0;
   background: var(--border-subtle);
 }
+/* Sprint 10 (L6 Personnalisation & offline) : formulaires de preference
+   (langue/theme/densite) inline dans le menu compte -- meme discipline
+   visuelle que .account-menu-link-button ci-dessus. */
+.account-menu-inline-form {
+  padding: 4px var(--spacing-sm);
+}
+.account-menu-inline-form select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-canvas);
+  color: var(--fg-1);
+  font-size: var(--fs-13);
+  font-family: inherit;
+}
 
 main#main-content {
   grid-area: main;
@@ -586,6 +602,20 @@ table.smart-table td {
   text-align: left;
   padding: 0.55rem 0.85rem;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Sprint 10 (L6 Personnalisation & offline) : densite "compacte"
+   (`User.density`, cf. `<body class="density-...">` dans base.html) --
+   application volontairement representative (SmartTable + champs de
+   formulaire), pas une reduction exhaustive de tout espacement de
+   l'application. */
+.density-compact table.smart-table th,
+.density-compact table.smart-table td {
+  padding: 0.3rem 0.55rem;
+}
+.density-compact .form-field {
+  margin-bottom: 0.5rem;
+  gap: 0.1rem;
 }
 
 table.smart-table thead th {

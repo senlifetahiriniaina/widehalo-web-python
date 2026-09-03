@@ -1,0 +1,27 @@
+# NOTE: catalogue Malagasy scaffolding, Sprint 10 (L6 Personnalisation &
+# offline, cf. docs/planning/2026-refonte-ux-sprints.md). Aucune des
+# chaines ci-dessous n'est traduite -- ce depot n'a acces a aucun
+# traducteur malgache professionnel certifie, et une traduction
+# automatique/approximative d'un ERP (mentions legales, comptables,
+# RH...) serait plus trompeuse qu'un texte source laisse tel quel. Un
+# utilisateur qui choisit "Malagasy" voit donc l'application dans la
+# langue source (francais), jamais un texte errone presente comme du
+# malgache. Meme discipline de "supposition assumee et documentee" que
+# `FX_VARIANCE_ALERT_THRESHOLD_PCT` (apps/financing/services/credoc.py).
+#
+# A completer par une revision professionnelle avant toute mise en avant
+# reelle de cette langue aupres des utilisateurs.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-03 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Malagasy <mg@li.org>\n"
+"Language: mg\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"

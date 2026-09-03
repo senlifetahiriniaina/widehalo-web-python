@@ -96,6 +96,51 @@ pas de nouvelle logique RBAC.
         <li><a href="{% url 'profile' %}">{% trans "Voir le profil" %}</a></li>
         <li><a href="{% url 'change_password' %}">{% trans "Modifier le mot de passe" %}</a></li>
         <li class="menu-title text-xs pt-2">{% trans "Interface" %}</li>
+        {% comment %}
+        Sprint 10 (L6 Personnalisation & offline) : formulaires HTML purs
+        (fonctionnent sans JS -- l'auto-soumission a la selection,
+        onchange="this.form.submit()", est une simple amelioration
+        progressive par-dessus, meme discipline que profile.html).
+        {% endcomment %}
+        <li>
+          <form method="post" action="{% url 'set_language' %}" class="px-2 py-1">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <label for="shell-language" class="sr-only">{% trans "Langue" %}</label>
+            <select id="shell-language" name="language" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+              {% for lang_code, lang_label in LANGUAGES %}
+                <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_label }}</option>
+              {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-ghost btn-xs w-full mt-1">{% trans "Changer de langue" %}</button></noscript>
+          </form>
+        </li>
+        <li>
+          <form method="post" action="{% url 'set_preference' %}" class="px-2 py-1">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <label for="shell-theme" class="sr-only">{% trans "Thème" %}</label>
+            <select id="shell-theme" name="theme" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+              {% for theme_code, theme_label in theme_choices %}
+                <option value="{{ theme_code }}" {% if theme_code == user.theme %}selected{% endif %}>{{ theme_label }}</option>
+              {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-ghost btn-xs w-full mt-1">{% trans "Changer de thème" %}</button></noscript>
+          </form>
+        </li>
+        <li>
+          <form method="post" action="{% url 'set_preference' %}" class="px-2 py-1">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <label for="shell-density" class="sr-only">{% trans "Densité" %}</label>
+            <select id="shell-density" name="density" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+              {% for density_code, density_label in density_choices %}
+                <option value="{{ density_code }}" {% if density_code == user.density %}selected{% endif %}>{{ density_label }}</option>
+              {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-ghost btn-xs w-full mt-1">{% trans "Changer de densité" %}</button></noscript>
+          </form>
+        </li>
         <li>
           <form method="post" action="{% url 'toggle_shell' %}">
             {% csrf_token %}

@@ -5,6 +5,7 @@ from typing import Any
 from django.http import HttpRequest
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import DENSITY_CHOICES, THEME_CHOICES
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.rbac_policy import CUSTOM_PERMISSIONS, ROLE_APP_PERMISSIONS
 
@@ -131,6 +132,30 @@ def account(request: HttpRequest) -> dict[str, Any]:
     # automatiquement.
     use_new_shell = bool(request.session.get("use_new_shell", False))
 
+    # Sprint 10 (L6 Personnalisation & offline) : `resolved_theme` est la
+    # valeur reellement posee sur `<html data-theme="...">` par
+    # `base.html`/`tw-launchpad.html`. `User.theme == "system"` (defaut) se
+    # resout ici en "light" cote serveur -- la resolution reelle du
+    # `prefers-color-scheme` du systeme reste une amelioration cote client
+    # (petit script inline, ne s'applique qu'avec JS actif), pour que la
+    # page reste correcte/utilisable sans JS, juste sans matcher la
+    # preference OS. `density_class` alimente `<body class="...">`.
+    user_theme = getattr(user, "theme", "system") if user.is_authenticated else "system"
+    # "widehalo"/"widehalo-dark" : noms des 2 themes DaisyUI (cf.
+    # static/css/tailwind-input.css) attendus tels quels par
+    # `<html data-theme="...">` -- distincts des valeurs stockees sur
+    # `User.theme` ("light"/"dark"/"system"), qui restent le vocabulaire
+    # utilisateur (formulaire de preferences).
+    resolved_theme = "widehalo-dark" if user_theme == "dark" else "widehalo"
+    density_class = (
+        f"density-{getattr(user, 'density', 'comfortable')}"
+        if user.is_authenticated
+        else "density-comfortable"
+    )
+    # Un visiteur anonyme n'a pas de preference stockee -- traite comme
+    # "system" (comportement par defaut du script prefers-color-scheme).
+    theme_is_system = user_theme == "system"
+
     if not user.is_authenticated:
         return {
             "is_admin_user": False,
@@ -138,6 +163,11 @@ def account(request: HttpRequest) -> dict[str, Any]:
             "visible_groups": visible_groups,
             "visible_group_keys": visible_group_keys,
             "use_new_shell": use_new_shell,
+            "resolved_theme": resolved_theme,
+            "density_class": density_class,
+            "theme_choices": THEME_CHOICES,
+            "density_choices": DENSITY_CHOICES,
+            "theme_is_system": theme_is_system,
         }
     is_admin = bool(user_role_codes(user) & _ADMIN_ROLE_CODES) or user.is_superuser
     return {
@@ -146,4 +176,9 @@ def account(request: HttpRequest) -> dict[str, Any]:
         "visible_groups": visible_groups,
         "visible_group_keys": visible_group_keys,
         "use_new_shell": use_new_shell,
+        "resolved_theme": resolved_theme,
+        "density_class": density_class,
+        "theme_choices": THEME_CHOICES,
+        "density_choices": DENSITY_CHOICES,
+        "theme_is_system": theme_is_system,
     }

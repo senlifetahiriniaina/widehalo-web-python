@@ -1,10 +1,15 @@
 {% load i18n static %}<!doctype html>
-<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}" data-theme="{{ resolved_theme|default:'widehalo' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}WideHalo{% endblock %}</title>
   <link rel="icon" href="{% static 'img/logo-mark.svg' %}" type="image/svg+xml">
+  {# Sprint 10 (L6 Personnalisation & offline) : manifest PWA minimal --
+     nom/icone (reprend le logo existant, aucune icone PNG dediee n'a ete
+     fabriquee) uniquement, aucune pretention a une app "installable"
+     complete. #}
+  <link rel="manifest" href="{% static 'manifest.json' %}">
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
@@ -15,10 +20,47 @@
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
   <script src="{% static 'js/ui_patterns.js' %}" defer></script>
+  <script src="{% static 'js/offline_queue.js' %}" defer></script>
   <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
+  {% comment %}
+  Sprint 10 (L6) -- theme "system" (defaut) : le serveur rend deja
+  data-theme="light" (cf. `resolved_theme` dans
+  `apps.core.context_processors.account`) pour que la page soit correcte
+  sans JS. Ce script, uniquement s'il s'execute, affine ce choix pour un
+  utilisateur `theme="system"` d'apres `prefers-color-scheme` -- pure
+  amelioration progressive, jamais la source de verite.
+  {% endcomment %}
+  {% if theme_is_system %}
+  <script>
+    (function () {
+      try {
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.setAttribute("data-theme", "widehalo-dark");
+        }
+      } catch (e) { /* prefers-color-scheme indisponible : on garde le rendu serveur */ }
+    })();
+  </script>
+  {% endif %}
+  {% comment %}
+  Sprint 10 (L6) -- Service Worker (portee volontairement etroite,
+  cf. `static/js/sw.js` : cache-first sur les assets statiques + le
+  shell HTML, PAS une tentative de mise hors-ligne de l'appli dynamique
+  entiere). Garde `if ('serviceWorker' in navigator)` : navigateur sans
+  support = simplement pas de SW, aucune degradation.
+  {% endcomment %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% static 'js/sw.js' %}").catch(function () {
+          /* echec d'enregistrement (navigateur restreint, contexte non securise...) :
+             l'application continue de fonctionner normalement en ligne. */
+        });
+      });
+    }
+  </script>
   {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{{ density_class|default:'density-comfortable' }}">
   <a class="sr-only sr-only-focusable" href="#main-content">{% trans "Aller au contenu principal" %}</a>
   <div class="app-shell{% if not current_tenant %} app-shell-onboarding{% endif %}">
     {% if current_tenant %}
@@ -200,6 +242,54 @@
         <ul x-show="open" x-cloak class="account-menu-dropdown">
           <li><a href="{% url 'profile' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-user-check"></use></svg>{% trans "Voir le profil" %}</a></li>
           <li><a href="{% url 'change_password' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lock"></use></svg>{% trans "Modifier le mot de passe" %}</a></li>
+          <li class="account-menu-sep"></li>
+          {% comment %}
+          Sprint 10 (L6 Personnalisation & offline) : langue/theme --
+          formulaires HTML purs (fonctionnent sans JS, l'auto-soumission a
+          la selection est une simple amelioration progressive par-dessus,
+          meme discipline que le selecteur de societe de profile.html).
+          {% endcomment %}
+          <li>
+            <form method="post" action="{% url 'set_language' %}" class="account-menu-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <label for="account-menu-language" class="sr-only">{% trans "Langue" %}</label>
+              <select id="account-menu-language" name="language" onchange="this.form.submit()">
+                {% for lang_code, lang_label in LANGUAGES %}
+                  <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_label }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">{% trans "Changer de langue" %}</button></noscript>
+            </form>
+          </li>
+          {% if user.is_authenticated %}
+          <li>
+            <form method="post" action="{% url 'set_preference' %}" class="account-menu-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <label for="account-menu-theme" class="sr-only">{% trans "Thème" %}</label>
+              <select id="account-menu-theme" name="theme" onchange="this.form.submit()">
+                {% for theme_code, theme_label in theme_choices %}
+                  <option value="{{ theme_code }}" {% if theme_code == user.theme %}selected{% endif %}>{{ theme_label }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">{% trans "Changer de thème" %}</button></noscript>
+            </form>
+          </li>
+          <li>
+            <form method="post" action="{% url 'set_preference' %}" class="account-menu-inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <label for="account-menu-density" class="sr-only">{% trans "Densité" %}</label>
+              <select id="account-menu-density" name="density" onchange="this.form.submit()">
+                {% for density_code, density_label in density_choices %}
+                  <option value="{{ density_code }}" {% if density_code == user.density %}selected{% endif %}>{{ density_label }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">{% trans "Changer de densité" %}</button></noscript>
+            </form>
+          </li>
+          {% endif %}
           {% if current_tenant and not use_new_shell %}
           <li class="account-menu-sep"></li>
           <li>

@@ -21,6 +21,7 @@ from collections.abc import Callable
 
 from django.db import connection, transaction
 from django.http import HttpRequest, HttpResponse
+from django.utils import translation
 
 from apps.core.context import clear_current_tenant, set_current_tenant
 
@@ -156,4 +157,33 @@ class MFAEnforcementMiddleware:
 
                 return redirect("/mfa/")
 
+        return self.get_response(request)
+
+
+class UserLocaleMiddleware:
+    """Applique `User.preferred_language` (edite via `/profile/` ou le
+    formulaire de langue du menu compte, cf. `apps.core.views.auth_web.
+    set_language_view`) a la requete courante -- Sprint 10 (L6
+    Personnalisation & offline). `User.preferred_language` existait deja
+    (etape 6) mais n'etait jamais applique : cette classe est le seul
+    endroit qui le fait.
+
+    DOIT s'executer APRES `django.middleware.locale.LocaleMiddleware` dans
+    `MIDDLEWARE` (settings) pour la surclasser (sinon le cookie/
+    Accept-Language repris par LocaleMiddleware gagnerait silencieusement),
+    et APRES `AuthenticationMiddleware` (a besoin de `request.user`
+    resolu). Un visiteur anonyme, ou un utilisateur qui n'a jamais
+    positionne de preference explicite, retombe sur le comportement de
+    LocaleMiddleware sans aucune modification ici."""
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            preferred_language = getattr(user, "preferred_language", "")
+            if preferred_language:
+                translation.activate(preferred_language)
+                request.LANGUAGE_CODE = translation.get_language()
         return self.get_response(request)
