@@ -34,7 +34,7 @@ from apps.payroll.models import (
 )
 from apps.payroll.services.advances import request_advance
 from apps.payroll.services.batches import control_batch, create_batch, validate_and_post_batch
-from apps.payroll.services.contracts import create_contract
+from apps.payroll.services.contracts import create_amendment, create_contract
 from apps.payroll.services.payslip import compute_payslip
 from apps.payroll.services.pdf import payslip_pdf
 from apps.payroll.services.periods import close_period, compute_period, mark_period_paid
@@ -107,6 +107,12 @@ class ContractIn(Schema):
     wage_type: str = PayContract.WAGE_MONTHLY
 
 
+class AmendmentIn(Schema):
+    date_start: str
+    wage_base: Decimal | None = None
+    job_title: str | None = None
+
+
 class PeriodIn(Schema):
     code: str
     date_from: str
@@ -162,6 +168,37 @@ def create_contract_endpoint(request: Any, payload: ContractIn) -> dict[str, Any
     except ValidationError as exc:
         return _error_response(exc)
     return {"id": str(contract.id), "reference": contract.reference}
+
+
+@router.post("/payroll/contracts/{contract_id}/amend")
+@require_permission("payroll.add_paycontract")
+def amend_contract_endpoint(
+    request: Any, contract_id: uuid.UUID, payload: AmendmentIn
+) -> dict[str, Any] | JsonResponse:
+    """Bloc E, E5 (PAY-6) : point d'entree reel de `create_amendment`
+    (RG-PAY-6, jusqu'ici jamais appele en dehors des tests) — meme patron
+    que `create_contract_endpoint` ci-dessus (seul canal de gestion des
+    contrats aujourd'hui, aucun ecran HTML equivalent n'existe dans
+    `apps.payroll` : `list_contracts`/`create_contract_endpoint` sont deja
+    API-only). `original` est un contrat CONSERVE tel quel (RG-PAY-6,
+    l'avenant est un contrat ENFANT) — `payroll.add_paycontract` reste la
+    permission pertinente, un avenant est une CREATION au sens Django
+    (`PayContract.objects.create`), jamais une modification en place."""
+    import datetime as dt
+
+    original = get_object_or_404(PayContract, id=contract_id)
+    overrides: dict[str, Any] = {}
+    if payload.wage_base is not None:
+        overrides["wage_base"] = payload.wage_base
+    if payload.job_title is not None:
+        overrides["job_title"] = payload.job_title
+    try:
+        amendment = create_amendment(
+            original, date_start=dt.date.fromisoformat(payload.date_start), **overrides
+        )
+    except ValidationError as exc:
+        return _error_response(exc)
+    return {"id": str(amendment.id), "reference": amendment.reference}
 
 
 @router.get("/payroll/structures")
