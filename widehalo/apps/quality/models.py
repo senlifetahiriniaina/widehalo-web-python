@@ -166,3 +166,74 @@ class QltNonConformity(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return self.reference or f"NC {self.id}"
+
+
+class QltRecallDossier(BaseModel, ReferenceMixin):
+    """Dossier de rappel HACCP (Bloc D, D4, QUA-4 à QUA-7) — déclenche la
+    mise en quarantaine du lot d'origine ET de tous ses descendants
+    (`stocks.services.public.set_quality_state`, réutilisé tel quel,
+    jamais un second mécanisme de blocage), snapshotte le résultat de
+    `stocks.services.public.lot_genealogy_tree` au moment de la
+    déclaration (`genealogy_snapshot`/`impacted_lots`, JAMAIS recalculés
+    a posteriori — un dossier de rappel est une preuve de "ce qui était
+    su et déclaré à cet instant", même discipline documentée que
+    `stocks.StkRecall`, dont ce modèle est délibérément distinct : le
+    sort de `StkRecall` (migration/retrait) est différé au sprint D5 par
+    l'ADR de P6, pas tranché ici).
+
+    **Immuable dès sa création** (QUA-6/7) — trigger Postgres
+    (`apps/quality/migrations/0003_recall_dossier_immutability.py`),
+    même patron que le trigger `AccMove`/`StkMove` : seuls
+    `state`/`closed_by`/`closed_at`/`closing_reason` restent modifiables
+    pour la clôture, DELETE toujours refusé (ajout-seul)."""
+
+    STATE_OPEN = "open"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [
+        (STATE_OPEN, "Ouvert"),
+        (STATE_CLOSED, "Clôturé"),
+    ]
+
+    content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL)
+    object_id = models.CharField(max_length=64, blank=True)
+    content_object = GenericForeignKey("content_type", "object_id")
+
+    lot_variant_id = models.UUIDField(null=True, blank=True)
+    lot_name = models.CharField(max_length=64, blank=True)
+
+    reason = models.TextField()
+    # Perimetre FIGE au moment de la generation, jamais recalcule a
+    # posteriori — {"lot_id","lot_name","variant_id","ancestors",
+    # "descendants"} avec UUID/Decimal deja convertis en str (JSONField
+    # standard, pas de DjangoJSONEncoder — meme idiome que
+    # stocks.services.recall.declare_recall).
+    genealogy_snapshot = models.JSONField(default=dict, blank=True)
+    # Liste a plat, dedupliquee, des lots mis en quarantaine —
+    # [{"lot_variant_id": "...", "lot_name": "..."}, ...].
+    impacted_lots = models.JSONField(default=list, blank=True)
+
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_OPEN)
+    initiated_by = models.ForeignKey(
+        "core.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="qlt_recalls_initiated",
+    )
+    initiated_at = models.DateTimeField(auto_now_add=True)
+    closed_by = models.ForeignKey(
+        "core.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="qlt_recalls_closed",
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closing_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "qlt_recall_dossier"
+        verbose_name_plural = "Qlt recall dossiers"
+
+    def __str__(self) -> str:
+        return self.reference or f"Rappel {self.id}"

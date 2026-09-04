@@ -22,7 +22,13 @@ from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.quality.models import QltControlPlan, QltCriticalPoint, QltMeasurement, QltNonConformity
+from apps.quality.models import (
+    QltControlPlan,
+    QltCriticalPoint,
+    QltMeasurement,
+    QltNonConformity,
+    QltRecallDossier,
+)
 from apps.quality.services.alerts import check_overdue_controls as _check_overdue_controls
 from apps.quality.services.control_plans import add_critical_point as _add_critical_point
 from apps.quality.services.control_plans import create_control_plan as _create_control_plan
@@ -37,6 +43,8 @@ from apps.quality.services.non_conformity import (
 from apps.quality.services.non_conformity import (
     has_open_non_conformity as _has_open_non_conformity,
 )
+from apps.quality.services.recall import close_recall as _close_recall
+from apps.quality.services.recall import declare_recall as _declare_recall
 from apps.stocks.services.public import QUALITY_STATE_CONFORME
 from apps.stocks.services.public import (
     get_lot_certificate_document_id as _get_lot_certificate_document_id,
@@ -193,3 +201,33 @@ def check_overdue_controls(
     (seuls les lots ayant déjà reçu au moins une mesure sous un plan
     peuvent être détectés) et le détail du mécanisme de notification."""
     return _check_overdue_controls(tenant, now=now)
+
+
+def declare_recall(
+    *,
+    tenant: Tenant,
+    lot_variant_id: Any,
+    lot_name: str,
+    reason: str,
+    initiated_by: User,
+    content_object: models.Model | None = None,
+) -> QltRecallDossier:
+    """QUA-4 à QUA-7 (D4) : déclare un dossier de rappel — met en
+    quarantaine le lot d'origine ET tous ses descendants (généalogie
+    résolue via `stocks.services.public.lot_genealogy_tree`, jamais
+    recalculée), figeant le périmètre au moment de la déclaration. Cf.
+    docstring de `services/recall.py`/`QltRecallDossier`."""
+    return _declare_recall(
+        tenant=tenant,
+        lot_variant_id=lot_variant_id,
+        lot_name=lot_name,
+        reason=reason,
+        initiated_by=initiated_by,
+        content_object=content_object,
+    )
+
+
+def close_recall(
+    dossier: QltRecallDossier, *, closed_by: User, closing_reason: str
+) -> QltRecallDossier:
+    return _close_recall(dossier, closed_by=closed_by, closing_reason=closing_reason)
