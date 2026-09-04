@@ -5,6 +5,23 @@ en réponse à l'« Action requise de Claude Code en préambule » du cahier des
 WideHalo v3 (refonte UX) : ce document remplace les hypothèses du cahier des charges
 par l'état réel, mesuré, du dépôt `widehalo-web-python`.
 
+> **Mise à jour 2026-09-04.** Les chiffres du §2 (254/515/218, mesurés le 2026-09-02)
+> sont **obsolètes** : depuis cette date, le dépôt a livré les modules manquants de la
+> Phase 1 officielle (POS, Simulation financière) et l'intégralité de la Phase 2
+> officielle (entrepôt en étoile + dictionnaire d'indicateurs, Business Intelligence,
+> Forecast, Strategy, WhatsApp) — voir
+> `docs/audit/2026-09-cahier-des-charges-v3-audit.md` pour le détail de ce chantier et
+> son résultat. **Seule une ré-exécution du script de comptage fait foi** ; ce document
+> comme tout autre ne remplace jamais cette mesure. Ré-exécuté ce jour avec la méthode
+> inchangée du §1 : **290 modèles / 569 endpoints / 238 écrans**, contre un plafond CI
+> actuel de **290 / 600 / 240** (`config/settings/base.py::BUDGET_MAX_MODELS` etc.) —
+> le plafond « modèles » est désormais atteint **exactement** (290/290, marge nulle) ;
+> tout modèle Phase 3 supplémentaire (mouvement de stock, lot, dossier d'import,
+> rubrique de paie...) exigera un relèvement explicite, documenté au même titre que les
+> cinq relèvements précédents (§2 ci-dessous). Le tableau et la répartition par app du
+> §2 restent la mesure du 2026-09-02 (avant Phase 1/2 officielles) et sont conservés
+> ci-dessous comme repère historique — ne pas les citer comme état actuel.
+
 ## 0. Constat principal : le dépôt est plus avancé que ce que suppose le cahier des
    charges — et un garde-fou de budget existe déjà
 
