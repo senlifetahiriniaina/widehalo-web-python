@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "apps.bi",
     "apps.forecast",
     "apps.whatsapp",
+    "apps.quality",
 ]
 
 MIDDLEWARE = [
