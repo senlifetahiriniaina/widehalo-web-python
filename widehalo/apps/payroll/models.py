@@ -496,6 +496,15 @@ class PayBatch(BaseModel, ReferenceMixin):
     validated_by = models.ForeignKey(
         "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # Bloc E, E6 (PAY-7) : acquittements PAR ANOMALIE (paire payslip_id+
+    # code), motif obligatoire — remplace l'ancien acquittement global
+    # (`force_despite_anomalies`, retire). Liste de
+    # {"payslip_id": str, "code": str, "reason": str, "acknowledged_by": str,
+    # "acknowledged_at": str ISO} — cf. `apps.payroll.services.batches.
+    # acknowledge_anomaly`. JSONField plutot qu'un modele dedie (budget de
+    # modeles, meme discipline que MrpBom.by_products) : structure simple,
+    # jamais interrogee independamment du lot auquel elle appartient.
+    anomaly_acknowledgments = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "pay_batch"

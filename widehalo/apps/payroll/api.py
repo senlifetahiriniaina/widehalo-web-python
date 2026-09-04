@@ -26,6 +26,7 @@ from apps.core.services.permissions import (
 )
 from apps.payroll.models import (
     PayAdvance,
+    PayBatch,
     PayContract,
     PayContractType,
     PayDeclaration,
@@ -33,7 +34,13 @@ from apps.payroll.models import (
     PaySalaryStructure,
 )
 from apps.payroll.services.advances import request_advance
-from apps.payroll.services.batches import control_batch, create_batch, validate_and_post_batch
+from apps.payroll.services.batches import (
+    acknowledge_anomaly,
+    control_batch,
+    create_batch,
+    list_batch_anomalies,
+    validate_and_post_batch,
+)
 from apps.payroll.services.contracts import create_amendment, create_contract
 from apps.payroll.services.payslip import compute_payslip
 from apps.payroll.services.pdf import payslip_pdf
@@ -45,9 +52,12 @@ router = Router(tags=["payroll"])
 _STAFF_ROLES = {"rh", "admin", "direction"}
 
 
-def _error_response(exc: Exception) -> JsonResponse:
+def _error_response(exc: Exception, *, extra: dict[str, Any] | None = None) -> JsonResponse:
     message = "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
-    return JsonResponse({"detail": message}, status=400)
+    data: dict[str, Any] = {"detail": message}
+    if extra:
+        data.update(extra)
+    return JsonResponse(data, status=400)
 
 
 def _tenant(request: Any) -> Any:
@@ -271,14 +281,59 @@ def verify_period_endpoint(request: Any, period_id: uuid.UUID) -> dict[str, Any]
 @router.post("/payroll/periods/{period_id}/validate")
 @require_permission("payroll.change_payperiod")
 def validate_period_endpoint(request: Any, period_id: uuid.UUID) -> dict[str, Any] | JsonResponse:
+    """Bloc E, E6 (PAY-7) : `create_batch`/`control_batch` sont idempotents
+    par periode — un appel repete apres un refus pour anomalies non
+    acquittees reutilise LE MEME lot (`batch_id`, toujours renvoye meme en
+    cas d'erreur) plutot que d'en creer un nouveau, permettant a
+    l'appelant d'acquitter (`POST .../batches/{batch_id}/anomalies/
+    acknowledge`) puis de reessayer sur ce meme lot."""
     period = _get_period(request, period_id)
+    batch = create_batch(period)
     try:
-        batch = create_batch(period)
         control_batch(batch, request.auth)
         validate_and_post_batch(batch, request.auth)
     except ValidationError as exc:
-        return _error_response(exc)
+        return _error_response(exc, extra={"batch_id": str(batch.id)})
     return {"batch_id": str(batch.id)}
+
+
+@router.get("/payroll/batches/{batch_id}/anomalies")
+@require_permission("payroll.view_paybatch")
+def list_batch_anomalies_endpoint(request: Any, batch_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Bloc E, E6 (PAY-7) : anomalies actuelles du lot, chacune annotee de
+    son statut d'acquittement — permet a l'appelant de savoir lesquelles
+    acquitter avant de retenter `POST .../periods/{id}/validate`."""
+    batch = get_object_or_404(PayBatch, id=batch_id)
+    return [{**a, "payslip_id": str(a["payslip_id"])} for a in list_batch_anomalies(batch)]
+
+
+class AnomalyAcknowledgmentIn(Schema):
+    payslip_id: uuid.UUID
+    code: str
+    reason: str
+
+
+@router.post("/payroll/batches/{batch_id}/anomalies/acknowledge")
+@require_permission("payroll.change_paybatch")
+def acknowledge_anomaly_endpoint(
+    request: Any, batch_id: uuid.UUID, payload: AnomalyAcknowledgmentIn
+) -> dict[str, Any] | JsonResponse:
+    """Bloc E, E6 (PAY-7) : point d'entree reel de l'acquittement PAR
+    anomalie avec motif obligatoire — remplace l'ancien acquittement
+    global (`force_despite_anomalies`, retire de
+    `apps.payroll.services.batches.validate_and_post_batch`)."""
+    batch = get_object_or_404(PayBatch, id=batch_id)
+    try:
+        acknowledge_anomaly(
+            batch,
+            payslip_id=payload.payslip_id,
+            code=payload.code,
+            reason=payload.reason,
+            user=request.auth,
+        )
+    except ValidationError as exc:
+        return _error_response(exc)
+    return {"acknowledged": True}
 
 
 @router.post("/payroll/periods/{period_id}/pay")

@@ -20,7 +20,12 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.payroll.models import PayPayslip, PayPeriod
-from apps.payroll.services.batches import control_batch, create_batch, validate_and_post_batch
+from apps.payroll.services.batches import (
+    acknowledge_anomaly,
+    control_batch,
+    create_batch,
+    validate_and_post_batch,
+)
 from apps.payroll.services.payslip import compute_payslip
 from apps.payroll.tests.factories import (
     make_active_contract,
@@ -84,7 +89,15 @@ def test_batch_validation_posts_balanced_accounting_entry() -> None:
 
         batch = create_batch(period)
         anomalies = control_batch(batch, user)
-        validate_and_post_batch(batch, user, force_despite_anomalies=bool(anomalies))
+        for anomaly in anomalies:
+            acknowledge_anomaly(
+                batch,
+                payslip_id=anomaly.payslip_id,
+                code=anomaly.code,
+                reason="Vérifié manuellement, aucune correction nécessaire.",
+                user=user,
+            )
+        validate_and_post_batch(batch, user)
 
         payslip.refresh_from_db()
         assert payslip.move_id is not None
@@ -103,7 +116,9 @@ def test_validate_and_post_batch_refuses_when_a_regulatory_parameter_is_not_vali
     laisse volontairement les parametres au statut par defaut
     `STATUS_NON_VALIDE` — aucun appel a `mark_validated`, a la difference
     du test ci-dessus — donc la publication doit etre refusee, sans
-    echappatoire (contrairement a `force_despite_anomalies`)."""
+    echappatoire (le verrou OECFM est verifie AVANT le controle
+    d'anomalies, donc bloque meme si des anomalies restent non
+    acquittees, cf. `validate_and_post_batch`)."""
     tenant = Tenant.objects.create(code="PAY-D5", name="Verrou OECFM")
     with use_tenant(tenant.id):
         setup_payroll_reference_data(tenant)
@@ -135,10 +150,10 @@ def test_validate_and_post_batch_refuses_when_a_regulatory_parameter_is_not_vali
         period.save(update_fields=["state"])
 
         batch = create_batch(period)
-        anomalies = control_batch(batch, user)
+        control_batch(batch, user)
 
         with pytest.raises(ValidationError):
-            validate_and_post_batch(batch, user, force_despite_anomalies=bool(anomalies))
+            validate_and_post_batch(batch, user)
 
         payslip.refresh_from_db()
         assert payslip.move_id is None
