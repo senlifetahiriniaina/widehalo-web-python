@@ -15,14 +15,12 @@ Statuts (recapitulatif) :
      complet. Cf. `apps/purchase/tests/test_substitution.py`/
      `test_requisitions.py` (PU2).
   3. RG-PUR-3 (reapprovisionnement automatique -> demande d'achat en
-     brouillon) : PASS complet, AVEC UN STUB DOCUMENTE — le declenchement
-     repose sur un stock disponible toujours considere a zero
-     (`apps.stocks`/`apps.logistics` n'existent pas encore dans ce depot,
-     cf. docstring `services/reordering.py`). Ce stub ne remet PAS en
-     cause le critere d'acceptance lui-meme (une demande d'achat EST bien
-     creee en brouillon des que `min_qty > 0`) — a la difference des
-     deviations PARTIELLES de `sales` (RG-SAL-3/RG-SAL-7), qui omettaient
-     une branche entiere du critere. Cf.
+     brouillon) : PASS complet. `run_reordering` interroge desormais le
+     VRAI stock disponible via `apps.stocks.services.public.
+     get_available_stock_qty` (chantier de durcissement retroactif,
+     cf. docstring `services/reordering.py`) — le stock est a zero dans ce
+     test parce qu'aucun mouvement n'a jamais ete cree pour la variante
+     testee, un zero reel, plus un stub. Cf.
      `apps/purchase/tests/test_reordering.py`.
   4. RG-PUR-6 (facture >5% du bon de commande bloque la validation et
      ouvre un litige) : PASS complet, SANS deviation. Cf.
@@ -55,6 +53,7 @@ from apps.purchase.services.receiving import receive_order_line
 from apps.purchase.services.reordering import run_reordering
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
 from apps.purchase.services.substitution import create_substitute, list_substitutes_for_variant
+from apps.stocks.models import StkLocation, StkWarehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -118,15 +117,15 @@ def test_acceptance_2_degraded_substitute_without_validation_is_rejected_full_pa
             )
 
 
-def test_acceptance_3_reordering_creates_draft_requisition_below_min_full_pass_stub() -> None:
+def test_acceptance_3_reordering_creates_draft_requisition_below_min_full_pass() -> None:
     """§5.6.7 n°3 : "Le reapprovisionnement automatique cree une demande
     d'achat en brouillon lorsque le stock passe sous le minimum" — PASS
-    complet, avec un stub honnete documente sur le stock disponible
-    (toujours considere a zero, `apps.stocks` non construit dans ce depot
-    — cf. docstring `services/reordering.py`). Ce stub ne compromet PAS le
-    critere teste ici : des que `min_qty > 0`, une `PurRequisition` EN
-    BROUILLON est bien creee, jamais une commande confirmee. Detail
-    complet : `apps/purchase/tests/test_reordering.py`."""
+    complet. Le stock disponible interroge via `apps.stocks.services.
+    public.get_available_stock_qty` est a zero pour la variante testee
+    (aucun mouvement jamais cree) — une valeur reelle, pas un stub, cf.
+    correction du sommaire de tete de fichier. Des que `min_qty > 0`, une
+    `PurRequisition` EN BROUILLON est bien creee, jamais une commande
+    confirmee. Detail complet : `apps/purchase/tests/test_reordering.py`."""
     tenant = Tenant.objects.create(code="PUR-ACC-3", name="Acceptance 3 Tenant")
     with use_tenant(tenant.id):
         User.objects.create_superuser(email="acc3-admin@example.com", password="Str0ngPassw0rd!23")
@@ -173,7 +172,17 @@ def test_acceptance_4_invoice_variance_above_5pct_blocks_and_opens_dispute_full_
     tenant = Tenant.objects.create(code="PUR-ACC-4", name="Acceptance 4 Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="acc4@example.com", password="Str0ngPassw0rd!23")
-        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-ACC4", name="Entrepôt")
+        StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="WH-ACC4-A1",
+            name="Rayon A1",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+        )
         add_order_line(
             order,
             variant_id=uuid.uuid4(),

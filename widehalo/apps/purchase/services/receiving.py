@@ -5,6 +5,19 @@ automatique de l'etat FSM de `PurOrder` (`attempt_transition()`/`.save()`
 du socle, meme discipline que `apps.purchase.services.orders` — garde-fou
 architecture T7), et calcul de l'ecart reception vs commande.
 
+Cahier des charges Phase 3 (§12.1, decision P2) : `receive_order_line`
+cree desormais un VRAI mouvement de stock via `apps.stocks.services.
+public.receive_purchase_line` — avant cela, cette fonction n'incrementait
+que `PurOrderLine.qty_received`, sans jamais toucher `stocks`, deux
+comptabilites de quantite coexistaient et divergeaient silencieusement
+(constat de l'audit `docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md`,
+§3.1/§3.3). `PurOrder.warehouse_id` (jusque-la une "reference opaque a un
+futur entrepot", cf. `apps.purchase.models`) devient donc une precondition
+REELLE de la reception : `receive_order_line` refuse desormais si aucun
+entrepot valide (avec au moins un emplacement interne) n'est renseigne sur
+la commande, plutot que de laisser la reception "reussir" sans effet sur
+le stock physique.
+
 Discipline `attempt_transition` (garde-fou T7, cf. `tests/architecture/
 test_attempt_transition_saves_state.py`) : `_recompute_order_reception_
 state` rappelle explicitement `order.save(update_fields=["state"])` juste
@@ -13,17 +26,19 @@ elle-meme."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
 from apps.core.services.workflow import attempt_transition
 from apps.purchase.models import PurOrder, PurOrderLine, PurReceiptLine
+from apps.stocks.services.public import receive_purchase_line as receive_stock_move
 
 if TYPE_CHECKING:
     from apps.core.models.quality import QltChecklistTemplate, QltInspection
@@ -38,6 +53,7 @@ _VALID_QUALITY_STATUSES = {choice[0] for choice in PurReceiptLine.QUALITY_CHOICE
 _RECEIVABLE_STATES = (PurOrder.STATE_IN_TRANSIT, PurOrder.STATE_PARTIALLY_RECEIVED)
 
 
+@transaction.atomic
 def receive_order_line(
     line: PurOrderLine,
     *,
@@ -56,7 +72,16 @@ def receive_order_line(
     - un depassement de `line.qty` (`line.qty_received + qty_received_now
       > line.qty`) — RG-PUR-5 : l'ecart se mesure TOUJOURS contre la
       quantite commandee, jamais un sur-receptionnement silencieux qui
-      fausserait `order_reception_variance` ci-dessous.
+      fausserait `order_reception_variance` ci-dessous ;
+    - l'absence d'un entrepot valide (avec au moins un emplacement
+      interne) sur la commande — cf. docstring de module, decision P2 :
+      une reception qui ne peut pas produire de mouvement de stock reel
+      est refusee plutot que silencieusement acceptee.
+
+    `@transaction.atomic` (ajoute par la decision P2) : le mouvement de
+    stock, la ligne de reception et l'avancement de l'etat de la commande
+    reussissent ou echouent TOUS ENSEMBLE — jamais une reception partielle
+    enregistree cote `purchase` sans que le stock physique n'ait bouge.
 
     Recalcule ensuite automatiquement l'etat de la commande
     (`_recompute_order_reception_state`) : jamais a l'appelant de decider
@@ -81,6 +106,26 @@ def receive_order_line(
                 "commandee de la ligne (RG-PUR-5, ecart trace jamais silencieux)."
             )
             % {"qty": line.qty}
+        )
+
+    move_id = receive_stock_move(
+        tenant=order.tenant,
+        variant_id=line.variant_id,
+        qty=qty_received_now,
+        uom=line.uom,
+        warehouse_id=order.warehouse_id,
+        date=date.today(),
+        source_document=order.reference,
+        unit_cost_mga=line.unit_price_mga,
+        operator=user,
+    )
+    if move_id is None:
+        raise ValidationError(
+            _(
+                "Impossible de réceptionner : aucun entrepôt valide (avec au "
+                "moins un emplacement interne) n'est renseigné sur cette "
+                "commande."
+            )
         )
 
     PurReceiptLine.objects.create(

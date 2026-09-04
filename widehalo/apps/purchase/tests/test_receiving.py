@@ -1,7 +1,13 @@
 """RG-PUR-5 (§5.6.5, PU5 du sous-sequencement `purchase` — cf. plan) :
 reception partielle tracee, controle qualite, recalcul automatique de
 l'etat FSM de `PurOrder`, et ecart reception vs commande
-(`order_reception_variance`)."""
+(`order_reception_variance`).
+
+Cahier des charges Phase 3 (§12.1, decision P2) : `receiving_setup`/
+`_order_in_transit` configurent desormais toujours un entrepot + un
+emplacement interne valides (`StkWarehouse`/`StkLocation`), devenus une
+precondition reelle de la reception (`receive_order_line` refuse sinon,
+cf. `test_receive_order_line_refuses_without_a_configured_warehouse`)."""
 
 from __future__ import annotations
 
@@ -26,6 +32,7 @@ from apps.purchase.services.orders import (
     validate_order,
 )
 from apps.purchase.services.receiving import order_reception_variance, receive_order_line
+from apps.stocks.models import StkLocation, StkQuant, StkWarehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -35,11 +42,21 @@ def receiving_setup():
     tenant = Tenant.objects.create(code="PUR-REC", name="Purchase Receiving Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="pur-rec@example.com", password="Str0ngPassw0rd!23")
-        return tenant, user
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-PUR-REC", name="Entrepôt")
+        internal_location = StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="WH-PUR-REC-A1",
+            name="Rayon A1",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        return tenant, user, warehouse, internal_location
 
 
-def _order_in_transit(tenant, user, *, lines=1):
-    order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+def _order_in_transit(tenant, user, *, lines=1, warehouse_id=None):
+    order = create_order(
+        tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse_id
+    )
     created_lines = []
     for i in range(lines):
         created_lines.append(
@@ -60,9 +77,9 @@ def _order_in_transit(tenant, user, *, lines=1):
 
 
 def test_receive_order_line_refuses_non_positive_qty(receiving_setup) -> None:
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        _order, (line,) = _order_in_transit(tenant, user)
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
         with pytest.raises(ValidationError):
             receive_order_line(
                 line,
@@ -82,9 +99,9 @@ def test_receive_order_line_refuses_non_positive_qty(receiving_setup) -> None:
 def test_receive_order_line_refuses_over_receiving_beyond_qty(receiving_setup) -> None:
     """RG-PUR-5 : l'ecart se mesure toujours contre la quantite commandee —
     jamais un sur-receptionnement silencieux (acceptance §5.6.7)."""
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        _order, (line,) = _order_in_transit(tenant, user)
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
         receive_order_line(
             line,
             qty_received_now=Decimal(6),
@@ -101,7 +118,7 @@ def test_receive_order_line_refuses_over_receiving_beyond_qty(receiving_setup) -
 
 
 def test_receive_order_line_refuses_when_order_not_yet_in_transit(receiving_setup) -> None:
-    tenant, user = receiving_setup
+    tenant, user, _warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
         order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
         line = add_order_line(
@@ -121,13 +138,67 @@ def test_receive_order_line_refuses_when_order_not_yet_in_transit(receiving_setu
 
 
 def test_receive_order_line_refuses_invalid_quality_status(receiving_setup) -> None:
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        _order, (line,) = _order_in_transit(tenant, user)
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
         with pytest.raises(ValidationError):
             receive_order_line(
                 line, qty_received_now=Decimal(1), quality_status="douteux", user=user
             )
+
+
+def test_receive_order_line_refuses_without_a_configured_warehouse(receiving_setup) -> None:
+    """Decision P2 (cahier Phase 3 §12.1) : une commande sans entrepot
+    valide ne peut plus être "reçue" sans effet sur le stock physique —
+    avant P2, `PurOrder.warehouse_id` était une simple métadonnée non
+    vérifiée et la réception réussissait quand même, sans jamais toucher
+    `stocks`."""
+    tenant, user, _warehouse, _internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=None)
+        with pytest.raises(ValidationError):
+            receive_order_line(
+                line,
+                qty_received_now=Decimal(1),
+                quality_status=PurReceiptLine.QUALITY_CONFORME,
+                user=user,
+            )
+        # Rien n'a été enregistré côté achat non plus (@transaction.atomic) :
+        # ni la ligne de réception, ni la quantité reçue de la ligne.
+        assert PurReceiptLine.objects.filter(order_line=line).count() == 0
+        line.refresh_from_db()
+        assert line.qty_received == Decimal(0)
+
+
+def test_receive_order_line_creates_a_real_stock_move(receiving_setup) -> None:
+    """Décision P2 : ferme la double comptabilité de quantité constatée
+    par l'audit Phase 3 (§12.1/§3.1/§3.3) — une réception d'achat doit
+    désormais se voir dans le quant de stock réel, pas seulement dans
+    `PurOrderLine.qty_received`."""
+    tenant, user, warehouse, internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(6),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+        quant = StkQuant.objects.get(
+            tenant=tenant, variant_id=line.variant_id, location=internal_location
+        )
+        assert quant.qty == Decimal(6)
+        assert quant.value_mga == Decimal(6) * line.unit_price_mga
+
+        # Une deuxième réception partielle s'ajoute au même quant.
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(4),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+        quant.refresh_from_db()
+        assert quant.qty == Decimal(10)
 
 
 def test_partial_receipt_updates_qty_received_and_order_state_across_two_receipts(
@@ -136,9 +207,9 @@ def test_partial_receipt_updates_qty_received_and_order_state_across_two_receipt
     """Acceptance RG-PUR-5 : reception partielle sur une commande a 2
     lignes, en 2 evenements de reception successifs —
     in_transit -> partially_received -> received."""
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        order, (line1, line2) = _order_in_transit(tenant, user, lines=2)
+        order, (line1, line2) = _order_in_transit(tenant, user, lines=2, warehouse_id=warehouse.id)
         assert order.state == PurOrder.STATE_IN_TRANSIT
 
         # Premiere reception : seulement une partie de line1 -> partially_received.
@@ -190,9 +261,9 @@ def test_partial_receipt_updates_qty_received_and_order_state_across_two_receipt
 def test_first_receipt_on_in_transit_order_moves_at_least_to_partially_received(
     receiving_setup,
 ) -> None:
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        order, (line,) = _order_in_transit(tenant, user)
+        order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
         assert order.state == PurOrder.STATE_IN_TRANSIT
         receive_order_line(
             line,
@@ -205,9 +276,9 @@ def test_first_receipt_on_in_transit_order_moves_at_least_to_partially_received(
 
 
 def test_photo_document_ids_and_received_by_are_recorded(receiving_setup) -> None:
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        _order, (line,) = _order_in_transit(tenant, user)
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
         doc_ids = [uuid.uuid4(), uuid.uuid4()]
         receive_order_line(
             line,
@@ -224,9 +295,9 @@ def test_photo_document_ids_and_received_by_are_recorded(receiving_setup) -> Non
 def test_order_reception_variance_for_fully_and_partially_received_orders(
     receiving_setup,
 ) -> None:
-    tenant, user = receiving_setup
+    tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
-        order, (line1, line2) = _order_in_transit(tenant, user, lines=2)
+        order, (line1, line2) = _order_in_transit(tenant, user, lines=2, warehouse_id=warehouse.id)
         receive_order_line(
             line1,
             qty_received_now=Decimal(10),
@@ -260,7 +331,7 @@ def test_order_reception_variance_never_divides_by_zero(receiving_setup) -> None
     """Garde `_ratio_or_none` (meme discipline qu'`accounting.services.
     budgets`/`reports`/`landed_costs`) : une ligne a `qty=0` ne doit jamais
     lever `ZeroDivisionError`."""
-    tenant, user = receiving_setup
+    tenant, _user, _warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
         order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
         add_order_line(

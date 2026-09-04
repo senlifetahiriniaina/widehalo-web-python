@@ -340,8 +340,13 @@ class PurOrder(BaseModel, ReferenceMixin):
     amount_untaxed_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     amount_tax_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     amount_total_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
-    # Reference opaque a un futur entrepot (`stocks`, pas encore construit)
-    # — aucune validation contre ce module tant qu'il n'existe pas.
+    # Reference opaque vers `apps.stocks.StkWarehouse` (regle de couplage
+    # n°1 — jamais de FK Django vers une autre app metier). Depuis la
+    # decision P2 (cahier Phase 3 §12.1), c'est une precondition REELLE de
+    # la reception : `purchase.services.receiving.receive_order_line`
+    # refuse si aucun entrepot valide (avec au moins un emplacement
+    # interne) n'est renseigne ici — plus une simple metadonnee
+    # informative comme avant que `stocks` n'existe.
     warehouse_id = models.UUIDField(null=True, blank=True)
     # `PurRequisition`/`PurRfq` appartiennent au meme app `purchase` — une
     # vraie FK Django est donc autorisee (la regle de couplage n1 n'interdit

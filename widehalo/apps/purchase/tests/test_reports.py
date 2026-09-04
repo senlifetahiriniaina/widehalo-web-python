@@ -46,6 +46,7 @@ from apps.purchase.services.rfq import (
     record_rfq_response,
     send_rfq,
 )
+from apps.stocks.models import StkLocation, StkWarehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -134,7 +135,19 @@ def test_report_pur_comp_reflects_comparison_table(tenant_and_user) -> None:
 def test_report_pur_rec_groups_receipt_lines(tenant_and_user) -> None:
     tenant, user = tenant_and_user
     with use_tenant(tenant.id):
-        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        # Cahier Phase 3 §12.1 (decision P2) : un entrepot valide est
+        # desormais une precondition reelle de la reception.
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-RPT", name="Entrepôt")
+        StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="WH-RPT-A1",
+            name="Rayon A1",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+        )
         add_order_line(
             order,
             variant_id=uuid.uuid4(),

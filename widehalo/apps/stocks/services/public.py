@@ -480,6 +480,85 @@ def receive_production_output(
     return move_id
 
 
+def receive_purchase_line(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    qty: Decimal,
+    uom: str,
+    warehouse_id: Any,
+    date: dt.date,
+    source_document: str,
+    unit_cost_mga: Decimal = Decimal(0),
+    lot_name: str = "",
+    operator: User | None = None,
+) -> UUID | None:
+    """Réception d'achat (`purchase.services.receiving.receive_order_line`)
+    en un VRAI mouvement de stock — ferme le manque documenté par l'audit
+    Phase 3 (§12.1 : « aucun module ne tient son propre compteur ») :
+    jusqu'ici `receive_order_line` incrémentait `PurOrderLine.qty_received`
+    sans jamais appeler `stocks`, deux comptabilités de quantité
+    coexistaient et divergeaient silencieusement. Même patron que
+    `receive_production_output` ci-dessus pour l'emplacement virtuel
+    source (`TYPE_FOURNISSEUR`, créé au premier appel par entrepôt, comme
+    `TYPE_PRODUCTION`) ; même simplification assumée que `sell_from_stock`/
+    `receive_pos_return` pour l'emplacement interne de destination — le
+    PREMIER emplacement interne de l'entrepôt, faute d'un rangement
+    précis choisi à la réception dans le périmètre actuel de `purchase`
+    (conversion d'unité d'achat -> stock, sélection fine de l'emplacement
+    et date d'effet distincte de la date de saisie restent hors périmètre
+    de ce chantier — cf. plan Phase 3, blocs A/B en Vague 2).
+
+    Retourne `None`, jamais une exception, si l'entrepôt de la commande
+    n'est pas renseigné ou n'a aucun emplacement interne — même
+    discipline "gap de configuration à la charge du tenant" que
+    `sell_from_stock`/`receive_pos_return` ci-dessus ; à charge de
+    l'appelant (`receive_order_line`) de refuser la réception plutôt que
+    de laisser la quantité d'achat diverger silencieusement du stock
+    physique."""
+    if warehouse_id is None:
+        return None
+    warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
+    if warehouse is None:
+        return None
+
+    internal_location = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_INTERNE
+    ).first()
+    if internal_location is None:
+        return None
+
+    supplier_location, _created = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=warehouse,
+        type=StkLocation.TYPE_FOURNISSEUR,
+        defaults={"code": f"{warehouse.code}-FRS", "name": "Fournisseur (virtuel)"},
+    )
+
+    lot = None
+    if lot_name:
+        lot_id = get_or_create_lot(tenant=tenant, variant_id=variant_id, name=lot_name)
+        lot = StkLot.objects.get(id=lot_id)
+
+    move = create_move(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom=uom,
+        location_from=supplier_location,
+        location_to=internal_location,
+        date=date,
+        move_type=StkMove.TYPE_RECEPTION,
+        source_document=source_document,
+        unit_cost_mga=unit_cost_mga,
+        lot=lot,
+        operator=operator,
+    )
+    validate_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
 def record_lot_genealogy(
     *,
     tenant: Tenant,

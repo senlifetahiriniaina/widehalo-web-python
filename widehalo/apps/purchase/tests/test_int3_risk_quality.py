@@ -29,6 +29,7 @@ from apps.purchase.services.orders import (
     validate_order,
 )
 from apps.purchase.services.receiving import inspect_receipt, receive_order_line
+from apps.stocks.models import StkLocation, StkWarehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -42,7 +43,23 @@ def int3_setup():
 
 
 def _order_confirmed(tenant, user):
-    order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+    # Cahier Phase 3 §12.1 (decision P2) : un entrepot valide (avec au
+    # moins un emplacement interne) est desormais une precondition reelle
+    # de la reception (`receive_order_line`) — `get_or_create` pour que
+    # les appels successifs dans le meme tenant reutilisent le meme
+    # entrepot plutot que d'en creer un par appel.
+    warehouse, _created = StkWarehouse.objects.get_or_create(
+        tenant=tenant, code="WH-INT3", defaults={"name": "Entrepôt"}
+    )
+    StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=warehouse,
+        code="WH-INT3-A1",
+        defaults={"name": "Rayon A1", "type": StkLocation.TYPE_INTERNE},
+    )
+    order = create_order(
+        tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+    )
     add_order_line(
         order,
         variant_id=uuid.uuid4(),
