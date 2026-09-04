@@ -26,6 +26,7 @@ from apps.mrp.services.public import (
     get_supplier_score,
     get_total_workshop_capacity,
     list_closed_orders,
+    list_closed_orders_for_warehouse,
     list_planned_orders_workload,
     list_supplier_evaluations,
     record_supplier_evaluation,
@@ -156,6 +157,86 @@ def test_list_closed_orders_returns_empty_list_without_closed_orders(public_setu
     with use_tenant(tenant.id):
         MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_DRAFT)
         assert list_closed_orders(tenant) == []
+
+
+def test_list_closed_orders_for_warehouse_returns_primitives_for_closed_orders_only(
+    public_setup,
+) -> None:
+    """Bloc Transverse, T3 (FOR-11) — distinct de `list_closed_orders`
+    (ST6, contrat `since: date`) : `updated_since` strictement supérieur,
+    même convention que les autres gaps `list_*_for_warehouse`."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        workshop = MrpWorkshopFactory(tenant=tenant, code="ATL-T3")
+        variant_id = uuid.uuid4()
+        closed = MrpOrderFactory(
+            tenant=tenant,
+            workshop=workshop,
+            variant_id=variant_id,
+            state=MrpOrder.STATE_CLOSED,
+            qty_produced=Decimal("42"),
+            qty_scrapped=Decimal("2"),
+            cost_total_mga=Decimal("15000"),
+            cost_total_planned_mga=Decimal("12000"),
+        )
+        MrpOrderFactory(tenant=tenant, workshop=workshop, state=MrpOrder.STATE_DRAFT)
+
+        rows = list_closed_orders_for_warehouse(tenant)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["order_id"] == closed.id
+        assert row["reference"] == closed.reference
+        assert row["variant_id"] == variant_id
+        assert row["workshop_code"] == "ATL-T3"
+        assert row["qty_produced"] == Decimal("42")
+        assert row["qty_scrapped"] == Decimal("2")
+        assert row["cost_total_mga"] == Decimal("15000")
+        assert row["cost_total_planned_mga"] == Decimal("12000")
+        assert row["date"] == closed.updated_at.date()
+
+
+def test_list_closed_orders_for_warehouse_respects_updated_since(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        workshop = MrpWorkshopFactory(tenant=tenant)
+        old_order = MrpOrderFactory(tenant=tenant, workshop=workshop, state=MrpOrder.STATE_CLOSED)
+        MrpOrder.objects.filter(id=old_order.id).update(
+            updated_at=timezone.now() - dt.timedelta(hours=1)
+        )
+        recent_order = MrpOrderFactory(
+            tenant=tenant, workshop=workshop, state=MrpOrder.STATE_CLOSED
+        )
+        cutoff = timezone.now() - dt.timedelta(minutes=30)
+
+        rows = list_closed_orders_for_warehouse(tenant, updated_since=cutoff)
+
+        result_ids = {row["order_id"] for row in rows}
+        assert recent_order.id in result_ids
+        assert old_order.id not in result_ids
+
+
+def test_list_closed_orders_for_warehouse_scopes_to_tenant(public_setup) -> None:
+    tenant = public_setup
+    other_tenant = Tenant.objects.create(code="MRP-PUB-OTHER", name="Other Tenant")
+    with use_tenant(tenant.id):
+        MrpOrderFactory(
+            tenant=tenant,
+            workshop=MrpWorkshopFactory(tenant=tenant),
+            state=MrpOrder.STATE_CLOSED,
+        )
+        rows = list_closed_orders_for_warehouse(tenant)
+        assert len(rows) == 1
+
+    with use_tenant(other_tenant.id):
+        MrpOrderFactory(
+            tenant=other_tenant,
+            workshop=MrpWorkshopFactory(tenant=other_tenant),
+            state=MrpOrder.STATE_CLOSED,
+        )
+        other_rows = list_closed_orders_for_warehouse(other_tenant)
+        assert len(other_rows) == 1
+        assert other_rows[0]["order_id"] != rows[0]["order_id"]
 
 
 def test_get_total_workshop_capacity_sums_non_subcontractor_workshops(public_setup) -> None:

@@ -395,6 +395,56 @@ class AnFactReception(BaseModel):
         return f"{self.order_reference} — {self.qty_received}"
 
 
+class AnFactOrdreFabrication(BaseModel):
+    """Grain = `mrp.MrpOrder` clôturé (`state=closed`). Bloc Transverse,
+    T3 (FOR-11).
+
+    `cout_reel_mga`/`cout_planifie_mga` reprennent directement
+    `MrpOrder.cost_total_mga`/`cost_total_planned_mga` (Bloc C, C3 — déjà
+    calculés et persistés côté `mrp`, jamais recalculés ici).
+    `ecart_cout_mga` (= réel − planifié) est PERSISTÉ, pas seulement
+    calculable au moment de la lecture — même discipline que
+    `AnFactEcriture.solde_mga` (`debit_mga - credit_mga`), pour rester
+    directement agrégeable/filtrable via le moteur de requête guidé de
+    `apps.bi` sans expression dérivée côté client.
+
+    Aucun `closed_at` dédié sur `MrpOrder` — `date`/`dim_temps` utilise
+    `updated_at.date()` comme proxy (même discipline documentée que
+    `mrp.services.public.list_closed_orders`, déjà consommée par
+    `stocks.services.consistency` pour le même besoin)."""
+
+    source_order_id = models.UUIDField()
+    dim_temps = models.ForeignKey(
+        AnDimTemps, on_delete=models.PROTECT, related_name="ordres_fabrication"
+    )
+    dim_article = models.ForeignKey(
+        AnDimArticle,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ordres_fabrication",
+    )
+    order_reference = models.CharField(max_length=64, blank=True)
+    atelier_code = models.CharField(max_length=32, blank=True)
+    qty_produced = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    qty_scrapped = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cout_reel_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cout_planifie_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    ecart_cout_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+
+    class Meta:
+        db_table = "an_fact_ordre_fabrication"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_order_id"], name="uniq_an_fact_ordre_fabrication"
+            )
+        ]
+        indexes = [models.Index(fields=["dim_temps"]), models.Index(fields=["atelier_code"])]
+
+    def __str__(self) -> str:
+        return f"{self.order_reference} — écart {self.ecart_cout_mga}"
+
+
 class AnWarehouseState(BaseModel):
     """Singleton par tenant : verrou de rafraîchissement + jalons
     (watermarks) `updated_at` par source, condition du rafraîchissement
@@ -413,6 +463,8 @@ class AnWarehouseState(BaseModel):
     watermark_stk_move = models.DateTimeField(null=True, blank=True)
     # Bloc Transverse, T2.
     watermark_pur_receipt_line = models.DateTimeField(null=True, blank=True)
+    # Bloc Transverse, T3.
+    watermark_mrp_order = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "an_warehouse_state"

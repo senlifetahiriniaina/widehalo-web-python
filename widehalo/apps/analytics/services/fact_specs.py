@@ -24,6 +24,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactOrdreFabrication,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -103,6 +104,21 @@ FACT_SPECS: dict[str, FactSpec] = {
             "unit_price_mga",
             "cout_debarque_unitaire_mga",
             "quality_status",
+        ),
+    ),
+    "ordre_fabrication": FactSpec(
+        queryset_factory=lambda tenant: AnFactOrdreFabrication.objects.filter(tenant=tenant),
+        value_field="ecart_cout_mga",
+        dimension_fields={
+            "temps": "dim_temps__date",
+            "article": "dim_article__libelle",
+            "atelier": "atelier_code",
+        },
+        detail_extra_fields=(
+            "order_reference",
+            "qty_produced",
+            "cout_reel_mga",
+            "cout_planifie_mga",
         ),
     ),
 }

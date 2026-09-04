@@ -18,6 +18,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactOrdreFabrication,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -27,6 +28,8 @@ from apps.analytics.models import (
 from apps.analytics.services.refresh import refresh_warehouse_for_tenant
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
+from apps.mrp.models import MrpOrder
+from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
 from apps.partners.tests.factories import PartnerFactory
 from apps.pos.models import PosOrder
 from apps.pos.tests.factories import PosOrderFactory, PosOrderLineFactory
@@ -330,3 +333,39 @@ def test_refresh_reception_fact_landed_cost_is_none_without_active_layer(
     with use_tenant(warehouse_tenant.id):
         fact = AnFactReception.objects.get(tenant=warehouse_tenant)
         assert fact.cout_debarque_unitaire_mga is None
+
+
+def test_refresh_populates_ordre_fabrication_fact(warehouse_tenant: Tenant) -> None:
+    """Bloc Transverse, T3 (FOR-11) — `MrpOrder` clôturé matérialisé en
+    `AnFactOrdreFabrication`, `ecart_cout_mga` PERSISTÉ (réel - planifié),
+    un ordre non clôturé ignoré."""
+    with use_tenant(warehouse_tenant.id):
+        workshop = MrpWorkshopFactory(tenant=warehouse_tenant, code="ATL-REFRESH")
+        variant_id = uuid.uuid4()
+        MrpOrderFactory(tenant=warehouse_tenant, workshop=workshop, state=MrpOrder.STATE_DRAFT)
+        order = MrpOrderFactory(
+            tenant=warehouse_tenant,
+            workshop=workshop,
+            variant_id=variant_id,
+            state=MrpOrder.STATE_CLOSED,
+            qty_produced=Decimal("100"),
+            qty_scrapped=Decimal("5"),
+            cost_total_mga=Decimal("50000"),
+            cost_total_planned_mga=Decimal("45000"),
+        )
+
+    run = refresh_warehouse_for_tenant(warehouse_tenant)
+
+    assert run.status == AnRefreshRun.STATUS_SUCCESS
+    assert run.rows_processed == 1
+    with use_tenant(warehouse_tenant.id):
+        fact = AnFactOrdreFabrication.objects.get(tenant=warehouse_tenant)
+        assert fact.source_order_id == order.id
+        assert fact.order_reference == order.reference
+        assert fact.atelier_code == "ATL-REFRESH"
+        assert fact.qty_produced == Decimal("100")
+        assert fact.qty_scrapped == Decimal("5")
+        assert fact.cout_reel_mga == Decimal("50000")
+        assert fact.cout_planifie_mga == Decimal("45000")
+        assert fact.ecart_cout_mga == Decimal("5000")
+        assert fact.dim_temps.date == order.updated_at.date()

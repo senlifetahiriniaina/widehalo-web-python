@@ -37,6 +37,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactOrdreFabrication,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -45,6 +46,7 @@ from apps.analytics.models import (
 )
 from apps.catalog.services.public import list_variants_for_warehouse
 from apps.core.tenant_context import activate_tenant
+from apps.mrp.services.public import list_closed_orders_for_warehouse
 from apps.partners.services.public import list_partners_for_warehouse
 from apps.pos.services.public import (
     list_order_lines_for_warehouse as list_pos_order_lines_for_warehouse,
@@ -340,6 +342,39 @@ def _refresh_fact_reception(
     return len(rows)
 
 
+def _refresh_fact_ordre_fabrication(
+    tenant: Tenant,
+    state: AnWarehouseState,
+    dim_temps_cache: dict[dt.date, AnDimTemps],
+    dim_article: dict[Any, AnDimArticle],
+) -> int:
+    rows = list_closed_orders_for_warehouse(tenant, updated_since=state.watermark_mrp_order)
+    latest_watermark = state.watermark_mrp_order
+    for row in rows:
+        dim_temps = _ensure_dim_temps(tenant, row["date"], dim_temps_cache)
+        cost_total_mga = row["cost_total_mga"]
+        cost_total_planned_mga = row["cost_total_planned_mga"]
+        AnFactOrdreFabrication.objects.update_or_create(
+            tenant=tenant,
+            source_order_id=row["order_id"],
+            defaults={
+                "dim_temps": dim_temps,
+                "dim_article": dim_article.get(row["variant_id"]),
+                "order_reference": row["reference"],
+                "atelier_code": row["workshop_code"],
+                "qty_produced": row["qty_produced"],
+                "qty_scrapped": row["qty_scrapped"],
+                "cout_reel_mga": cost_total_mga,
+                "cout_planifie_mga": cost_total_planned_mga,
+                "ecart_cout_mga": cost_total_mga - cost_total_planned_mga,
+            },
+        )
+        if latest_watermark is None or row["updated_at"] > latest_watermark:
+            latest_watermark = row["updated_at"]
+    state.watermark_mrp_order = latest_watermark
+    return len(rows)
+
+
 def _check_reconciliation(tenant: Tenant) -> tuple[bool | None, dict[str, Any]]:
     """Compare `sum(AnFactVente.montant_ht_mga)` au total HT calculé
     indépendamment par `sales.services.public.get_untaxed_revenue_for_
@@ -419,6 +454,9 @@ def refresh_warehouse_for_tenant(
                 rows_processed += _refresh_fact_reception(
                     tenant, state, dim_temps_cache, dim_tiers, dim_article
                 )
+                rows_processed += _refresh_fact_ordre_fabrication(
+                    tenant, state, dim_temps_cache, dim_article
+                )
         except Exception as exc:  # noqa: BLE001 - trace l'echec en base plutot que de le laisser silencieux
             state.is_locked = False
             state.save(update_fields=["is_locked"])
@@ -440,6 +478,7 @@ def refresh_warehouse_for_tenant(
                     "watermark_acc_moveline",
                     "watermark_stk_move",
                     "watermark_pur_receipt_line",
+                    "watermark_mrp_order",
                 ]
             )
             reconciliation_ok, reconciliation_detail = _check_reconciliation(tenant)

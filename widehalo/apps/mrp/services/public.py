@@ -223,6 +223,42 @@ def list_closed_orders(tenant: Tenant, *, since: dt.date | None = None) -> list[
     ]
 
 
+def list_closed_orders_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Bloc Transverse, T3 (FOR-11) : extrait les `MrpOrder` clôturés pour
+    alimenter `apps.analytics.AnFactOrdreFabrication` — seule voie
+    d'accès pour `analytics`, qui ne doit jamais importer
+    `apps.mrp.models` (règle de couplage n°1).
+
+    Distinct de `list_closed_orders` ci-dessus (ST6, déjà consommée par
+    `stocks.services.consistency`, contrat `since: date` différent) —
+    même contrat exact `updated_since: datetime` STRICTEMENT supérieur
+    que les autres gaps `list_*_for_warehouse`
+    (`stocks.services.public.list_moves_for_warehouse`,
+    `purchase.services.public.list_receipt_lines_for_warehouse`)."""
+    orders = MrpOrder.objects.filter(tenant=tenant, state=MrpOrder.STATE_CLOSED).select_related(
+        "workshop"
+    )
+    if updated_since is not None:
+        orders = orders.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "order_id": order.id,
+            "updated_at": order.updated_at,
+            "date": order.updated_at.date(),
+            "reference": order.reference,
+            "variant_id": order.variant_id,
+            "workshop_code": order.workshop.code,
+            "qty_produced": order.qty_produced,
+            "qty_scrapped": order.qty_scrapped,
+            "cost_total_mga": order.cost_total_mga,
+            "cost_total_planned_mga": order.cost_total_planned_mga,
+        }
+        for order in orders
+    ]
+
+
 def record_supplier_evaluation(
     *,
     tenant: Tenant,
