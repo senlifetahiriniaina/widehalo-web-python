@@ -36,6 +36,7 @@ from apps.analytics.models import (
     AnDimTiers,
     AnFactEcriture,
     AnFactEncaissement,
+    AnFactMouvementStock,
     AnFactTicketPos,
     AnFactVente,
     AnRefreshRun,
@@ -53,6 +54,7 @@ from apps.sales.services.public import (
 from apps.sales.services.public import (
     list_order_lines_for_warehouse as list_sales_order_lines_for_warehouse,
 )
+from apps.stocks.services.public import list_moves_for_warehouse
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -268,6 +270,42 @@ def _refresh_fact_ecriture(
     return len(rows)
 
 
+def _refresh_fact_mouvement_stock(
+    tenant: Tenant,
+    state: AnWarehouseState,
+    dim_temps_cache: dict[dt.date, AnDimTemps],
+    dim_article: dict[Any, AnDimArticle],
+) -> int:
+    rows = list_moves_for_warehouse(tenant, updated_since=state.watermark_stk_move)
+    latest_watermark = state.watermark_stk_move
+    for row in rows:
+        dim_temps = _ensure_dim_temps(tenant, row["date"], dim_temps_cache)
+        AnFactMouvementStock.objects.update_or_create(
+            tenant=tenant,
+            source_move_id=row["move_id"],
+            defaults={
+                "dim_temps": dim_temps,
+                "dim_article": dim_article.get(row["variant_id"]),
+                "move_reference": row["reference"],
+                "move_type": row["move_type"],
+                "lot_name": row["lot_name"],
+                "entrepot_origine_code": row["warehouse_from_code"],
+                "emplacement_origine_code": row["location_from_code"],
+                "entrepot_destination_code": row["warehouse_to_code"],
+                "emplacement_destination_code": row["location_to_code"],
+                "qty": row["qty"],
+                "uom": row["uom"],
+                "unit_cost_mga": row["unit_cost_mga"],
+                "value_mga": row["value_mga"],
+                "source_document": row["source_document"],
+            },
+        )
+        if latest_watermark is None or row["updated_at"] > latest_watermark:
+            latest_watermark = row["updated_at"]
+    state.watermark_stk_move = latest_watermark
+    return len(rows)
+
+
 def _check_reconciliation(tenant: Tenant) -> tuple[bool | None, dict[str, Any]]:
     """Compare `sum(AnFactVente.montant_ht_mga)` au total HT calculé
     indépendamment par `sales.services.public.get_untaxed_revenue_for_
@@ -341,6 +379,9 @@ def refresh_warehouse_for_tenant(
                     tenant, state, dim_temps_cache, dim_tiers
                 )
                 rows_processed += _refresh_fact_ecriture(tenant, state, dim_temps_cache, dim_tiers)
+                rows_processed += _refresh_fact_mouvement_stock(
+                    tenant, state, dim_temps_cache, dim_article
+                )
         except Exception as exc:  # noqa: BLE001 - trace l'echec en base plutot que de le laisser silencieux
             state.is_locked = False
             state.save(update_fields=["is_locked"])
@@ -360,6 +401,7 @@ def refresh_warehouse_for_tenant(
                     "watermark_pos_orderline",
                     "watermark_acc_payment",
                     "watermark_acc_moveline",
+                    "watermark_stk_move",
                 ]
             )
             reconciliation_ok, reconciliation_detail = _check_reconciliation(tenant)

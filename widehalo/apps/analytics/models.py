@@ -289,6 +289,64 @@ class AnFactEcriture(BaseModel):
         return f"{self.compte_code} D{self.debit_mga}/C{self.credit_mga}"
 
 
+class AnFactMouvementStock(BaseModel):
+    """Grain = `stocks.StkMove` validé (`state=done` uniquement — un
+    mouvement `draft`/`cancelled` n'est pas un fait constaté, même
+    discipline que `AnFactEcriture` qui ne couvre que les écritures
+    `posted`). Bloc Transverse, T1 (FOR-11 : preuve d'extension du
+    modèle en étoile "sans reprise", développée juste après que son
+    domaine source — Bloc A/P2 — soit fiabilisé).
+
+    Aucune dimension tiers : `StkMove` ne porte aucun `partner_id` (la
+    notion de fournisseur/client est portée par le TYPE de
+    `location_from`/`location_to`, jamais par une référence directe) —
+    contrairement à `AnFactVente`/`AnFactEncaissement`/`AnFactEcriture`,
+    ce fait n'a donc pas de `dim_tiers`, simplification assumée et
+    disclosée plutôt qu'une reconstruction approximative. Entrepôts/
+    emplacements source et destination : dimensions dégénérées (mêmes
+    principes que `point_vente_code` sur `AnFactTicketPos`) — un
+    mouvement de stock traverse potentiellement deux entrepôts distincts
+    (transfert inter-dépôts), donc jamais une seule paire
+    entrepôt/emplacement comme les autres faits dégénérés à un seul
+    site."""
+
+    source_move_id = models.UUIDField()
+    dim_temps = models.ForeignKey(
+        AnDimTemps, on_delete=models.PROTECT, related_name="mouvements_stock"
+    )
+    dim_article = models.ForeignKey(
+        AnDimArticle,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="mouvements_stock",
+    )
+    move_reference = models.CharField(max_length=64, blank=True)
+    move_type = models.CharField(max_length=32, blank=True)
+    lot_name = models.CharField(max_length=64, blank=True)
+    entrepot_origine_code = models.CharField(max_length=16, blank=True)
+    emplacement_origine_code = models.CharField(max_length=32, blank=True)
+    entrepot_destination_code = models.CharField(max_length=16, blank=True)
+    emplacement_destination_code = models.CharField(max_length=32, blank=True)
+    qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    uom = models.CharField(max_length=16, blank=True)
+    unit_cost_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    value_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    source_document = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        db_table = "an_fact_mouvement_stock"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_move_id"], name="uniq_an_fact_mouvement_stock"
+            )
+        ]
+        indexes = [models.Index(fields=["dim_temps"]), models.Index(fields=["move_type"])]
+
+    def __str__(self) -> str:
+        return f"{self.move_reference} — {self.move_type}"
+
+
 class AnWarehouseState(BaseModel):
     """Singleton par tenant : verrou de rafraîchissement + jalons
     (watermarks) `updated_at` par source, condition du rafraîchissement
@@ -303,6 +361,8 @@ class AnWarehouseState(BaseModel):
     watermark_pos_orderline = models.DateTimeField(null=True, blank=True)
     watermark_acc_payment = models.DateTimeField(null=True, blank=True)
     watermark_acc_moveline = models.DateTimeField(null=True, blank=True)
+    # Bloc Transverse, T1.
+    watermark_stk_move = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "an_warehouse_state"

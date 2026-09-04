@@ -20,7 +20,13 @@ from typing import Any
 
 from django.db.models import QuerySet
 
-from apps.analytics.models import AnFactEcriture, AnFactEncaissement, AnFactTicketPos, AnFactVente
+from apps.analytics.models import (
+    AnFactEcriture,
+    AnFactEncaissement,
+    AnFactMouvementStock,
+    AnFactTicketPos,
+    AnFactVente,
+)
 
 
 @dataclass(frozen=True)
@@ -70,5 +76,17 @@ FACT_SPECS: dict[str, FactSpec] = {
             "compte": "compte_code",
         },
         detail_extra_fields=("move_reference", "debit_mga", "credit_mga"),
+    ),
+    "mouvement_stock": FactSpec(
+        queryset_factory=lambda tenant: AnFactMouvementStock.objects.filter(tenant=tenant),
+        value_field="value_mga",
+        dimension_fields={
+            "temps": "dim_temps__date",
+            "article": "dim_article__libelle",
+            "nature": "move_type",
+            "entrepot_origine": "entrepot_origine_code",
+            "entrepot_destination": "entrepot_destination_code",
+        },
+        detail_extra_fields=("move_reference", "qty", "unit_cost_mga"),
     ),
 }

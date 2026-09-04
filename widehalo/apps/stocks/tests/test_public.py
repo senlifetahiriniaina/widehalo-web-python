@@ -14,6 +14,7 @@ from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
@@ -22,6 +23,7 @@ from apps.core.tests.utils import use_tenant
 from apps.stocks.models import (
     StkLocation,
     StkLot,
+    StkMove,
     StkPicking,
     StkQualityState,
     StkQuant,
@@ -37,6 +39,7 @@ from apps.stocks.services.public import (
     get_lot_certificate_document_id,
     get_or_create_lot,
     get_variant_unit_cost,
+    list_moves_for_warehouse,
     receive_pos_return,
     receive_purchase_line,
     sell_from_stock,
@@ -588,3 +591,77 @@ def test_get_lot_certificate_document_id_is_none_for_unknown_lot(tenant) -> None
         get_lot_certificate_document_id(tenant=tenant, variant_id=uuid.uuid4(), name="INEXISTANT")
         is None
     )
+
+
+# ---------------------------------------------------------------------------
+# list_moves_for_warehouse (Bloc Transverse, T1) — extraction pour
+# apps.analytics.AnFactMouvementStock.
+# ---------------------------------------------------------------------------
+
+
+def test_list_moves_for_warehouse_returns_only_done_moves(tenant) -> None:
+    variant_id = uuid.uuid4()
+    origin = StkLocationFactory(tenant=tenant)
+    destination = StkLocationFactory(tenant=tenant)
+    StkMoveFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        location_from=origin,
+        location_to=destination,
+        state=StkMove.STATE_DRAFT,
+    )
+    done_move = StkMoveFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        location_from=origin,
+        location_to=destination,
+        state=StkMove.STATE_DONE,
+        qty=Decimal("12"),
+        unit_cost_mga=Decimal("500"),
+        value_mga=Decimal("6000"),
+        source_document="OF-T1-001",
+    )
+
+    rows = list_moves_for_warehouse(tenant)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["move_id"] == done_move.id
+    assert row["variant_id"] == variant_id
+    assert row["qty"] == Decimal("12")
+    assert row["value_mga"] == Decimal("6000")
+    assert row["source_document"] == "OF-T1-001"
+    assert row["warehouse_from_code"] == origin.warehouse.code
+    assert row["location_from_code"] == origin.code
+    assert row["warehouse_to_code"] == destination.warehouse.code
+    assert row["location_to_code"] == destination.code
+    assert row["lot_name"] == ""
+
+
+def test_list_moves_for_warehouse_includes_lot_name_when_present(tenant) -> None:
+    lot = StkLotFactory(tenant=tenant, name="LOT-T1-001")
+    StkMoveFactory(
+        tenant=tenant,
+        variant_id=lot.variant_id,
+        lot=lot,
+        state=StkMove.STATE_DONE,
+    )
+
+    rows = list_moves_for_warehouse(tenant)
+
+    assert rows[0]["lot_name"] == "LOT-T1-001"
+
+
+def test_list_moves_for_warehouse_respects_updated_since(tenant) -> None:
+    """Horodatages forcés explicitement (plutôt que l'ordre de création
+    réel) — évite toute course entre deux `auto_now` créés à quelques
+    microsecondes d'écart."""
+    old_move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE)
+    StkMove.objects.filter(id=old_move.id).update(updated_at=timezone.now() - dt.timedelta(hours=1))
+    cutoff = timezone.now() - dt.timedelta(minutes=30)
+    new_move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE)
+
+    rows = list_moves_for_warehouse(tenant, updated_since=cutoff)
+
+    assert len(rows) == 1
+    assert rows[0]["move_id"] == new_move.id

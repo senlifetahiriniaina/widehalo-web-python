@@ -162,9 +162,7 @@ def check_and_reserve_stock(
     return reservation.id
 
 
-def release_stock_reservation(
-    tenant: Tenant, *, reservation_id: UUID, reason: str = ""
-) -> bool:
+def release_stock_reservation(tenant: Tenant, *, reservation_id: UUID, reason: str = "") -> bool:
     """Bloc C, C1 : enveloppe fine pour libérer une réservation depuis un
     autre module (`mrp`, à la clôture/annulation d'un `MrpOrder`) sans
     jamais importer `apps.stocks.models.StkReservation` (règle de
@@ -493,9 +491,7 @@ def get_or_create_lot(
     return lot_id
 
 
-def get_lot_certificate_document_id(
-    *, tenant: Tenant, variant_id: Any, name: str
-) -> UUID | None:
+def get_lot_certificate_document_id(*, tenant: Tenant, variant_id: Any, name: str) -> UUID | None:
     """Bloc D, D2 (QUA-8) : lecture pure de `StkLot.certificate_document_id`
     pour un appelant cross-app (`apps.quality`, reporting/tableau de bord
     — jamais le mécanisme de blocage lui-même, qui vit entièrement dans
@@ -680,10 +676,7 @@ def receive_purchase_line(
         lot = StkLot.objects.get(id=lot_id)
         if needs_certificate and lot.certificate_document_id is None:
             raise ValidationError(
-                _(
-                    "Un certificat d'analyse valide est obligatoire pour "
-                    "réceptionner ce lot."
-                )
+                _("Un certificat d'analyse valide est obligatoire pour réceptionner ce lot.")
             )
 
     move = create_move(
@@ -748,9 +741,7 @@ def send_to_subcontractor(
         tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_INTERNE
     ).first()
     if source_internal is None:
-        raise ValidationError(
-            _("Cet entrepôt ne possède aucun emplacement interne configuré.")
-        )
+        raise ValidationError(_("Cet entrepôt ne possède aucun emplacement interne configuré."))
     subcontractor_location, _created = StkLocation.objects.get_or_create(
         tenant=tenant,
         warehouse=warehouse,
@@ -979,3 +970,43 @@ def set_quality_state(
     )
     quality_state_id: UUID = quality_state.id
     return quality_state_id
+
+
+def list_moves_for_warehouse(tenant: Tenant, *, updated_since: Any = None) -> list[dict[str, Any]]:
+    """Bloc Transverse, T1 (FOR-11) : extrait les `StkMove` VALIDÉS
+    (`state=done` uniquement — un mouvement `draft`/`cancelled` n'est pas
+    un fait constaté) pour alimenter `apps.analytics.AnFactMouvementStock`
+    — seule voie d'accès pour `analytics`, qui ne doit jamais importer
+    `apps.stocks.models` (règle de couplage n°1).
+
+    `updated_since` (datetime ou None) filtre sur `StkMove.updated_at`
+    STRICTEMENT supérieur — même contrat exact que
+    `sales.services.public.list_order_lines_for_warehouse`/
+    `catalog.services.public.list_variants_for_warehouse`. Renvoie des
+    dicts primitifs, jamais l'objet `StkMove`."""
+    qs = StkMove.objects.filter(tenant=tenant, state=StkMove.STATE_DONE).select_related(
+        "location_from__warehouse", "location_to__warehouse", "lot"
+    )
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "move_id": move.id,
+            "updated_at": move.updated_at,
+            "date": move.date,
+            "variant_id": move.variant_id,
+            "move_type": move.move_type,
+            "reference": move.reference,
+            "lot_name": move.lot.name if move.lot is not None else "",
+            "warehouse_from_code": move.location_from.warehouse.code,
+            "location_from_code": move.location_from.code,
+            "warehouse_to_code": move.location_to.warehouse.code,
+            "location_to_code": move.location_to.code,
+            "qty": move.qty,
+            "uom": move.uom,
+            "unit_cost_mga": move.unit_cost_mga,
+            "value_mga": move.value_mga,
+            "source_document": move.source_document,
+        }
+        for move in qs
+    ]

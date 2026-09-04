@@ -16,6 +16,7 @@ from apps.analytics.models import (
     AnDimTiers,
     AnFactEcriture,
     AnFactEncaissement,
+    AnFactMouvementStock,
     AnFactTicketPos,
     AnFactVente,
     AnRefreshRun,
@@ -28,6 +29,8 @@ from apps.partners.tests.factories import PartnerFactory
 from apps.pos.models import PosOrder
 from apps.pos.tests.factories import PosOrderFactory, PosOrderLineFactory
 from apps.sales.models import SalesOrder, SalesOrderLine
+from apps.stocks.models import StkMove
+from apps.stocks.tests.factories import StkMoveFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -230,3 +233,33 @@ def test_refresh_populates_pos_and_accounting_facts(warehouse_tenant: Tenant) ->
         encaissement = AnFactEncaissement.objects.get(tenant=warehouse_tenant)
         assert encaissement.montant_mga == Decimal("20000")
         assert encaissement.direction == AccPayment.DIRECTION_INBOUND
+
+
+def test_refresh_populates_stock_move_fact(warehouse_tenant: Tenant) -> None:
+    """Bloc Transverse, T1 (FOR-11) — `StkMove` validé (`state=done`)
+    matérialisé en `AnFactMouvementStock`, un mouvement `draft` ignoré."""
+    with use_tenant(warehouse_tenant.id):
+        StkMoveFactory(tenant=warehouse_tenant, state=StkMove.STATE_DRAFT)
+        move = StkMoveFactory(
+            tenant=warehouse_tenant,
+            state=StkMove.STATE_DONE,
+            date=dt.date(2026, 9, 4),
+            qty=Decimal("15"),
+            unit_cost_mga=Decimal("200"),
+            value_mga=Decimal("3000"),
+            source_document="OF-T1-REFRESH",
+        )
+
+    run = refresh_warehouse_for_tenant(warehouse_tenant)
+
+    assert run.status == AnRefreshRun.STATUS_SUCCESS
+    assert run.rows_processed == 1
+    with use_tenant(warehouse_tenant.id):
+        fact = AnFactMouvementStock.objects.get(tenant=warehouse_tenant)
+        assert fact.source_move_id == move.id
+        assert fact.qty == Decimal("15")
+        assert fact.value_mga == Decimal("3000")
+        assert fact.move_type == move.move_type
+        assert fact.entrepot_origine_code == move.location_from.warehouse.code
+        assert fact.entrepot_destination_code == move.location_to.warehouse.code
+        assert fact.dim_temps.date == dt.date(2026, 9, 4)
