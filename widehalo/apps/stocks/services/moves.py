@@ -4,13 +4,25 @@ entree, materialisation des quants y compris emplacements virtuels,
 cf. docstrings `models.py`) et RG-STK-2 (valorisation FIFO/CMP,
 `StkValuationLayer`) sont appliques ici.
 
-**Choix de methode de valorisation (ST2)** : aucune configuration
-persistante par produit n'existe dans le perimetre de ce lot (cf.
-docstring `StkValuationLayer` dans `models.py`) — `validate_move` accepte
-un parametre `valuation_method` (defaut `"fifo"`, seule methode
-implementee ici ; `"cmp"` calcule un cout moyen pondere a l'entree mais
-consomme les couches de la meme facon FIFO a la sortie, faute d'un besoin
-CDC distinct documente pour un ordre de consommation different).
+**Choix de methode de valorisation (ST2, revise Phase 3 §12.4, decision
+P3)** : aucune configuration persistante par produit n'existe dans le
+perimetre de ce lot (cf. docstring `StkValuationLayer` dans `models.py`)
+— `validate_move` accepte un parametre `valuation_method`, desormais
+`"cmp"` par defaut (cahier Phase 3 §11.1 : *« Le CUMP est la seule methode
+livree »*). Une entree (reception) cree toujours une nouvelle couche
+`StkValuationLayer` a son propre cout, identique pour les deux methodes —
+c'est la CONSOMMATION qui differe : `"fifo"` epuise les couches actives
+dans l'ordre d'entree (`_consume_fifo_layers`, chaque couche garde son
+cout d'origine jusqu'a epuisement) ; `"cmp"` (defaut) consomme au cout
+UNIQUE, moyenne ponderee de toutes les couches actives du variant
+(`_consume_average_cost`) — chaque couche touchee est decrementee a ce
+cout moyen commun, pas a son cout d'entree propre, ce qui la fait
+converger vers la moyenne courante au fil des consommations : c'est la
+distinction structurelle entre les deux methodes, pas une simple option
+cosmetique sans effet (ecart constate par l'audit Phase 3, corrige ici).
+`"fifo"` reste selectionnable explicitement par un appelant qui le
+demande, mais aucun appelant de ce depot ne le fait a ce jour — le
+parametre par defaut gouverne donc, en pratique, tout le systeme.
 
 **Distinction inbound/outbound pour la valorisation** : une couche
 `StkValuationLayer` n'est creee/consommee QUE lorsque le mouvement fait
@@ -270,8 +282,95 @@ def _consume_fifo_layers(
     return total_value_consumed
 
 
+def _consume_average_cost(
+    *, tenant: Tenant, variant_id: Any, qty_to_consume: Decimal, fallback_unit_cost_mga: Decimal
+) -> Decimal:
+    """CUMP (decision P3, cahier Phase 3 §12.4/§11.1) : consomme le stock
+    existant a un cout UNIQUE — la moyenne ponderee de TOUTES les couches
+    `StkValuationLayer` actives du variant — plutot que couche par couche
+    dans l'ordre d'entree comme `_consume_fifo_layers`. `StkValuationLayer`
+    reste le registre utilise pour les deux methodes (necessaire
+    notamment a `apps.stocks.services.public.apply_landed_cost_to_
+    valuation`, qui revalorise les couches actives) — seul l'ALGORITHME de
+    consommation differe entre les deux fonctions, jamais la structure de
+    donnees.
+
+    **Repartition PROPORTIONNELLE, jamais couche par couche dans l'ordre
+    d'entree** : chaque couche active perd la MEME fraction
+    (`qty_from_layers / total_remaining_qty`) de son propre `remaining_qty`
+    ET de son propre `remaining_value_mga` — c'est ce qui garantit
+    mathematiquement qu'aucune couche ne peut jamais passer en dessous de
+    zero (la fraction est toujours ≤ 1) tout en produisant un cout de
+    sortie unique egal a la moyenne ponderee du pool entier, quelle que
+    soit la repartition des couts entre les couches. **Une consommation
+    "couche par couche" a cout unique choisirait implicitement un
+    sous-ensemble arbitraire de couches (biais retombant sur l'ordre
+    d'entree, donc redevenant du FIFO) — c'est precisement ce que la
+    repartition proportionnelle evite.** Le detail d'arrondi (derniere
+    couche active de la liste = "reliquat", pour garantir une somme EXACTE
+    sans aucune tolerance, RG-STK-2) est un pur artefact d'implementation,
+    jamais un choix qui privilegierait une couche par rapport a une autre.
+
+    Meme discipline que `_consume_fifo_layers` pour le reliquat non
+    couvert par le stock existant (RG-STK-10 verifie en amont, dans
+    `validate_move`) : valorise au cout fourni par l'appelant
+    (`fallback_unit_cost_mga`), jamais tire du pool moyen — un reliquat
+    non couvert n'a, par definition, aucune couche reelle a l'origine de
+    son cout."""
+    layers = list(
+        StkValuationLayer.objects.select_for_update()
+        .filter(tenant=tenant, variant_id=variant_id, remaining_qty__gt=0)
+        .order_by("date", "id")
+    )
+    total_remaining_qty = sum((layer.remaining_qty for layer in layers), Decimal(0))
+    total_remaining_value = sum((layer.remaining_value_mga for layer in layers), Decimal(0))
+
+    qty_from_layers = min(qty_to_consume, total_remaining_qty)
+    total_value_consumed = Decimal(0)
+
+    if qty_from_layers > 0:
+        fraction = qty_from_layers / total_remaining_qty
+        avg_unit_cost = total_remaining_value / total_remaining_qty
+        value_from_layers = _quantize_mga(qty_from_layers * avg_unit_cost)
+        qty_left_to_allocate = qty_from_layers
+        value_left_to_allocate = value_from_layers
+        for index, layer in enumerate(layers):
+            is_last_active_layer = index == len(layers) - 1
+            if is_last_active_layer:
+                # Derniere couche active de la liste : absorbe tout le
+                # reliquat de qty ET de valeur restant a allouer, plutot
+                # qu'un nouveau calcul proportionnel qui pourrait laisser
+                # un residu d'arrondi non alloue — condition necessaire
+                # pour que la somme EXACTE des valeurs retirees egale
+                # `value_from_layers`, sans aucune tolerance d'arrondi.
+                qty_taken = min(qty_left_to_allocate, layer.remaining_qty)
+                value_taken = min(value_left_to_allocate, layer.remaining_value_mga)
+            else:
+                qty_taken = min(
+                    (layer.remaining_qty * fraction).quantize(_MGA_QUANTUM),
+                    layer.remaining_qty,
+                    qty_left_to_allocate,
+                )
+                value_taken = min(
+                    _quantize_mga(layer.remaining_value_mga * fraction),
+                    layer.remaining_value_mga,
+                    value_left_to_allocate,
+                )
+            layer.remaining_qty -= qty_taken
+            layer.remaining_value_mga -= value_taken
+            layer.save(update_fields=["remaining_qty", "remaining_value_mga"])
+            total_value_consumed += value_taken
+            qty_left_to_allocate -= qty_taken
+            value_left_to_allocate -= value_taken
+
+    remaining_to_consume = qty_to_consume - qty_from_layers
+    if remaining_to_consume > 0:
+        total_value_consumed += _quantize_mga(remaining_to_consume * fallback_unit_cost_mga)
+    return total_value_consumed
+
+
 @transaction.atomic
-def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIFO) -> StkMove:
+def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_CMP) -> StkMove:
     """`draft -> done` : c'est ICI que l'effet reel sur le stock a lieu
     (RG-STK-1 : mise a jour des deux quants concernes ; RG-STK-2 : creation
     ou consommation d'une couche de valorisation le cas echeant). Refuse
@@ -338,10 +437,16 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_FIF
             date=move.date,
         )
     elif from_internal and not to_internal:
-        # Sortie reelle de valeur du perimetre trace : consommation FIFO
-        # des couches existantes, `value_delta` = valeur EXACTEMENT
-        # consommee (jamais recalculee via qty*cout_moyen_arrondi).
-        value_delta = _consume_fifo_layers(
+        # Sortie reelle de valeur du perimetre trace : consommation des
+        # couches existantes selon `valuation_method` (decision P3),
+        # `value_delta` = valeur EXACTEMENT consommee (jamais recalculee
+        # via qty*cout_moyen_arrondi).
+        consume_layers = (
+            _consume_average_cost
+            if valuation_method == VALUATION_METHOD_CMP
+            else _consume_fifo_layers
+        )
+        value_delta = consume_layers(
             tenant=move.tenant,
             variant_id=move.variant_id,
             qty_to_consume=move.qty,

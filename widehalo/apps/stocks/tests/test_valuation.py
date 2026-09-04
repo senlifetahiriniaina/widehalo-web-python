@@ -1,6 +1,11 @@
-"""RG-STK-2 (valorisation FIFO) : consommation de plusieurs couches
+"""RG-STK-2 (valorisation) : consommation de plusieurs couches
 `StkValuationLayer`, verifiee a la main (meme rigueur que l'exemple A17
-verifie a la main pour les couts d'approche, `accounting`)."""
+verifie a la main pour les couts d'approche, `accounting`) — sous les deux
+methodes disponibles depuis la decision P3 (cahier Phase 3 §12.4) : CUMP
+(`test_cmp_consumption_across_multiple_layers_hand_verified`, methode par
+defaut depuis P3) et FIFO
+(`test_fifo_consumption_across_multiple_layers_hand_verified`, toujours
+selectionnable explicitement, cf. cahier §11.1)."""
 
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkLocation, StkMove, StkValuationLayer
-from apps.stocks.services.moves import create_move, validate_move
+from apps.stocks.services.moves import VALUATION_METHOD_FIFO, create_move, validate_move
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
 pytestmark = pytest.mark.django_db
@@ -109,7 +114,7 @@ def test_fifo_consumption_across_multiple_layers_hand_verified(valuation_setup) 
             date=dt.date(2026, 1, 3),
             move_type=StkMove.TYPE_LIVRAISON,
         )
-        validate_move(livraison)
+        validate_move(livraison, valuation_method=VALUATION_METHOD_FIFO)
         livraison.refresh_from_db()
 
         # `value_mga` (la valeur EXACTEMENT sortie du stock) est l'assertion
@@ -136,6 +141,86 @@ def test_fifo_consumption_across_multiple_layers_hand_verified(valuation_setup) 
             Decimal(0),
         )
         assert total_remaining_value == Decimal("3600.0000")
+
+
+def test_cmp_consumption_across_multiple_layers_hand_verified(valuation_setup) -> None:
+    """Meme scenario que le test FIFO ci-dessus, mais sous CUMP (methode
+    par defaut depuis la decision P3) — calcul a la main :
+    - Reception n1 : 10 unites a 1000 MGA/u -> couche 1 (valeur 10 000).
+    - Reception n2 : 5 unites a 1200 MGA/u -> couche 2 (valeur 6 000).
+    - Stock total avant consommation : 15 unites, valeur 16 000 MGA —
+      cout moyen pondere du pool : 16000/15 = 1066,6666... MGA/u.
+    - Livraison de 12 unites, repartition PROPORTIONNELLE (fraction =
+      12/15 = 0,8) — chaque couche perd exactement 80% de sa propre
+      quantite ET de sa propre valeur, jamais l'ordre d'entree qui
+      redonnerait du FIFO :
+        * couche 1 : 10*0,8 = 8 unites, 10 000*0,8 = 8 000 MGA retires.
+        * couche 2 (derniere couche active, absorbe le reliquat exact) :
+          12-8 = 4 unites, 12800-8000 = 4 800 MGA retires.
+        * valeur totale sortie : 8 000 + 4 800 = 12 800 MGA (= 12 * cout
+          moyen pondere 1066,6666..., a l'ariary pres apres arrondi).
+    - Couches apres consommation, chacune conservant SON PROPRE cout
+      unitaire d'origine (contrairement au FIFO, aucune couche n'est
+      entierement epuisee ici) :
+        * couche 1 : remaining_qty = 2, remaining_value_mga = 2 000
+          (cout unitaire toujours 1000 — 2*1000=2000).
+        * couche 2 : remaining_qty = 1, remaining_value_mga = 1 200
+          (cout unitaire toujours 1200 — 1*1200=1200).
+    - Valeur totale de stock restante : 2 000 + 1 200 = 3 200 MGA, pour
+      3 unites restantes — coherent avec 16 000 - 12 800 = 3 200."""
+    tenant, internal, supplier, client = valuation_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        reception_1 = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(10),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("1000"),
+        )
+        validate_move(reception_1)
+
+        reception_2 = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(5),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 2),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("1200"),
+        )
+        validate_move(reception_2)
+
+        livraison = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(12),
+            uom="pc",
+            location_from=internal,
+            location_to=client,
+            date=dt.date(2026, 1, 3),
+            move_type=StkMove.TYPE_LIVRAISON,
+        )
+        validate_move(livraison)  # CUMP est le defaut depuis la decision P3
+        livraison.refresh_from_db()
+
+        assert livraison.value_mga == Decimal("12800.0000")
+        assert abs(livraison.unit_cost_mga - Decimal("12800") / Decimal(12)) < Decimal("0.001")
+
+        layer_1, layer_2 = StkValuationLayer.objects.filter(variant_id=variant_id).order_by("date")
+        assert layer_1.remaining_qty == Decimal("2.0000")
+        assert layer_1.remaining_value_mga == Decimal("2000.0000")
+        assert layer_2.remaining_qty == Decimal("1.0000")
+        assert layer_2.remaining_value_mga == Decimal("1200.0000")
+
+        internal_quant = internal.quants.get(variant_id=variant_id)
+        assert internal_quant.value_mga == Decimal("3200.0000")
 
 
 def test_stock_value_equals_sum_of_remaining_layers_after_sequence(valuation_setup) -> None:

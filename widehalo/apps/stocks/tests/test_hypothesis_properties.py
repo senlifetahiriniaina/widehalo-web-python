@@ -1,7 +1,10 @@
 """Tests de proprietes (couche 13 du CDC, §8) : RG-STK-1 (double entree,
-§5.8.7 acceptance test n1) et RG-STK-2 (valorisation FIFO, §5.8.7
-acceptance test n2) verifies sur des mouvements/operations generes
-arbitrairement par Hypothesis — meme patron que
+§5.8.7 acceptance test n1) et RG-STK-2 (valorisation, §5.8.7 acceptance
+test n2 — exercee ici sous CUMP, methode par defaut de `validate_move`
+depuis la decision P3, cf. cahier Phase 3 §12.4 ; le detail chiffre a la
+main des deux methodes, CUMP et FIFO, vit dans
+`apps.stocks.tests.test_valuation`) verifies sur des mouvements/operations
+generes arbitrairement par Hypothesis — meme patron que
 `apps.accounting.tests.test_hypothesis_properties` (1000 exemples, chaque
 exemple cree son propre tenant/entrepot/emplacements via `uuid4` pour
 eviter le health check `function_scoped_fixture`, marque
@@ -184,8 +187,8 @@ def test_rg_stk_1_algebraic_sum_is_always_zero_per_variant(
 
 
 # 500 operations receive/consume EXACTEMENT (min_size == max_size) par
-# exemple — "500 operations FIFO" du CDC (§5.8.7 acceptance test n2) est
-# ici un compte exact d'operations dans CHAQUE exemple genere, pas une
+# exemple — "500 operations" du CDC (§5.8.7 acceptance test n2) est ici
+# un compte exact d'operations dans CHAQUE exemple genere, pas une
 # moyenne sur plusieurs exemples (a la difference de RG-STK-1 ci-dessus,
 # ou "1000 mouvements" se lit comme 1000 EXEMPLES, convention deja etablie
 # par `accounting`). `max_examples` reduit a 10 (au lieu de 1000) : chaque
@@ -205,21 +208,27 @@ _RECEIVE_OR_CONSUME = st.tuples(st.booleans(), _QTY, _COST)
 def test_rg_stk_2_stock_value_equals_sum_of_remaining_layers(
     operations: list[tuple[bool, Decimal, Decimal]],
 ) -> None:
-    """RG-STK-2 (§5.8.7 acceptance test n2) : apres 500 operations FIFO
-    (reception/consommation) sur un seul variant, la valeur de stock (le
+    """RG-STK-2 (§5.8.7 acceptance test n2) : apres 500 operations
+    (reception/consommation) sur un seul variant, valorisees sous CUMP
+    (methode par defaut de `validate_move` depuis la decision P3 — le
+    detail chiffre a la main des deux methodes vit dans
+    `apps.stocks.tests.test_valuation`), la valeur de stock (le
     `value_mga` du quant a l'emplacement interne) doit etre EXACTEMENT
     egale a la somme des `remaining_value_mga` de toutes les couches de
     valorisation du variant — aucune tolerance d'arrondi (meme rigueur que
-    le test d'explosion de nomenclature `mrp`, T9).
+    le test d'explosion de nomenclature `mrp`, T9). L'invariant porte sur
+    l'algorithme de consommation en general (repartition proportionnelle
+    exacte, cf. `_consume_average_cost`) et vaut identiquement quelle que
+    soit la methode de valorisation exercee.
 
     Une "consommation" tiree par Hypothesis est plafonnee a la quantite
     reellement disponible (`available`, suivie ici cote test) : consommer
-    plus que le stock reellement possede ferait basculer
-    `_consume_fifo_layers` sur son filet de secours a cout fourni par
-    l'appelant (cf. docstring `services/moves.py`) — comportement
-    delibrement HORS invariant RG-STK-2 (c'est litteralement du stock
-    negatif, RG-STK-10, hors perimetre ST2) : le plafonnage ici garantit
-    que seule la vraie mecanique FIFO est exercee par ce test."""
+    plus que le stock reellement possede ferait basculer la consommation
+    sur son filet de secours a cout fourni par l'appelant (cf. docstring
+    `services/moves.py`) — comportement delibrement HORS invariant
+    RG-STK-2 (c'est litteralement du stock negatif, RG-STK-10, hors
+    perimetre ST2) : le plafonnage ici garantit que seule la vraie
+    mecanique de consommation par couches est exercee par ce test."""
     tenant, locations, variant_ids = _stock_setup()
     internal, _internal_2, supplier, client, _production = locations
     variant_id = variant_ids[0]

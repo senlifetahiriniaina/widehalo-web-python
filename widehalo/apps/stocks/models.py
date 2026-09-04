@@ -560,17 +560,17 @@ class StkValuationLayer(BaseModel):
     que `StkMove.location_from`/`location_to` (`PROTECT`), l'historique de
     valorisation ne doit jamais se retrouver orpheline silencieusement.
 
-    Note de perimetre (ST2) : la methode de valorisation (`fifo`/`cmp`/
-    `standard`) n'est PAS encore un parametre persistant par produit — le
-    CDC ne prevoit aucune entite de configuration pour cela dans le
-    perimetre ST2, et `apps.catalog.models.ProductVariant`/`TextileSpec`
-    (Lot 1) n'expose aucun champ de methode de cout. `services.moves`
-    accepte donc un parametre `valuation_method` (defaut `"fifo"`, seule
-    methode reellement implementee en ST2) plutot que d'inventer ici un
-    nouveau modele de configuration sans commanditaire clair dans le
-    perimetre de ce lot — une vraie configuration par produit est un
-    enrichissement naturel d'un ST ulterieur, pas fabrique ici sans
-    fondement CDC."""
+    Note de perimetre (ST2, revisee Phase 3 §11.1/§12.4, decision P3) : la
+    methode de valorisation n'est PAS un parametre persistant par produit —
+    le cahier Phase 3 tranche explicitement cette question au niveau
+    produit entier plutot que par article : *« Le CUMP est la seule
+    methode livree »*. `services.moves` accepte donc un parametre
+    `valuation_method` (defaut desormais `"cmp"`, methode reellement
+    ponderee — cf. `_consume_average_cost` ; `"fifo"` reste selectionnable
+    explicitement, implementation preservee pour l'option paremetrable que
+    le cahier reserve §11.1, mais n'est plus le comportement par defaut
+    d'aucun appelant de ce depot) plutot que d'inventer ici un nouveau
+    modele de configuration par produit sans commanditaire clair."""
 
     move = models.ForeignKey(StkMove, on_delete=models.PROTECT, related_name="valuation_layers")
     variant_id = models.UUIDField()
