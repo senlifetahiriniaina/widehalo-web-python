@@ -76,6 +76,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
+import apps.accounting.services.public as accounting_public
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
@@ -380,9 +381,13 @@ def _consume_average_cost(
 def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_CMP) -> StkMove:
     """`draft -> done` : c'est ICI que l'effet reel sur le stock a lieu
     (RG-STK-1 : mise a jour des deux quants concernes ; RG-STK-2 : creation
-    ou consommation d'une couche de valorisation le cas echeant). Refuse
-    si le mouvement n'est pas `draft` (immuable une fois `done`, correction
-    par mouvement inverse uniquement — `reverse_move`, meme discipline que
+    ou consommation d'une couche de valorisation le cas echeant ; STK-12
+    depuis A3, Phase 3 §5.8 : ecriture comptable equilibree sur toute
+    entree/sortie reelle du perimetre de valorisation trace, cf. le bloc
+    dedie juste avant `move.state = STATE_DONE` ci-dessous pour le detail
+    exact du perimetre et des exclusions). Refuse si le mouvement n'est
+    pas `draft` (immuable une fois `done`, correction par mouvement
+    inverse uniquement — `reverse_move`, meme discipline que
     `AccMove`/RG-ACC-2)."""
     if move.state != StkMove.STATE_DRAFT:
         raise ValidationError(_("Seul un mouvement brouillon peut être valide."))
@@ -506,6 +511,61 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_CMP
         qty_delta=-move.qty,
         value_delta=-value_delta,
     )
+
+    # STK-12 (Phase 3 §5.8, sprint A3) : toute variation qui entre ou sort
+    # REELLEMENT du perimetre de valorisation trace (uniquement les
+    # branches "entree"/"sortie" ci-dessus — jamais "transfert
+    # interne->interne", qui conserve integralement la valeur a l'interieur
+    # du perimetre donc ne change pas le solde du compte de stock agrege,
+    # ni "virtuel->virtuel", qui ne touche jamais un stock reellement
+    # possede) poste desormais une ecriture comptable equilibree — meme
+    # discipline "gap de configuration a la charge du tenant, ne bloque
+    # JAMAIS le mouvement de stock" que `services.inventory.
+    # validate_inventory` (le premier appelant historique de ce meme gap
+    # comptable). `TYPE_AJUSTEMENT` est explicitement EXCLU ici : il
+    # beneficie deja de son propre appel dedie et plus precis (libelles
+    # "Ecart d'inventaire") depuis `validate_inventory` — l'inclure ici
+    # doublerait l'ecriture pour un meme mouvement. Un `value_delta` nul
+    # (mouvement a cout zero) ne poste rien : une ecriture entierement a
+    # zero n'a aucune valeur informative.
+    if move.move_type != StkMove.TYPE_AJUSTEMENT and value_delta != 0:
+        move_label = move.get_move_type_display()
+        if to_internal and not from_internal:
+            accounting_public.create_stock_movement_entry_from_source(
+                tenant=move.tenant,
+                date=move.date,
+                lines=[
+                    {
+                        "account_id": None,
+                        "amount": value_delta,
+                        "label": _("Entrée stock — %(nature)s") % {"nature": move_label},
+                    },
+                    {
+                        "account_id": None,
+                        "amount": -value_delta,
+                        "label": _("Contrepartie — %(nature)s") % {"nature": move_label},
+                    },
+                ],
+                label=move.reference,
+            )
+        elif from_internal and not to_internal:
+            accounting_public.create_stock_movement_entry_from_source(
+                tenant=move.tenant,
+                date=move.date,
+                lines=[
+                    {
+                        "account_id": None,
+                        "amount": -value_delta,
+                        "label": _("Sortie stock — %(nature)s") % {"nature": move_label},
+                    },
+                    {
+                        "account_id": None,
+                        "amount": value_delta,
+                        "label": _("Contrepartie — %(nature)s") % {"nature": move_label},
+                    },
+                ],
+                label=move.reference,
+            )
 
     move.state = StkMove.STATE_DONE
     move.save(update_fields=["unit_cost_mga", "value_mga", "state"])

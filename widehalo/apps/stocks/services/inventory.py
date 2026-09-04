@@ -4,8 +4,10 @@ plan) : RG-STK-9 — cycle de vie `draft -> in_progress -> validated`
 ecart contre `StkQuant`, et generation automatique, a la validation, d'un
 VRAI `StkMove` d'ajustement par ligne en ecart (moteur ST2 reutilise
 integralement) suivie de l'ecriture comptable de regularisation
-(`accounting.services.public.create_stock_adjustment_entry_from_source`,
-gap ajoute par ce meme ST5).
+(`accounting.services.public.create_stock_movement_entry_from_source`,
+gap ajoute par ce meme ST5, renommee et generalisee par A3 — Phase 3
+§5.8 — pour couvrir aussi les mouvements ordinaires depuis
+`services.moves.validate_move`, cf. sa docstring).
 
 **Emplacement virtuel de contrepartie (`StkLocation.TYPE_INVENTAIRE`)** :
 chaque `StkWarehouse` a besoin d'un emplacement virtuel dedie a l'ecart
@@ -43,7 +45,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
-from apps.accounting.services.public import create_stock_adjustment_entry_from_source
+from apps.accounting.services.public import create_stock_movement_entry_from_source
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
@@ -235,7 +237,7 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
     de mise a jour de quant reinventee ici) entre `line.location` et
     l'emplacement virtuel d'ecart de l'entrepot (cf.
     `_resolve_variance_location`), puis appelle le gap comptable
-    `create_stock_adjustment_entry_from_source` pour la valeur EXACTE
+    `create_stock_movement_entry_from_source` pour la valeur EXACTE
     calculee par le moteur de mouvement (`move.value_mga`, JAMAIS
     recalculee independamment — meme discipline "aucune tolerance d'ecart
     entre stock et comptabilite" que RG-STK-2).
@@ -251,7 +253,7 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
 
     **Ecriture comptable** : ne bloque JAMAIS la validation de
     l'inventaire si la configuration comptable (journal/periode/compte)
-    est absente — `create_stock_adjustment_entry_from_source` retourne
+    est absente — `create_stock_movement_entry_from_source` retourne
     silencieusement `None` dans ce cas (meme discipline "gap de
     configuration a la charge de l'administrateur du tenant" que les
     autres gaps `accounting.services.public`) ; le mouvement de STOCK,
@@ -315,7 +317,7 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
                 {"account_id": None, "amount": -value, "label": _("Sortie ajustement inventaire")},
                 {"account_id": None, "amount": value, "label": _("Écart d'inventaire")},
             ]
-        create_stock_adjustment_entry_from_source(
+        create_stock_movement_entry_from_source(
             tenant=inventory.tenant,
             date=inventory.date,
             lines=adjustment_lines,

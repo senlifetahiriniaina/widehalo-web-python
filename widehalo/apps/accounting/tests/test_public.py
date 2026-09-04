@@ -6,8 +6,10 @@ facturation reelle depuis `sales.services.invoicing` :
 PU6 de `purchase` : `create_supplier_invoice_from_source` (RG-PUR-6),
 `create_landed_cost_batch_from_source` (RG-PUR-7),
 `get_budget_variance_for_analytic_account` (PUR-BUD1), et le gap ajoute
-par ST5 de `stocks` : `create_stock_adjustment_entry_from_source`
-(RG-STK-9)."""
+par ST5 de `stocks` : `create_stock_movement_entry_from_source`
+(RG-STK-9 ; renommee et generalisee par A3, Phase 3 §5.8, STK-12, pour
+couvrir aussi les mouvements de stock ordinaires en plus de l'ajustement
+d'inventaire)."""
 
 from __future__ import annotations
 
@@ -32,7 +34,7 @@ from apps.accounting.services.public import (
     create_customer_invoice_from_source,
     create_landed_cost_batch_from_source,
     create_pos_session_closing_entry_from_source,
-    create_stock_adjustment_entry_from_source,
+    create_stock_movement_entry_from_source,
     create_supplier_invoice_from_source,
     get_budget_variance_for_analytic_account,
     get_default_sale_tax,
@@ -437,7 +439,7 @@ def test_get_budget_variance_for_analytic_account_returns_none_without_match(
         assert result is None
 
 
-def test_create_stock_adjustment_entry_from_source_success_path(public_setup) -> None:
+def test_create_stock_movement_entry_from_source_success_path(public_setup) -> None:
     tenant = public_setup
     with use_tenant(tenant.id):
         AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
@@ -447,7 +449,7 @@ def test_create_stock_adjustment_entry_from_source_success_path(public_setup) ->
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
-        move_id = create_stock_adjustment_entry_from_source(
+        move_id = create_stock_movement_entry_from_source(
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
@@ -469,7 +471,7 @@ def test_create_stock_adjustment_entry_from_source_success_path(public_setup) ->
         assert credit_line.account.type == AccAccount.TYPE_EXPENSE
 
 
-def test_create_stock_adjustment_entry_from_source_negative_amount_credits(public_setup) -> None:
+def test_create_stock_movement_entry_from_source_negative_amount_credits(public_setup) -> None:
     """Ecart negatif (sortie) : la resolution du compte par defaut se fait
     par SIGNE de la ligne, jamais par position dans la liste — la ligne
     positive (debit) retombe toujours sur le compte de stock, la ligne
@@ -485,7 +487,7 @@ def test_create_stock_adjustment_entry_from_source_negative_amount_credits(publi
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
-        move_id = create_stock_adjustment_entry_from_source(
+        move_id = create_stock_movement_entry_from_source(
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
@@ -504,7 +506,7 @@ def test_create_stock_adjustment_entry_from_source_negative_amount_credits(publi
         assert credit_line.account.type == AccAccount.TYPE_EXPENSE
 
 
-def test_create_stock_adjustment_entry_from_source_refuses_unbalanced_lines(public_setup) -> None:
+def test_create_stock_movement_entry_from_source_refuses_unbalanced_lines(public_setup) -> None:
     tenant = public_setup
     with use_tenant(tenant.id):
         AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
@@ -515,7 +517,7 @@ def test_create_stock_adjustment_entry_from_source_refuses_unbalanced_lines(publ
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
         with pytest.raises(ValidationError):
-            create_stock_adjustment_entry_from_source(
+            create_stock_movement_entry_from_source(
                 tenant=tenant,
                 date=dt.date(2026, 1, 15),
                 lines=[
@@ -525,7 +527,7 @@ def test_create_stock_adjustment_entry_from_source_refuses_unbalanced_lines(publ
             )
 
 
-def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_journal(
+def test_create_stock_movement_entry_from_source_returns_none_without_stock_journal(
     public_setup,
 ) -> None:
     tenant = public_setup
@@ -536,7 +538,7 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_jo
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
-        result = create_stock_adjustment_entry_from_source(
+        result = create_stock_movement_entry_from_source(
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
@@ -548,7 +550,7 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_jo
         assert result is None
 
 
-def test_create_stock_adjustment_entry_from_source_returns_none_without_open_period(
+def test_create_stock_movement_entry_from_source_returns_none_without_open_period(
     public_setup,
 ) -> None:
     tenant = public_setup
@@ -557,7 +559,7 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_open_per
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
-        result = create_stock_adjustment_entry_from_source(
+        result = create_stock_movement_entry_from_source(
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
@@ -583,7 +585,7 @@ def test_get_treasury_forecast_summary_delegates_to_treasury_forecast(public_set
         assert result["dips"] == []
 
 
-def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_account(
+def test_create_stock_movement_entry_from_source_returns_none_without_stock_account(
     public_setup,
 ) -> None:
     tenant = public_setup
@@ -594,7 +596,7 @@ def test_create_stock_adjustment_entry_from_source_returns_none_without_stock_ac
         )
         AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
 
-        result = create_stock_adjustment_entry_from_source(
+        result = create_stock_movement_entry_from_source(
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[

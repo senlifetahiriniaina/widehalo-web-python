@@ -19,11 +19,15 @@ manquante, retourner `None`" que `create_customer_invoice_from_source` :
 - `get_budget_variance_for_analytic_account` (PUR-BUD1, routage
   d'approbation budgetaire).
 
-1 gap supplementaire ajoute par ST5 de `stocks` (§5.8, cf. plan) :
+1 gap supplementaire ajoute par ST5 de `stocks` (§5.8, cf. plan), etendu
+par A3 (Phase 3 §5.8, Bloc A) pour couvrir aussi les mouvements de stock
+ORDINAIRES (pas seulement l'ajustement d'inventaire) :
 
-- `create_stock_adjustment_entry_from_source` (RG-STK-9, "l'ecriture
+- `create_stock_movement_entry_from_source` (RG-STK-9, "l'ecriture
   comptable de regularisation est generee automatiquement" a la
-  validation d'un inventaire physique)."""
+  validation d'un inventaire physique ; STK-12 depuis A3, "toute
+  variation de stock qui entre ou sort du perimetre de valorisation
+  trace poste une ecriture equilibree")."""
 
 from __future__ import annotations
 
@@ -372,7 +376,7 @@ def get_budget_variance_for_analytic_account(
     }
 
 
-def create_stock_adjustment_entry_from_source(
+def create_stock_movement_entry_from_source(
     *,
     tenant: Tenant,
     date: dt.date,
@@ -380,13 +384,29 @@ def create_stock_adjustment_entry_from_source(
     label: str = "",
 ) -> UUID | None:
     """Point d'integration appele par
-    `stocks.services.inventory.validate_inventory` (RG-STK-9, §5.8, ST5)
-    pour materialiser l'ecriture de regularisation d'un ajustement de
-    stock (comptage cyclique/inventaire) sous forme d'`AccMove`
-    (`move_type=entry`, `AccMove.TYPE_ENTRY`) — a la difference des 2 gaps
-    facture (client/fournisseur) ci-dessus, ce n'est PAS une facture mais
-    une ecriture diverse (double entree comptable classique, pas
-    "commande -> facture").
+    `stocks.services.inventory.validate_inventory` (RG-STK-9, §5.8, ST5,
+    ajustement d'inventaire) ET, depuis A3 (Phase 3 §5.8, Bloc A,
+    STK-12), par `stocks.services.moves.validate_move` (tout mouvement
+    ORDINAIRE — reception, livraison, production, retour, rebut, casse,
+    vente au comptoir, sous-produit — qui fait reellement entrer ou
+    sortir de la valeur du perimetre de stock trace) pour materialiser
+    l'ecriture correspondante sous forme d'`AccMove` (`move_type=entry`,
+    `AccMove.TYPE_ENTRY`) — a la difference des 2 gaps facture (client/
+    fournisseur) ci-dessus, ce n'est PAS une facture mais une ecriture
+    diverse (double entree comptable classique, pas "commande ->
+    facture").
+
+    **Nommee `..._movement_...` plutot que `..._adjustment_...`
+    (renommee ici, A3) : generalisee au-dela du seul ajustement
+    d'inventaire d'origine (ST5)** — mecanique et convention de signe
+    IDENTIQUES pour les deux usages (rien de specifique a l'ajustement
+    dans la logique elle-meme, seuls les `lines`/`label` fournis par
+    l'appelant different), pas de duplication justifiee. Un mouvement
+    `transfert_interne` (interne -> interne) ou `ajustement`
+    (deja couvert par son propre appel dedie depuis `validate_inventory`,
+    labels "Ecart d'inventaire" specifiques) n'appelle PAS cette fonction
+    depuis `validate_move` — cf. docstring de ce dernier pour la garde
+    exacte qui evite un double enregistrement.
 
     `lines` : `[{"account_id": UUID | None, "amount": Decimal, "label":
     str}, ...]` — `stocks` ne peut jamais passer un objet `AccAccount`
@@ -583,7 +603,7 @@ def create_pos_session_closing_entry_from_source(
     caisse") ; un ecart POSITIF (surplus) ajoute une ligne CREDIT sur le
     premier `AccAccount.TYPE_INCOME` ("gain de caisse") — meme discipline
     de resolution "par signe, faute d'un type de compte dedie" que
-    `create_stock_adjustment_entry_from_source` (aucun type "ecart de
+    `create_stock_movement_entry_from_source` (aucun type "ecart de
     caisse" n'existe dans `AccAccount.TYPE_CHOICES`). Un ecart nul n'ajoute
     aucune ligne.
 
@@ -729,7 +749,7 @@ def post_payroll_batch_entry_from_source(
 
     `lines` : `[{"account_id": UUID | None, "amount": Decimal, "label":
     str, "analytic_distribution": dict | None}, ...]` — memes primitives et
-    MEME convention de signe que `create_stock_adjustment_entry_from_source`
+    MEME convention de signe que `create_stock_movement_entry_from_source`
     (positif = DEBIT, negatif = CREDIT) : `payroll` raisonne en montants
     signes par ligne de regle (charges au debit, cotisations/net a payer/
     retenues au credit), la conversion vers `debit`/`credit` a lieu ICI.

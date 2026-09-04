@@ -31,7 +31,7 @@ class PosPaymentMethod(BaseModel):
     `accounting.services.public.create_pos_session_closing_entry_from_source`)
     retombe sur le premier `AccAccount` du `default_account_type` — meme
     discipline "compte par defaut si non parametre explicitement" que
-    `accounting.services.public.create_stock_adjustment_entry_from_source`."""
+    `accounting.services.public.create_stock_movement_entry_from_source`."""
 
     TYPE_CASH = "cash"
     TYPE_MOBILE_MONEY = "mobile_money"
