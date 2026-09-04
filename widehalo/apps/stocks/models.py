@@ -456,7 +456,24 @@ class StkMove(BaseModel, ReferenceMixin):
     mouvement vers/depuis le MEME emplacement n'est jamais valide (aucune
     circonstance metier ne le justifie), garde en base en plus de la garde
     de service `create_move` (meme discipline "ceinture et bretelles" que
-    RG-ACC-1)."""
+    RG-ACC-1).
+
+    **STK-11 (Phase 3 §13.1, sprint A5) : immuabilite technique, pas
+    seulement conventionnelle.** `services.moves.validate_move`/
+    `cancel_move`/`reverse_move` refusent deja toute mutation d'un mouvement
+    `done` (docstrings ci-dessous) — mais rien n'empechait, AVANT A5, un
+    acces ORM/admin/shell direct de contourner ces gardes de service (aucun
+    `save()`/`clean()` ne les fait respecter au niveau modele). Migration
+    `stocks.0015` : trigger Postgres `stk_move_immutable_when_done`
+    (fonction `stk_move_reject_mutation_if_done`, meme patron « field-aware »
+    que `AccMove`/RG-ACC-2, migrations `accounting.0003`+`0005` — compare
+    OLD/NEW colonne par colonne, ne bloque QUE les colonnes qui definissent
+    le mouvement lui-meme, pas les champs de suivi communs `BaseModel`
+    (`is_active`/`archived_at`/`created_by`/`updated_by`/`updated_at`),
+    exactement comme `AccMove` ne les protege pas non plus). DELETE
+    egalement bloque une fois `done` — correction uniquement par
+    `reverse_move` (nouveau mouvement, jamais de modification du mouvement
+    original)."""
 
     STATE_DRAFT = "draft"
     STATE_DONE = "done"

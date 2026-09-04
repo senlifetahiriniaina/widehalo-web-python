@@ -145,6 +145,21 @@ class ProductTemplate(BaseModel, ReferenceMixin):
     category = models.ForeignKey(
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name="templates"
     )
+    # STK-11 (Phase 3 §12.2, sprint A5) : « chaque article a une unite de
+    # stock unique et immuable apres le premier mouvement — la changer
+    # invaliderait tout l'historique. » Garde posee en base (migration
+    # `catalog.0013`, trigger `catalog_product_template_reject_uom_change_
+    # after_movement`) plutot qu'ici en Python : aucune fonction de service
+    # `update_product_template` n'existe aujourd'hui (les ecrans/API actuels
+    # ne font que CREER un template, cf. `views.template_create`/
+    # `api.py::create_template`) — le trigger anticipe donc un futur ecran
+    # d'edition sans laisser un trou d'integrite en attendant, meme
+    # discipline que STK-6/A4 pour un endpoint API pas encore ecrit. Le
+    # trigger interroge directement `stk_move`/`catalog_product_variant` en
+    # SQL pur (jamais un import Python `apps.stocks.*` — `catalog` ne
+    # declare toujours pas `stocks` comme dependance, cf. `module.py` ;
+    # une trigger SQL n'est pas soumise a la regle de couplage n1, qui ne
+    # porte que sur les imports Python).
     base_uom = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="+")
     variant_attributes = models.ManyToManyField(Attribute, blank=True, related_name="templates")
     base_price_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
@@ -182,6 +197,30 @@ class ProductVariant(BaseModel, ReferenceMixin):
     # main (checksum GS1 calcule). Vide tant qu'aucune variante n'a ete
     # generee/codee (variantes historiques anterieures a ce chantier).
     ean13 = models.CharField(max_length=13, blank=True, db_index=True)
+
+    # STK-11 (Phase 3 §12.3 tableau "Lot", sprint A5) : « un article est
+    # declare gere par lot ou non ; le passage de non a oui n'est possible
+    # qu'a stock nul, et l'ecran l'explique plutot que de refuser sans
+    # motif. » Champ nouveau (aucun equivalent n'existait avant A5, cf.
+    # rapport de recherche du sprint — `StkLot`/`StkQuant`/`StkMove` sont
+    # deja tous keyes par `variant_id`, donc ce booleen vit au niveau
+    # VARIANTE, pas template, meme granularite). Defaut `False` : une
+    # variante creee normalement n'est pas geree par lot, activation
+    # explicite. « Stock nul » = stock physique sur emplacements INTERNES
+    # uniquement (meme perimetre que `stocks.services.quants.on_hand_qty`,
+    # PAS la vue brute double-entree qui inclut les emplacements virtuels)
+    # — garde posee en base (migration `catalog.0013`, trigger
+    # `catalog_product_variant_reject_lot_tracking_flip_with_stock`), pas
+    # en Python ici, pour la meme raison que `base_uom` ci-dessus
+    # (aucune fonction `update_variant` n'existe encore, et une trigger SQL
+    # peut lire `stk_quant` sans jamais introduire d'import Python
+    # `catalog` -> `stocks`, qui casserait le sens unique de couplage
+    # etabli par `stocks.module.py`). Seul le sens non -> oui est garde,
+    # conformement au CDC (le sens oui -> non n'est pas mentionne comme
+    # contraint). Aucun ecran n'edite ce champ a ce jour (uniquement cree
+    # a `False` implicite) : la clause CDC « l'ecran l'explique » reste un
+    # rappel pour le futur ecran d'edition de variante, pas un gap actuel.
+    is_lot_tracked = models.BooleanField(default=False)
 
     class Meta:
         db_table = "catalog_product_variant"

@@ -12,14 +12,16 @@ RLS (isolation tenant) est hors-perimetre (couverte ailleurs)."""
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 import pytest
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.utils import IntegrityError
 
 from apps.core.tests.factories import TenantFactory
 from apps.core.tests.utils import use_tenant
+from apps.stocks.models import StkMove
 from apps.stocks.tests.factories import (
     StkInventoryFactory,
     StkLocationFactory,
@@ -148,6 +150,77 @@ def test_quant_unique_per_variant_location_and_lot() -> None:
 
         with pytest.raises(IntegrityError), transaction.atomic():
             StkQuantFactory(tenant=tenant, variant_id=variant_id, location=location)
+
+
+# --------------------------------------------------------------------------
+# Trigger d'immuabilite (STK-11, Phase 3 sprint A5) : stocks.0015
+# --------------------------------------------------------------------------
+
+
+def test_done_move_is_immutable_even_via_raw_sql() -> None:
+    """Contourne les gardes de service (`validate_move`/`cancel_move`) et
+    tente directement le SQL — le trigger doit refuser, meme pour le
+    proprietaire de la table (meme patron que
+    `accounting.tests.test_moves::test_posted_move_is_immutable_even_via_raw_sql`)."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE, qty=Decimal("10"))
+
+        with (
+            pytest.raises(Exception, match="immuable"),
+            transaction.atomic(),
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("UPDATE stk_move SET qty = %s WHERE id = %s", ["999", str(move.id)])
+
+        move.refresh_from_db()
+        assert move.qty == Decimal("10")
+
+
+def test_done_move_cannot_be_deleted_via_raw_sql() -> None:
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE)
+
+        with (
+            pytest.raises(Exception, match="immuable"),
+            transaction.atomic(),
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("DELETE FROM stk_move WHERE id = %s", [str(move.id)])
+
+        assert StkMove.objects.filter(pk=move.pk).exists()
+
+
+def test_draft_move_can_still_be_mutated_via_raw_sql() -> None:
+    """Le trigger ne se declenche que sur `OLD.state = 'done'` — un
+    mouvement `draft` (ex. juste apres `create_move`, avant validation)
+    reste librement modifiable, y compris la ligne `move.picking = ...`
+    ecrite par `services.pickings.add_picking_line`."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DRAFT, qty=Decimal("10"))
+
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE stk_move SET qty = %s WHERE id = %s", ["5", str(move.id)])
+
+        move.refresh_from_db()
+        assert move.qty == Decimal("5")
+
+
+def test_done_move_bookkeeping_field_update_is_still_allowed() -> None:
+    """Le trigger est « field-aware » (meme patron que `AccMove`) : les
+    champs de suivi communs `BaseModel` (ici `is_active`/`archived_at` via
+    `soft_delete()`) restent modifiables meme sur un mouvement `done` — ce
+    n'est pas un gap, c'est le meme choix assume que pour `AccMove`."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE)
+
+        move.soft_delete()
+
+        move.refresh_from_db()
+        assert move.is_active is False
 
 
 def test_quant_unique_constraint_treats_null_lot_as_equal_across_rows() -> None:
