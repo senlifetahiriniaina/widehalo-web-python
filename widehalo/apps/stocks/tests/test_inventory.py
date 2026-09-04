@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 
 from apps.accounting.models import AccAccount, AccJournal
 from apps.accounting.tests.factories import AccAccountFactory, AccJournalFactory, AccPeriodFactory
+from apps.core.models.audit import AuditLog
 from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
@@ -134,7 +135,11 @@ def test_full_flow_negative_variance_consumes_stock(inventory_setup) -> None:
         line.refresh_from_db()
         assert line.difference == Decimal("-10.0000")
 
-        validate_inventory(inventory, validated_by=user)
+        # Écart de 10% > seuil (5%, A4/STK-7) : un second utilisateur valide,
+        # distinct du compteur — sinon `validate_inventory` refuserait
+        # désormais (séparation des tâches).
+        validator = UserFactory()
+        validate_inventory(inventory, validated_by=validator)
 
         quant = get_quant(variant_id, location)
         assert quant is not None
@@ -304,3 +309,52 @@ def test_add_inventory_line_refuses_after_draft(inventory_setup) -> None:
 
 def test_default_variance_threshold_pct_is_five() -> None:
     assert Decimal("5") == DEFAULT_VARIANCE_THRESHOLD_PCT
+
+
+def test_validate_inventory_refuses_self_validation_above_threshold(inventory_setup) -> None:
+    """STK-7 (Phase 3 §6.3, sprint A4) : un écart de 10% (> seuil 5%) ne
+    peut pas être validé par la personne qui a compté — refusé ET
+    journalisé (`AuditLog`)."""
+    tenant, warehouse, location, supplier, user = inventory_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        _receive_stock(tenant, supplier, location, variant_id, Decimal("100"))
+        inventory = create_inventory(
+            tenant=tenant, warehouse=warehouse, date=dt.date(2026, 1, 15), type="ponctuel"
+        )
+        line = add_inventory_line(inventory, variant_id=variant_id, location=location)
+        start_inventory(inventory)
+        record_count(line, qty_counted=Decimal("90"), counted_by=user, reason="Casse constatee")
+
+        with pytest.raises(ValidationError):
+            validate_inventory(inventory, validated_by=user)
+
+        inventory.refresh_from_db()
+        assert inventory.state == StkInventory.STATE_IN_PROGRESS
+        assert not StkMove.objects.filter(variant_id=variant_id, move_type="ajustement").exists()
+
+        entry = AuditLog.objects.filter(action="stocks.inventory.self_validate").get()
+        assert entry.actor_id == user.id
+        assert entry.object_id == str(line.id)
+
+
+def test_validate_inventory_allows_self_validation_at_or_below_threshold(inventory_setup) -> None:
+    """STK-7 : sous le seuil, « la validation est automatique et tracée »
+    (cahier §6.3) — la même personne peut valider son propre comptage,
+    exactement à la limite du seuil (5%, comparaison stricte)."""
+    tenant, warehouse, location, supplier, user = inventory_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        _receive_stock(tenant, supplier, location, variant_id, Decimal("100"))
+        inventory = create_inventory(
+            tenant=tenant, warehouse=warehouse, date=dt.date(2026, 1, 15), type="ponctuel"
+        )
+        line = add_inventory_line(inventory, variant_id=variant_id, location=location)
+        start_inventory(inventory)
+        record_count(line, qty_counted=Decimal("95"), counted_by=user)
+        line.refresh_from_db()
+        assert line.difference == Decimal("-5.0000")
+
+        validate_inventory(inventory, validated_by=user)
+        inventory.refresh_from_db()
+        assert inventory.state == StkInventory.STATE_VALIDATED

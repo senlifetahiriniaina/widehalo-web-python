@@ -408,7 +408,14 @@
         <tbody>
           {% for line in lines %}
             <tr>
-              <td>{{ line.variant_id }}</td><td>{{ line.location.code }}</td><td>{{ line.qty_theoretical }}</td><td>{{ line.qty_counted|default:"-" }}</td><td>{{ line.difference }}</td>
+              {# STK-6 (Phase 3 §13, sprint A4) : comptage a l'aveugle — la
+                 quantite theorique et l'ecart derive restent absents du
+                 HTML rendu (pas un masquage CSS/JS cote client) tant que
+                 l'inventaire n'est pas "validated", pour ne jamais
+                 transformer le comptage en simple confirmation. Si une
+                 future API serialise StkInventoryLine, elle doit reprendre
+                 la meme garde par etat. #}
+              <td>{{ line.variant_id }}</td><td>{{ line.location.code }}</td><td>{% if inventory.state == "validated" %}{{ line.qty_theoretical }}{% else %}—{% endif %}</td><td>{{ line.qty_counted|default:"-" }}</td><td>{% if inventory.state == "validated" %}{{ line.difference }}{% else %}—{% endif %}</td>
               <td>
                 {% if inventory.state == "in_progress" %}
                   <form method="post" style="display:inline;">

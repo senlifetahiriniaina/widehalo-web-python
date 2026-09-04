@@ -48,6 +48,7 @@ from django.utils.translation import gettext as _
 from apps.accounting.services.public import create_stock_movement_entry_from_source
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.audit import log_action
 from apps.core.services.sequences import next_reference
 from apps.stocks.models import (
     StkInventory,
@@ -260,7 +261,21 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
     lui, est toujours cree et valide independamment du succes de cette
     ecriture — RG-STK-9 porte sur la generation AUTOMATIQUE de l'ecriture
     QUAND la comptabilite est configuree, pas sur une dependance dure du
-    stock envers la comptabilite."""
+    stock envers la comptabilite.
+
+    **STK-7 (Phase 3 §6.3, sprint A4) : separation des taches.** Refuse
+    (`ValidationError`, tentative JOURNALISEE via `core.services.audit.
+    log_action`) si une ligne en ecart a ete comptee ET serait validee par
+    la MEME personne (`line.counted_by_id == validated_by.id`), MAIS
+    uniquement quand l'ecart RELATIF depasse `DEFAULT_VARIANCE_THRESHOLD_PCT`
+    — meme seuil et meme formule que `record_count` ci-dessus (le CDC parle
+    d'un « seuil de la famille d'articles », non modelise dans ce depot ;
+    le seuil global existant est reutilise comme approximation assumee).
+    En dessous du seuil, la meme personne PEUT valider son propre comptage
+    — « validation automatique et tracee » (cahier §6.3), pas une omission.
+    Cette verification s'execute AVANT toute creation de `StkMove`/
+    ecriture comptable (fail-fast, aucun effet de bord partiel en cas de
+    refus)."""
     if inventory.state != StkInventory.STATE_IN_PROGRESS:
         raise ValidationError(_("Seul un inventaire en cours peut être valide."))
     lines = list(inventory.lines.all())
@@ -268,6 +283,33 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
         raise ValidationError(
             _("Toutes les lignes doivent être comptées avant de valider l'inventaire.")
         )
+
+    for line in lines:
+        if line.difference == 0 or line.counted_by_id != validated_by.id:
+            continue
+        ratio = _ratio_or_none(abs(line.difference), line.qty_theoretical)
+        variance_pct = (
+            ratio * 100
+            if ratio is not None
+            else (Decimal(100) if line.difference != 0 else Decimal(0))
+        )
+        if variance_pct > DEFAULT_VARIANCE_THRESHOLD_PCT:
+            log_action(
+                "stocks.inventory.self_validate",
+                actor=validated_by,
+                obj=line,
+                metadata={
+                    "inventory_reference": inventory.reference,
+                    "variance_pct": str(variance_pct),
+                },
+            )
+            raise ValidationError(
+                _(
+                    "Écart de %(pct)s%% sur la ligne %(variant)s : ne peut pas être "
+                    "validé par la personne qui a compté (séparation des tâches)."
+                )
+                % {"pct": variance_pct, "variant": line.variant_id}
+            )
 
     variance_location = _resolve_variance_location(inventory.warehouse)
 

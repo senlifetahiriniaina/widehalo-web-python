@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import datetime as dt
 import uuid
+from decimal import Decimal
 
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkInventory, StkLocation, StkPicking
+from apps.stocks.models import StkInventory, StkLocation, StkMove, StkPicking
+from apps.stocks.services.moves import create_move, validate_move
 from apps.stocks.services.warehouses import create_location, create_warehouse
 from django.test import Client
 
@@ -172,6 +175,59 @@ def test_inventory_list_create_detail_start_count_validate_round_trip(
     assert response.status_code == 200
     inventory.refresh_from_db()
     assert inventory.state == "validated"
+
+
+def test_inventory_hides_theoretical_qty_until_validated(stocks_screens_setup) -> None:
+    """STK-6 (Phase 3 §13, sprint A4) : la quantité théorique n'apparaît
+    dans le HTML rendu qu'une fois l'inventaire "validated" — ni pendant
+    la saisie, ni juste après avoir compté (avant validation du document
+    complet)."""
+    client, tenant, user, warehouse, supplier, internal = stocks_screens_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("42"),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("100"),
+        )
+        validate_move(move)
+
+    client.post(
+        "/stocks/inventories/",
+        {"warehouse_id": str(warehouse.id), "date": "2026-01-15", "type": "ponctuel"},
+        follow=True,
+    )
+    with use_tenant(tenant.id):
+        inventory = StkInventory.objects.get(warehouse=warehouse)
+    client.post(
+        f"/stocks/inventories/{inventory.id}/",
+        {"action": "add_line", "variant_id": str(variant_id), "location_id": str(internal.id)},
+        follow=True,
+    )
+    client.post(f"/stocks/inventories/{inventory.id}/", {"action": "start"}, follow=True)
+
+    response = client.get(f"/stocks/inventories/{inventory.id}/")
+    assert b"42.0000" not in response.content
+
+    with use_tenant(tenant.id):
+        line = inventory.lines.first()
+    client.post(
+        f"/stocks/inventories/{inventory.id}/",
+        {"action": "record_count", "line_id": str(line.id), "qty_counted": "42", "reason": ""},
+        follow=True,
+    )
+    response = client.get(f"/stocks/inventories/{inventory.id}/")
+    assert b"42.0000" not in response.content
+
+    client.post(f"/stocks/inventories/{inventory.id}/", {"action": "validate"}, follow=True)
+    response = client.get(f"/stocks/inventories/{inventory.id}/")
+    assert b"42.0000" in response.content
 
 
 def test_traceability_lookup_screen_renders(stocks_screens_setup) -> None:
