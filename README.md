@@ -17,6 +17,11 @@ fichier par fichier plutôt que par une simple déclaration de statut :
 | **Phase 2** | Business Intelligence, Forecast, Strategy, WhatsApp (sur un entrepôt analytique en étoile + dictionnaire d'indicateurs) | Modules livrés depuis le même audit (`analytics`, `bi`, `forecast`, `strategy`, `whatsapp`) | même document |
 | **Phase 3** | Stock et entrepôt, Achats/Import/CREDOC, Production, Qualité et HACCP, Paie, extension Forecast | Cahier reçu le 2026-09-04 ; le dépôt couvre déjà une bonne partie de ce périmètre sous des modules construits antérieurement et indépendamment (`stocks`, `purchase`, `mrp`, `payroll`, `presence`) — **8 des 59 critères d'acceptation du cahier sont conformes, 27 partiels, 21 absents**, dont deux violations concrètes de règles explicites (double comptabilité de quantité stock/achats, portail salarié alors qu'explicitement interdit) | [`docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md`](docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md) |
 
+Le plan de fermeture des écarts Phase 3 (deux vagues : les 7 recommandations
+prioritaires de l'audit, puis le reste jusqu'à conformité complète des 59
+critères, ≈165 Jour-Token) est dans
+[`docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md`](docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md).
+
 **Ne jamais se fier à un chiffre de documentation sans le re-vérifier** :
 les compteurs de modèles/endpoints/écrans ne font foi que ré-exécutés
 (`docs/planning/ECART_ARCHITECTURE.md` §1) — au 2026-09-04 : **290 modèles
