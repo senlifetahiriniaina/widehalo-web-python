@@ -11,9 +11,10 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from apps.core.models.tenant import Tenant
-from apps.core.services.regulatory import get_parameter
+from apps.core.services.regulatory import get_parameter_with_version
 from apps.payroll.services.seed import (
     CODE_CNAPS_RATE,
     CODE_FMFP_RATE,
@@ -60,6 +61,15 @@ class PayrollParams:
     # `overtime_exempt_pay` via `params['overtime_multipliers']` — jamais un
     # defaut en dur dans `expr.py`.
     overtime_multipliers: dict[str, Decimal]
+    # Bloc E, E3 (PAY-4) : version (`RegulatoryParameter.version`) de
+    # CHAQUE code resolu ci-dessus au moment de CE calcul — cle = code brut
+    # (ex. "payroll.cnaps_rate"), jamais le nom convivial utilise par
+    # `_params_as_expr_dict`. Traca ge trace sur `PayPayslipLine.
+    # regulatory_parameter_versions` (meme snapshot pour toutes les lignes
+    # d'un meme bulletin — tous les codes sont resolus a la MEME
+    # `at_date`, mais chaque code a sa propre lignee de versions
+    # independante, cf. `RegulatoryParameter.version`).
+    versions: dict[str, int]
 
     @property
     def social_ceiling(self) -> Decimal:
@@ -69,7 +79,14 @@ class PayrollParams:
 
 
 def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
-    brackets_raw = get_parameter(CODE_IRSA_BRACKETS, at_date, tenant=tenant)
+    versions: dict[str, int] = {}
+
+    def _resolve(code: str) -> Any:
+        value, version = get_parameter_with_version(code, at_date, tenant=tenant)
+        versions[code] = version
+        return value
+
+    brackets_raw = _resolve(CODE_IRSA_BRACKETS)
     brackets = tuple(
         IrsaBracket(
             min_amount=Decimal(b["min"]),
@@ -78,21 +95,15 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
         )
         for b in brackets_raw
     )
-    minimum = Decimal(get_parameter(CODE_IRSA_MINIMUM, at_date, tenant=tenant)["amount"])
-    reduction = Decimal(
-        get_parameter(CODE_IRSA_DEPENDENT_REDUCTION, at_date, tenant=tenant)["amount"]
-    )
-    cnaps = get_parameter(CODE_CNAPS_RATE, at_date, tenant=tenant)
-    ostie = get_parameter(CODE_OSTIE_RATE, at_date, tenant=tenant)
-    fmfp = get_parameter(CODE_FMFP_RATE, at_date, tenant=tenant)
-    sme = Decimal(get_parameter(CODE_SME, at_date, tenant=tenant)["amount"])
-    ceiling_multiplier = Decimal(
-        get_parameter(CODE_SOCIAL_CEILING_MULTIPLIER, at_date, tenant=tenant)["multiplier"]
-    )
-    overtime_exempt = Decimal(
-        get_parameter(CODE_OVERTIME_EXEMPT_HOURS, at_date, tenant=tenant)["hours"]
-    )
-    overtime_multipliers_raw = get_parameter(CODE_OVERTIME_MULTIPLIERS, at_date, tenant=tenant)
+    minimum = Decimal(_resolve(CODE_IRSA_MINIMUM)["amount"])
+    reduction = Decimal(_resolve(CODE_IRSA_DEPENDENT_REDUCTION)["amount"])
+    cnaps = _resolve(CODE_CNAPS_RATE)
+    ostie = _resolve(CODE_OSTIE_RATE)
+    fmfp = _resolve(CODE_FMFP_RATE)
+    sme = Decimal(_resolve(CODE_SME)["amount"])
+    ceiling_multiplier = Decimal(_resolve(CODE_SOCIAL_CEILING_MULTIPLIER)["multiplier"])
+    overtime_exempt = Decimal(_resolve(CODE_OVERTIME_EXEMPT_HOURS)["hours"])
+    overtime_multipliers_raw = _resolve(CODE_OVERTIME_MULTIPLIERS)
     overtime_multipliers = {
         category: Decimal(rate) for category, rate in overtime_multipliers_raw.items()
     }
@@ -110,6 +121,7 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
         social_ceiling_multiplier=ceiling_multiplier,
         overtime_exempt_hours=overtime_exempt,
         overtime_multipliers=overtime_multipliers,
+        versions=versions,
     )
 
 

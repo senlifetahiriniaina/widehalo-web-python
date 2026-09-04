@@ -458,6 +458,15 @@ class PayPayslipLine(BaseModel):
     rate = models.DecimalField(max_digits=9, decimal_places=4, null=True, blank=True)
     amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal(0))
     is_employer_charge = models.BooleanField(default=False)
+    # Bloc E, E3 (PAY-4) : instantane {code RegulatoryParameter -> version}
+    # de TOUS les parametres reglementaires resolus pour le bulletin
+    # auquel appartient cette ligne (`PayrollParams.versions`, cf.
+    # `apps.payroll.services.params.resolve_params`) — meme instantane sur
+    # chaque ligne d'un meme bulletin (tous les codes sont resolus a la
+    # MEME date de periode, PAY-M3), permettant a l'ecran de tracer la
+    # version exacte de n'importe quel parametre applique au calcul,
+    # meme si cette ligne precise n'en consomme qu'un sous-ensemble.
+    regulatory_parameter_versions = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "pay_payslip_line"

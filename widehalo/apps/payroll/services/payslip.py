@@ -23,7 +23,7 @@ from django.utils.translation import gettext as _
 import apps.presence.services.public as presence_public
 from apps.core.models.tenant import Tenant
 from apps.payroll.models import PayAdvance, PayContract, PayPayslip, PayPayslipLine, PaySalaryRule
-from apps.payroll.services.params import resolve_params
+from apps.payroll.services.params import PayrollParams, resolve_params
 from apps.payroll.services.rules_engine import evaluate_structure
 
 # Jours ouvrables de reference par mois — convention malgache usuelle (le
@@ -32,8 +32,7 @@ DEFAULT_REFERENCE_DAYS = Decimal(26)
 HOURS_PER_DAY = Decimal(8)
 
 
-def _params_as_expr_dict(tenant: Tenant, period_date_from: object) -> dict[str, object]:
-    params = resolve_params(tenant, period_date_from)  # type: ignore[arg-type]
+def _params_as_expr_dict(params: PayrollParams) -> dict[str, object]:
     return {
         "irsa_brackets": [
             {"min": b.min_amount, "max": b.max_amount, "rate": b.rate} for b in params.irsa_brackets
@@ -148,6 +147,12 @@ def compute_payslip(
     if extra_payslip_vars:
         payslip_vars.update(extra_payslip_vars)
 
+    # PAY-M3 : resolu UNE SEULE fois, a la date de la PERIODE — jamais
+    # `date.today()`. Reutilise a la fois pour l'environnement de formule
+    # (`_params_as_expr_dict`) et pour l'instantane de versions trace sur
+    # chaque `PayPayslipLine` (Bloc E, E3/PAY-4).
+    payroll_params: PayrollParams = resolve_params(tenant, payslip.period.date_from)
+
     variables: dict[str, object] = {
         "contract": {
             "wage_base": contract.wage_base,
@@ -162,7 +167,7 @@ def compute_payslip(
         "absences": absence_summary,
         "overtime": overtime_hours,
         "benefits": benefits,
-        "params": _params_as_expr_dict(tenant, payslip.period.date_from),
+        "params": _params_as_expr_dict(payroll_params),
     }
 
     results = evaluate_structure(contract.salary_structure, variables)
@@ -184,6 +189,7 @@ def compute_payslip(
             is_employer_charge=(
                 result.rule.category == PaySalaryRule.CATEGORY_EMPLOYER_CONTRIBUTION
             ),
+            regulatory_parameter_versions=payroll_params.versions,
         )
 
     def _get(code: str) -> Decimal:

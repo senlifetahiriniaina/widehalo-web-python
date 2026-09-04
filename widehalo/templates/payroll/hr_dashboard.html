@@ -34,6 +34,75 @@
       </td>
       {% endif %}
     </tr>
+    {% if can_see_amounts %}
+    <tr>
+      <td colspan="5">
+        {# Bloc E, E3 (PAY-4) : disclosure imbriquee, zero JS — periode -> bulletins -> lignes. #}
+        <details>
+          <summary>{% trans "Bulletins" %} ({{ period.payslips_for_display|length }})</summary>
+          {% if period.payslips_for_display %}
+          <table>
+            <thead>
+              <tr>
+                <th>{% trans "Employé" %}</th>
+                <th>{% trans "Référence" %}</th>
+                <th>{% trans "État" %}</th>
+                <th>{% trans "Net à payer" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payslip in period.payslips_for_display %}
+              <tr>
+                <td colspan="4">
+                  <details>
+                    <summary>
+                      {{ payslip.employee_id }} — {{ payslip.reference }} —
+                      <span class="badge {{ payslip.state|state_badge_class }}">{{ payslip.get_state_display }}</span>
+                      — {{ payslip.net_to_pay }} Ar
+                    </summary>
+                    {% if payslip.parameter_versions_snapshot %}
+                    <p class="text-sm">
+                      {% trans "Paramètres réglementaires appliqués à ce bulletin" %} :
+                      {% for code, version in payslip.parameter_versions_snapshot.items %}
+                      <span class="badge b-neutral">{{ code }} v{{ version }}</span>
+                      {% endfor %}
+                    </p>
+                    {% endif %}
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>{% trans "Code" %}</th>
+                          <th>{% trans "Libellé" %}</th>
+                          <th>{% trans "Base" %}</th>
+                          <th>{% trans "Taux" %}</th>
+                          <th>{% trans "Montant" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for line in payslip.lines.all %}
+                        <tr>
+                          <td>{{ line.code }}</td>
+                          <td>{{ line.label }}</td>
+                          <td>{{ line.base }}</td>
+                          <td>{{ line.rate|default:"" }}</td>
+                          <td>{{ line.amount }}</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </details>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-sm">{% trans "Aucun bulletin pour cette période." %}</p>
+          {% endif %}
+        </details>
+      </td>
+    </tr>
+    {% endif %}
     {% empty %}
     <tr><td colspan="5">{% trans "Aucune période." %}</td></tr>
     {% endfor %}
