@@ -223,7 +223,6 @@ def record_count(
     return line
 
 
-@transaction.atomic
 def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInventory:
     """`in_progress -> validated`. Refuse (`ValidationError` i18n) si
     l'inventaire n'est pas `in_progress`, ou si une ligne quelconque n'a
@@ -275,7 +274,23 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
     — « validation automatique et tracee » (cahier §6.3), pas une omission.
     Cette verification s'execute AVANT toute creation de `StkMove`/
     ecriture comptable (fail-fast, aucun effet de bord partiel en cas de
-    refus)."""
+    refus).
+
+    **Bug reel corrige (revele par le premier passage CI avec une vraie
+    base Postgres, pas par la relecture)** : cette fonction n'est PLUS
+    decoree `@transaction.atomic` sur toute sa longueur — seule la section
+    de mutation ci-dessous (creation des `StkMove`/ecritures) l'est
+    explicitement, via un bloc `with transaction.atomic():`. Avant ce
+    correctif, le `log_action(...)` de la garde ci-dessus s'executait a
+    l'interieur de la MEME transaction que tout le reste de la fonction —
+    le `ValidationError` leve juste apres provoquait un ROLLBACK complet
+    qui annulait aussi l'ecriture du `AuditLog`, rendant « refusee et
+    journalisee » faux en pratique (l'audit ne survivait jamais au refus
+    qu'il est censé documenter). Meme piege, meme solution documentee que
+    `apps.pos.services.orders.sync_order` (cf. sa docstring) : ne jamais
+    envelopper un `log_action`/`AuditLog.objects.create()` de branche
+    d'echec dans la transaction qui va etre annulee par l'exception qui
+    suit immediatement."""
     if inventory.state != StkInventory.STATE_IN_PROGRESS:
         raise ValidationError(_("Seul un inventaire en cours peut être valide."))
     lines = list(inventory.lines.all())
@@ -311,64 +326,73 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
                 % {"pct": variance_pct, "variant": line.variant_id}
             )
 
-    variance_location = _resolve_variance_location(inventory.warehouse)
+    with transaction.atomic():
+        variance_location = _resolve_variance_location(inventory.warehouse)
 
-    for line in lines:
-        if line.difference == 0:
-            continue
-        quant = get_quant(line.variant_id, line.location, line.lot)
-        unit_cost_mga = quant.unit_cost_mga if quant is not None else Decimal(0)
-        if line.difference > 0:
-            move = create_move(
+        for line in lines:
+            if line.difference == 0:
+                continue
+            quant = get_quant(line.variant_id, line.location, line.lot)
+            unit_cost_mga = quant.unit_cost_mga if quant is not None else Decimal(0)
+            if line.difference > 0:
+                move = create_move(
+                    tenant=inventory.tenant,
+                    variant_id=line.variant_id,
+                    qty=line.difference,
+                    uom="",
+                    location_from=variance_location,
+                    location_to=line.location,
+                    date=inventory.date,
+                    move_type=StkMove.TYPE_AJUSTEMENT,
+                    source_document=inventory.reference,
+                    unit_cost_mga=unit_cost_mga,
+                    lot=line.lot,
+                )
+            else:
+                move = create_move(
+                    tenant=inventory.tenant,
+                    variant_id=line.variant_id,
+                    qty=-line.difference,
+                    uom="",
+                    location_from=line.location,
+                    location_to=variance_location,
+                    date=inventory.date,
+                    move_type=StkMove.TYPE_AJUSTEMENT,
+                    source_document=inventory.reference,
+                    unit_cost_mga=unit_cost_mga,
+                    lot=line.lot,
+                )
+            move = validate_move(move)
+
+            value = move.value_mga
+            if line.difference > 0:
+                adjustment_lines = [
+                    {
+                        "account_id": None,
+                        "amount": value,
+                        "label": _("Entrée ajustement inventaire"),
+                    },
+                    {"account_id": None, "amount": -value, "label": _("Écart d'inventaire")},
+                ]
+            else:
+                adjustment_lines = [
+                    {
+                        "account_id": None,
+                        "amount": -value,
+                        "label": _("Sortie ajustement inventaire"),
+                    },
+                    {"account_id": None, "amount": value, "label": _("Écart d'inventaire")},
+                ]
+            create_stock_movement_entry_from_source(
                 tenant=inventory.tenant,
-                variant_id=line.variant_id,
-                qty=line.difference,
-                uom="",
-                location_from=variance_location,
-                location_to=line.location,
                 date=inventory.date,
-                move_type=StkMove.TYPE_AJUSTEMENT,
-                source_document=inventory.reference,
-                unit_cost_mga=unit_cost_mga,
-                lot=line.lot,
+                lines=adjustment_lines,
+                label=inventory.reference,
             )
-        else:
-            move = create_move(
-                tenant=inventory.tenant,
-                variant_id=line.variant_id,
-                qty=-line.difference,
-                uom="",
-                location_from=line.location,
-                location_to=variance_location,
-                date=inventory.date,
-                move_type=StkMove.TYPE_AJUSTEMENT,
-                source_document=inventory.reference,
-                unit_cost_mga=unit_cost_mga,
-                lot=line.lot,
-            )
-        move = validate_move(move)
 
-        value = move.value_mga
-        if line.difference > 0:
-            adjustment_lines = [
-                {"account_id": None, "amount": value, "label": _("Entrée ajustement inventaire")},
-                {"account_id": None, "amount": -value, "label": _("Écart d'inventaire")},
-            ]
-        else:
-            adjustment_lines = [
-                {"account_id": None, "amount": -value, "label": _("Sortie ajustement inventaire")},
-                {"account_id": None, "amount": value, "label": _("Écart d'inventaire")},
-            ]
-        create_stock_movement_entry_from_source(
-            tenant=inventory.tenant,
-            date=inventory.date,
-            lines=adjustment_lines,
-            label=inventory.reference,
-        )
-
-    inventory.validated_by = validated_by
-    inventory.state = StkInventory.STATE_VALIDATED
-    inventory.save(update_fields=["validated_by", "state"])
+        inventory.validated_by = validated_by
+        inventory.state = StkInventory.STATE_VALIDATED
+        inventory.save(update_fields=["validated_by", "state"])
     return inventory
 
 

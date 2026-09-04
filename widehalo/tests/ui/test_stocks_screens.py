@@ -191,7 +191,26 @@ def test_inventory_hides_theoretical_qty_until_validated(stocks_screens_setup) -
     """STK-6 (Phase 3 §13, sprint A4) : la quantité théorique n'apparaît
     dans le HTML rendu qu'une fois l'inventaire "validated" — ni pendant
     la saisie, ni juste après avoir compté (avant validation du document
-    complet)."""
+    complet).
+
+    **Corrigé par le premier passage CI avec une vraie base (revele
+    uniquement sous rendu Django reel, invisible a la simple lecture du
+    template)**, deux problemes distincts :
+    1. `{{ line.qty_theoretical }}` est localise cote gabarit (`lang="fr"`,
+       formatage de nombre Django actif) — le rendu reel est `"42,0000"`
+       (VIRGULE), jamais `"42.0000"` (point) qui ne s'affiche jamais nulle
+       part dans ce projet en francais.
+    2. Un simple `"42,0000" not in response.content` est trop large : la
+       colonne "Compte" (`qty_counted`) affiche TOUJOURS la valeur saisie
+       par le compteur, y compris avant validation (c'est la propre saisie
+       du compteur, jamais masquee, cf. docstring `validate_inventory`) —
+       une fois `record_count` appele avec `qty_counted=42`, "42,0000"
+       apparait donc legitimement dans CETTE colonne, sans que la colonne
+       "Théorique" (qui doit, elle, rester masquee) ne soit concernee. Les
+       assertions ci-dessous verifient donc le FRAGMENT DE LIGNE exact
+       (theorique + compte + ecart concatenes, cf. `templates/stocks/
+       index.html`) plutot qu'une simple sous-chaine, pour ne jamais
+       confondre les deux colonnes."""
     client, tenant, user, warehouse, supplier, internal = stocks_screens_setup
     variant_id = uuid.uuid4()
     with use_tenant(tenant.id):
@@ -222,8 +241,9 @@ def test_inventory_hides_theoretical_qty_until_validated(stocks_screens_setup) -
     )
     client.post(f"/stocks/inventories/{inventory.id}/", {"action": "start"}, follow=True)
 
+    # Theorique/ecart masques ("—"), pas encore compte ("-" via |default).
     response = client.get(f"/stocks/inventories/{inventory.id}/")
-    assert b"42.0000" not in response.content
+    assert "—</td><td>-</td><td>—".encode() in response.content
 
     with use_tenant(tenant.id):
         line = inventory.lines.first()
@@ -232,12 +252,16 @@ def test_inventory_hides_theoretical_qty_until_validated(stocks_screens_setup) -
         {"action": "record_count", "line_id": str(line.id), "qty_counted": "42", "reason": ""},
         follow=True,
     )
+    # Theorique/ecart toujours masques ("—") ; "Compte" affiche deja 42,0000
+    # (propre saisie du compteur, jamais masquee elle) — fragment exact
+    # pour ne pas confondre cette colonne avec la colonne "Théorique".
     response = client.get(f"/stocks/inventories/{inventory.id}/")
-    assert b"42.0000" not in response.content
+    assert "—</td><td>42,0000</td><td>—".encode() in response.content
 
     client.post(f"/stocks/inventories/{inventory.id}/", {"action": "validate"}, follow=True)
     response = client.get(f"/stocks/inventories/{inventory.id}/")
-    assert b"42.0000" in response.content
+    # Validee : theorique/compte/ecart tous reveles (42,0000 / 42,0000 / 0,0000).
+    assert b"42,0000</td><td>42,0000</td><td>0,0000" in response.content
 
 
 def test_traceability_lookup_screen_renders(stocks_screens_setup) -> None:

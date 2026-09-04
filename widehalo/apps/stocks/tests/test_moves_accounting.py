@@ -138,9 +138,18 @@ def test_validate_move_posts_balanced_entry_on_livraison(moves_accounting_setup)
         assert livraison_entry.total_credit == Decimal("4000.0000")
         debit_line = livraison_entry.lines.get(debit__gt=0)
         credit_line = livraison_entry.lines.get(credit__gt=0)
-        # Sortie : sens inverse de la reception — debit charge, credit stock.
-        assert debit_line.account.type == AccAccount.TYPE_EXPENSE
-        assert credit_line.account.type == AccAccount.TYPE_STOCK
+        # Corrige par le premier passage CI avec une vraie base (l'hypothese
+        # initiale, non verifiee faute de DB, etait inversee). La resolution
+        # de compte par defaut de `create_stock_movement_entry_from_source`
+        # est PAR SIGNE, pas par sens du mouvement (cf. sa docstring) :
+        # positif/debit -> TYPE_STOCK, negatif/credit -> TYPE_EXPENSE,
+        # SYSTEMATIQUEMENT — meme convention deja en place cote ST5
+        # (`services.inventory.validate_inventory`, ligne "Sortie ajustement
+        # inventaire" deja negative) que la sortie mirroir ici respecte a
+        # l'identique (`moves.py` : "Sortie stock" = -value_delta,
+        # "Contrepartie" = +value_delta).
+        assert debit_line.account.type == AccAccount.TYPE_STOCK
+        assert credit_line.account.type == AccAccount.TYPE_EXPENSE
         assert AccMove.objects.filter(tenant=tenant).count() == 2
 
 

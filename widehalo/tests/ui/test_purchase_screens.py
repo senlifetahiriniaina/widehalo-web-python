@@ -12,6 +12,7 @@ from apps.core.tests.utils import use_tenant
 from apps.purchase.services.orders import create_order
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
 from apps.purchase.services.rfq import add_rfq_line, create_rfq
+from apps.stocks.models import StkLocation, StkWarehouse
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -45,7 +46,21 @@ def purchase_screens_setup():
         )
         rfq = create_rfq(tenant=tenant, date=dt.date.today())
         add_rfq_line(rfq, variant_id=uuid.uuid4(), description="Tissu coton", qty=Decimal(10))
-        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        # P2 (Phase 3 §12.1) : `warehouse_id` est une precondition REELLE
+        # de la reception depuis que `receive_order_line` cree un vrai
+        # `StkMove` (`apps.purchase.services.receiving`) — meme patron
+        # que `apps/purchase/tests/test_receiving.py::receiving_setup`.
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-UI-PUR", name="Entrepôt")
+        StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="A1-UI-PUR",
+            name="Rayon",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+        )
     client = Client()
     client.force_login(user)
     session = client.session
