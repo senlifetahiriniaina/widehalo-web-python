@@ -72,3 +72,19 @@ def get_last_measurement_date(
         .first()
     )
     return measurement.measured_at if measurement is not None else None
+
+
+def get_last_measurement_date_for_plan(
+    control_plan: QltControlPlan, *, lot_variant_id: Any, lot_name: str
+) -> dt.datetime | None:
+    """QUA-9 (D3) : dernier controle REEL pour ce lot, tous points
+    critiques du plan confondus — `frequency_days` vit sur le plan, pas
+    sur un point critique isole. Agrege `get_last_measurement_date` (max
+    des dates) plutot que de dupliquer sa requete."""
+    dates = [
+        date
+        for cp in control_plan.critical_points.all()
+        if (date := get_last_measurement_date(cp, lot_variant_id=lot_variant_id, lot_name=lot_name))
+        is not None
+    ]
+    return max(dates) if dates else None

@@ -109,6 +109,12 @@ _FACTORY_MODULES = [
     # `whatsapp` (chantier module WhatsApp, cahier Phase 2 §13.4) : idem,
     # ajoute des la livraison plutot qu'en rattrapage.
     "apps.whatsapp.tests.factories",
+    # `quality` (chantier Qualite/HACCP, Bloc D) : omis a tort depuis D1
+    # (memes 4 modeles concrets que le rapport de D1 documentait comme
+    # "reels, interrogeables individuellement") — corrige ici plutot que
+    # laisse comme un gap silencieux, meme discipline que `pos`/
+    # `simulation` ci-dessus.
+    "apps.quality.tests.factories",
 ]
 
 

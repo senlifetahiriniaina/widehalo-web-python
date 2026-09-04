@@ -23,6 +23,7 @@ from django.utils.translation import gettext as _
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.quality.models import QltControlPlan, QltCriticalPoint, QltMeasurement, QltNonConformity
+from apps.quality.services.alerts import check_overdue_controls as _check_overdue_controls
 from apps.quality.services.control_plans import add_critical_point as _add_critical_point
 from apps.quality.services.control_plans import create_control_plan as _create_control_plan
 from apps.quality.services.control_plans import (
@@ -147,10 +148,7 @@ def release_lot_hold(
         raise ValidationError(_("Un motif est obligatoire pour libérer un lot."))
     if _has_open_non_conformity(tenant=tenant, lot_variant_id=lot_variant_id, lot_name=lot_name):
         raise ValidationError(
-            _(
-                "Impossible de libérer ce lot : une non-conformité liée reste "
-                "ouverte."
-            )
+            _("Impossible de libérer ce lot : une non-conformité liée reste ouverte.")
         )
     return _set_stock_quality_state(
         tenant,
@@ -185,3 +183,13 @@ def get_lot_certificate_status(*, tenant: Tenant, lot_variant_id: Any, lot_name:
         tenant=tenant, variant_id=lot_variant_id, name=lot_name
     )
     return certificate_document_id is not None
+
+
+def check_overdue_controls(
+    *, tenant: Tenant, now: dt.datetime | None = None
+) -> list[dict[str, Any]]:
+    """QUA-9 (D3) : lots dont le contrôle est dû ou en retard, notifiés
+    automatiquement — cf. `services/alerts.py` pour le périmètre assumé
+    (seuls les lots ayant déjà reçu au moins une mesure sous un plan
+    peuvent être détectés) et le détail du mécanisme de notification."""
+    return _check_overdue_controls(tenant, now=now)
