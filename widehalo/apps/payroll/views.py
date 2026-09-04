@@ -19,13 +19,24 @@ PAY-4) est integre en disclosure progressive (`<details>` imbriques,
 zero JS) dans `hr_dashboard.html` lui-meme, DEJA l'unique ecran paie
 existant, DEJA gate par role (`can_see_amounts`) — pas un nouvel
 ecran/URL, donc aucune collision avec le garde-fou
-`test_no_employee_self_service_portal_routes` (P1)."""
+`test_no_employee_self_service_portal_routes` (P1).
+
+**Bloc E, E7 (PAY-9)** : `regularization_screen` consomme la DERNIERE
+place du budget d'ecrans (240/240 apres ce sprint — cf.
+`tests/architecture/test_budget.py`, `BUDGET_MAX_SCREENS=240`) — marge
+explicitement reservee depuis E3 (paragraphe ci-dessus) pour ce sprint
+precis. Toute marge d'ecran est desormais epuisee : un futur sprint qui
+ajouterait un gabarit (Bloc F notamment) devra soit reutiliser un ecran
+existant, soit obtenir une decision explicite du commanditaire pour
+relever `BUDGET_MAX_SCREENS` (jamais silencieusement, cf. docstring du
+test lui-meme)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils.translation import gettext as _
@@ -35,6 +46,7 @@ from apps.core.services.permissions import user_role_codes
 from apps.core.views.tenant_web import resolve_tenant
 from apps.payroll.models import PayContract, PayPayslip, PayPeriod
 from apps.payroll.services.payslip import simulate_payslip
+from apps.payroll.services.regularization import create_regularization
 
 _STAFF_ROLES = {"rh", "admin", "direction"}
 
@@ -150,3 +162,82 @@ def rubric_simulation(request: HttpRequest) -> HttpResponse:
             )
 
     return render(request, "payroll/rubric_simulation.html", context)
+
+
+@login_required
+def regularization_screen(request: HttpRequest) -> HttpResponse:
+    """Bloc E, E7 (PAY-9) : point d'entree HTML reel de
+    `create_regularization` (jusqu'ici jamais appele en dehors des
+    tests) — reserve au meme staff RH que `hr_dashboard`/
+    `rubric_simulation` (aucune notion d'employe proprietaire habilite en
+    libre-service, decision D1). Les bulletins d'origine proposes sont
+    ceux dont la periode est deja verrouillee (RG-PAY-10) ; les periodes
+    cibles proposees sont celles encore ouvertes au calcul. Chaque
+    rectificatif effectivement cree declenche `log_pii_access` (meme
+    discipline que `hr_dashboard`/`rubric_simulation`, P5)."""
+    tenant = resolve_tenant(request)
+    role_codes = user_role_codes(request.user)  # type: ignore[arg-type]
+    if not bool(role_codes & _STAFF_ROLES):
+        return HttpResponse(status=403)
+
+    originals = list(
+        PayPayslip.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            period__state__in=(
+                PayPeriod.STATE_VALIDATED,
+                PayPeriod.STATE_PAID,
+                PayPeriod.STATE_CLOSED,
+            ),
+        )
+        .exclude(state=PayPayslip.STATE_CANCELLED)
+        .select_related("period", "contract")
+        .order_by("-period__date_from", "employee_id")
+    )
+    target_periods = list(
+        PayPeriod.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            state__in=(PayPeriod.STATE_OPEN, PayPeriod.STATE_COMPUTING, PayPeriod.STATE_VERIFIED),
+        ).order_by("-date_from")
+    )
+
+    context: dict[str, Any] = {
+        "originals": originals,
+        "target_periods": target_periods,
+        "selected_original_id": request.POST.get("original_id", ""),
+        "selected_target_period_id": request.POST.get("target_period_id", ""),
+        "reason": request.POST.get("reason", ""),
+        "error": None,
+        "regularization": None,
+    }
+
+    if request.method == "POST":
+        original = next(
+            (p for p in originals if str(p.id) == request.POST.get("original_id")), None
+        )
+        target_period = next(
+            (p for p in target_periods if str(p.id) == request.POST.get("target_period_id")),
+            None,
+        )
+        if original is None or target_period is None:
+            context["error"] = _("Bulletin d'origine ou période cible introuvable.")
+        else:
+            try:
+                regularization = create_regularization(
+                    original,
+                    target_period=target_period,
+                    reason=request.POST.get("reason", "").strip(),
+                    user=request.user,  # type: ignore[arg-type]
+                )
+            except ValidationError as exc:
+                context["error"] = "; ".join(exc.messages)
+            else:
+                log_pii_access(
+                    request.user,  # type: ignore[arg-type]
+                    regularization,
+                    ["gross", "net_to_pay"],
+                )
+                context["regularization"] = regularization
+
+    return render(request, "payroll/regularization.html", context)

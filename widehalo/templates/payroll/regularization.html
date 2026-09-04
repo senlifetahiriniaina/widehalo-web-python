@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Régularisation de bulletin" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'payroll:hr_dashboard' %}">{% trans "Paie" %}</a>
+  <span>/</span> {% trans "Régularisation de bulletin" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Régularisation de bulletin" %}</h1>
+</div>
+<p class="text-sm">
+  {% trans "Crée un bulletin rectificatif recalculé pour un bulletin dont la période est déjà verrouillée, rattaché à une période encore ouverte. Le motif est obligatoire et reste tracé sur le fil du bulletin créé." %}
+</p>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+  <div class="form-field">
+    <label for="original_id">{% trans "Bulletin à régulariser" %}</label>
+    <select name="original_id" id="original_id" required>
+      <option value="">{% trans "— Choisir —" %}</option>
+      {% for original in originals %}
+      <option value="{{ original.id }}" {% if selected_original_id == original.id|stringformat:"s" %}selected{% endif %}>
+        {{ original.reference|default:original.employee_id }} — {{ original.period.code }} ({{ original.get_state_display }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="target_period_id">{% trans "Période cible du rectificatif" %}</label>
+    <select name="target_period_id" id="target_period_id" required>
+      <option value="">{% trans "— Choisir —" %}</option>
+      {% for period in target_periods %}
+      <option value="{{ period.id }}" {% if selected_target_period_id == period.id|stringformat:"s" %}selected{% endif %}>
+        {{ period.code }} ({{ period.date_from }} → {{ period.date_to }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="reason">{% trans "Motif de la régularisation" %}</label>
+    <textarea name="reason" id="reason" required>{{ reason }}</textarea>
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Créer le rectificatif" %}</c-button>
+</form>
+
+{% if regularization %}
+<h2>{% trans "Bulletin rectificatif créé" %}</h2>
+<table>
+  <tbody>
+    <tr><th>{% trans "Référence" %}</th><td>{{ regularization.reference|default:regularization.id }}</td></tr>
+    <tr><th>{% trans "Rectifie" %}</th><td>{{ regularization.rectifies.reference|default:regularization.rectifies_id }}</td></tr>
+    <tr><th>{% trans "Période" %}</th><td>{{ regularization.period.code }}</td></tr>
+    <tr><th>{% trans "État" %}</th><td>{{ regularization.get_state_display }}</td></tr>
+    <tr><th>{% trans "Brut" %}</th><td>{{ regularization.gross }}</td></tr>
+    <tr><th>{% trans "Net à payer" %}</th><td>{{ regularization.net_to_pay }}</td></tr>
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
