@@ -16,6 +16,17 @@ MODULE = ModuleSpec(
     # "partners" : `AnDimTiers` (clients/fournisseurs).
     # "stocks" : `AnFactMouvementStock` (mouvements de stock valides,
     # Bloc Transverse T1).
-    dependencies=("core", "sales", "pos", "accounting", "catalog", "partners", "stocks"),
+    # "purchase" : `AnFactReception` (lignes de réception, Bloc
+    # Transverse T2).
+    dependencies=(
+        "core",
+        "sales",
+        "pos",
+        "accounting",
+        "catalog",
+        "partners",
+        "stocks",
+        "purchase",
+    ),
     verbose_name="Analytique (entrepôt & indicateurs)",
 )

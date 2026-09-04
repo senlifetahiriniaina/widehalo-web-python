@@ -25,7 +25,7 @@ from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.purchase.models import PurOrder
+from apps.purchase.models import PurOrder, PurReceiptLine
 from apps.purchase.services.cri import create_cri
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
 
@@ -186,4 +186,40 @@ def list_orders_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[st
             "total": order.amount_total_mga,
         }
         for order in orders
+    ]
+
+
+def list_receipt_lines_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """Bloc Transverse, T2 (FOR-11, ferme ACH-10) : extrait les
+    `PurReceiptLine` pour alimenter `apps.analytics.AnFactReception` —
+    seule voie d'accès pour `analytics`, qui ne doit jamais importer
+    `apps.purchase.models` (règle de couplage n°1).
+
+    `updated_since` (datetime ou None) filtre sur `PurReceiptLine.
+    updated_at` STRICTEMENT supérieur — même contrat exact que
+    `stocks.services.public.list_moves_for_warehouse`. Renvoie des dicts
+    primitifs, jamais l'objet `PurReceiptLine`. `date` = `created_at` (pas
+    de champ date dédié sur `PurReceiptLine` — c'est un événement, créé
+    exactement au moment de la réception, cf. docstring du modèle)."""
+    qs = PurReceiptLine.objects.filter(order_line__order__tenant=tenant).select_related(
+        "order_line", "order_line__order"
+    )
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "receipt_line_id": line.id,
+            "updated_at": line.updated_at,
+            "date": line.created_at.date(),
+            "order_reference": line.order_line.order.reference,
+            "partner_id": line.order_line.order.partner_id,
+            "variant_id": line.order_line.variant_id,
+            "qty_received": line.qty_received,
+            "uom": line.order_line.uom,
+            "unit_price_mga": line.order_line.unit_price_mga,
+            "quality_status": line.quality_status,
+        }
+        for line in qs
     ]

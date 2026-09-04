@@ -347,6 +347,54 @@ class AnFactMouvementStock(BaseModel):
         return f"{self.move_reference} — {self.move_type}"
 
 
+class AnFactReception(BaseModel):
+    """Grain = `purchase.PurReceiptLine` (un événement de réception, cf.
+    docstring de ce modèle — pas d'en-tête `PurReceipt` séparé). Bloc
+    Transverse, T2 (FOR-11, ferme ACH-10 : « aucun fait analytique
+    achats/coût débarqué à comparer au moteur de valorisation »).
+
+    `cout_debarque_unitaire_mga` : coût unitaire CUMP COURANT de la
+    variante (`stocks.services.public.get_variant_unit_cost`, résolu au
+    moment du rafraîchissement — jamais recalculé/figé à la réception),
+    distinct de `unit_price_mga` (prix d'achat brut saisi sur la commande,
+    AVANT toute réallocation de coût débarqué). C'est la comparaison
+    explicite entre ces deux valeurs — le fait porte les deux — qui ferme
+    ACH-10 : un écart révèle soit un coût débarqué encore non appliqué,
+    soit une anomalie de valorisation. `None` si la variante n'a plus
+    aucune couche de valorisation active au moment du rafraîchissement
+    (jamais une exception — même discipline que `get_variant_unit_cost`
+    lui-même)."""
+
+    source_receipt_line_id = models.UUIDField()
+    dim_temps = models.ForeignKey(AnDimTemps, on_delete=models.PROTECT, related_name="receptions")
+    dim_tiers = models.ForeignKey(
+        AnDimTiers, null=True, blank=True, on_delete=models.SET_NULL, related_name="receptions"
+    )
+    dim_article = models.ForeignKey(
+        AnDimArticle, null=True, blank=True, on_delete=models.SET_NULL, related_name="receptions"
+    )
+    order_reference = models.CharField(max_length=64, blank=True)
+    quality_status = models.CharField(max_length=16, blank=True)
+    qty_received = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    uom = models.CharField(max_length=16, blank=True)
+    unit_price_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    cout_debarque_unitaire_mga = models.DecimalField(
+        max_digits=18, decimal_places=4, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "an_fact_reception"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_receipt_line_id"], name="uniq_an_fact_reception"
+            )
+        ]
+        indexes = [models.Index(fields=["dim_temps"]), models.Index(fields=["dim_tiers"])]
+
+    def __str__(self) -> str:
+        return f"{self.order_reference} — {self.qty_received}"
+
+
 class AnWarehouseState(BaseModel):
     """Singleton par tenant : verrou de rafraîchissement + jalons
     (watermarks) `updated_at` par source, condition du rafraîchissement
@@ -363,6 +411,8 @@ class AnWarehouseState(BaseModel):
     watermark_acc_moveline = models.DateTimeField(null=True, blank=True)
     # Bloc Transverse, T1.
     watermark_stk_move = models.DateTimeField(null=True, blank=True)
+    # Bloc Transverse, T2.
+    watermark_pur_receipt_line = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "an_warehouse_state"

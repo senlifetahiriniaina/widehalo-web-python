@@ -5,6 +5,7 @@ réconciliation (cahier Phase 2 §12)."""
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -17,6 +18,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactReception,
     AnFactTicketPos,
     AnFactVente,
     AnRefreshRun,
@@ -28,9 +30,15 @@ from apps.core.tests.utils import use_tenant
 from apps.partners.tests.factories import PartnerFactory
 from apps.pos.models import PosOrder
 from apps.pos.tests.factories import PosOrderFactory, PosOrderLineFactory
+from apps.purchase.models import PurReceiptLine
+from apps.purchase.tests.factories import (
+    PurOrderFactory,
+    PurOrderLineFactory,
+    PurReceiptLineFactory,
+)
 from apps.sales.models import SalesOrder, SalesOrderLine
 from apps.stocks.models import StkMove
-from apps.stocks.tests.factories import StkMoveFactory
+from apps.stocks.tests.factories import StkMoveFactory, StkValuationLayerFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -263,3 +271,62 @@ def test_refresh_populates_stock_move_fact(warehouse_tenant: Tenant) -> None:
         assert fact.entrepot_origine_code == move.location_from.warehouse.code
         assert fact.entrepot_destination_code == move.location_to.warehouse.code
         assert fact.dim_temps.date == dt.date(2026, 9, 4)
+
+
+def test_refresh_populates_reception_fact_with_landed_cost(warehouse_tenant: Tenant) -> None:
+    """Bloc Transverse, T2 (ferme ACH-10) — `cout_debarque_unitaire_mga`
+    est résolu depuis le moteur de valorisation (CUMP courant), distinct
+    du `unit_price_mga` brut saisi sur la commande."""
+    with use_tenant(warehouse_tenant.id):
+        partner = PartnerFactory(tenant=warehouse_tenant, name="Fournisseur Test")
+        variant_id = uuid.uuid4()
+        order = PurOrderFactory(
+            tenant=warehouse_tenant, partner_id=partner.id, reference="PO-REFRESH-T2"
+        )
+        order_line = PurOrderLineFactory(
+            tenant=warehouse_tenant,
+            order=order,
+            variant_id=variant_id,
+            unit_price_mga=Decimal("1000"),
+        )
+        PurReceiptLineFactory(
+            tenant=warehouse_tenant,
+            order_line=order_line,
+            qty_received=Decimal("10"),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+        )
+        # Couche de valorisation active pour cette variante — le "cout
+        # debarque courant" resolu par le refresh doit refleter CETTE
+        # valeur (CUMP), pas le prix d'achat brut de la commande.
+        StkValuationLayerFactory(
+            tenant=warehouse_tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            remaining_qty=Decimal("10"),
+            value_mga=Decimal("12000"),
+            remaining_value_mga=Decimal("12000"),
+        )
+
+    run = refresh_warehouse_for_tenant(warehouse_tenant)
+
+    assert run.status == AnRefreshRun.STATUS_SUCCESS
+    with use_tenant(warehouse_tenant.id):
+        fact = AnFactReception.objects.get(tenant=warehouse_tenant)
+        assert fact.order_reference == "PO-REFRESH-T2"
+        assert fact.dim_tiers.nom == "Fournisseur Test"
+        assert fact.qty_received == Decimal("10")
+        assert fact.unit_price_mga == Decimal("1000")
+        assert fact.cout_debarque_unitaire_mga == Decimal("1200")
+
+
+def test_refresh_reception_fact_landed_cost_is_none_without_active_layer(
+    warehouse_tenant: Tenant,
+) -> None:
+    with use_tenant(warehouse_tenant.id):
+        PurReceiptLineFactory(tenant=warehouse_tenant)
+
+    refresh_warehouse_for_tenant(warehouse_tenant)
+
+    with use_tenant(warehouse_tenant.id):
+        fact = AnFactReception.objects.get(tenant=warehouse_tenant)
+        assert fact.cout_debarque_unitaire_mga is None

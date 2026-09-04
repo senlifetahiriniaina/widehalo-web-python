@@ -24,6 +24,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactReception,
     AnFactTicketPos,
     AnFactVente,
 )
@@ -88,5 +89,20 @@ FACT_SPECS: dict[str, FactSpec] = {
             "entrepot_destination": "entrepot_destination_code",
         },
         detail_extra_fields=("move_reference", "qty", "unit_cost_mga"),
+    ),
+    "reception": FactSpec(
+        queryset_factory=lambda tenant: AnFactReception.objects.filter(tenant=tenant),
+        value_field="qty_received",
+        dimension_fields={
+            "temps": "dim_temps__date",
+            "tiers": "dim_tiers__nom",
+            "article": "dim_article__libelle",
+        },
+        detail_extra_fields=(
+            "order_reference",
+            "unit_price_mga",
+            "cout_debarque_unitaire_mga",
+            "quality_status",
+        ),
     ),
 }

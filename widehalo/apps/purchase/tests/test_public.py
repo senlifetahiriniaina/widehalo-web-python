@@ -12,17 +12,24 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 
 from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.purchase.models import PurCri, PurRequisition, PurRequisitionLine
+from apps.purchase.models import PurCri, PurReceiptLine, PurRequisition, PurRequisitionLine
 from apps.purchase.services.orders import create_order
 from apps.purchase.services.public import (
     create_requisition_line_from_source,
     get_order_summary,
+    list_receipt_lines_for_warehouse,
     open_purchase_incident,
+)
+from apps.purchase.tests.factories import (
+    PurOrderFactory,
+    PurOrderLineFactory,
+    PurReceiptLineFactory,
 )
 
 pytestmark = pytest.mark.django_db
@@ -188,3 +195,72 @@ def test_get_order_summary_returns_none_for_unknown_order() -> None:
     tenant = Tenant.objects.create(code="PUR-PUB-SUM2", name="Purchase Public Summary Tenant 2")
     with use_tenant(tenant.id):
         assert get_order_summary(uuid.uuid4()) is None
+
+
+# ---------------------------------------------------------------------------
+# list_receipt_lines_for_warehouse (Bloc Transverse, T2) — extraction pour
+# apps.analytics.AnFactReception.
+# ---------------------------------------------------------------------------
+
+
+def test_list_receipt_lines_for_warehouse_returns_primitives() -> None:
+    tenant = Tenant.objects.create(code="PUR-T2-1", name="Purchase T2 Tenant 1")
+    with use_tenant(tenant.id):
+        partner_id = uuid.uuid4()
+        variant_id = uuid.uuid4()
+        order = PurOrderFactory(tenant=tenant, partner_id=partner_id, reference="PO-T2-001")
+        order_line = PurOrderLineFactory(
+            tenant=tenant,
+            order=order,
+            variant_id=variant_id,
+            uom="kg",
+            unit_price_mga=Decimal("1500"),
+        )
+        receipt_line = PurReceiptLineFactory(
+            tenant=tenant,
+            order_line=order_line,
+            qty_received=Decimal("25"),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+        )
+        rows = list_receipt_lines_for_warehouse(tenant)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["receipt_line_id"] == receipt_line.id
+    assert row["order_reference"] == "PO-T2-001"
+    assert row["partner_id"] == partner_id
+    assert row["variant_id"] == variant_id
+    assert row["qty_received"] == Decimal("25")
+    assert row["uom"] == "kg"
+    assert row["unit_price_mga"] == Decimal("1500")
+    assert row["quality_status"] == PurReceiptLine.QUALITY_CONFORME
+    assert row["date"] == receipt_line.created_at.date()
+
+
+def test_list_receipt_lines_for_warehouse_respects_updated_since() -> None:
+    tenant = Tenant.objects.create(code="PUR-T2-2", name="Purchase T2 Tenant 2")
+    with use_tenant(tenant.id):
+        old_line = PurReceiptLineFactory(tenant=tenant)
+        PurReceiptLine.objects.filter(id=old_line.id).update(
+            updated_at=timezone.now() - dt.timedelta(hours=1)
+        )
+        cutoff = timezone.now() - dt.timedelta(minutes=30)
+        new_line = PurReceiptLineFactory(tenant=tenant)
+        rows = list_receipt_lines_for_warehouse(tenant, updated_since=cutoff)
+
+    assert len(rows) == 1
+    assert rows[0]["receipt_line_id"] == new_line.id
+
+
+def test_list_receipt_lines_for_warehouse_scopes_to_tenant() -> None:
+    tenant_a = Tenant.objects.create(code="PUR-T2-3A", name="Purchase T2 Tenant 3A")
+    tenant_b = Tenant.objects.create(code="PUR-T2-3B", name="Purchase T2 Tenant 3B")
+    with use_tenant(tenant_a.id):
+        PurReceiptLineFactory(tenant=tenant_a)
+        count_a = len(list_receipt_lines_for_warehouse(tenant_a))
+    with use_tenant(tenant_b.id):
+        PurReceiptLineFactory(tenant=tenant_b)
+        count_b = len(list_receipt_lines_for_warehouse(tenant_b))
+
+    assert count_a == 1
+    assert count_b == 1
