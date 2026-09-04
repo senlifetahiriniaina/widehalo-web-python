@@ -13,7 +13,9 @@ import pytest
 from apps.core.tests.factories import TenantFactory, UserFactory
 from apps.core.tests.utils import use_tenant
 from apps.mrp.services.orders import (
+    close_order,
     confirm_order,
+    finish_order,
     reserve_order,
     send_to_quality_control,
     start_order,
@@ -158,3 +160,23 @@ def test_order_genealogy_is_none_without_output_lot() -> None:
     with use_tenant(tenant.id):
         order = MrpOrderFactory(tenant=tenant)
         assert order_genealogy(order) is None
+
+
+def test_record_component_consumption_refuses_on_closed_order() -> None:
+    """Bloc C, C4/PRD-10 : une declaration de consommation sur un ordre
+    deja cloture doit etre refusee, y compris par appel direct de l'API
+    (pas seulement par l'ecran qui ne propose plus l'action)."""
+    from django.core.exceptions import ValidationError
+
+    tenant = TenantFactory()
+    user = UserFactory()
+    with use_tenant(tenant.id):
+        order = _order_at_quality_control(tenant, user)
+        component = MrpOrderComponentFactory(
+            tenant=tenant, order=order, qty_planned=Decimal("50"), variant_id=uuid.uuid4()
+        )
+        order = finish_order(order, user, qty_produced=Decimal("100"))
+        close_order(order, user)
+
+        with pytest.raises(ValidationError, match="clôturé"):
+            record_component_consumption(component, lot_name="MP-X", qty_consumed=Decimal("10"))

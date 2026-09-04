@@ -137,6 +137,21 @@ def test_consumption_variance_above_threshold_requires_reason(costing_setup) -> 
         assert consumed.variance_reason == "Chute anormale"
 
 
+def test_consume_component_refuses_on_closed_order(costing_setup) -> None:
+    """Bloc C, C4/PRD-10 : meme garde que
+    `transformation.record_component_consumption` sur cette seconde
+    fonction de declaration de consommation (jamais appelee en production
+    aujourd'hui, mais atteignable par appel direct de l'API — PRD-10)."""
+    tenant, _user, order, _work_order, _component_id = costing_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        order.state = MrpOrder.STATE_CLOSED
+        order.save(update_fields=["state"])
+
+        with pytest.raises(ValidationError, match="clôturé"):
+            consume_component(component, qty_consumed=Decimal(21))
+
+
 def test_simulate_bom_cost_reuses_explode_and_costing_formula() -> None:
     """La matiere reutilise EXACTEMENT `bom.explode()` (RG-MRP-2/3/4) — pour
     `qty=10`, ligne `qty=2` : `explode()` renvoie une quantite planifiee de

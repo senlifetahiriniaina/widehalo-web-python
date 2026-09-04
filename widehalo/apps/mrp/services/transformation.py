@@ -52,7 +52,15 @@ def record_component_consumption(
     lot au lot de sortie. `qty_consumed` doit être positive : une
     correction à zéro se fait en ne créant simplement pas de lien
     généalogique (`record_lot_genealogy` ignore silencieusement une
-    quantité nulle/négative, cf. sa docstring)."""
+    quantité nulle/négative, cf. sa docstring).
+
+    Bloc C, C4/PRD-10 : refuse toute déclaration sur un ordre déjà clôturé
+    ou annulé — y compris par appel direct de l'API, pas seulement par
+    l'écran (qui ne propose déjà plus l'action à ce stade)."""
+    if component.order.state in (MrpOrder.STATE_CLOSED, MrpOrder.STATE_CANCELLED):
+        raise ValidationError(
+            _("Impossible de déclarer une consommation sur un ordre clôturé ou annulé.")
+        )
     if qty_consumed < 0:
         raise ValidationError(_("La quantité consommée ne peut pas être négative."))
     component.lot = lot_name

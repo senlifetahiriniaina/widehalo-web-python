@@ -170,7 +170,16 @@ def consume_component(
     threshold_pct: Decimal = DEFAULT_VARIANCE_THRESHOLD_PCT,
 ) -> MrpOrderComponent:
     """RG-MRP-11 : l'ecart entre consommation planifiee et reelle est
-    constate ligne a ligne ; motif obligatoire au-dela du seuil."""
+    constate ligne a ligne ; motif obligatoire au-dela du seuil.
+
+    Bloc C, C4/PRD-10 : meme garde que
+    `transformation.record_component_consumption` — refuse une
+    declaration sur un ordre deja cloture ou annule, y compris par appel
+    direct de l'API."""
+    if component.order.state in (MrpOrder.STATE_CLOSED, MrpOrder.STATE_CANCELLED):
+        raise ValidationError(
+            _("Impossible de déclarer une consommation sur un ordre clôturé ou annulé.")
+        )
     if component.qty_planned:
         variance_pct = (
             abs(qty_consumed - component.qty_planned) / component.qty_planned * Decimal(100)
