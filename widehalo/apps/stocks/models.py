@@ -805,7 +805,16 @@ class StkQualityState(BaseModel):
     reutilisant `services.moves` de ST2) plutot que de la faire
     "disparaitre" — cf. docstring de ce service pour l'ajustement de
     perimetre de valorisation necessaire dans `services.moves.validate_move`
-    (`TYPE_REBUT` traite comme "interne" au sens valorisation)."""
+    (`TYPE_REBUT` traite comme "interne" au sens valorisation).
+
+    **Decision D5 (Bloc D, cf. addendum de `docs/planning/2026-09-adr-
+    qualite-haccp-app-dediee.md`) : ce modele RESTE, ce n'est pas un
+    doublon legacy a resorber.** C'est le mecanisme ACTIF dont
+    `StkLot.is_held()`/`services.moves.create_move` dependent
+    structurellement a l'interieur de `apps.stocks` lui-meme (blocage de
+    mouvement, RG-STK-11) — et c'est exactement ce que `apps.quality`
+    reutilise deja correctement depuis D1 via `stocks.services.public.
+    set_quality_state`, jamais duplique, jamais importe directement."""
 
     STATE_CONFORME = "conforme"
     STATE_DEFAUT_MINEUR = "defaut_mineur"
@@ -1353,7 +1362,19 @@ class StkRecall(BaseModel, ReferenceMixin):
     "source_document", "qty"}` — `source_document` reprend la même
     convention par correspondance de chaîne que `StkMove.source_document`
     (référence de la commande/livraison client d'origine, jamais une FK
-    vers `apps.sales`, règle de couplage n°1)."""
+    vers `apps.sales`, règle de couplage n°1).
+
+    **Décision D5 (Bloc D, cf. addendum de `docs/planning/2026-09-adr-
+    qualite-haccp-app-dediee.md`) : ce modèle RESTE, coexistence
+    DÉLIBÉRÉE avec `apps.quality.QltRecallDossier` (D4), pas un doublon à
+    résorber.** `client_exposures` n'a aucun équivalent sur
+    `QltRecallDossier` (le mandat D4 n'exigeait explicitement pas sa
+    reprise — généalogie + immutabilité + performance seulement) ; migrer
+    ce champ sans lui donner un domicile dédié serait une perte de
+    données réelle. Rôles distincts assumés : `StkRecall` (déclaration
+    côté `stocks`, avec exposition client) et `QltRecallDossier` (dossier
+    HACCP immuable côté `quality`, avec généalogie figée par un verrou
+    base de données que `StkRecall` n'a jamais eu)."""
 
     STATE_OPEN = "open"
     STATE_CLOSED = "closed"

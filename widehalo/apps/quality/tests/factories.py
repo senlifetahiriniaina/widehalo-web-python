@@ -4,8 +4,9 @@ entity.py::_FACTORY_MODULES` exigent une factory pour toute sous-classe
 concrète de `BaseModel`). Gap pré-existant depuis D1 (jamais corrigé,
 jamais exécuté dans le même run que les tests dédiés de `apps.quality`,
 même situation que `pos`/`simulation` documentée dans
-`test_tenant_portability_per_entity.py`) — corrigé ici plutôt que laissé
-silencieux, à l'occasion de D3.
+`test_tenant_portability_per_entity.py`) — corrigé à l'occasion de D3, et
+étendu ici (D5) pour `QltRecallDossier` (D4), même gap réapparu à
+l'identique pour ce cinquième modèle jamais suivi de factory.
 
 Même patron que `apps.core.tests.factories.RiskItemFactory` : rattachement
 générique `content_type`/`object_id` jamais renseigné par défaut (cas
@@ -19,7 +20,13 @@ import factory
 from django.utils import timezone
 
 from apps.core.tests.factories import TenantFactory, UserFactory
-from apps.quality.models import QltControlPlan, QltCriticalPoint, QltMeasurement, QltNonConformity
+from apps.quality.models import (
+    QltControlPlan,
+    QltCriticalPoint,
+    QltMeasurement,
+    QltNonConformity,
+    QltRecallDossier,
+)
 
 
 class QltControlPlanFactory(factory.django.DjangoModelFactory):
@@ -64,3 +71,12 @@ class QltNonConformityFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     description = factory.Sequence(lambda n: f"Non-conformité {n}")
     opened_by = factory.SubFactory(UserFactory)
+
+
+class QltRecallDossierFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = QltRecallDossier
+
+    tenant = factory.SubFactory(TenantFactory)
+    reason = factory.Sequence(lambda n: f"Rappel {n}")
+    initiated_by = factory.SubFactory(UserFactory)

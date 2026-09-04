@@ -101,3 +101,67 @@ Justification :
   exige explicitement un blocage automatique et une mécanique HACCP réelle,
   sans équivalent partiel ; ne rien construire laisse un écart critique déjà
   identifié par l'audit comme priorité 5 sur 10 (§6).
+
+## Addendum — décision D5 (réconciliation des modèles qualité existants)
+
+Bloc D (D1-D4) livré. Cette ADR différait explicitement la décision sur le
+sort de `core.QltChecklistTemplate`/`QltInspection` et de
+`apps.stocks.StkQualityState`/`StkRecall` au sprint D5 (cf. table ci-dessus,
+« D5 : réconciliation... »). Recherche exhaustive menée au sprint D5 (sites
+d'appel réels, couverture RBAC, historique du dépôt, compatibilité de forme
+pour une migration) puis décision actée avec l'utilisateur :
+**les 4 modèles restent tels quels, aucune suppression ni migration de
+données.**
+
+- **`stocks.StkQualityState` reste** — ce n'est pas un doublon legacy à
+  résorber : c'est le mécanisme ACTIF dont `StkLot.is_held()`/
+  `services.moves.create_move` dépendent structurellement à l'intérieur de
+  `apps.stocks` lui-même (blocage de mouvement, RG-STK-11), et c'est très
+  exactement ce que `apps.quality` réutilise déjà correctement depuis D1 via
+  `stocks.services.public.set_quality_state` — jamais dupliqué, jamais
+  importé directement (`apps.quality` n'importe que `services.public`, règle
+  de couplage n°1). Le retirer casserait `apps.stocks` lui-même, pas
+  seulement un vestige. Écran (`stocks:quality_list`) et API
+  (`POST /stocks/quality-states`) réels et actifs.
+- **`stocks.StkRecall` reste** — écran réel et actif (`stocks:recall_list`,
+  onglet « Rappels produit » de `templates/stocks/index.html`), et porte
+  `client_exposures` (livraisons clients impactées par le rappel), un champ
+  dont `apps.quality.QltRecallDossier` (D4) n'a aucun équivalent et dont le
+  mandat D4 n'exigeait explicitement pas la reprise (généalogie +
+  immutabilité + performance seulement). Migrer `client_exposures` sans lui
+  donner un champ dédié serait une perte de données réelle, pas une simple
+  réorganisation. Les deux modèles coexistent donc DÉLIBÉRÉMENT avec des
+  rôles distincts : `StkRecall` (déclaration côté `stocks`, avec exposition
+  client) et `QltRecallDossier` (dossier HACCP immuable côté `quality`, avec
+  généalogie figée) — pas un doublon à résorber, un partage de
+  responsabilité assumé.
+- **`core.QltChecklistTemplate`/`QltInspection` restent** — écrans/API réels
+  et fonctionnels (`/quality/templates/`, `/quality/inspections/`), mais
+  orphelins de toute navigation (aucun lien depuis un autre écran du
+  produit, déjà disclosé comme tel par le docstring de
+  `apps/core/views/quality.py` lui-même dès sa livraison QLT1-2). Aucune
+  cible de migration compatible n'existe dans `apps.quality` : son seul
+  modèle de « verdict » (`QltMeasurement`) est strictement numérique
+  (valeur vs. limites), alors que `QltChecklistTemplate`/`QltInspection`
+  sont qualitatifs (critère → conforme/non-conforme/observation) — migrer
+  forcerait soit une perte de nuance (texte libre), soit un nouveau modèle
+  qualitatif dédié, hors périmètre de ce sprint. Le gap de navigation est un
+  problème distinct, plus petit, déjà disclosé ailleurs — non résolu ici
+  (hors mandat D5, qui porte sur la décision de migration/retrait, pas sur
+  le raccordement UI).
+- **Aucun précédent de suppression de modèle n'existe dans l'historique du
+  dépôt** (zéro `DeleteModel`/`RemoveField` jamais committé) — P1 (retrait
+  du portail salarié) n'a retiré que vues/URLs/templates, jamais un modèle.
+  Zéro donnée de seed/démo n'existe pour aucun des 4 modèles, mais rien dans
+  le dépôt ne permet d'exclure des lignes réelles côté tenant en
+  production — risque asymétrique confirmé : `StkQualityState`/`StkRecall`
+  (écrans visibles, permissionnés, liés à la navigation `stocks`) sont bien
+  plus susceptibles de porter des données réelles que les deux modèles
+  `core` (accessibles seulement par URL directe, jamais liés).
+
+Mise à jour correspondante de `docs/RBAC.md` (aucune permission ne change,
+statu quo documenté explicitement) et des docstrings de
+`apps/core/models/quality.py`/`apps/stocks/models.py`/
+`apps/quality/models.py::QltRecallDossier`/`apps/quality/services/recall.py`
+pour refléter cette décision finale plutôt qu'un renvoi à « D5 » désormais
+clos.

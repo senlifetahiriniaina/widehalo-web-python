@@ -25,7 +25,17 @@ ssi AUCUN critere de `results` n'a le statut `NONCONFORME` (un
 `OBSERVATION` seul, sans non-conformite, ne fait pas echouer l'inspection —
 c'est une remarque, pas un rejet). Consequence assumee : une ecriture qui
 contournerait le service (ex. admin Django brut) pourrait laisser `passed`
-non recalcule — meme compromis que partout ailleurs dans le socle."""
+non recalcule — meme compromis que partout ailleurs dans le socle.
+
+**Decision D5 (Bloc D, cf. addendum de `docs/planning/2026-09-adr-qualite-
+haccp-app-dediee.md`) : ces deux modeles RESTENT tels quels, aucune
+migration/retrait.** Aucune cible de migration compatible n'existe dans
+`apps.quality` — son seul modele de "verdict" (`QltMeasurement`) est
+strictement numerique (valeur vs. limites), alors que ces deux modeles
+sont qualitatifs (critere -> conforme/non-conforme/observation). Le gap
+de navigation deja disclose ci-dessus (aucun lien depuis un autre ecran
+du produit) reste ouvert — probleme distinct, hors perimetre de la
+decision D5 (qui portait sur migration/retrait, pas raccordement UI)."""
 
 from __future__ import annotations
 

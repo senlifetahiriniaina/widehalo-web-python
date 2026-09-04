@@ -295,6 +295,22 @@ auto-générées.
 | `core.add_qltinspection` / `core.view_qltinspection` / `core.change_qltinspection` | admin, direction, resp_production, chef_atelier, acheteur | Idem. |
 | `whatsapp.run_message_retry` | admin, direction, commercial, resp_commercial | WA-7 (cahier Phase 2 §13.4) : « reprise dédiée au canal WhatsApp » — mêmes rôles que le reste de la gouvernance `whatsapp` : admin/direction (pilotage transverse) + commercial/resp_commercial (domaine cible opérationnel, relance un envoi client en échec). |
 
+**Décision D5 (Bloc D, cf. addendum de `docs/planning/2026-09-adr-qualite-
+haccp-app-dediee.md`)** : les entrées `core.add/view/change_qltchecklisttemplate`/
+`core.add/view/change_qltinspection` ci-dessus restent inchangées — statu quo
+documenté explicitement (décision de conserver `core.QltChecklistTemplate`/
+`QltInspection` tels quels, aucune migration vers `apps.quality`). De même,
+`StkQualityState`/`StkRecall` (`apps.stocks`) restent gouvernés par la seule
+entrée app-level `ROLE_APP_PERMISSIONS["stocks"]` (§3.1), sans entrée
+dédiée — inchangé, ces deux modèles restent également tels quels (décision
+D5). Les 5 modèles de `apps.quality` (D1-D4 : `QltControlPlan`/
+`QltCriticalPoint`/`QltMeasurement`/`QltNonConformity`/`QltRecallDossier`)
+n'ont AUCUNE entrée RBAC à ce jour, ni ici ni dans `ROLE_APP_PERMISSIONS` —
+pas un oubli : `apps.quality` n'a encore aucun `views.py`/`api.py`/`urls.py`
+propre (pure couche de service, consommée par les écrans d'autres apps via
+`services.public`), donc aucune surface HTTP à gater. À réviser le jour où
+`apps.quality` gagnera son propre écran/API.
+
 ### 4.2 Rappel : la restriction « managers ne voient aucun montant » (RG-PAY-9)
 
 Cette règle n'est **pas** une entrée `CUSTOM_PERMISSIONS` mais mérite

@@ -5,9 +5,9 @@ ses descendants via `stocks.services.public.set_quality_state` (déjà
 cross-app, déjà utilisé par `services/measurements.py::record_measurement`
 pour ce rôle exact — jamais un second mécanisme de blocage).
 
-Distinct de `apps.stocks.StkRecall`, qui continue d'exister tel quel en
-attendant que le sprint D5 tranche son sort (migration/retrait) — cf.
-docstring de `QltRecallDossier`."""
+Distinct de `apps.stocks.StkRecall`, qui continue d'exister tel quel —
+décision D5 actée : coexistence délibérée, pas une migration/retrait
+différé (cf. docstring de `QltRecallDossier`)."""
 
 from __future__ import annotations
 

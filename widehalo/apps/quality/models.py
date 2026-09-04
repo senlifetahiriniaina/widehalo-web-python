@@ -177,9 +177,10 @@ class QltRecallDossier(BaseModel, ReferenceMixin):
     déclaration (`genealogy_snapshot`/`impacted_lots`, JAMAIS recalculés
     a posteriori — un dossier de rappel est une preuve de "ce qui était
     su et déclaré à cet instant", même discipline documentée que
-    `stocks.StkRecall`, dont ce modèle est délibérément distinct : le
-    sort de `StkRecall` (migration/retrait) est différé au sprint D5 par
-    l'ADR de P6, pas tranché ici).
+    `stocks.StkRecall`, dont ce modèle est délibérément distinct — décision
+    D5 actée (cf. addendum de `docs/planning/2026-09-adr-qualite-haccp-
+    app-dediee.md`) : `StkRecall` RESTE, coexistence délibérée plutôt que
+    migration/retrait (porte `client_exposures`, sans équivalent ici).
 
     **Immuable dès sa création** (QUA-6/7) — trigger Postgres
     (`apps/quality/migrations/0003_recall_dossier_immutability.py`),
