@@ -11,6 +11,7 @@ from __future__ import annotations
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext as _
 from ninja import Router
 
 from apps.core.services.permissions import require_permission
@@ -91,7 +92,7 @@ def list_levers_endpoint(request):  # type: ignore[no-untyped-def]
 def latest_baseline_endpoint(request):  # type: ignore[no-untyped-def]
     baseline = SimBaseline.objects.filter(tenant=_tenant(request)).order_by("-extracted_at").first()
     if baseline is None:
-        return JsonResponse({"detail": "Aucun socle de simulation n'existe encore."}, status=404)
+        return JsonResponse({"detail": _("Aucun socle de simulation n'existe encore.")}, status=404)
     return _serialize_baseline(baseline)
 
 

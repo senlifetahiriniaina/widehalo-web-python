@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 
 from apps.core.models.tenant import Tenant
@@ -27,6 +28,7 @@ def substitution_setup():
         buyer = User.objects.create_user(
             email="acheteur2@example.com", password="Str0ngPassw0rd!23"
         )
+        buyer.groups.add(Group.objects.get_or_create(name="acheteur")[0])
         variant_id = uuid.uuid4()
         return tenant, buyer, variant_id
 

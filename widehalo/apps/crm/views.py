@@ -162,6 +162,7 @@ def lead_create(request: HttpRequest) -> HttpResponse:
                 name=request.POST.get("name", ""),
                 partner_id=uuid.UUID(partner_id_raw) if partner_id_raw else None,
                 pipeline=pipeline,
+                salesperson=request.user,
                 **extra,
             )
         except (ValueError, InvalidOperation) as exc:

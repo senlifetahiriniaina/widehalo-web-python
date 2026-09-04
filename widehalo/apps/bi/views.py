@@ -28,6 +28,7 @@ from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
+from django.utils.translation import gettext as _
 
 from apps.analytics.services.public import (
     get_latest_refresh_summary,
@@ -105,7 +106,7 @@ def report_new(request: HttpRequest) -> HttpResponse:
             definition = json.loads(request.POST.get("definition_json") or "{}")
             name = request.POST.get("name", "").strip()
             if not name:
-                raise ValidationError("Le nom est obligatoire.")
+                raise ValidationError(_("Le nom est obligatoire."))
             with activate_tenant(tenant.id):
                 report = BiReport.objects.create(
                     tenant=tenant,

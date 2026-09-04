@@ -23,7 +23,7 @@ def crm_screens_setup():
         CrmStage.objects.create(
             tenant=tenant, pipeline=pipeline, code="qualified", name="Qualifie", sequence=2
         )
-        lead = create_lead_quick(tenant=tenant, name="Opportunite textile")
+        lead = create_lead_quick(tenant=tenant, name="Opportunite textile", salesperson=user)
         assert lead.stage_id == stage_new.id
     client = Client()
     client.force_login(user)

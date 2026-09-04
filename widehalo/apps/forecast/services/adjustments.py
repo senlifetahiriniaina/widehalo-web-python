@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from apps.forecast.models import ForSeriesForecast
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 if TYPE_CHECKING:
     from apps.core.models.user import User
@@ -23,7 +24,7 @@ def apply_adjustment(
     `adjustment_history` et positionne `adjusted_value`. Un motif vide est
     refusé (cahier : "saisie directe par période, motif obligatoire")."""
     if not reason.strip():
-        raise ValidationError("Le motif de l'ajustement est obligatoire.")
+        raise ValidationError(_("Le motif de l'ajustement est obligatoire."))
     before = (
         forecast.adjusted_value
         if forecast.adjusted_value is not None

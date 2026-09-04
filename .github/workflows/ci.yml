@@ -192,6 +192,17 @@ jobs:
           cd widehalo
           python manage.py compilemessages
           python -m pytest tests/e2e -q -m playwright
+      # Aucune reference visuelle (`test_visual_regression.py`) n'est jamais
+      # regenerable a l'identique hors du runner CI lui-meme (rendu de police
+      # specifique a cet environnement) — recupere donc la nouvelle capture
+      # et/ou le diff surligne en artefact sur echec, plutot que de forcer un
+      # contributeur a deviner la reference correcte depuis sa machine.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-snapshots
+          path: widehalo/tests/e2e/__snapshots__/
+          retention-days: 14
 
   docker-build:
     runs-on: ubuntu-latest

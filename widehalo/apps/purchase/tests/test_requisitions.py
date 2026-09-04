@@ -5,6 +5,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 
 from apps.catalog.models import ProductSupplierInfo, ProductTemplate, ProductVariant, UnitOfMeasure
@@ -289,6 +290,7 @@ def test_add_requisition_line_accepts_approved_degrade_substitute(purchase_setup
             substitute_variant_id=uuid.uuid4(),
             compatibility=PurSubstitute.COMPATIBILITY_DEGRADE,
         )
+        requester.groups.add(Group.objects.get_or_create(name="acheteur")[0])
         approve_substitute(substitute, approved_by=requester)
 
         requisition = create_requisition(

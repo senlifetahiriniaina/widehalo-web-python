@@ -129,7 +129,8 @@ def test_save_current_view_requires_table_key_and_name() -> None:
 
 def test_saved_view_appears_in_selector() -> None:
     client, tenant, user = _logged_in_client()
-    SavedTableViewFactory(tenant=tenant, table_key="core.documents", name="Ma vue", owner=user)
+    with use_tenant(tenant.id):
+        SavedTableViewFactory(tenant=tenant, table_key="core.documents", name="Ma vue", owner=user)
 
     body = client.get("/documents/").content.decode()
     assert "Ma vue" in body

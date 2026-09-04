@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
+from django.utils.translation import gettext as _
 
 from apps.core.services.audit import log_action
 from apps.simulation import levers as lever_catalog
@@ -190,7 +191,7 @@ def compare_scenarios(user: User, scenario_ids: list[Any]) -> list[dict[str, Any
     jamais un recalcul ad hoc à la volée."""
     ids = [str(sid) for sid in scenario_ids]
     if not (2 <= len(ids) <= 4):
-        raise ValidationError("Un comparateur nécessite entre 2 et 4 scénarios (SIM-6).")
+        raise ValidationError(_("Un comparateur nécessite entre 2 et 4 scénarios (SIM-6)."))
 
     queryset = scoping.visible_scenarios(
         SimScenario.objects.filter(id__in=ids, is_active=True).select_related("owner"), user

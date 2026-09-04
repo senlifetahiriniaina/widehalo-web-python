@@ -5,6 +5,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 
 from apps.accounting.models import AccBudget
@@ -362,6 +363,7 @@ def test_pur_rout1_blocks_validate_until_amount_threshold_approved(orders_setup)
         from apps.core.services.approvals import decide
 
         pending = ApprovalRequest.objects.get(object_id=str(order.id))
+        user.groups.add(Group.objects.get_or_create(name="acheteur")[0])
         decide(pending, user, approved=True)
 
         validate_order(order, user)
@@ -396,6 +398,7 @@ def test_pur_rout1_blocks_validate_for_import_origin_regardless_of_amount(orders
 
         pending = ApprovalRequest.objects.get(object_id=str(order.id))
         assert pending.rule.approver_role == "direction"
+        user.groups.add(Group.objects.get_or_create(name="direction")[0])
         decide(pending, user, approved=True)
 
         validate_order(order, user)
@@ -449,6 +452,7 @@ def test_pur_bud1_blocks_validate_when_analytic_account_over_budget(orders_setup
         pending = ApprovalRequest.objects.get(object_id=str(order.id))
         assert pending.rule.approver_role == "direction"
         assert pending.rule.condition.get("budget_check") == "true"
+        user.groups.add(Group.objects.get_or_create(name="direction")[0])
         decide(pending, user, approved=True)
 
         validate_order(order, user)

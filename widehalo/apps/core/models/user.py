@@ -16,7 +16,7 @@ PREFERRED_LANGUAGE_CHOICES = [
     # Sprint 10 (L6 Personnalisation) : catalogue de traductions vide pour
     # l'instant (cf. locale/mg/LC_MESSAGES/django.po) -- l'utilisateur qui
     # choisit "Malagasy" voit donc l'application dans la langue source
-    # (francais) tant qu'une traduction professionnelle n'a pas ete
+    # (français) tant qu'une traduction professionnelle n'a pas été
     # fournie, jamais une erreur ni un fallback silencieux vers l'anglais.
     ("mg", "Malagasy"),
 ]

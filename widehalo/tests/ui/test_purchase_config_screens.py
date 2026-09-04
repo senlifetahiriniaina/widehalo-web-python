@@ -7,6 +7,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.purchase.services.substitution import create_substitute
+from django.contrib.auth.models import Group
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -19,6 +20,7 @@ def purchase_config_setup():
         user = User.objects.create_user(
             email="ui-pur-cfg@example.com", password="Str0ngPassw0rd!23"
         )
+        user.groups.add(Group.objects.get_or_create(name="acheteur")[0])
         variant_id = uuid.uuid4()
         degraded = create_substitute(
             tenant=tenant,
