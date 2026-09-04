@@ -25,3 +25,16 @@ Ce dépôt suit [Conventional Commits](https://www.conventionalcommits.org/) :
 - Clés primaires UUIDv7, jamais d'auto-incrément exposé.
 - Suppression toujours logique (`is_active` + `archived_at`), jamais physique.
 - Montants en `DecimalField(max_digits=18, decimal_places=4)`, jamais `float`.
+
+## Revue de code
+
+- À chaque **jour de durcissement** (cf. gabarit de sprint,
+  `docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md` §3) : relire
+  les docstrings qui décrivent une « limitation connue »/un comportement
+  pas encore câblé sur les fichiers touchés par le sprint — un module câblé
+  entre-temps à un autre laisse souvent un commentaire périmé qui affirme
+  encore l'ancienne limitation (déjà relevé et corrigé sur
+  `apps/sales/services/orders.py::mark_delivered`,
+  `apps/accounting/services/landed_costs.py` et
+  `apps/purchase/tests/test_acceptance.py`). Corriger ces docstrings fait
+  partie du sprint, pas une tâche séparée à reporter.
