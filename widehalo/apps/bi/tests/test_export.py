@@ -60,4 +60,6 @@ def test_render_bi_report_rows_activates_tenant_and_returns_rows() -> None:
 
 def test_render_bi_report_rows_returns_empty_for_unknown_report() -> None:
     actor = UserFactory()
-    assert render_bi_report_rows({"bi_report_id": "00000000-0000-0000-0000-000000000000"}, actor) == []
+    assert (
+        render_bi_report_rows({"bi_report_id": "00000000-0000-0000-0000-000000000000"}, actor) == []
+    )

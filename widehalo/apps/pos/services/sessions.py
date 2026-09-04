@@ -101,36 +101,24 @@ def compute_expected_cash(session: PosSession) -> Decimal:
         cash_sales = Decimal(0)
         cash_returns = Decimal(0)
     else:
-        cash_sales = (
-            PosPayment.objects.filter(
-                order__session=session,
-                order__state=PosOrder.STATE_VALIDATED,
-                order__order_type=PosOrder.TYPE_SALE,
-                method_id__in=cash_method_ids,
-            ).aggregate(total=Sum("amount"))["total"]
-            or Decimal(0)
-        )
-        cash_returns = (
-            PosPayment.objects.filter(
-                order__session=session,
-                order__state=PosOrder.STATE_VALIDATED,
-                order__order_type=PosOrder.TYPE_RETURN,
-                method_id__in=cash_method_ids,
-            ).aggregate(total=Sum("amount"))["total"]
-            or Decimal(0)
-        )
-    movements_in = (
-        PosCashMovement.objects.filter(
-            session=session, direction=PosCashMovement.DIRECTION_IN
-        ).aggregate(total=Sum("amount"))["total"]
-        or Decimal(0)
-    )
-    movements_out = (
-        PosCashMovement.objects.filter(
-            session=session, direction=PosCashMovement.DIRECTION_OUT
-        ).aggregate(total=Sum("amount"))["total"]
-        or Decimal(0)
-    )
+        cash_sales = PosPayment.objects.filter(
+            order__session=session,
+            order__state=PosOrder.STATE_VALIDATED,
+            order__order_type=PosOrder.TYPE_SALE,
+            method_id__in=cash_method_ids,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal(0)
+        cash_returns = PosPayment.objects.filter(
+            order__session=session,
+            order__state=PosOrder.STATE_VALIDATED,
+            order__order_type=PosOrder.TYPE_RETURN,
+            method_id__in=cash_method_ids,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal(0)
+    movements_in = PosCashMovement.objects.filter(
+        session=session, direction=PosCashMovement.DIRECTION_IN
+    ).aggregate(total=Sum("amount"))["total"] or Decimal(0)
+    movements_out = PosCashMovement.objects.filter(
+        session=session, direction=PosCashMovement.DIRECTION_OUT
+    ).aggregate(total=Sum("amount"))["total"] or Decimal(0)
     return session.opening_cash_amount + cash_sales - cash_returns + movements_in - movements_out
 
 
@@ -218,9 +206,7 @@ def close_session(
     expected_cash = compute_expected_cash(session)
     variance = counted_cash - expected_cash
     if variance != 0 and not variance_reason.strip():
-        raise ValidationError(
-            _("Un écart de caisse non nul doit être motivé avant la clôture.")
-        )
+        raise ValidationError(_("Un écart de caisse non nul doit être motivé avant la clôture."))
 
     cash_method_ids = _cash_payment_method_ids(session)
     payment_totals = _net_payment_totals(session)
@@ -251,9 +237,10 @@ def close_session(
     # aucune vente en espèces (ex. fond de caisse seul, ou uniquement des
     # ventes non-espèces).
     if cash_method_ids and counted_cash:
-        cash_method = PosPaymentMethod.objects.filter(
-            id__in=cash_method_ids, is_active=True
-        ).first() or PosPaymentMethod.objects.filter(id__in=cash_method_ids).first()
+        cash_method = (
+            PosPaymentMethod.objects.filter(id__in=cash_method_ids, is_active=True).first()
+            or PosPaymentMethod.objects.filter(id__in=cash_method_ids).first()
+        )
         if cash_method is not None:
             payment_totals_input.append(
                 {

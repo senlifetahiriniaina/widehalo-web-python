@@ -47,7 +47,9 @@ def _on_delete(sender: type, instance: Any, **kwargs: Any) -> None:
     log_action(AuditLog.ACTION_DELETED, obj=instance)
 
 
-def _on_regulatory_parameter_save(sender: type, instance: Any, created: bool, **kwargs: Any) -> None:
+def _on_regulatory_parameter_save(
+    sender: type, instance: Any, created: bool, **kwargs: Any
+) -> None:
     # RegulatoryParameter n'herite PAS de BaseModel (son `tenant` doit
     # rester nullable — nul = valeur globale, cf. sa docstring — ce que
     # BaseModel interdit) donc `_on_save` ci-dessus ne le journalise
@@ -59,7 +61,9 @@ def _on_regulatory_parameter_save(sender: type, instance: Any, created: bool, **
 
     log_action(
         AuditLog.ACTION_CREATED if created else AuditLog.ACTION_UPDATED,
-        actor=instance.valide_par if instance.statut_validation != instance.STATUS_NON_VALIDE else None,
+        actor=instance.valide_par
+        if instance.statut_validation != instance.STATUS_NON_VALIDE
+        else None,
         obj=instance,
         changes={
             "code": instance.code,
@@ -106,7 +110,9 @@ def _on_user_logged_in(sender: type, request: Any, user: Any, **kwargs: Any) -> 
     )
 
 
-def _on_user_login_failed(sender: type, credentials: dict[str, Any], request: Any = None, **kwargs: Any) -> None:
+def _on_user_login_failed(
+    sender: type, credentials: dict[str, Any], request: Any = None, **kwargs: Any
+) -> None:
     # `credentials` est deja assaini par Django (jamais le mot de passe en
     # clair, cf. `django.contrib.auth.authenticate`) — ne contient au plus
     # que le champ `username` (ici l'email saisi) tel que passe par

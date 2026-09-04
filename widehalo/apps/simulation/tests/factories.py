@@ -69,5 +69,7 @@ class SimScenarioFactory(factory.django.DjangoModelFactory):
     baseline_regulatory_param_version = factory.SelfAttribute("baseline.regulatory_param_version")
     name = factory.Sequence(lambda n: f"Scénario {n}")
     owner = factory.SubFactory("apps.core.tests.factories.UserFactory")
-    levers = factory.LazyFunction(lambda: {code: str(value) for code, value in default_levers().items()})
+    levers = factory.LazyFunction(
+        lambda: {code: str(value) for code, value in default_levers().items()}
+    )
     computed_indicators = factory.LazyFunction(dict)

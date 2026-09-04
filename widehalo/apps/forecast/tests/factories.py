@@ -6,9 +6,8 @@ import datetime as dt
 from decimal import Decimal
 
 import factory
-from django.utils import timezone
-
 from apps.forecast.models import ForExceptionalPoint, ForHoliday, ForPublication, ForSeriesForecast
+from django.utils import timezone
 
 
 class ForHolidayFactory(factory.django.DjangoModelFactory):

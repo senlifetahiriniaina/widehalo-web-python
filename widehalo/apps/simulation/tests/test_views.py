@@ -59,7 +59,7 @@ def test_workbench_shows_construction_prompt_without_a_baseline(web_simulation) 
     response = client.get("/simulation/workbench/", HTTP_X_TENANT_ID=str(tenant.id))
 
     assert response.status_code == 200
-    assert "Construire le socle de simulation".encode() in response.content
+    assert b"Construire le socle de simulation" in response.content
 
 
 def test_workbench_renders_the_engine_when_a_baseline_exists(web_simulation) -> None:
@@ -75,12 +75,16 @@ def test_workbench_renders_the_engine_when_a_baseline_exists(web_simulation) -> 
     assert b"simulation_engine.js" in response.content
 
 
-def test_workbench_post_creates_a_scenario_with_a_matching_client_computation(web_simulation) -> None:
+def test_workbench_post_creates_a_scenario_with_a_matching_client_computation(
+    web_simulation,
+) -> None:
     tenant, user = web_simulation
     with use_tenant(tenant.id):
         baseline = SimBaselineFactory(tenant=tenant)
         levers = {"prix_vente_pct": "10"}
-        indicators = compute_indicators(deserialize_baseline_data(baseline), {"prix_vente_pct": Decimal(10)})
+        indicators = compute_indicators(
+            deserialize_baseline_data(baseline), {"prix_vente_pct": Decimal(10)}
+        )
         payload = {
             "name": "Scénario web",
             "description": "",

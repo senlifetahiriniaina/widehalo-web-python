@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from django.test import Client
-
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.forecast.tests.factories import ForSeriesForecastFactory
+from django.test import Client
 
 pytestmark = pytest.mark.django_db
 
@@ -19,7 +18,9 @@ def web_forecast():
     # `controleur_gestion` : hors `CORE_MFA_REQUIRED_ROLES`, memes droits
     # complets sur `forecast` (cf. rbac_policy.py) — meme discipline que
     # apps.bi.tests.test_views/apps.simulation.tests.test_views.
-    user = User.objects.create_user(email="controleur-for@example.com", password="Str0ngPassw0rd!23")
+    user = User.objects.create_user(
+        email="controleur-for@example.com", password="Str0ngPassw0rd!23"
+    )
     grant_role(user, "controleur_gestion")
     return tenant, user
 
@@ -65,7 +66,9 @@ def test_dashboard_renders_consolidated_tab(web_forecast) -> None:
 def test_workbench_renders_history_and_forecasts(web_forecast) -> None:
     tenant, user = web_forecast
     with use_tenant(tenant.id):
-        ForSeriesForecastFactory(tenant=tenant, dimension_type="canal", dimension_value="vente_directe")
+        ForSeriesForecastFactory(
+            tenant=tenant, dimension_type="canal", dimension_value="vente_directe"
+        )
     client = _client_for(tenant, user)
 
     response = client.get(

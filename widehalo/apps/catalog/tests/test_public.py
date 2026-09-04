@@ -67,7 +67,9 @@ def test_search_sellable_variants_filters_by_reference_or_name(variant_setup) ->
         other_template = ProductTemplate.objects.create(
             tenant=tenant, name="Chemise", base_uom=template.base_uom, reference="TPL-PUB-0002"
         )
-        ProductVariant.objects.create(tenant=tenant, template=other_template, reference="VAR-PUB-0002")
+        ProductVariant.objects.create(
+            tenant=tenant, template=other_template, reference="VAR-PUB-0002"
+        )
 
         by_reference = search_sellable_variants("VAR-PUB-0001")
         by_name = search_sellable_variants("chemise")
@@ -90,7 +92,9 @@ def test_search_sellable_variants_excludes_non_sellable_templates(variant_setup)
             reference="TPL-PUB-0003",
             is_sellable=False,
         )
-        ProductVariant.objects.create(tenant=tenant, template=hidden_template, reference="VAR-PUB-0003")
+        ProductVariant.objects.create(
+            tenant=tenant, template=hidden_template, reference="VAR-PUB-0003"
+        )
 
         results = search_sellable_variants("Matière")
 

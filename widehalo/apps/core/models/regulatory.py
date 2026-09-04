@@ -73,7 +73,7 @@ class RegulatoryParameter(models.Model):
                 self.version = existing_max + 1
         super().save(*args, **kwargs)  # type: ignore[misc]
 
-    def mark_validated(self, by: "object") -> None:
+    def mark_validated(self, by: object) -> None:
         """Validation OECFM (ACC-8) : ne modifie QUE le statut/valideur/date
         — jamais la valeur, la plage de dates ou le libelle, qui restent du
         ressort d'une nouvelle version (cf. docstring `version`).

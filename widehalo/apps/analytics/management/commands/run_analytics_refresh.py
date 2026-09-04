@@ -38,6 +38,4 @@ class Command(BaseCommand):
                     )
                 )
             else:
-                self.stdout.write(
-                    self.style.WARNING(f"Tenant {tenant.code} : {run.error_message}")
-                )
+                self.stdout.write(self.style.WARNING(f"Tenant {tenant.code} : {run.error_message}"))

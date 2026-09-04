@@ -77,7 +77,10 @@ def test_finish_with_output_lot_name_requires_a_location() -> None:
         order = _order_at_quality_control(tenant, user)
         with pytest.raises(ValidationError):
             finish_transformation_order(
-                order, user, qty_produced=Decimal("100"), output_lot_name="PF-2026-001",
+                order,
+                user,
+                qty_produced=Decimal("100"),
+                output_lot_name="PF-2026-001",
                 location_to_id=None,
             )
 

@@ -15,8 +15,13 @@ from apps.catalog.tests.factories import ProductTemplateFactory, ProductVariantF
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.pos.models import PosOrder, PosOrderLine
-from apps.pos.services.orders import add_line, add_payment, create_return_order, validate_order
-from apps.pos.services.orders import create_draft_order
+from apps.pos.services.orders import (
+    add_line,
+    add_payment,
+    create_draft_order,
+    create_return_order,
+    validate_order,
+)
 from apps.pos.tests.factories import PosPaymentMethodFactory, PosSessionFactory
 from apps.stocks.models import StkLocation, StkPicking
 from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory, StkWarehouseFactory
@@ -99,7 +104,9 @@ def test_return_of_a_product_line_puts_the_stock_back(tenant) -> None:
     StkLocationFactory(tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT)
     template = ProductTemplateFactory(tenant=tenant)
     variant = ProductVariantFactory(tenant=tenant, template=template)
-    StkQuantFactory(tenant=tenant, variant_id=variant.id, location=internal_location, qty=Decimal(10))
+    StkQuantFactory(
+        tenant=tenant, variant_id=variant.id, location=internal_location, qty=Decimal(10)
+    )
 
     session = PosSessionFactory(tenant=tenant)
     session.register.warehouse_id = warehouse.id

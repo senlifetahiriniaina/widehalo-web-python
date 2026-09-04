@@ -41,7 +41,10 @@ def test_dashboard_renders_dictionary_tab_for_an_authorized_user(web_analytics) 
     tenant, user = web_analytics
     with use_tenant(tenant.id):
         AnMetricDefinitionFactory(
-            tenant=tenant, code="ca.mensuel", libelle="CA mensuel", statut=AnMetricDefinition.STATUT_PUBLIE
+            tenant=tenant,
+            code="ca.mensuel",
+            libelle="CA mensuel",
+            statut=AnMetricDefinition.STATUT_PUBLIE,
         )
     client = _client_for(tenant, user)
 
@@ -53,7 +56,9 @@ def test_dashboard_renders_dictionary_tab_for_an_authorized_user(web_analytics) 
 
 def test_dashboard_denies_a_user_without_the_analytics_role(web_analytics) -> None:
     tenant, _user = web_analytics
-    other_user = User.objects.create_user(email="collab-an@example.com", password="Str0ngPassw0rd!23")
+    other_user = User.objects.create_user(
+        email="collab-an@example.com", password="Str0ngPassw0rd!23"
+    )
     grant_role(other_user, "collaborateur")
     client = _client_for(tenant, other_user)
 

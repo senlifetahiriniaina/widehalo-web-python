@@ -628,7 +628,13 @@ def test_get_default_sale_tax_returns_the_first_valid_sale_tax(public_setup) -> 
     tenant = public_setup
     with use_tenant(tenant.id):
         account = AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_TAX)
-        AccTaxFactory(tenant=tenant, type=AccTax.TYPE_SALE, code="TVA1", rate=Decimal("20.000"), account_collected=account)
+        AccTaxFactory(
+            tenant=tenant,
+            type=AccTax.TYPE_SALE,
+            code="TVA1",
+            rate=Decimal("20.000"),
+            account_collected=account,
+        )
 
         result = get_default_sale_tax(tenant, on_date=dt.date(2026, 1, 15))
 

@@ -29,7 +29,11 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
-from apps.analytics.services.public import get_latest_refresh_summary, list_metric_versions, list_published_metrics
+from apps.analytics.services.public import (
+    get_latest_refresh_summary,
+    list_metric_versions,
+    list_published_metrics,
+)
 from apps.bi.models import BiDashboard, BiDiffusionLog, BiReport
 from apps.bi.services.diffusion import compute_next_run_at
 from apps.bi.services.export import REPORT_CODE
@@ -51,7 +55,9 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     elif tab == "journal":
         context["refresh_summary"] = get_latest_refresh_summary(tenant)
         context["diffusion_logs"] = list(
-            BiDiffusionLog.objects.filter(tenant=tenant).select_related("report").order_by("-sent_at")[:30]
+            BiDiffusionLog.objects.filter(tenant=tenant)
+            .select_related("report")
+            .order_by("-sent_at")[:30]
         )
     elif tab == "gouvernance":
         context["metrics"] = list_published_metrics(tenant, request.user)
@@ -132,15 +138,25 @@ def report_detail(request: HttpRequest, report_id: str) -> HttpResponse:
                 report.is_published = bool(request.POST.get("is_published"))
                 report.save(update_fields=["definition", "is_published"])
             except json.JSONDecodeError as exc:
-                return render(request, "bi/report_detail.html", _report_context(report, request.user, error=str(exc)))
+                return render(
+                    request,
+                    "bi/report_detail.html",
+                    _report_context(report, request.user, error=str(exc)),
+                )
         elif action == "update_diffusion":
             if not request.user.has_perm("bi.change_bireport"):
                 return HttpResponse(status=403)
             report.diffusion_enabled = bool(request.POST.get("diffusion_enabled"))
             report.diffusion_frequency = request.POST.get("diffusion_frequency", "")
             recipients_raw = request.POST.get("diffusion_recipients", "")
-            report.diffusion_recipients = [e.strip() for e in recipients_raw.split(",") if e.strip()]
-            if report.diffusion_enabled and report.diffusion_frequency and not report.diffusion_next_run_at:
+            report.diffusion_recipients = [
+                e.strip() for e in recipients_raw.split(",") if e.strip()
+            ]
+            if (
+                report.diffusion_enabled
+                and report.diffusion_frequency
+                and not report.diffusion_next_run_at
+            ):
                 report.diffusion_next_run_at = compute_next_run_at(report.diffusion_frequency)
             report.save(
                 update_fields=[
@@ -178,7 +194,9 @@ def report_drill_down(request: HttpRequest, report_id: str) -> JsonResponse:
         cell_filters = json.loads(request.GET.get("cell_filters") or "[]")
     except json.JSONDecodeError:
         cell_filters = []
-    result = drill_down(report.tenant, report, request.user, metric_code=metric_code, cell_filters=cell_filters)
+    result = drill_down(
+        report.tenant, report, request.user, metric_code=metric_code, cell_filters=cell_filters
+    )
     return JsonResponse(result)
 
 

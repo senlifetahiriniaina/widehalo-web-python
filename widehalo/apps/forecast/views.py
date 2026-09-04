@@ -12,18 +12,17 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
-
+from apps.core.views.tenant_web import resolve_tenant
 from apps.forecast.models import ForExceptionalPoint, ForHoliday, ForPublication, ForSeriesForecast
 from apps.forecast.services.adjustments import apply_adjustment, revert_adjustment
 from apps.forecast.services.compute import compute_and_store_forecast
 from apps.forecast.services.history import load_series_history
 from apps.forecast.services.publication import publish
 from apps.forecast.services.treasury import project_twelve_month_cash_inflows
-from apps.core.views.tenant_web import resolve_tenant
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect, render
 
 
 @login_required
@@ -56,7 +55,9 @@ def workbench(request: HttpRequest) -> HttpResponse:
     if not request.user.has_perm("forecast.view_forseriesforecast"):
         return HttpResponse(status=403)
     tenant = resolve_tenant(request)
-    dimension_type = request.GET.get("dimension_type") or request.POST.get("dimension_type", "canal")
+    dimension_type = request.GET.get("dimension_type") or request.POST.get(
+        "dimension_type", "canal"
+    )
     dimension_value = request.GET.get("dimension_value") or request.POST.get(
         "dimension_value", "vente_directe"
     )
@@ -86,7 +87,9 @@ def workbench(request: HttpRequest) -> HttpResponse:
                             user=request.user,
                         )
                     else:
-                        revert_adjustment(forecast, user=request.user, reason=request.POST.get("reason", ""))
+                        revert_adjustment(
+                            forecast, user=request.user, reason=request.POST.get("reason", "")
+                        )
                 except (ValidationError, InvalidOperation) as exc:
                     error = str(exc)
         elif action == "mark_exceptional":
@@ -105,7 +108,9 @@ def workbench(request: HttpRequest) -> HttpResponse:
             f"/forecast/workbench/?dimension_type={dimension_type}&dimension_value={dimension_value}"
         )
 
-    history = load_series_history(tenant, dimension_type=dimension_type, dimension_value=dimension_value)
+    history = load_series_history(
+        tenant, dimension_type=dimension_type, dimension_value=dimension_value
+    )
     forecasts = ForSeriesForecast.objects.filter(
         tenant=tenant, dimension_type=dimension_type, dimension_value=dimension_value
     ).order_by("period")
@@ -121,7 +126,7 @@ def workbench(request: HttpRequest) -> HttpResponse:
         {
             "dimension_type": dimension_type,
             "dimension_value": dimension_value,
-            "history": list(zip(history.full_periods, history.full_values)),
+            "history": list(zip(history.full_periods, history.full_values, strict=True)),
             "excluded_periods": history.excluded_periods,
             "forecasts": forecasts,
             "exceptional_periods": exceptional_periods,

@@ -50,7 +50,9 @@ def project_twelve_month_cash_inflows(tenant: Tenant) -> dict[str, Any]:
     for forecast in sales_forecasts:
         inflow_period = forecast.period + dt.timedelta(days=avg_delay_days)
         inflow_month = inflow_period.replace(day=1)
-        monthly_inflows[inflow_month] = monthly_inflows.get(inflow_month, Decimal(0)) + forecast.final_value
+        monthly_inflows[inflow_month] = (
+            monthly_inflows.get(inflow_month, Decimal(0)) + forecast.final_value
+        )
 
     return {
         "assumption_avg_delay_days": avg_delay_days,

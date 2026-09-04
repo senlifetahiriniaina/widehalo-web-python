@@ -146,9 +146,7 @@ def test_notifications_are_scoped_to_the_active_session_tenant() -> None:
     assert badge is not None
     assert badge.get_text(strip=True) == "0"
 
-    mark_read_response = client.post(
-        f"/notifications/{other_tenant_notification.id}/read/"
-    )
+    mark_read_response = client.post(f"/notifications/{other_tenant_notification.id}/read/")
     assert mark_read_response.status_code == 200
     other_tenant_notification.refresh_from_db()
     assert other_tenant_notification.read_at is None

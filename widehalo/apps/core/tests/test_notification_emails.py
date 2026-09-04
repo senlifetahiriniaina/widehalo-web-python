@@ -35,7 +35,11 @@ def test_send_grouped_email_notifications_actually_sends_an_email(user_and_tenan
     dispatch_notification(
         user,
         "sales.order_delivered",
-        {"message": "La commande DEV-1 a été livrée.", "action_url": "/sales/orders/1/", "action_label": "Voir la commande"},
+        {
+            "message": "La commande DEV-1 a été livrée.",
+            "action_url": "/sales/orders/1/",
+            "action_label": "Voir la commande",
+        },
         tenant_id=str(tenant.id),
         grouped_key="sales.order_delivered",
     )
@@ -65,7 +69,11 @@ def test_five_notifications_in_the_same_group_produce_a_single_email(user_and_te
     tenant, user = user_and_tenant
     for i in range(5):
         dispatch_notification(
-            user, "stock.low", {"message": f"Rupture {i}"}, tenant_id=str(tenant.id), grouped_key="stock.low"
+            user,
+            "stock.low",
+            {"message": f"Rupture {i}"},
+            tenant_id=str(tenant.id),
+            grouped_key="stock.low",
         )
 
     sent_count = send_grouped_email_notifications(user)
@@ -77,7 +85,9 @@ def test_five_notifications_in_the_same_group_produce_a_single_email(user_and_te
 def test_management_command_emails_every_user_with_pending_notifications(user_and_tenant) -> None:
     tenant, user = user_and_tenant
     other_user = User.objects.create_user(email="autre@example.com", password="Str0ngPassw0rd!23")
-    dispatch_notification(user, "invoice.due", {"message": "Facture échue"}, tenant_id=str(tenant.id))
+    dispatch_notification(
+        user, "invoice.due", {"message": "Facture échue"}, tenant_id=str(tenant.id)
+    )
     dispatch_notification(
         other_user, "invoice.due", {"message": "Facture échue"}, tenant_id=str(tenant.id)
     )
@@ -93,7 +103,9 @@ def test_management_command_emails_every_user_with_pending_notifications(user_an
 
 def test_already_emailed_notification_is_not_sent_twice(user_and_tenant) -> None:
     tenant, user = user_and_tenant
-    dispatch_notification(user, "invoice.due", {"message": "Facture échue"}, tenant_id=str(tenant.id))
+    dispatch_notification(
+        user, "invoice.due", {"message": "Facture échue"}, tenant_id=str(tenant.id)
+    )
 
     first = send_grouped_email_notifications(user)
     second = send_grouped_email_notifications(user)

@@ -17,7 +17,12 @@ from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
 from apps.pos.models import PosCashMovement, PosOrderLine, PosPaymentMethod, PosSession
 from apps.pos.services.orders import add_line, add_payment, create_draft_order, validate_order
-from apps.pos.services.sessions import add_cash_movement, close_session, compute_expected_cash, open_session
+from apps.pos.services.sessions import (
+    add_cash_movement,
+    close_session,
+    compute_expected_cash,
+    open_session,
+)
 from apps.pos.tests.factories import PosPaymentMethodFactory, PosRegisterFactory, PosSessionFactory
 
 pytestmark = pytest.mark.django_db
@@ -59,20 +64,28 @@ def test_open_session_refuses_a_second_open_session_on_the_same_register(tenant)
 def test_add_cash_movement_requires_a_reason_and_an_open_session(tenant) -> None:
     session = PosSessionFactory(tenant=tenant)
     with pytest.raises(ValidationError):
-        add_cash_movement(session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1000), reason="")
+        add_cash_movement(
+            session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1000), reason=""
+        )
 
     session.state = PosSession.STATE_CLOSED
     session.save(update_fields=["state"])
     with pytest.raises(ValidationError):
-        add_cash_movement(session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1000), reason="Appoint")
+        add_cash_movement(
+            session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1000), reason="Appoint"
+        )
 
 
 def test_compute_expected_cash_includes_opening_amount_movements_and_cash_sales(tenant) -> None:
     session = PosSessionFactory(tenant=tenant, opening_cash_amount=Decimal(50000))
     cash_method = _cash_method(tenant)
 
-    add_cash_movement(session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(5000), reason="Dépôt")
-    add_cash_movement(session, direction=PosCashMovement.DIRECTION_OUT, amount=Decimal(2000), reason="Retrait")
+    add_cash_movement(
+        session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(5000), reason="Dépôt"
+    )
+    add_cash_movement(
+        session, direction=PosCashMovement.DIRECTION_OUT, amount=Decimal(2000), reason="Retrait"
+    )
 
     order = create_draft_order(
         tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1, user=session.cashier
@@ -123,7 +136,10 @@ def test_close_session_generates_a_balanced_accounting_entry_and_locks_the_sessi
     expected_cash = compute_expected_cash(session)
     counted = expected_cash - Decimal(500)  # écart : manquant en caisse
     closed = close_session(
-        session, counted_cash=counted, variance_reason="Erreur de rendu de monnaie", date=dt.date(2026, 1, 15)
+        session,
+        counted_cash=counted,
+        variance_reason="Erreur de rendu de monnaie",
+        date=dt.date(2026, 1, 15),
     )
 
     assert closed.state == PosSession.STATE_CLOSED
@@ -138,7 +154,9 @@ def test_close_session_generates_a_balanced_accounting_entry_and_locks_the_sessi
 
     # POS-9 : session close immuable.
     with pytest.raises(ValidationError):
-        add_cash_movement(session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1), reason="x")
+        add_cash_movement(
+            session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(1), reason="x"
+        )
     with pytest.raises(ValidationError):
         close_session(session, counted_cash=Decimal(0))
 
@@ -149,7 +167,11 @@ def test_only_the_session_owner_or_a_transverse_role_can_manage_it(tenant) -> No
 
     with pytest.raises(PermissionDenied):
         add_cash_movement(
-            session, direction=PosCashMovement.DIRECTION_IN, amount=Decimal(100), reason="x", user=stranger
+            session,
+            direction=PosCashMovement.DIRECTION_IN,
+            amount=Decimal(100),
+            reason="x",
+            user=stranger,
         )
 
     admin_group, _ = Group.objects.get_or_create(name="admin")

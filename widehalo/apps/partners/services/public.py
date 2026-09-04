@@ -127,7 +127,9 @@ def ensure_default_partner(tenant: Tenant, role: str) -> UUID:
     return partner_id
 
 
-def list_partners_for_warehouse(tenant: Tenant, *, updated_since: Any = None) -> list[dict[str, Any]]:
+def list_partners_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
     """Gap fondations Phase 2 (cahier §12) : réferentiel des tiers pour
     alimenter `apps.analytics.AnDimTiers` — seule voie d'accès pour
     `analytics`, qui ne doit jamais importer `apps.partners.models`.

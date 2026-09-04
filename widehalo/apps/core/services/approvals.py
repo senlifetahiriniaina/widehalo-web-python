@@ -78,14 +78,12 @@ def is_eligible_approver(approval_request: ApprovalRequest, user: User) -> bool:
         return True
     if approval_request.requested_by_id in _delegate_ids_for(user):
         return True
-    if (
-        rule.fallback_approver_role
+    return (
+        bool(rule.fallback_approver_role)
         and rule.fallback_approver_role in approver_roles
         and rule.escalate_after is not None
         and timezone.now() >= approval_request.created_at + rule.escalate_after
-    ):
-        return True
-    return False
+    )
 
 
 def decide(

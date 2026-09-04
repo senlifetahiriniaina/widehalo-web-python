@@ -3,10 +3,10 @@ par le futur module BI (Phase 2 §13.1)."""
 
 from __future__ import annotations
 
-import pytest
-
 import datetime as dt
 from decimal import Decimal
+
+import pytest
 
 from apps.analytics.models import AnMetricDefinition
 from apps.analytics.services.public import (
@@ -76,12 +76,16 @@ def test_get_metric_definition_returns_none_when_absent(public_tenant: Tenant) -
         assert get_metric_definition(public_tenant, "does.not.exist") is None
 
 
-def test_get_sales_value_series_merges_channels_without_double_counting(public_tenant: Tenant) -> None:
+def test_get_sales_value_series_merges_channels_without_double_counting(
+    public_tenant: Tenant,
+) -> None:
     """FOR-8 (module `forecast`) : `vente_directe` n'agrège que
     `AnFactVente`, `pos` n'agrège que `AnFactTicketPos`."""
     with use_tenant(public_tenant.id):
         dim_temps = AnDimTempsFactory(tenant=public_tenant, date=dt.date(2026, 3, 10))
-        AnFactVenteFactory(tenant=public_tenant, dim_temps=dim_temps, montant_ht_mga=Decimal("1000"))
+        AnFactVenteFactory(
+            tenant=public_tenant, dim_temps=dim_temps, montant_ht_mga=Decimal("1000")
+        )
 
         series = get_sales_value_series(
             public_tenant, dimension_type="canal", dimension_value="vente_directe"
@@ -111,7 +115,9 @@ def test_get_sales_value_series_fills_gaps_with_zero(public_tenant: Tenant) -> N
 
 def test_get_sales_value_series_returns_empty_for_unknown_dimension(public_tenant: Tenant) -> None:
     with use_tenant(public_tenant.id):
-        assert get_sales_value_series(public_tenant, dimension_type="bogus", dimension_value="x") == []
+        assert (
+            get_sales_value_series(public_tenant, dimension_type="bogus", dimension_value="x") == []
+        )
 
 
 def test_get_partner_payment_behavior_computes_average_delay(public_tenant: Tenant) -> None:
@@ -122,7 +128,9 @@ def test_get_partner_payment_behavior_computes_average_delay(public_tenant: Tena
         vente_temps = AnDimTempsFactory(tenant=public_tenant, date=dt.date(2026, 1, 1))
         encaissement_temps = AnDimTempsFactory(tenant=public_tenant, date=dt.date(2026, 1, 31))
         AnFactVenteFactory(tenant=public_tenant, dim_tiers=tiers, dim_temps=vente_temps)
-        AnFactEncaissementFactory(tenant=public_tenant, dim_tiers=tiers, dim_temps=encaissement_temps)
+        AnFactEncaissementFactory(
+            tenant=public_tenant, dim_tiers=tiers, dim_temps=encaissement_temps
+        )
 
         # Un second client sans encaissement observé : absent du résultat.
         other_tiers = AnDimTiersFactory(tenant=public_tenant, nom="Client Sans Paiement")

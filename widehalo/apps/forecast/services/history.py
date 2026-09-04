@@ -43,7 +43,9 @@ def load_series_history(
     full_periods = [row["period"] for row in raw]
     full_values = [row["value"] for row in raw]
     training_periods = [p for p in full_periods if p not in excluded]
-    training_values = [v for p, v in zip(full_periods, full_values) if p not in excluded]
+    training_values = [
+        v for p, v in zip(full_periods, full_values, strict=True) if p not in excluded
+    ]
     return SeriesHistory(
         full_periods=full_periods,
         full_values=full_values,

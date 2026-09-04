@@ -123,7 +123,9 @@ def workbench(request: HttpRequest, scenario_id: str | None = None) -> HttpRespo
             return HttpResponse(status=403)
 
     if request.method == "POST":
-        required_perm = "simulation.change_simscenario" if scenario else "simulation.add_simscenario"
+        required_perm = (
+            "simulation.change_simscenario" if scenario else "simulation.add_simscenario"
+        )
         if not request.user.has_perm(required_perm):
             return HttpResponse(status=403)
         try:
@@ -154,7 +156,11 @@ def workbench(request: HttpRequest, scenario_id: str | None = None) -> HttpRespo
                     client_computed_indicators=client_indicators,
                 )
         except (ValidationError, PermissionDenied, KeyError, ValueError, TypeError) as exc:
-            detail = _error_message(exc) if isinstance(exc, ValidationError | PermissionDenied) else str(exc)
+            detail = (
+                _error_message(exc)
+                if isinstance(exc, ValidationError | PermissionDenied)
+                else str(exc)
+            )
             return redirect(f"{request.path}?error={quote(detail)}")
         return redirect("simulation:workbench", scenario_id=scenario.id)
 

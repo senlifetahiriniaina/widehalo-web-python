@@ -12,11 +12,10 @@ import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from django.utils import timezone
-
 from apps.forecast.models import ForSeriesForecast
 from apps.forecast.services.engine import MODEL_FUNCTIONS, select_model
 from apps.forecast.services.history import load_series_history
+from django.utils import timezone
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -72,7 +71,9 @@ def compute_and_store_forecast(
                 "rejected_models": selection.rejected_models,
                 "test_window_start": selection.test_window_start,
                 "test_window_end": selection.test_window_end,
-                "insufficient_history_for_seasonality": selection.insufficient_history_for_seasonality,
+                "insufficient_history_for_seasonality": (
+                    selection.insufficient_history_for_seasonality
+                ),
                 "error_mae_pct": selection.error_mae_pct,
                 "error_weighted_pct": selection.error_weighted_pct,
                 "error_bias_pct": selection.error_bias_pct,

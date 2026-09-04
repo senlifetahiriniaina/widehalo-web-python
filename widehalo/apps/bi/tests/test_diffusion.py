@@ -50,7 +50,9 @@ def test_send_report_to_recipient_logs_success(diffusion_tenant: Tenant) -> None
         assert mail.outbox[0].to == ["direction@example.com"]
 
 
-def test_run_due_diffusions_advances_watermark_and_logs_each_recipient(diffusion_tenant: Tenant) -> None:
+def test_run_due_diffusions_advances_watermark_and_logs_each_recipient(
+    diffusion_tenant: Tenant,
+) -> None:
     with use_tenant(diffusion_tenant.id):
         register_metric(
             diffusion_tenant,

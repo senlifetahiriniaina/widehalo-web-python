@@ -58,7 +58,9 @@ ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
 )
 
 
-def _effective_rows(code: str, at_date: dt.date, tenant: Tenant | None) -> list[RegulatoryParameter]:
+def _effective_rows(
+    code: str, at_date: dt.date, tenant: Tenant | None
+) -> list[RegulatoryParameter]:
     """Toutes les lignes effectivement resolvables a `at_date` pour ce
     `code` — la valeur globale (`tenant=None`) ET, si `tenant` est fourni,
     une eventuelle surcharge specifique a ce tenant (les DEUX peuvent

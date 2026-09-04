@@ -7,7 +7,11 @@ from __future__ import annotations
 import pytest
 
 from apps.analytics.models import AnMetricDefinition
-from apps.analytics.services.dictionary import list_metric_history, list_metrics_for_user, register_metric
+from apps.analytics.services.dictionary import (
+    list_metric_history,
+    list_metrics_for_user,
+    register_metric,
+)
 from apps.analytics.tests.factories import AnMetricDefinitionFactory
 from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import UserFactory

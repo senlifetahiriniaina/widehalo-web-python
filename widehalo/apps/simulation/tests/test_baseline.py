@@ -20,7 +20,9 @@ from apps.simulation.services.baseline import build_baseline, deserialize_baseli
 pytestmark = pytest.mark.django_db
 
 
-def _make_account(tenant: Tenant, *, code: str, name: str, account_class: int, type: str) -> AccAccount:
+def _make_account(
+    tenant: Tenant, *, code: str, name: str, account_class: int, type: str
+) -> AccAccount:
     return AccAccount.objects.create(
         tenant=tenant, code=code, name=name, account_class=account_class, type=type
     )
@@ -31,7 +33,10 @@ def ledger_tenant() -> Tenant:
     tenant = Tenant.objects.create(code="SIM-BL", name="Simulation Baseline Tenant")
     with use_tenant(tenant.id):
         fiscal_year = AccFiscalYear.objects.create(
-            tenant=tenant, code="FY2026", date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 12, 31)
+            tenant=tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
         )
         period = AccPeriod.objects.create(
             tenant=tenant,
@@ -41,13 +46,21 @@ def ledger_tenant() -> Tenant:
             date_end=dt.date(2026, 9, 30),
         )
         journal = AccJournal.objects.create(
-            tenant=tenant, code="OD", name="Opérations diverses", type=AccJournal.TYPE_MISC, sequence_prefix="OD"
+            tenant=tenant,
+            code="OD",
+            name="Opérations diverses",
+            type=AccJournal.TYPE_MISC,
+            sequence_prefix="OD",
         )
-        income = _make_account(tenant, code="701", name="Ventes", account_class=7, type=AccAccount.TYPE_INCOME)
+        income = _make_account(
+            tenant, code="701", name="Ventes", account_class=7, type=AccAccount.TYPE_INCOME
+        )
         receivable = _make_account(
             tenant, code="411", name="Clients", account_class=4, type=AccAccount.TYPE_RECEIVABLE
         )
-        achats = _make_account(tenant, code="601", name="Achats", account_class=6, type=AccAccount.TYPE_EXPENSE)
+        achats = _make_account(
+            tenant, code="601", name="Achats", account_class=6, type=AccAccount.TYPE_EXPENSE
+        )
         payable = _make_account(
             tenant, code="401", name="Fournisseurs", account_class=4, type=AccAccount.TYPE_PAYABLE
         )
@@ -57,20 +70,34 @@ def ledger_tenant() -> Tenant:
         personnel_due = _make_account(
             tenant, code="421", name="Personnel dû", account_class=4, type=AccAccount.TYPE_PAYABLE
         )
-        bank = _make_account(tenant, code="512", name="Banque", account_class=5, type=AccAccount.TYPE_BANK)
+        bank = _make_account(
+            tenant, code="512", name="Banque", account_class=5, type=AccAccount.TYPE_BANK
+        )
 
         date = dt.date(2026, 9, 5)
 
         # Vente a credit, ouverte, echeance le 15/09.
         move = create_draft_move(tenant=tenant, journal=journal, period=period, date=date)
-        add_line(move, account=receivable, label="Client", debit=Decimal(10000000), due_date=dt.date(2026, 9, 15))
+        add_line(
+            move,
+            account=receivable,
+            label="Client",
+            debit=Decimal(10000000),
+            due_date=dt.date(2026, 9, 15),
+        )
         add_line(move, account=income, label="Vente", credit=Decimal(10000000))
         post_move(move)
 
         # Achat a credit, ouvert, echeance le 20/09.
         move = create_draft_move(tenant=tenant, journal=journal, period=period, date=date)
         add_line(move, account=achats, label="Achat", debit=Decimal(4000000))
-        add_line(move, account=payable, label="Fournisseur", credit=Decimal(4000000), due_date=dt.date(2026, 9, 20))
+        add_line(
+            move,
+            account=payable,
+            label="Fournisseur",
+            credit=Decimal(4000000),
+            due_date=dt.date(2026, 9, 20),
+        )
         post_move(move)
 
         # Charges de personnel (contrepartie non recevable/payable pour ce test).
@@ -80,7 +107,9 @@ def ledger_tenant() -> Tenant:
         post_move(move)
 
         # Vente comptant : position de trésorerie de départ non nulle.
-        move = create_draft_move(tenant=tenant, journal=journal, period=period, date=dt.date(2026, 9, 1))
+        move = create_draft_move(
+            tenant=tenant, journal=journal, period=period, date=dt.date(2026, 9, 1)
+        )
         add_line(move, account=bank, label="Vente comptant", debit=Decimal(5000000))
         add_line(move, account=income, label="Vente comptant", credit=Decimal(5000000))
         post_move(move)

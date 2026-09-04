@@ -12,9 +12,8 @@ class BiConfig(AppConfig):
         # reporting` (RptJob/generate_report) d'exporter N'IMPORTE QUEL
         # `BiReport` de façon asynchrone, sans que `bi` ait besoin de son
         # propre modèle de job (cf. docstring `services/export.py`).
-        from apps.core.services.reports_registry import register_report
-
         from apps.bi.services.export import REPORT_CODE, render_bi_report_rows
+        from apps.core.services.reports_registry import register_report
 
         register_report(
             code=REPORT_CODE,

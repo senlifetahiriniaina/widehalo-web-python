@@ -204,7 +204,9 @@ def test_deliver_reserved_stock_raises_without_a_client_location(tenant) -> None
     variant_id = uuid.uuid4()
     # Entrepot SANS emplacement virtuel "client" configure.
     internal_location = StkLocationFactory(tenant=tenant)
-    StkQuantFactory(tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(20))
+    StkQuantFactory(
+        tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(20)
+    )
     reservation_id = check_and_reserve_stock(
         tenant, variant_id=variant_id, qty=Decimal(5), date=dt.date(2026, 1, 15)
     )
@@ -268,19 +270,29 @@ def test_sell_from_stock_returns_none_without_enough_qty_or_a_client_location(te
     variant_id = uuid.uuid4()
     warehouse = StkWarehouseFactory(tenant=tenant)
     internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
-    StkQuantFactory(tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(3))
+    StkQuantFactory(
+        tenant=tenant, variant_id=variant_id, location=internal_location, qty=Decimal(3)
+    )
 
     # Stock insuffisant.
     assert (
         sell_from_stock(
-            tenant, variant_id=variant_id, qty=Decimal(5), warehouse_id=warehouse.id, date=dt.date(2026, 1, 15)
+            tenant,
+            variant_id=variant_id,
+            qty=Decimal(5),
+            warehouse_id=warehouse.id,
+            date=dt.date(2026, 1, 15),
         )
         is None
     )
     # Aucun emplacement virtuel client configure pour cet entrepot.
     assert (
         sell_from_stock(
-            tenant, variant_id=variant_id, qty=Decimal(1), warehouse_id=warehouse.id, date=dt.date(2026, 1, 15)
+            tenant,
+            variant_id=variant_id,
+            qty=Decimal(1),
+            warehouse_id=warehouse.id,
+            date=dt.date(2026, 1, 15),
         )
         is None
     )

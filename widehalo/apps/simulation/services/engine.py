@@ -64,9 +64,11 @@ def compute_indicators(baseline_data: dict[str, Any], raw_levers: dict[str, Any]
     remise_factor = _ONE - levers["remise_moyenne_pts"] / 100
     ca = _round_mga(ca_ref * volume_factor * prix_factor * remise_factor)
 
-    achat_delta_factor = _ONE + (
-        levers["cout_matiere_pct"] + levers["taux_change_pct"] + levers["transport_douane_pct"]
-    ) / 100
+    achat_delta_factor = (
+        _ONE
+        + (levers["cout_matiere_pct"] + levers["taux_change_pct"] + levers["transport_douane_pct"])
+        / 100
+    )
     achats_consommes = _round_mga(achats_ref * volume_factor * achat_delta_factor)
 
     production_exercice = (
@@ -83,7 +85,10 @@ def compute_indicators(baseline_data: dict[str, Any], raw_levers: dict[str, Any]
     dotations = _round_mga(baseline_data["dotations_ref"] * structure_factor)
 
     excedent_brut = (
-        valeur_ajoutee + baseline_data["subvention_exploitation_ref"] - charges_personnel - impots_taxes
+        valeur_ajoutee
+        + baseline_data["subvention_exploitation_ref"]
+        - charges_personnel
+        - impots_taxes
     )
     resultat_operationnel = (
         excedent_brut + baseline_data["autres_produits_operationnels_ref"] - dotations
@@ -190,7 +195,9 @@ def compute_treasury_projection(
         cumulative_inflow += inflow[index]
         cumulative_outflow += outflow[index]
         cumulative_op_delta += op_delta_weekly
-        balance = _round_mga(starting_cash + cumulative_inflow - cumulative_outflow + cumulative_op_delta)
+        balance = _round_mga(
+            starting_cash + cumulative_inflow - cumulative_outflow + cumulative_op_delta
+        )
         week_start = as_of + dt.timedelta(days=index * 7)
         buckets.append(
             {

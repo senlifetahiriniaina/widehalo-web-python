@@ -47,9 +47,9 @@ def get_metric_current_value(tenant: Tenant, code: str, user: User) -> Decimal |
     `None` si l'indicateur est inconnu, non publié, non autorisé pour le
     rôle de `user`, ou non raccordé à un fait calculable (mêmes
     garde-fous que `services/query.py::run_report`, jamais dupliqués)."""
+    from apps.analytics.services.public import aggregate_fact, get_metric_definition
     from apps.bi.services.metric_computers import METRIC_FACTS
     from apps.bi.services.query import _is_metric_authorized, _user_role_codes
-    from apps.analytics.services.public import aggregate_fact, get_metric_definition
 
     metric = get_metric_definition(tenant, code)
     if metric is None or not _is_metric_authorized(metric, _user_role_codes(user)):

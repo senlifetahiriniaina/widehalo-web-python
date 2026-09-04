@@ -7,7 +7,6 @@ import datetime as dt
 import inspect
 
 import pytest
-
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.forecast.services import calendar as calendar_service

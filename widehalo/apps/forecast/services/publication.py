@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from apps.forecast.models import ForPublication, ForSeriesForecast
 from django.db.models import Max
 from django.utils import timezone
-
-from apps.forecast.models import ForPublication, ForSeriesForecast
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant

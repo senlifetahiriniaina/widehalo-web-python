@@ -16,10 +16,9 @@ cahier des charges."""
 
 from __future__ import annotations
 
-from ninja.constants import NOT_SET
-
 from apps.core.services.endpoint_governance import INTENTIONALLY_OPEN_ENDPOINTS
 from apps.core.services.permissions import _PermissionGuardedView, _SuperuserGuardedView
+from ninja.constants import NOT_SET
 
 
 def _all_operations() -> list[tuple[str, list[str], object]]:
@@ -67,8 +66,7 @@ def test_every_authenticated_endpoint_declares_a_permission() -> None:
     assert not violations, (
         "Endpoint(s) authentifie(s) sans require_permission/require_superuser ni "
         "entree dans apps.core.services.endpoint_governance."
-        "INTENTIONALLY_OPEN_ENDPOINTS (cahier Phase 1 §6.4) :\n"
-        + "\n".join(sorted(violations))
+        "INTENTIONALLY_OPEN_ENDPOINTS (cahier Phase 1 §6.4) :\n" + "\n".join(sorted(violations))
     )
 
     # Registre a jour : une entree qui ne correspond plus a AUCUN endpoint

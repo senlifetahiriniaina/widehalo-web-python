@@ -360,7 +360,9 @@ def list_variants_for_warehouse(
     l'article a depuis été retiré de la vente. `updated_since` filtre sur
     `ProductVariant.updated_at` (jalon incrémental, même contrat que
     `sales.services.public.list_order_lines_for_warehouse`)."""
-    qs = ProductVariant.objects.filter(tenant=tenant).select_related("template", "template__category")
+    qs = ProductVariant.objects.filter(tenant=tenant).select_related(
+        "template", "template__category"
+    )
     if updated_since is not None:
         qs = qs.filter(updated_at__gt=updated_since)
     return [

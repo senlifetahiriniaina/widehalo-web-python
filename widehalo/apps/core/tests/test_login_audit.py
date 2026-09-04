@@ -51,7 +51,9 @@ def test_failed_login_is_audited_without_leaking_password() -> None:
     )
 
     assert response.status_code == 401
-    entry = AuditLog.objects.filter(action=AuditLog.ACTION_LOGIN_FAILED).order_by("-created_at").first()
+    entry = (
+        AuditLog.objects.filter(action=AuditLog.ACTION_LOGIN_FAILED).order_by("-created_at").first()
+    )
     assert entry is not None
     assert entry.metadata["attempted_username"] == user.email
     assert "wrong-password" not in str(entry.metadata)
@@ -68,7 +70,9 @@ def test_unknown_email_login_attempt_is_audited() -> None:
     )
 
     assert response.status_code == 401
-    entry = AuditLog.objects.filter(action=AuditLog.ACTION_LOGIN_FAILED).order_by("-created_at").first()
+    entry = (
+        AuditLog.objects.filter(action=AuditLog.ACTION_LOGIN_FAILED).order_by("-created_at").first()
+    )
     assert entry is not None
     assert entry.metadata["attempted_username"] == "nobody@example.com"
 

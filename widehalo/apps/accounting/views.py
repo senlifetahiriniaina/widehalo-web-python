@@ -246,9 +246,7 @@ def quick_entry_list(request: HttpRequest) -> HttpResponse:
     posted = AccMove.objects.filter(
         tenant=tenant, move_type=AccMove.TYPE_ENTRY, state=AccMove.STATE_POSTED, is_active=True
     ).order_by("-date")[:50]
-    return render(
-        request, "accounting/quick_entry_list.html", {"drafts": drafts, "posted": posted}
-    )
+    return render(request, "accounting/quick_entry_list.html", {"drafts": drafts, "posted": posted})
 
 
 @login_required

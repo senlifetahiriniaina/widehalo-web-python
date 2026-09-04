@@ -353,9 +353,7 @@ class FinCredoc(BaseModel, ReferenceMixin):
     # coup, même discipline que `AccMove` immuable une fois publiée) ;
     # `amount_foreign` est ce qui permet de reconvertir au taux du jour
     # pour détecter un écart (`services.credoc.credoc_fx_variance`).
-    amount_foreign = models.DecimalField(
-        max_digits=18, decimal_places=4, null=True, blank=True
-    )
+    amount_foreign = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     validity_date = models.DateField()
     incoterm = models.CharField(max_length=8, choices=INCOTERM_CHOICES, blank=True)
     # Checklist documentaire RUU 600 (ex. ["facture commerciale",

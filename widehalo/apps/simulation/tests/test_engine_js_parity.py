@@ -66,18 +66,36 @@ _RAW_BASELINE: dict[str, Any] = {
 }
 
 _PYTHON_BASELINE: dict[str, Any] = {
-    key: Decimal(value) for key, value in _RAW_BASELINE.items() if key not in ("open_items", "as_of_date", "degraded")
+    key: Decimal(value)
+    for key, value in _RAW_BASELINE.items()
+    if key not in ("open_items", "as_of_date", "degraded")
 }
 _PYTHON_BASELINE["as_of_date"] = dt.date(2026, 9, 1)
 _PYTHON_BASELINE["open_items"] = [
-    {"kind": item["kind"], "due_date": dt.date.fromisoformat(item["due_date"]), "amount_mga": Decimal(item["amount_mga"])}
+    {
+        "kind": item["kind"],
+        "due_date": dt.date.fromisoformat(item["due_date"]),
+        "amount_mga": Decimal(item["amount_mga"]),
+    }
     for item in _RAW_BASELINE["open_items"]
 ]
 
 
 def _run_js_engine(raw_levers: dict[str, Any]) -> dict[str, Any]:
-    result = subprocess.run(
-        ["node", "-e", _NODE_RUNNER, "--", str(_JS_ENGINE_PATH), json.dumps(_RAW_BASELINE), json.dumps(raw_levers), json.dumps(catalog_as_dicts(), default=str)],
+    # noqa: S603, S607 — "node" resolu via PATH (portable dev/CI, jamais un
+    # chemin absolu fige) ; tous les arguments sont des donnees de test
+    # controlees (JSON serialise localement), jamais une entree utilisateur.
+    result = subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "node",
+            "-e",
+            _NODE_RUNNER,
+            "--",
+            str(_JS_ENGINE_PATH),
+            json.dumps(_RAW_BASELINE),
+            json.dumps(raw_levers),
+            json.dumps(catalog_as_dicts(), default=str),
+        ],
         capture_output=True,
         text=True,
         timeout=30,
@@ -132,7 +150,9 @@ def test_js_engine_matches_python_engine(raw_levers: dict[str, Any]) -> None:
 
     assert python_flat.keys() == js_flat.keys()
     for key, python_value in python_flat.items():
-        assert abs(python_value - js_flat[key]) <= 0.01, f"{key} : python={python_value} js={js_flat[key]}"
+        assert abs(python_value - js_flat[key]) <= 0.01, (
+            f"{key} : python={python_value} js={js_flat[key]}"
+        )
 
 
 def _to_float_tree(value: Any) -> Any:

@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
 
 
-def is_business_day(tenant: Tenant, date: dt.date, *, holiday_dates: set[dt.date] | None = None) -> bool:
+def is_business_day(
+    tenant: Tenant, date: dt.date, *, holiday_dates: set[dt.date] | None = None
+) -> bool:
     if date.isoweekday() in (6, 7):
         return False
     if holiday_dates is not None:
@@ -26,9 +28,9 @@ def is_business_day(tenant: Tenant, date: dt.date, *, holiday_dates: set[dt.date
 
 def business_days_in_month(tenant: Tenant, year: int, month: int) -> int:
     holiday_dates = set(
-        ForHoliday.objects.filter(
-            tenant=tenant, date__year=year, date__month=month
-        ).values_list("date", flat=True)
+        ForHoliday.objects.filter(tenant=tenant, date__year=year, date__month=month).values_list(
+            "date", flat=True
+        )
     )
     first = dt.date(year, month, 1)
     next_month = dt.date(year + 1, 1, 1) if month == 12 else dt.date(year, month + 1, 1)

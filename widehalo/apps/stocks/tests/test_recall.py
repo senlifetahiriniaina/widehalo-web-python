@@ -27,11 +27,17 @@ pytestmark = pytest.mark.django_db
 def _internal_and_supplier(tenant):
     warehouse = create_warehouse(tenant=tenant, code="WH-R", name="Entrepot rappel")
     internal = create_location(
-        tenant=tenant, warehouse=warehouse, code="INT", name="Interne",
+        tenant=tenant,
+        warehouse=warehouse,
+        code="INT",
+        name="Interne",
         type=StkLocation.TYPE_INTERNE,
     )
     supplier = create_location(
-        tenant=tenant, warehouse=warehouse, code="FRS", name="Fournisseur",
+        tenant=tenant,
+        warehouse=warehouse,
+        code="FRS",
+        name="Fournisseur",
         type=StkLocation.TYPE_FOURNISSEUR,
     )
     client = create_location(
@@ -60,9 +66,15 @@ def test_create_move_refuses_to_move_a_held_lot_out() -> None:
         variant_id = uuid.uuid4()
         lot = StkLot.objects.create(tenant=tenant, variant_id=variant_id, name="LOT-HOLD-2")
         reception = create_move(
-            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
-            location_from=supplier, location_to=internal, date=dt.date.today(),
-            move_type=StkMove.TYPE_RECEPTION, lot=lot,
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            uom="kg",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_RECEPTION,
+            lot=lot,
         )
         validate_move(reception)
 
@@ -70,9 +82,15 @@ def test_create_move_refuses_to_move_a_held_lot_out() -> None:
 
         with pytest.raises(ValidationError):
             create_move(
-                tenant=tenant, variant_id=variant_id, qty=Decimal("5"), uom="kg",
-                location_from=internal, location_to=client, date=dt.date.today(),
-                move_type=StkMove.TYPE_LIVRAISON, lot=lot,
+                tenant=tenant,
+                variant_id=variant_id,
+                qty=Decimal("5"),
+                uom="kg",
+                location_from=internal,
+                location_to=client,
+                date=dt.date.today(),
+                move_type=StkMove.TYPE_LIVRAISON,
+                lot=lot,
             )
 
 
@@ -81,23 +99,38 @@ def test_create_move_still_allows_relocating_a_held_lot_to_quarantine() -> None:
     with use_tenant(tenant.id):
         _wh, internal, supplier, _client = _internal_and_supplier(tenant)
         quarantine = create_location(
-            tenant=tenant, warehouse=internal.warehouse, code="QUA", name="Quarantaine",
+            tenant=tenant,
+            warehouse=internal.warehouse,
+            code="QUA",
+            name="Quarantaine",
             type=StkLocation.TYPE_INVENTAIRE,
         )
         variant_id = uuid.uuid4()
         lot = StkLot.objects.create(tenant=tenant, variant_id=variant_id, name="LOT-HOLD-3")
         reception = create_move(
-            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
-            location_from=supplier, location_to=internal, date=dt.date.today(),
-            move_type=StkMove.TYPE_RECEPTION, lot=lot,
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            uom="kg",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_RECEPTION,
+            lot=lot,
         )
         validate_move(reception)
         set_quality_state(tenant=tenant, lot=lot, state=StkQualityState.STATE_EN_QUARANTAINE)
 
         move = create_move(
-            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
-            location_from=internal, location_to=quarantine, date=dt.date.today(),
-            move_type=StkMove.TYPE_REBUT, lot=lot,
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            uom="kg",
+            location_from=internal,
+            location_to=quarantine,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_REBUT,
+            lot=lot,
         )
         validate_move(move)
         assert move.state == StkMove.STATE_DONE
@@ -114,23 +147,38 @@ def test_create_move_allows_relocating_a_held_lot_to_a_type_interne_quarantine()
     with use_tenant(tenant.id):
         _wh, internal, supplier, _client = _internal_and_supplier(tenant)
         dedicated_quarantine = create_location(
-            tenant=tenant, warehouse=internal.warehouse, code="QUA-INT",
-            name="Quarantaine (zone interne dédiée)", type=StkLocation.TYPE_INTERNE,
+            tenant=tenant,
+            warehouse=internal.warehouse,
+            code="QUA-INT",
+            name="Quarantaine (zone interne dédiée)",
+            type=StkLocation.TYPE_INTERNE,
         )
         variant_id = uuid.uuid4()
         lot = StkLot.objects.create(tenant=tenant, variant_id=variant_id, name="LOT-HOLD-3B")
         reception = create_move(
-            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
-            location_from=supplier, location_to=internal, date=dt.date.today(),
-            move_type=StkMove.TYPE_RECEPTION, lot=lot,
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            uom="kg",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_RECEPTION,
+            lot=lot,
         )
         validate_move(reception)
         set_quality_state(tenant=tenant, lot=lot, state=StkQualityState.STATE_DEFAUT_MAJEUR)
 
         move = create_move(
-            tenant=tenant, variant_id=variant_id, qty=Decimal("10"), uom="kg",
-            location_from=internal, location_to=dedicated_quarantine, date=dt.date.today(),
-            move_type=StkMove.TYPE_REBUT, lot=lot,
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal("10"),
+            uom="kg",
+            location_from=internal,
+            location_to=dedicated_quarantine,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_REBUT,
+            lot=lot,
         )
         validate_move(move)
         assert move.state == StkMove.STATE_DONE
@@ -148,19 +196,35 @@ def test_declare_recall_holds_lot_and_all_descendants_and_captures_client_exposu
             tenant=tenant, variant_id=finished_variant, name="PF-RAPPEL-1"
         )
         record_consumption(
-            tenant=tenant, parent_lot=raw_lot, child_lot=finished_lot, qty=Decimal("20"),
+            tenant=tenant,
+            parent_lot=raw_lot,
+            child_lot=finished_lot,
+            qty=Decimal("20"),
             source_document="MRP-OF-2026-0099",
         )
         reception = create_move(
-            tenant=tenant, variant_id=finished_variant, qty=Decimal("20"), uom="kg",
-            location_from=supplier, location_to=internal, date=dt.date.today(),
-            move_type=StkMove.TYPE_RECEPTION, lot=finished_lot,
+            tenant=tenant,
+            variant_id=finished_variant,
+            qty=Decimal("20"),
+            uom="kg",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_RECEPTION,
+            lot=finished_lot,
         )
         validate_move(reception)
         delivery = create_move(
-            tenant=tenant, variant_id=finished_variant, qty=Decimal("5"), uom="kg",
-            location_from=internal, location_to=client, date=dt.date.today(),
-            move_type=StkMove.TYPE_LIVRAISON, source_document="CMD-CLIENT-42", lot=finished_lot,
+            tenant=tenant,
+            variant_id=finished_variant,
+            qty=Decimal("5"),
+            uom="kg",
+            location_from=internal,
+            location_to=client,
+            date=dt.date.today(),
+            move_type=StkMove.TYPE_LIVRAISON,
+            source_document="CMD-CLIENT-42",
+            lot=finished_lot,
         )
         validate_move(delivery)
 

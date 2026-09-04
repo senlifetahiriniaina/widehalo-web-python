@@ -61,7 +61,9 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
     # que de distinguer "n'existe pas" de "existe mais hors portee" —
     # coherent avec le choix deja fait sur les bulletins de paie (RG-PAY-9)
     # de ne jamais laisser deviner l'existence d'un enregistrement d'autrui.
-    lead = get_object_or_404(scope_leads_for_user(CrmLead.objects.filter(is_active=True), request.user), id=lead_id)
+    lead = get_object_or_404(
+        scope_leads_for_user(CrmLead.objects.filter(is_active=True), request.user), id=lead_id
+    )
     user = cast(User, request.user)
     error = None
 

@@ -84,7 +84,14 @@ _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     "production": ("mrp", "patronage"),
-    "finance-pilotage": ("accounting", "financing", "automation", "simulation", "analytics", "forecast"),
+    "finance-pilotage": (
+        "accounting",
+        "financing",
+        "automation",
+        "simulation",
+        "analytics",
+        "forecast",
+    ),
     "rh": ("presence", "payroll"),
     "projets-risques": ("projects", _RISK_MENU_KEY),
 }

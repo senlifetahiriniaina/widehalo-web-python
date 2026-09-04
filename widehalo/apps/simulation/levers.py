@@ -29,41 +29,107 @@ class LeverDefinition(NamedTuple):
 
 LEVER_CATALOG: tuple[LeverDefinition, ...] = (
     # --- Commercial ---
-    LeverDefinition("prix_vente_pct", "commercial", "Prix de vente", "%", Decimal(-50), Decimal(100), Decimal(0)),
-    LeverDefinition("volume_pct", "commercial", "Volume", "%", Decimal(-90), Decimal(200), Decimal(0)),
     LeverDefinition(
-        "remise_moyenne_pts", "commercial", "Remise moyenne supplémentaire", "pts", Decimal(0), Decimal(50), Decimal(0)
+        "prix_vente_pct", "commercial", "Prix de vente", "%", Decimal(-50), Decimal(100), Decimal(0)
+    ),
+    LeverDefinition(
+        "volume_pct", "commercial", "Volume", "%", Decimal(-90), Decimal(200), Decimal(0)
+    ),
+    LeverDefinition(
+        "remise_moyenne_pts",
+        "commercial",
+        "Remise moyenne supplémentaire",
+        "pts",
+        Decimal(0),
+        Decimal(50),
+        Decimal(0),
     ),
     # --- Achats et production ---
-    LeverDefinition("cout_matiere_pct", "achats", "Coût matière", "%", Decimal(-50), Decimal(100), Decimal(0)),
     LeverDefinition(
-        "taux_change_pct", "achats", "Taux de change MGA/EUR/USD/CNY", "%", Decimal(-50), Decimal(100), Decimal(0)
+        "cout_matiere_pct", "achats", "Coût matière", "%", Decimal(-50), Decimal(100), Decimal(0)
     ),
     LeverDefinition(
-        "transport_douane_pct", "achats", "Coût transport et droits à l'import", "%", Decimal(-50), Decimal(100), Decimal(0)
+        "taux_change_pct",
+        "achats",
+        "Taux de change MGA/EUR/USD/CNY",
+        "%",
+        Decimal(-50),
+        Decimal(100),
+        Decimal(0),
+    ),
+    LeverDefinition(
+        "transport_douane_pct",
+        "achats",
+        "Coût transport et droits à l'import",
+        "%",
+        Decimal(-50),
+        Decimal(100),
+        Decimal(0),
     ),
     # --- Structure ---
     LeverDefinition(
-        "masse_salariale_pct", "structure", "Masse salariale", "%", Decimal(-50), Decimal(100), Decimal(0)
+        "masse_salariale_pct",
+        "structure",
+        "Masse salariale",
+        "%",
+        Decimal(-50),
+        Decimal(100),
+        Decimal(0),
     ),
     LeverDefinition(
-        "charges_fixes_pct", "structure", "Charges fixes (structure)", "%", Decimal(-50), Decimal(100), Decimal(0)
+        "charges_fixes_pct",
+        "structure",
+        "Charges fixes (structure)",
+        "%",
+        Decimal(-50),
+        Decimal(100),
+        Decimal(0),
     ),
     LeverDefinition(
-        "frais_financiers_pct", "structure", "Frais financiers", "%", Decimal(-90), Decimal(200), Decimal(0)
+        "frais_financiers_pct",
+        "structure",
+        "Frais financiers",
+        "%",
+        Decimal(-90),
+        Decimal(200),
+        Decimal(0),
     ),
     LeverDefinition(
-        "investissement_mga", "structure", "Investissement", "MGA", Decimal(0), Decimal(10_000_000_000), Decimal(0)
+        "investissement_mga",
+        "structure",
+        "Investissement",
+        "MGA",
+        Decimal(0),
+        Decimal(10_000_000_000),
+        Decimal(0),
     ),
     LeverDefinition(
-        "investissement_semaine", "structure", "Semaine de l'investissement", "semaine", Decimal(0), Decimal(12), Decimal(0)
+        "investissement_semaine",
+        "structure",
+        "Semaine de l'investissement",
+        "semaine",
+        Decimal(0),
+        Decimal(12),
+        Decimal(0),
     ),
     # --- Trésorerie ---
     LeverDefinition(
-        "delai_client_jours", "tresorerie", "Délai de règlement client", "jours", Decimal(-90), Decimal(180), Decimal(0)
+        "delai_client_jours",
+        "tresorerie",
+        "Délai de règlement client",
+        "jours",
+        Decimal(-90),
+        Decimal(180),
+        Decimal(0),
     ),
     LeverDefinition(
-        "delai_fournisseur_jours", "tresorerie", "Délai de règlement fournisseur", "jours", Decimal(-90), Decimal(180), Decimal(0)
+        "delai_fournisseur_jours",
+        "tresorerie",
+        "Délai de règlement fournisseur",
+        "jours",
+        Decimal(-90),
+        Decimal(180),
+        Decimal(0),
     ),
     # --- Fiscal ---
     # Bornes [-1, 50] et non [0, 50] : -1 est la SENTINELLE « pas de
@@ -73,7 +139,13 @@ LEVER_CATALOG: tuple[LeverDefinition, ...] = (
     # scénario qui n'utilise pas cette dérogation (le client renvoie
     # toujours le jeu complet des leviers courants, sentinelle comprise).
     LeverDefinition(
-        "tva_taux_override_pct", "fiscal", "Taux de TVA (dérogation)", "%", Decimal(-1), Decimal(50), Decimal(-1)
+        "tva_taux_override_pct",
+        "fiscal",
+        "Taux de TVA (dérogation)",
+        "%",
+        Decimal(-1),
+        Decimal(50),
+        Decimal(-1),
     ),
 )
 

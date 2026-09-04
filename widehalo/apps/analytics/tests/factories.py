@@ -22,7 +22,6 @@ from apps.analytics.models import (
     AnWarehouseState,
 )
 
-
 _MOIS_LIBELLES = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
@@ -48,7 +47,9 @@ class AnDimTempsFactory(factory.django.DjangoModelFactory):
     semaine_iso = factory.LazyAttribute(lambda o: o.date.isocalendar()[1])
     jour_du_mois = factory.LazyAttribute(lambda o: o.date.day)
     jour_semaine_iso = factory.LazyAttribute(lambda o: o.date.isocalendar()[2])
-    jour_semaine_libelle = factory.LazyAttribute(lambda o: _JOURS_LIBELLES[o.date.isocalendar()[2] - 1])
+    jour_semaine_libelle = factory.LazyAttribute(
+        lambda o: _JOURS_LIBELLES[o.date.isocalendar()[2] - 1]
+    )
     est_weekend = factory.LazyAttribute(lambda o: o.date.isocalendar()[2] in (6, 7))
     exercice_fiscal = factory.LazyAttribute(lambda o: o.date.year)
 

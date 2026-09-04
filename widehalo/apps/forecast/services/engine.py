@@ -51,7 +51,9 @@ def simple_exponential_smoothing(history: list[float], alpha: float = 0.3) -> fl
     return level
 
 
-def double_exponential_smoothing(history: list[float], alpha: float = 0.3, beta: float = 0.1) -> float:
+def double_exponential_smoothing(
+    history: list[float], alpha: float = 0.3, beta: float = 0.1
+) -> float:
     """Lissage de Holt (tendance linéaire)."""
     if not history:
         return 0.0
@@ -122,7 +124,7 @@ def regression_calendaire(history: list[float], month_indices: list[int]) -> flo
     if len(set(month_indices)) < 2:
         return trend_forecast
     by_month: dict[int, list[float]] = {}
-    for value, month in zip(history, month_indices):
+    for value, month in zip(history, month_indices, strict=True):
         by_month.setdefault(month, []).append(value)
     residual_by_month = {
         month: (sum(vals) / len(vals)) - y_mean for month, vals in by_month.items()
@@ -149,7 +151,9 @@ class BacktestResult:
     pairs: list[tuple[float, float]] = field(default_factory=list)
 
 
-def backtest(history: list[float], months: list[int], model_code: str, *, test_periods: int) -> BacktestResult | None:
+def backtest(
+    history: list[float], months: list[int], model_code: str, *, test_periods: int
+) -> BacktestResult | None:
     """Rétrotest glissant (FOR-2/FOR-3, « sur les périodes échues, et non
     ajustement sur l'historique complet ») : pour chaque période des
     `test_periods` dernières, prédit avec UNIQUEMENT les données
@@ -178,7 +182,9 @@ def backtest(history: list[float], months: list[int], model_code: str, *, test_p
     )
     bias_terms = [(p - a) / a * 100 if a else 0.0 for a, p in pairs]
     bias_pct = sum(bias_terms) / len(bias_terms)
-    return BacktestResult(mae_pct=mae_pct, weighted_pct=weighted_pct, bias_pct=bias_pct, pairs=pairs)
+    return BacktestResult(
+        mae_pct=mae_pct, weighted_pct=weighted_pct, bias_pct=bias_pct, pairs=pairs
+    )
 
 
 @dataclass

@@ -57,7 +57,9 @@ def test_run_report_aggregates_by_declared_dimension(query_tenant: Tenant) -> No
         assert result["scope_notes"] == []
 
 
-def test_run_report_excludes_metric_unauthorized_for_role_before_aggregation(query_tenant: Tenant) -> None:
+def test_run_report_excludes_metric_unauthorized_for_role_before_aggregation(
+    query_tenant: Tenant,
+) -> None:
     """BI-6 : un indicateur restreint à un rôle est retiré AVANT tout
     calcul pour un utilisateur d'un autre rôle — jamais calculé puis
     masqué."""

@@ -26,7 +26,10 @@ from django.db import transaction
 from django.db.models import Max, Min, Sum
 from django.utils import timezone
 
-from apps.accounting.services.public import list_move_lines_for_warehouse, list_payments_for_warehouse
+from apps.accounting.services.public import (
+    list_move_lines_for_warehouse,
+    list_payments_for_warehouse,
+)
 from apps.analytics.models import (
     AnDimArticle,
     AnDimTemps,
@@ -41,9 +44,13 @@ from apps.analytics.models import (
 from apps.catalog.services.public import list_variants_for_warehouse
 from apps.core.tenant_context import activate_tenant
 from apps.partners.services.public import list_partners_for_warehouse
-from apps.pos.services.public import list_order_lines_for_warehouse as list_pos_order_lines_for_warehouse
+from apps.pos.services.public import (
+    list_order_lines_for_warehouse as list_pos_order_lines_for_warehouse,
+)
 from apps.sales.services.public import (
     get_untaxed_revenue_for_reconciliation,
+)
+from apps.sales.services.public import (
     list_order_lines_for_warehouse as list_sales_order_lines_for_warehouse,
 )
 
@@ -59,7 +66,9 @@ _JOURS_LIBELLES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", 
 _RECONCILIATION_TOLERANCE_MGA = Decimal("1")
 
 
-def _ensure_dim_temps(tenant: Tenant, date: dt.date, cache: dict[dt.date, AnDimTemps]) -> AnDimTemps:
+def _ensure_dim_temps(
+    tenant: Tenant, date: dt.date, cache: dict[dt.date, AnDimTemps]
+) -> AnDimTemps:
     cached = cache.get(date)
     if cached is not None:
         return cached
@@ -165,9 +174,7 @@ def _refresh_fact_ticket_pos(
     dim_tiers: dict[Any, AnDimTiers],
     dim_article: dict[Any, AnDimArticle],
 ) -> int:
-    rows = list_pos_order_lines_for_warehouse(
-        tenant, updated_since=state.watermark_pos_orderline
-    )
+    rows = list_pos_order_lines_for_warehouse(tenant, updated_since=state.watermark_pos_orderline)
     latest_watermark = state.watermark_pos_orderline
     for row in rows:
         order_date = row["order_created_at"].date()
@@ -206,9 +213,7 @@ def _refresh_fact_encaissement(
     dim_temps_cache: dict[dt.date, AnDimTemps],
     dim_tiers: dict[Any, AnDimTiers],
 ) -> int:
-    rows = list_payments_for_warehouse(
-        tenant, updated_since=state.watermark_acc_payment
-    )
+    rows = list_payments_for_warehouse(tenant, updated_since=state.watermark_acc_payment)
     latest_watermark = state.watermark_acc_payment
     for row in rows:
         dim_temps = _ensure_dim_temps(tenant, row["date"], dim_temps_cache)
@@ -237,9 +242,7 @@ def _refresh_fact_ecriture(
     dim_temps_cache: dict[dt.date, AnDimTemps],
     dim_tiers: dict[Any, AnDimTiers],
 ) -> int:
-    rows = list_move_lines_for_warehouse(
-        tenant, updated_since=state.watermark_acc_moveline
-    )
+    rows = list_move_lines_for_warehouse(tenant, updated_since=state.watermark_acc_moveline)
     latest_watermark = state.watermark_acc_moveline
     for row in rows:
         dim_temps = _ensure_dim_temps(tenant, row["move_date"], dim_temps_cache)
@@ -334,7 +337,9 @@ def refresh_warehouse_for_tenant(
                 rows_processed += _refresh_fact_ticket_pos(
                     tenant, state, dim_temps_cache, dim_tiers, dim_article
                 )
-                rows_processed += _refresh_fact_encaissement(tenant, state, dim_temps_cache, dim_tiers)
+                rows_processed += _refresh_fact_encaissement(
+                    tenant, state, dim_temps_cache, dim_tiers
+                )
                 rows_processed += _refresh_fact_ecriture(tenant, state, dim_temps_cache, dim_tiers)
         except Exception as exc:  # noqa: BLE001 - trace l'echec en base plutot que de le laisser silencieux
             state.is_locked = False

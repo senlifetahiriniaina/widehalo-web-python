@@ -89,9 +89,7 @@ def list_levers_endpoint(request):  # type: ignore[no-untyped-def]
 @router.get("/simulation/baseline/latest")
 @require_permission("simulation.view_simbaseline")
 def latest_baseline_endpoint(request):  # type: ignore[no-untyped-def]
-    baseline = (
-        SimBaseline.objects.filter(tenant=_tenant(request)).order_by("-extracted_at").first()
-    )
+    baseline = SimBaseline.objects.filter(tenant=_tenant(request)).order_by("-extracted_at").first()
     if baseline is None:
         return JsonResponse({"detail": "Aucun socle de simulation n'existe encore."}, status=404)
     return _serialize_baseline(baseline)

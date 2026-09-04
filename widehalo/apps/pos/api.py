@@ -34,7 +34,6 @@ from apps.catalog.services.public import search_sellable_variants
 from apps.core.services.permissions import require_permission
 from apps.partners.services.public import get_partner_display_name, search_partners
 from apps.pos.models import (
-    PosCashMovement,
     PosOrder,
     PosPaymentMethod,
     PosRegister,
@@ -60,7 +59,12 @@ from apps.pos.schemas import (
     SyncLogOut,
 )
 from apps.pos.services.orders import cancel_order, create_return_order, mark_reprint, sync_order
-from apps.pos.services.sessions import add_cash_movement, close_session, compute_expected_cash, open_session
+from apps.pos.services.sessions import (
+    add_cash_movement,
+    close_session,
+    compute_expected_cash,
+    open_session,
+)
 
 router = Router(tags=["pos"])
 
@@ -312,9 +316,7 @@ def catalog_search_endpoint(request, q: str = "", limit: int = 20):  # type: ign
 @router.get("/pos/partners/search", response=list[PartnerSearchOut])
 @require_permission("pos.view_posorder")
 def partner_search_endpoint(request, q: str = "", limit: int = 20):  # type: ignore[no-untyped-def]
-    return [
-        PartnerSearchOut(**row) for row in search_partners(_tenant(request), q, limit=limit)
-    ]
+    return [PartnerSearchOut(**row) for row in search_partners(_tenant(request), q, limit=limit)]
 
 
 @router.get("/pos/sale-tax")

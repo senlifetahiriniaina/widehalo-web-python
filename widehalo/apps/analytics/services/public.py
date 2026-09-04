@@ -123,7 +123,9 @@ def get_latest_refresh_summary(tenant: Tenant) -> dict[str, Any] | None:
     }
 
 
-def _django_filters(spec_dimension_fields: dict[str, str], filters: list[dict[str, Any]]) -> dict[str, Any]:
+def _django_filters(
+    spec_dimension_fields: dict[str, str], filters: list[dict[str, Any]]
+) -> dict[str, Any]:
     django_filters: dict[str, Any] = {}
     for entry in filters:
         dimension = entry.get("dimension")
@@ -157,7 +159,8 @@ def aggregate_fact(
         return [{"value": total or 0}]
     qs = qs.values(*lookups).annotate(value=Sum(spec.value_field)).order_by(*lookups)
     return [
-        {**{d: row[spec.dimension_fields[d]] for d in dims}, "value": row["value"] or 0} for row in qs
+        {**{d: row[spec.dimension_fields[d]] for d in dims}, "value": row["value"] or 0}
+        for row in qs
     ]
 
 

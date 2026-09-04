@@ -24,12 +24,18 @@ def test_record_consumption_creates_a_link_and_is_idempotent() -> None:
         child = StkLot.objects.create(tenant=tenant, variant_id=uuid.uuid4(), name="PF-001")
 
         record_consumption(
-            tenant=tenant, parent_lot=parent, child_lot=child, qty=Decimal("10"),
+            tenant=tenant,
+            parent_lot=parent,
+            child_lot=child,
+            qty=Decimal("10"),
             source_document="MRP-OF-2026-0001",
         )
         # meme cle (parent, enfant, source_document) => mise a jour, pas duplication
         record_consumption(
-            tenant=tenant, parent_lot=parent, child_lot=child, qty=Decimal("15"),
+            tenant=tenant,
+            parent_lot=parent,
+            child_lot=child,
+            qty=Decimal("15"),
             source_document="MRP-OF-2026-0001",
         )
 
@@ -43,7 +49,10 @@ def test_genealogy_tree_reports_ancestors_and_descendants() -> None:
         raw = StkLot.objects.create(tenant=tenant, variant_id=uuid.uuid4(), name="MP-100")
         finished = StkLot.objects.create(tenant=tenant, variant_id=uuid.uuid4(), name="PF-100")
         record_consumption(
-            tenant=tenant, parent_lot=raw, child_lot=finished, qty=Decimal("5"),
+            tenant=tenant,
+            parent_lot=raw,
+            child_lot=finished,
+            qty=Decimal("5"),
             source_document="MRP-OF-2026-0002",
         )
 

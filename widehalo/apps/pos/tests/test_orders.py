@@ -16,7 +16,13 @@ from apps.catalog.tests.factories import ProductTemplateFactory, ProductVariantF
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.pos.models import PosOrder, PosOrderLine, PosPaymentMethod
-from apps.pos.services.orders import add_line, add_payment, cancel_order, create_draft_order, validate_order
+from apps.pos.services.orders import (
+    add_line,
+    add_payment,
+    cancel_order,
+    create_draft_order,
+    validate_order,
+)
 from apps.pos.tests.factories import PosPaymentMethodFactory, PosSessionFactory
 from apps.stocks.models import StkLocation, StkPicking
 from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory, StkWarehouseFactory
@@ -58,7 +64,9 @@ def test_add_line_of_type_product_revalidates_sellability_server_side(tenant) ->
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
 
     with pytest.raises(ValidationError):
-        add_line(order, line_type=PosOrderLine.TYPE_PRODUCT, variant_id=uuid.uuid4(), qty=Decimal(1))
+        add_line(
+            order, line_type=PosOrderLine.TYPE_PRODUCT, variant_id=uuid.uuid4(), qty=Decimal(1)
+        )
 
 
 def test_add_line_applies_the_default_sale_tax_rate_as_a_snapshot(tenant) -> None:
@@ -67,7 +75,11 @@ def test_add_line_applies_the_default_sale_tax_rate_as_a_snapshot(tenant) -> Non
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
 
     line = add_line(
-        order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000)
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(1000),
     )
 
     assert line.tax_rate == Decimal("20.000")
@@ -79,7 +91,13 @@ def test_add_line_applies_the_default_sale_tax_rate_as_a_snapshot(tenant) -> Non
 def test_add_payment_requires_a_reference_when_the_method_demands_one(tenant) -> None:
     session = PosSessionFactory(tenant=tenant)
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
-    add_line(order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000))
+    add_line(
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(1000),
+    )
     order.refresh_from_db()
     mobile_money = PosPaymentMethodFactory(
         tenant=tenant, type=PosPaymentMethod.TYPE_MOBILE_MONEY, requires_reference=True
@@ -91,10 +109,18 @@ def test_add_payment_requires_a_reference_when_the_method_demands_one(tenant) ->
     add_payment(order, method=mobile_money, amount=order.amount_total, reference="MVOLA-123456")
 
 
-def test_validate_order_requires_full_payment_and_assigns_a_register_prefixed_number(tenant) -> None:
+def test_validate_order_requires_full_payment_and_assigns_a_register_prefixed_number(
+    tenant,
+) -> None:
     session = PosSessionFactory(tenant=tenant)
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
-    add_line(order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000))
+    add_line(
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(1000),
+    )
     order.refresh_from_db()
     cash = PosPaymentMethodFactory(tenant=tenant, type="cash")
 
@@ -113,16 +139,24 @@ def test_validate_order_moves_real_stock_for_product_lines_only(tenant) -> None:
     internal_location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
     StkLocationFactory(tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_CLIENT)
     variant = _sellable_variant(tenant)
-    StkQuantFactory(tenant=tenant, variant_id=variant.id, location=internal_location, qty=Decimal(10))
+    StkQuantFactory(
+        tenant=tenant, variant_id=variant.id, location=internal_location, qty=Decimal(10)
+    )
 
     session = PosSessionFactory(tenant=tenant)
     session.register.warehouse_id = warehouse.id
     session.register.save(update_fields=["warehouse_id"])
 
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
-    product_line = add_line(order, line_type=PosOrderLine.TYPE_PRODUCT, variant_id=variant.id, qty=Decimal(2))
+    product_line = add_line(
+        order, line_type=PosOrderLine.TYPE_PRODUCT, variant_id=variant.id, qty=Decimal(2)
+    )
     service_line = add_line(
-        order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(500)
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(500),
     )
     order.refresh_from_db()
     cash = PosPaymentMethodFactory(tenant=tenant, type="cash")
@@ -142,13 +176,25 @@ def test_validate_order_moves_real_stock_for_product_lines_only(tenant) -> None:
 def test_a_validated_order_can_never_be_modified_or_cancelled(tenant) -> None:
     session = PosSessionFactory(tenant=tenant)
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
-    add_line(order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000))
+    add_line(
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(1000),
+    )
     order.refresh_from_db()
     cash = PosPaymentMethodFactory(tenant=tenant, type="cash")
     add_payment(order, method=cash, amount=order.amount_total)
     validate_order(order, date=dt.date(2026, 1, 15))
 
     with pytest.raises(ValidationError):
-        add_line(order, line_type=PosOrderLine.TYPE_SERVICE, description="Autre", qty=Decimal(1), unit_price=Decimal(1))
+        add_line(
+            order,
+            line_type=PosOrderLine.TYPE_SERVICE,
+            description="Autre",
+            qty=Decimal(1),
+            unit_price=Decimal(1),
+        )
     with pytest.raises(ValidationError):
         cancel_order(order)

@@ -8,7 +8,6 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
-
 from apps.analytics.tests.factories import AnDimTempsFactory, AnFactVenteFactory
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
@@ -32,7 +31,9 @@ def test_exceptional_point_excluded_from_training_but_present_in_full_history(
         january = AnDimTempsFactory(tenant=history_tenant, date=dt.date(2026, 1, 15))
         february = AnDimTempsFactory(tenant=history_tenant, date=dt.date(2026, 2, 15))
         AnFactVenteFactory(tenant=history_tenant, dim_temps=january, montant_ht_mga=Decimal("1000"))
-        fact = AnFactVenteFactory(tenant=history_tenant, dim_temps=february, montant_ht_mga=Decimal("5000"))
+        fact = AnFactVenteFactory(
+            tenant=history_tenant, dim_temps=february, montant_ht_mga=Decimal("5000")
+        )
         exceptional_period = fact.dim_temps.date.replace(day=1)
         ForExceptionalPointFactory(
             tenant=history_tenant,

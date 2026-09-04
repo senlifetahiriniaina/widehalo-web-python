@@ -94,12 +94,22 @@ def test_sale_screen_renders_the_last_order_confirmation_panel(web_pos) -> None:
         AccTaxFactory(tenant=tenant, type=AccTax.TYPE_SALE, rate=Decimal("20.000"))
         register = PosRegisterFactory(tenant=tenant)
         cash = PosPaymentMethodFactory(tenant=tenant, type="cash")
-        session_obj = open_session(tenant, register=register, cashier=user, opening_cash_amount=Decimal(0))
+        session_obj = open_session(
+            tenant, register=register, cashier=user, opening_cash_amount=Decimal(0)
+        )
         order = create_draft_order(
-            tenant, session=session_obj, client_uuid=__import__("uuid").uuid4(), local_sequence=1, user=user
+            tenant,
+            session=session_obj,
+            client_uuid=__import__("uuid").uuid4(),
+            local_sequence=1,
+            user=user,
         )
         add_line(
-            order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000)
+            order,
+            line_type=PosOrderLine.TYPE_SERVICE,
+            description="Service",
+            qty=Decimal(1),
+            unit_price=Decimal(1000),
         )
         order.refresh_from_db()
         add_payment(order, method=cash, amount=order.amount_total, user=user)

@@ -162,24 +162,38 @@ def test_refresh_populates_pos_and_accounting_facts(warehouse_tenant: Tenant) ->
         )
 
         journal = AccJournal.objects.create(
-            tenant=warehouse_tenant, code="OD", name="Opérations diverses",
-            type=AccJournal.TYPE_MISC, sequence_prefix="OD",
+            tenant=warehouse_tenant,
+            code="OD",
+            name="Opérations diverses",
+            type=AccJournal.TYPE_MISC,
+            sequence_prefix="OD",
         )
         fiscal_year = AccFiscalYear.objects.create(
-            tenant=warehouse_tenant, code="FY2026",
-            date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 12, 31),
+            tenant=warehouse_tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
         )
         period = AccPeriod.objects.create(
-            tenant=warehouse_tenant, fiscal_year=fiscal_year, code="2026-09",
-            date_start=dt.date(2026, 9, 1), date_end=dt.date(2026, 9, 30),
+            tenant=warehouse_tenant,
+            fiscal_year=fiscal_year,
+            code="2026-09",
+            date_start=dt.date(2026, 9, 1),
+            date_end=dt.date(2026, 9, 30),
         )
         income = AccAccount.objects.create(
-            tenant=warehouse_tenant, code="701", name="Ventes",
-            account_class=7, type=AccAccount.TYPE_INCOME,
+            tenant=warehouse_tenant,
+            code="701",
+            name="Ventes",
+            account_class=7,
+            type=AccAccount.TYPE_INCOME,
         )
         bank = AccAccount.objects.create(
-            tenant=warehouse_tenant, code="512", name="Banque",
-            account_class=5, type=AccAccount.TYPE_BANK,
+            tenant=warehouse_tenant,
+            code="512",
+            name="Banque",
+            account_class=5,
+            type=AccAccount.TYPE_BANK,
         )
         move = create_draft_move(
             tenant=warehouse_tenant, journal=journal, period=period, date=dt.date(2026, 9, 2)
@@ -206,7 +220,9 @@ def test_refresh_populates_pos_and_accounting_facts(warehouse_tenant: Tenant) ->
         assert ticket.montant_ttc_mga == Decimal("9440")
         assert ticket.point_vente_code == order.register.code
 
-        ecritures = list(AnFactEcriture.objects.filter(tenant=warehouse_tenant).order_by("compte_code"))
+        ecritures = list(
+            AnFactEcriture.objects.filter(tenant=warehouse_tenant).order_by("compte_code")
+        )
         assert [e.compte_code for e in ecritures] == ["512", "701"]
         assert ecritures[0].debit_mga == Decimal("20000")
         assert ecritures[1].credit_mga == Decimal("20000")

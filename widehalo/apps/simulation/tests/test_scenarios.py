@@ -131,8 +131,12 @@ def test_list_scenarios_hides_private_scenarios_of_other_users(tenant: Tenant) -
         baseline = SimBaselineFactory(tenant=tenant)
         owner = UserFactory()
         other = UserFactory()
-        create_scenario(tenant, baseline=baseline, name="Privé", levers={}, owner=owner, is_shared=False)
-        create_scenario(tenant, baseline=baseline, name="Partagé", levers={}, owner=owner, is_shared=True)
+        create_scenario(
+            tenant, baseline=baseline, name="Privé", levers={}, owner=owner, is_shared=False
+        )
+        create_scenario(
+            tenant, baseline=baseline, name="Partagé", levers={}, owner=owner, is_shared=True
+        )
 
         visible_to_other = list(list_scenarios(tenant, other))
 
@@ -144,7 +148,9 @@ def test_list_scenarios_shows_own_private_scenarios(tenant: Tenant) -> None:
     with use_tenant(tenant.id):
         baseline = SimBaselineFactory(tenant=tenant)
         owner = UserFactory()
-        create_scenario(tenant, baseline=baseline, name="Privé", levers={}, owner=owner, is_shared=False)
+        create_scenario(
+            tenant, baseline=baseline, name="Privé", levers={}, owner=owner, is_shared=False
+        )
 
         visible = list(list_scenarios(tenant, owner))
 

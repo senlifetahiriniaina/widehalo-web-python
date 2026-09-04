@@ -79,9 +79,7 @@ def create_draft_order(
 
 
 def _recompute_order_totals(order: PosOrder) -> None:
-    agg = order.lines.aggregate(
-        untaxed=Sum("subtotal"), tax=Sum("tax_amount"), total=Sum("total")
-    )
+    agg = order.lines.aggregate(untaxed=Sum("subtotal"), tax=Sum("tax_amount"), total=Sum("total"))
     order.amount_untaxed = agg["untaxed"] or Decimal(0)
     order.amount_tax = agg["tax"] or Decimal(0)
     order.amount_total = agg["total"] or Decimal(0)
@@ -169,7 +167,9 @@ def add_return_line(order: PosOrder, *, origin_line: PosOrderLine, qty: Decimal)
     rattaché au ticket d'origine")."""
     _ensure_session_open(order.session)
     if order.order_type != PosOrder.TYPE_RETURN:
-        raise ValidationError(_("Seule une commande de type retour peut recevoir une ligne de retour."))
+        raise ValidationError(
+            _("Seule une commande de type retour peut recevoir une ligne de retour.")
+        )
     if order.state != PosOrder.STATE_DRAFT:
         raise ValidationError(_("Impossible de modifier une commande déjà validée ou annulée."))
     if qty <= 0 or qty > origin_line.qty:
@@ -237,7 +237,9 @@ def add_payment(
 
 
 @transaction.atomic
-def validate_order(order: PosOrder, *, user: User | None = None, date: dt.date | None = None) -> PosOrder:
+def validate_order(
+    order: PosOrder, *, user: User | None = None, date: dt.date | None = None
+) -> PosOrder:
     """POS-1/POS-4/POS-7/POS-8 : fige la commande — assigne le numéro
     définitif réconcilié serveur (`apps.core.services.sequences.
     next_reference`, préfixe = `register.code`), sort/reçoit le stock des
@@ -336,7 +338,10 @@ def create_return_order(
     RETURN rattachée au ticket d'origine, ajoute les lignes retournées
     (`return_lines` : `[{"origin_line_id": UUID, "qty": Decimal}, ...]`),
     règle intégralement l'avoir sur `refund_method`, puis valide."""
-    if origin_order.order_type != PosOrder.TYPE_SALE or origin_order.state != PosOrder.STATE_VALIDATED:
+    if (
+        origin_order.order_type != PosOrder.TYPE_SALE
+        or origin_order.state != PosOrder.STATE_VALIDATED
+    ):
         raise ValidationError(_("Seule une vente validée peut faire l'objet d'un retour."))
 
     order = create_draft_order(

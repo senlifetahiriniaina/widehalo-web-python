@@ -6,7 +6,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-
 from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
@@ -22,7 +21,9 @@ def publication_tenant() -> Tenant:
     return Tenant.objects.create(code="FOR-PUB", name="Forecast Publication Tenant")
 
 
-def test_publish_snapshots_current_forecasts_and_versions_sequentially(publication_tenant: Tenant) -> None:
+def test_publish_snapshots_current_forecasts_and_versions_sequentially(
+    publication_tenant: Tenant,
+) -> None:
     with use_tenant(publication_tenant.id):
         ForSeriesForecastFactory(
             tenant=publication_tenant, statistical_value=Decimal("1000"), adjusted_value=None
@@ -42,7 +43,9 @@ def test_publish_snapshots_current_forecasts_and_versions_sequentially(publicati
 def test_publish_uses_adjusted_value_when_present(publication_tenant: Tenant) -> None:
     with use_tenant(publication_tenant.id):
         ForSeriesForecastFactory(
-            tenant=publication_tenant, statistical_value=Decimal("1000"), adjusted_value=Decimal("1200")
+            tenant=publication_tenant,
+            statistical_value=Decimal("1000"),
+            adjusted_value=Decimal("1200"),
         )
 
         publication = publish(publication_tenant, user=None)

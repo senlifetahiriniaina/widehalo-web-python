@@ -70,9 +70,7 @@ def register_metric(
 def list_metric_history(tenant: Tenant, code: str) -> list[AnMetricDefinition]:
     """Toutes les versions d'un indicateur, la plus récente en premier
     (BI-9 : « conserve la précédente ») — y compris la version courante."""
-    return list(
-        AnMetricDefinition.objects.filter(tenant=tenant, code=code).order_by("-version")
-    )
+    return list(AnMetricDefinition.objects.filter(tenant=tenant, code=code).order_by("-version"))
 
 
 def list_metrics_for_user(tenant: Tenant, user: User) -> list[AnMetricDefinition]:

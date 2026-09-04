@@ -6,8 +6,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from django.core.exceptions import ValidationError
-
 from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import UserFactory
 from apps.core.tests.utils import use_tenant
@@ -17,6 +15,7 @@ from apps.forecast.services.adjustments import (
     revert_adjustment,
 )
 from apps.forecast.tests.factories import ForSeriesForecastFactory
+from django.core.exceptions import ValidationError
 
 pytestmark = pytest.mark.django_db
 
@@ -28,7 +27,9 @@ def adjustment_tenant() -> Tenant:
 
 def test_apply_adjustment_never_overwrites_statistical_value(adjustment_tenant: Tenant) -> None:
     with use_tenant(adjustment_tenant.id):
-        forecast = ForSeriesForecastFactory(tenant=adjustment_tenant, statistical_value=Decimal("1000"))
+        forecast = ForSeriesForecastFactory(
+            tenant=adjustment_tenant, statistical_value=Decimal("1000")
+        )
         user = UserFactory()
 
         apply_adjustment(forecast, new_value=Decimal("1200"), reason="Campagne connue", user=user)
@@ -54,9 +55,13 @@ def test_apply_adjustment_requires_a_reason(adjustment_tenant: Tenant) -> None:
             apply_adjustment(forecast, new_value=Decimal("1200"), reason="   ", user=user)
 
 
-def test_revert_adjustment_returns_to_statistical_value_and_is_traced(adjustment_tenant: Tenant) -> None:
+def test_revert_adjustment_returns_to_statistical_value_and_is_traced(
+    adjustment_tenant: Tenant,
+) -> None:
     with use_tenant(adjustment_tenant.id):
-        forecast = ForSeriesForecastFactory(tenant=adjustment_tenant, statistical_value=Decimal("1000"))
+        forecast = ForSeriesForecastFactory(
+            tenant=adjustment_tenant, statistical_value=Decimal("1000")
+        )
         user = UserFactory()
         apply_adjustment(forecast, new_value=Decimal("1200"), reason="Test", user=user)
 
@@ -70,7 +75,9 @@ def test_revert_adjustment_returns_to_statistical_value_and_is_traced(adjustment
 def test_measure_adjustment_contribution_computes_both_errors(adjustment_tenant: Tenant) -> None:
     with use_tenant(adjustment_tenant.id):
         forecast = ForSeriesForecastFactory(
-            tenant=adjustment_tenant, statistical_value=Decimal("900"), adjusted_value=Decimal("950")
+            tenant=adjustment_tenant,
+            statistical_value=Decimal("900"),
+            adjusted_value=Decimal("950"),
         )
 
         measure_adjustment_contribution(forecast, actual_value=Decimal("1000"))

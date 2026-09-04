@@ -62,9 +62,12 @@ def _hardcoded_pcg_literals(path: Path) -> list[tuple[int, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     findings: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if _PCG_ACCOUNT_CODE_PATTERN.match(node.value):
-                findings.append((node.lineno, node.value))
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and _PCG_ACCOUNT_CODE_PATTERN.match(node.value)
+        ):
+            findings.append((node.lineno, node.value))
     return findings
 
 
@@ -102,6 +105,7 @@ def test_allowlisted_files_still_exist_and_still_need_the_exemption() -> None:
         if not _hardcoded_pcg_literals(path):
             stale.append(f"{relative} (ne contient plus aucun numéro en dur)")
 
-    assert not stale, "Entrée(s) obsolète(s) dans ACCOUNTING_FILES_ALLOWED_TO_HARDCODE_PCG_CODES : " + ", ".join(
-        stale
+    assert not stale, (
+        "Entrée(s) obsolète(s) dans ACCOUNTING_FILES_ALLOWED_TO_HARDCODE_PCG_CODES : "
+        + ", ".join(stale)
     )

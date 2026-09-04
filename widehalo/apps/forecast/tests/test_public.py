@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.forecast.services.public import get_latest_published_forecast

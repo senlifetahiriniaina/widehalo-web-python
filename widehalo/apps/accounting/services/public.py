@@ -500,7 +500,9 @@ def create_stock_adjustment_entry_from_source(
     return move_id
 
 
-def get_default_sale_tax(tenant: Tenant, *, on_date: dt.date | None = None) -> dict[str, Any] | None:
+def get_default_sale_tax(
+    tenant: Tenant, *, on_date: dt.date | None = None
+) -> dict[str, Any] | None:
     """Gap ajoute pour le module `pos` (cahier §13.5) : premiere `AccTax`
     de vente (`type=AccTax.TYPE_SALE`) valide a `on_date` (aujourd'hui par
     defaut) du tenant — `pos` ne doit jamais manipuler un objet `AccTax`

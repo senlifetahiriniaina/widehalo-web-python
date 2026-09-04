@@ -38,6 +38,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"{total_emails} e-mail(s) envoyé(s), {total_notifications} notification(s) au total."
+                f"{total_emails} e-mail(s) envoyé(s), "
+                f"{total_notifications} notification(s) au total."
             )
         )

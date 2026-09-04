@@ -25,14 +25,14 @@ from apps.sales.services.orders import (
     start_preparation,
     unblock_order,
 )
-from apps.stocks.models import StkLocation, StkPicking, StkReservation
-from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory, StkWarehouseFactory
 from apps.sales.services.quotations import (
     accept_quotation,
     add_quotation_line,
     create_quotation,
     send_quotation,
 )
+from apps.stocks.models import StkLocation, StkPicking, StkReservation
+from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory, StkWarehouseFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -234,7 +234,11 @@ def test_mark_delivered_leaves_custom_lines_on_the_naive_path(orders_setup) -> N
     with use_tenant(tenant.id):
         order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
         add_order_line(
-            order, description="Prestation", qty=Decimal(1), unit_price=Decimal(1000), is_custom=True
+            order,
+            description="Prestation",
+            qty=Decimal(1),
+            unit_price=Decimal(1000),
+            is_custom=True,
         )
         confirm_order(order, user)
         start_preparation(order, user)

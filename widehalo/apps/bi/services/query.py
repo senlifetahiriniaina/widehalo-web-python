@@ -73,7 +73,9 @@ def run_report(tenant: Tenant, report: BiReport, user: User) -> dict[str, Any]:
         dims = [d for d in requested_dimensions if d in allowed_axes]
         dropped_unauthorized = [d for d in requested_dimensions if d not in allowed_axes]
         for dropped in dropped_unauthorized:
-            scope_notes.append(f"« {metric['libelle']} » : ventilation par « {dropped} » non autorisée.")
+            scope_notes.append(
+                f"« {metric['libelle']} » : ventilation par « {dropped} » non autorisée."
+            )
 
         maille = metric.get("maille_minimale") or ""
         if maille and maille in dims:

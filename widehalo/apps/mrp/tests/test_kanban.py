@@ -29,11 +29,17 @@ def kanban_setup():
         user = User.objects.create_user(email="atelier@example.com", password="Str0ngPassw0rd!23")
         workshop = MrpWorkshop.objects.create(tenant=tenant, code="ATL-K", name="Atelier")
         cutting = MrpWorkcenter.objects.create(
-            tenant=tenant, workshop=workshop, code="CUT", name="Coupe",
+            tenant=tenant,
+            workshop=workshop,
+            code="CUT",
+            name="Coupe",
             type=MrpWorkcenter.TYPE_CUTTING,
         )
         sewing = MrpWorkcenter.objects.create(
-            tenant=tenant, workshop=workshop, code="SEW", name="Couture",
+            tenant=tenant,
+            workshop=workshop,
+            code="SEW",
+            name="Couture",
             type=MrpWorkcenter.TYPE_SEWING,
         )
         bom = create_bom(tenant=tenant, code="BOM-K", product_template_id=uuid.uuid4())

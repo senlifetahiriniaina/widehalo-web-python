@@ -27,7 +27,9 @@ INTENTIONALLY_OPEN_ENDPOINTS: dict[str, str] = {
     # posture que `chat` — chacune reste filtree en interne par tenant/RLS
     # et, pour le copilote donnees, par la liste blanche d'outils
     # `core.services.data_query_tool_registry` (deny-by-default par outil).
-    "apps.ai.api.assist_endpoint": "IA a usage large, ouverte a tout utilisateur authentifie (docs/RBAC.md §3.2).",
+    "apps.ai.api.assist_endpoint": (
+        "IA a usage large, ouverte a tout utilisateur authentifie (docs/RBAC.md §3.2)."
+    ),
     "apps.ai.api.list_assist_modules_endpoint": "Idem assist_endpoint.",
     "apps.ai.api.nl_search_endpoint": "Idem assist_endpoint.",
     "apps.ai.api.generate_insights_endpoint": "Idem assist_endpoint.",
@@ -44,16 +46,28 @@ INTENTIONALLY_OPEN_ENDPOINTS: dict[str, str] = {
     # messagerie interne transversale, pas une donnee metier sensible ;
     # seule l'appartenance au canal (verifiee dans apps.chat.services)
     # protege son contenu.
-    "apps.chat.api.list_channels": "Messagerie interne transversale, non sensible (docs/RBAC.md §1).",
-    "apps.chat.api.list_messages": "Idem list_channels ; portee au canal dont l'appartenance est verifiee en service.",
+    "apps.chat.api.list_channels": (
+        "Messagerie interne transversale, non sensible (docs/RBAC.md §1)."
+    ),
+    "apps.chat.api.list_messages": (
+        "Idem list_channels ; portee au canal dont l'appartenance est verifiee en service."
+    ),
     "apps.chat.api.create_message": "Idem list_channels.",
     # Portee intrinsequement limitee a l'utilisateur courant (`request.auth`) :
     # une permission de module n'aurait aucun sens, il n'y a rien a
     # restreindre en plus du "soi-meme".
-    "apps.core.api_tenants.list_tenants": "Tout utilisateur authentifie doit pouvoir lister SES PROPRES tenants.",
-    "apps.core.api_tenants.select_tenant": "Idem list_tenants — selection parmi ses propres tenants.",
-    "apps.core.api_notifications.list_notifications": "Notifications de l'utilisateur courant uniquement (filtre `user=request.auth`).",
-    "apps.core.api_notifications.mark_notification_read": "Idem — ne peut marquer lue qu'une notification lui appartenant.",
+    "apps.core.api_tenants.list_tenants": (
+        "Tout utilisateur authentifie doit pouvoir lister SES PROPRES tenants."
+    ),
+    "apps.core.api_tenants.select_tenant": (
+        "Idem list_tenants — selection parmi ses propres tenants."
+    ),
+    "apps.core.api_notifications.list_notifications": (
+        "Notifications de l'utilisateur courant uniquement (filtre `user=request.auth`)."
+    ),
+    "apps.core.api_notifications.mark_notification_read": (
+        "Idem — ne peut marquer lue qu'une notification lui appartenant."
+    ),
     "apps.core.api_workflow.pending_approvals": (
         "`approvals.pending_for_user` filtre deja par role approbateur/delegation/"
         "escalade de l'utilisateur courant — rien a restreindre en plus."
@@ -66,14 +80,21 @@ INTENTIONALLY_OPEN_ENDPOINTS: dict[str, str] = {
     # `services/search.py::global_search` filtre deja par tenant ET par
     # permission RBAC objet par objet (cf. sa docstring) avant de renvoyer
     # le moindre resultat.
-    "apps.core.api_search.search": "Filtre par tenant et par permission RBAC a l'interieur de `services/search.py::global_search`.",
+    "apps.core.api_search.search": (
+        "Filtre par tenant et par permission RBAC a l'interieur de "
+        "`services/search.py::global_search`."
+    ),
     # Squelette non implemente (Etape 11 a venir) : ne renvoie aujourd'hui
     # jamais rien d'autre qu'une liste vide, aucune donnee exposee. A
     # RETIRER de ce registre des que l'implementation reelle sera ecrite —
     # elle devra alors declarer une vraie permission.
-    "apps.core.api_export_import.list_exports": "Squelette non implemente : retourne toujours {\"results\": []}, aucune donnee exposee.",
+    "apps.core.api_export_import.list_exports": (
+        'Squelette non implemente : retourne toujours {"results": []}, aucune donnee exposee.'
+    ),
     # Point de demonstration du mecanisme d'idempotence transversal — ne
     # lit ni n'ecrit aucune donnee metier, se contente de renvoyer le
     # payload recu.
-    "apps.core.api_meta.echo": "Demo du mecanisme d'idempotence ; ne lit/n'ecrit aucune donnee metier.",
+    "apps.core.api_meta.echo": (
+        "Demo du mecanisme d'idempotence ; ne lit/n'ecrit aucune donnee metier."
+    ),
 }

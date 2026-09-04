@@ -30,7 +30,12 @@ from apps.core.views.tenant_web import resolve_tenant
 from apps.partners.services.public import search_partners
 from apps.pos.models import PosOrder, PosPaymentMethod, PosRegister, PosSession, PosSyncLog
 from apps.pos.services.orders import sync_order
-from apps.pos.services.sessions import add_cash_movement, close_session, compute_expected_cash, open_session
+from apps.pos.services.sessions import (
+    add_cash_movement,
+    close_session,
+    compute_expected_cash,
+    open_session,
+)
 
 
 def _error_message(exc: Exception) -> str:
@@ -101,9 +106,7 @@ def sale_screen(request: HttpRequest) -> HttpResponse:
             "registers": registers,
             "my_open_session": my_open_session,
             "catalog": catalog,
-            "payment_methods": [
-                {**pm, "id": str(pm["id"])} for pm in payment_methods
-            ],
+            "payment_methods": [{**pm, "id": str(pm["id"])} for pm in payment_methods],
             "tax_rate": tax_rate,
             "last_order": last_order,
             "error": request.GET.get("error", ""),
@@ -269,7 +272,9 @@ def session_detail(request: HttpRequest, session_id: str) -> HttpResponse:
     session = get_object_or_404(
         PosSession.objects.select_related("register", "cashier"), id=session_id
     )
-    can_manage = request.user.has_perm("pos.change_possession") or session.cashier_id == request.user.id
+    can_manage = (
+        request.user.has_perm("pos.change_possession") or session.cashier_id == request.user.id
+    )
     error = None
 
     if request.method == "POST":

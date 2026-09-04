@@ -22,9 +22,8 @@ que Phase 3 n'existe pas)."""
 
 from __future__ import annotations
 
-from django.db import models
-
 from apps.core.models.base import BaseModel
+from django.db import models
 
 
 class ForHoliday(BaseModel):
@@ -145,8 +144,12 @@ class ForSeriesForecast(BaseModel):
     adjustment_history = models.JSONField(default=list, blank=True)
 
     # FOR-7 : mesuré une fois la période échue (l'actuel est alors connu).
-    adjustment_error_pct = models.DecimalField(max_digits=9, decimal_places=4, null=True, blank=True)
-    statistical_error_pct = models.DecimalField(max_digits=9, decimal_places=4, null=True, blank=True)
+    adjustment_error_pct = models.DecimalField(
+        max_digits=9, decimal_places=4, null=True, blank=True
+    )
+    statistical_error_pct = models.DecimalField(
+        max_digits=9, decimal_places=4, null=True, blank=True
+    )
 
     computed_at = models.DateTimeField()
 
@@ -189,7 +192,9 @@ class ForPublication(BaseModel):
     class Meta:
         db_table = "for_publication"
         constraints = [
-            models.UniqueConstraint(fields=["tenant", "version"], name="uniq_for_publication_version")
+            models.UniqueConstraint(
+                fields=["tenant", "version"], name="uniq_for_publication_version"
+            )
         ]
         ordering = ["-version"]
 

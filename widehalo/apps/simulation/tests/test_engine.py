@@ -135,9 +135,7 @@ def test_investissement_lever_produces_a_one_time_outflow() -> None:
 
 def test_sensitivity_ranking_only_covers_proportional_levers() -> None:
     rankings = rank_levers_by_sensitivity(_BASELINE_DATA, default_levers())
-    eligible_codes = {
-        lever.code for lever in LEVER_CATALOG if lever.unit in ("%", "pts")
-    }
+    eligible_codes = {lever.code for lever in LEVER_CATALOG if lever.unit in ("%", "pts")}
     assert {row["code"] for row in rankings} == eligible_codes
     # Trie decroissant par ecart absolu sur le resultat net.
     deltas = [abs(row["delta_resultat_mga"]) for row in rankings]

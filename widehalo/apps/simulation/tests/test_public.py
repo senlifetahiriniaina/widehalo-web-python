@@ -35,7 +35,9 @@ def test_preview_indicators_for_levers_returns_none_without_a_baseline(tenant: T
         assert preview_indicators_for_levers(tenant, levers={}) is None
 
 
-def test_preview_indicators_for_levers_computes_without_persisting_a_scenario(tenant: Tenant) -> None:
+def test_preview_indicators_for_levers_computes_without_persisting_a_scenario(
+    tenant: Tenant,
+) -> None:
     from apps.simulation.models import SimScenario
 
     with use_tenant(tenant.id):

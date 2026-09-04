@@ -36,7 +36,12 @@ from apps.stocks.models import (
     StkValuationLayer,
     StkWarehouse,
 )
-from apps.stocks.services.pickings import add_picking_line, create_picking, mark_picking_ready, validate_picking
+from apps.stocks.services.pickings import (
+    add_picking_line,
+    create_picking,
+    mark_picking_ready,
+    validate_picking,
+)
 from apps.stocks.services.quants import available_qty
 from apps.stocks.services.reservations import release_reservation, reserve_stock
 

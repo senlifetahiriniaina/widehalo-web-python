@@ -13,7 +13,6 @@ from apps.core.tests.utils import use_tenant
 from apps.pos.models import PosOrderLine, PosSession
 from apps.pos.services.orders import add_line, add_payment, create_draft_order, validate_order
 from apps.pos.services.public import get_session_cash_summary, list_open_sessions
-from apps.pos.services.sessions import open_session
 from apps.pos.tests.factories import PosPaymentMethodFactory, PosRegisterFactory, PosSessionFactory
 
 pytestmark = pytest.mark.django_db
@@ -51,7 +50,11 @@ def test_get_session_cash_summary_reports_payments_by_method_and_pending_offline
 
     order = create_draft_order(tenant, session=session, client_uuid=uuid.uuid4(), local_sequence=1)
     add_line(
-        order, line_type=PosOrderLine.TYPE_SERVICE, description="Service", qty=Decimal(1), unit_price=Decimal(1000)
+        order,
+        line_type=PosOrderLine.TYPE_SERVICE,
+        description="Service",
+        qty=Decimal(1),
+        unit_price=Decimal(1000),
     )
     order.refresh_from_db()
     add_payment(order, method=cash, amount=order.amount_total)

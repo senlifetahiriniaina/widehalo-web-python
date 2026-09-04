@@ -6,7 +6,6 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
-
 from apps.analytics.tests.factories import AnDimTempsFactory, AnFactVenteFactory
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
@@ -64,10 +63,16 @@ def test_compute_and_store_forecast_is_idempotent_on_replay(compute_tenant: Tena
         _seed_months(compute_tenant, 15)
 
         compute_and_store_forecast(
-            compute_tenant, dimension_type="canal", dimension_value="vente_directe", horizon_months=3
+            compute_tenant,
+            dimension_type="canal",
+            dimension_value="vente_directe",
+            horizon_months=3,
         )
         compute_and_store_forecast(
-            compute_tenant, dimension_type="canal", dimension_value="vente_directe", horizon_months=3
+            compute_tenant,
+            dimension_type="canal",
+            dimension_value="vente_directe",
+            horizon_months=3,
         )
 
         assert (

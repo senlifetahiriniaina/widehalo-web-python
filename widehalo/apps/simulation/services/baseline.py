@@ -136,7 +136,9 @@ def build_baseline(
     )
 
 
-def refresh_baseline(tenant: Tenant, *, as_of_date: dt.date | None = None, user: User | None = None) -> str:
+def refresh_baseline(
+    tenant: Tenant, *, as_of_date: dt.date | None = None, user: User | None = None
+) -> str:
     """Enfile la reconstruction du socle via `apps.core.tasks.enqueue` —
     cahier §5.2 : « construction du socle de simulation » est explicitement
     listée parmi les quatre traitements asynchrones de la Phase 1. Renvoie
