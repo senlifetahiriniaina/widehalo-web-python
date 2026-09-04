@@ -1,0 +1,53 @@
+"""Commande ops (§5.8, STK-2, sprint A1) : controle de coherence entre
+`StkQuant` (materialise) et l'agregat des `StkMove` (source de verite) pour
+tous les tenants. Mirroir exact de
+`apps.stocks.management.commands.check_production_consistency` (elle-meme
+mirroir de `run_purchase_reordering`/`expire_stock_reservations`) : meme
+structure (boucle `Tenant.objects.all()` + `activate_tenant`), meme absence
+deliberee de cablage automatique dans un `Schedule` de cron — un humain/ops
+declenche cette commande, jamais un mecanisme auto-enregistre."""
+
+from __future__ import annotations
+
+from django.core.management.base import BaseCommand
+
+from apps.core.models.tenant import Tenant
+from apps.core.tenant_context import activate_tenant
+from apps.stocks.services.consistency import quant_ledger_consistency_report
+
+
+class Command(BaseCommand):
+    help = (
+        "STK-2 : compare, pour chaque StkQuant, la quantite materialisee a "
+        "la quantite re-derivee de l'agregat des StkMove, pour tous les "
+        "tenants."
+    )
+
+    def handle(self, *args, **options) -> None:
+        total_anomalies = 0
+        for tenant in Tenant.objects.all():
+            with activate_tenant(tenant.id):
+                rows = quant_ledger_consistency_report(tenant)
+            anomalies = [row for row in rows if row["anomaly"]]
+            total_anomalies += len(anomalies)
+            if not rows:
+                self.stdout.write(
+                    self.style.WARNING(f"Tenant {tenant.code} : aucun quant à contrôler.")
+                )
+                continue
+            for row in anomalies:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Tenant {tenant.code} : quant {row['quant_id']} "
+                        f"(variant={row['variant_id']}, emplacement={row['location_id']}) — "
+                        f"enregistre={row['recorded_qty']} derive={row['derived_qty']} "
+                        f"ecart={row['variance']}"
+                    )
+                )
+            if not anomalies:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Tenant {tenant.code} : {len(rows)} quant(s) controle(s), aucune anomalie."
+                    )
+                )
+        self.stdout.write(self.style.SUCCESS(f"Total : {total_anomalies} anomalie(s) detectee(s)."))

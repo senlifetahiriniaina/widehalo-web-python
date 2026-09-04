@@ -330,3 +330,69 @@ def test_reverse_move_refuses_non_done(moves_setup) -> None:
         )
         with pytest.raises(ValidationError):
             reverse_move(move)
+
+
+@pytest.mark.parametrize(
+    "move_type",
+    [StkMove.TYPE_VENTE_COMPTOIR, StkMove.TYPE_CASSE],
+)
+def test_create_and_validate_move_accepts_the_two_new_outflow_natures(
+    moves_setup, move_type
+) -> None:
+    """Phase 3 §5.8 (sprint A1) : « vente au comptoir » et « casse »,
+    2 des 3 natures manquantes pour couvrir les douze du cahier, sont des
+    `move_type` reellement acceptes par le cycle de vie complet
+    creation/validation (sortie de stock interne existant) — pas
+    seulement des libelles ajoutes a `MOVE_TYPE_CHOICES` sans effet."""
+    tenant, _wh, internal, _i2, supplier, client = moves_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        reception = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(10),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("100"),
+        )
+        validate_move(reception)
+
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(3),
+            uom="pc",
+            location_from=internal,
+            location_to=client,
+            date=dt.date(2026, 1, 2),
+            move_type=move_type,
+        )
+        validated = validate_move(move)
+        assert validated.state == StkMove.STATE_DONE
+        assert validated.move_type == move_type
+        assert get_quant(variant_id, internal).qty == Decimal("7.0000")
+
+
+def test_create_and_validate_move_accepts_the_sous_produit_nature(moves_setup) -> None:
+    """« Sous-produit », la 3e nature manquante — représente une ENTRÉE en
+    stock (byproduct de production), symétrique à `TYPE_PRODUCTION_IN`."""
+    tenant, _wh, internal, _i2, supplier, _client = moves_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(4),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_SOUS_PRODUIT,
+            unit_cost_mga=Decimal("50"),
+        )
+        validated = validate_move(move)
+        assert validated.state == StkMove.STATE_DONE
+        assert get_quant(variant_id, internal).qty == Decimal("4.0000")

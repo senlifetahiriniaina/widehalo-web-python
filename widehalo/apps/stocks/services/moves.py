@@ -79,7 +79,14 @@ from django.utils.translation import gettext as _
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
-from apps.stocks.models import StkLocation, StkLot, StkMove, StkQuant, StkValuationLayer
+from apps.stocks.models import (
+    StkLocation,
+    StkLot,
+    StkMove,
+    StkQuant,
+    StkValuationLayer,
+    StkWarehouse,
+)
 from apps.stocks.services.negative_stock import (
     _journalize_and_alert,
     has_negative_stock_exception,
@@ -550,3 +557,150 @@ def reverse_move(move: StkMove) -> StkMove:
         reverses=move,
     )
     return validate_move(reversal)
+
+
+def transfer_between_warehouses(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    qty: Decimal,
+    uom: str,
+    source_warehouse: StkWarehouse,
+    destination_warehouse: StkWarehouse,
+    date: dt.date,
+    source_document: str = "",
+    unit_cost_mga: Decimal = Decimal(0),
+    lot: StkLot | None = None,
+    operator: User | None = None,
+) -> StkMove:
+    """Phase 1 (départ) d'un transfert entre deux entrepôts distincts
+    (STK-5, Phase 3 §5.8, sprint A1) : déplace la quantité de
+    l'emplacement interne du DÉPART vers un emplacement `TYPE_TRANSIT`
+    scopé sur l'entrepôt de DESTINATION (`get_or_create`, même patron
+    exact que `services.public.receive_purchase_line` pour l'emplacement
+    virtuel fournisseur) — la quantité reste ainsi valorisée et visible en
+    stock total, mais indisponible/non réservable à AUCUN des deux
+    entrepôts tant que `receive_warehouse_transfer` (phase 2 ci-dessous)
+    n'a pas été appelée : « état "en transit" qui rend la quantité
+    indisponible sans la faire disparaître » (cahier §5.8, écran
+    Transfert).
+
+    Deux mouvements DISTINCTS et durablement persistés (pas une seule
+    transaction couvrant tout le trajet) — « interruption sans perte »
+    (cahier, S9) : si l'arrivée physique n'a pas encore eu lieu (camion en
+    route), la marchandise reste tracée EN TRANSIT dans le système entre
+    les deux appels, sans qu'aucune donnée ne soit perdue si le process
+    s'interrompt entre les deux phases.
+
+    Emplacement de transit scopé à la DESTINATION (pas au départ, pas un
+    entrepôt `TYPE_TRANSIT` dédié global) : cohérent avec la lecture "en
+    transit VERS ce dépôt", et évite qu'un même emplacement de transit
+    partagé mélange des flux à destination d'entrepôts différents."""
+    if source_warehouse.id == destination_warehouse.id:
+        raise ValidationError(
+            _("Un transfert entre entrepôts doit porter sur deux entrepôts distincts.")
+        )
+    source_internal = StkLocation.objects.filter(
+        tenant=tenant, warehouse=source_warehouse, type=StkLocation.TYPE_INTERNE
+    ).first()
+    if source_internal is None:
+        raise ValidationError(
+            _("L'entrepôt de départ ne possède aucun emplacement interne configuré.")
+        )
+    transit_location, _created = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=destination_warehouse,
+        type=StkLocation.TYPE_TRANSIT,
+        defaults={"code": f"{destination_warehouse.code}-TRANSIT", "name": "Transit (virtuel)"},
+    )
+    move = create_move(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom=uom,
+        location_from=source_internal,
+        location_to=transit_location,
+        date=date,
+        move_type=StkMove.TYPE_TRANSFERT_INTERNE,
+        source_document=source_document,
+        unit_cost_mga=unit_cost_mga,
+        lot=lot,
+        operator=operator,
+    )
+    return validate_move(move)
+
+
+def receive_warehouse_transfer(
+    transit_move: StkMove,
+    *,
+    date: dt.date,
+    qty: Decimal | None = None,
+    operator: User | None = None,
+) -> StkMove:
+    """Phase 2 (arrivée) d'un transfert entre entrepôts démarré par
+    `transfer_between_warehouses` ci-dessus — déplace `qty` (par défaut la
+    quantité totale du départ, `transit_move.qty` : réception PARTIELLE
+    possible en renseignant `qty` explicitement) de l'emplacement de
+    transit vers l'emplacement interne de l'entrepôt de destination,
+    clôturant le transfert.
+
+    Refuse si `transit_move` n'est pas un mouvement `done` dont la
+    destination est bien un emplacement `TYPE_TRANSIT`, et refuse si
+    `qty` dépasse la quantité RÉELLEMENT encore présente à cet emplacement
+    de transit (`get_quant`, scopée au même lot) — garde nécessaire faute
+    de RG-STK-10 ici : `TYPE_TRANSIT` est un emplacement VIRTUEL au sens
+    valorisation (`_is_valuation_internal` ne le couvre pas, cf. son
+    docstring), donc le garde-fou générique "stock négatif interdit par
+    défaut" ne s'applique PAS à cet emplacement — sans cette vérification
+    explicite, appeler cette fonction deux fois pour le même transfert (ou
+    avec une quantité supérieure à ce qui est réellement arrivé) ferait
+    silencieusement passer le quant de transit en négatif."""
+    if transit_move.state != StkMove.STATE_DONE:
+        raise ValidationError(
+            _("Le mouvement de départ doit être validé avant de réceptionner le transfert.")
+        )
+    transit_location = transit_move.location_to
+    if transit_location.type != StkLocation.TYPE_TRANSIT:
+        raise ValidationError(
+            _(
+                "Ce mouvement n'est pas un départ de transfert inter-entrepôt "
+                "(sa destination n'est pas un emplacement de transit)."
+            )
+        )
+    qty_to_receive = qty if qty is not None else transit_move.qty
+    if qty_to_receive <= 0:
+        raise ValidationError(_("La quantité réceptionnée doit être strictement positive."))
+    transit_quant = get_quant(transit_move.variant_id, transit_location, transit_move.lot)
+    available_qty = transit_quant.qty if transit_quant is not None else Decimal(0)
+    if qty_to_receive > available_qty:
+        raise ValidationError(
+            _(
+                "Quantité en transit insuffisante pour cette réception "
+                "(demandée : %(requested)s, disponible : %(available)s)."
+            )
+            % {"requested": qty_to_receive, "available": available_qty}
+        )
+    destination_internal = StkLocation.objects.filter(
+        tenant=transit_move.tenant,
+        warehouse=transit_location.warehouse,
+        type=StkLocation.TYPE_INTERNE,
+    ).first()
+    if destination_internal is None:
+        raise ValidationError(
+            _("L'entrepôt de destination ne possède aucun emplacement interne configuré.")
+        )
+    move = create_move(
+        tenant=transit_move.tenant,
+        variant_id=transit_move.variant_id,
+        qty=qty_to_receive,
+        uom=transit_move.uom,
+        location_from=transit_location,
+        location_to=destination_internal,
+        date=date,
+        move_type=StkMove.TYPE_TRANSFERT_INTERNE,
+        source_document=transit_move.source_document,
+        unit_cost_mga=transit_move.unit_cost_mga,
+        lot=transit_move.lot,
+        operator=operator,
+    )
+    return validate_move(move)

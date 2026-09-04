@@ -1,11 +1,13 @@
 """RG-STK-6 (cohérence production/stock, ST6 du sous-sequencement `stocks`
 — cf. plan) : `production_consistency_report`, acceptance test §5.8.7 n°4
 explicitement exerce (OF declarant 100, 95 entrees en stock -> anomalie
-avec `variance=-5`)."""
+avec `variance=-5`). STK-2 (sprint A1) :
+`quant_ledger_consistency_report`."""
 
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -14,8 +16,11 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder
 from apps.mrp.tests.factories import MrpOrderFactory
-from apps.stocks.models import StkLocation, StkMove
-from apps.stocks.services.consistency import production_consistency_report
+from apps.stocks.models import StkLocation, StkMove, StkQuant
+from apps.stocks.services.consistency import (
+    production_consistency_report,
+    quant_ledger_consistency_report,
+)
 from apps.stocks.services.moves import create_move, validate_move
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
@@ -164,3 +169,89 @@ def test_production_consistency_report_excludes_non_closed_orders(consistency_se
         order = MrpOrderFactory(tenant=tenant, state=MrpOrder.STATE_DRAFT)
         report = production_consistency_report(tenant, since=dt.date(2026, 1, 1))
         assert order.id not in {r["order_id"] for r in report}
+
+
+def test_quant_ledger_consistency_report_no_anomaly_after_normal_operations(
+    consistency_setup,
+) -> None:
+    """STK-2 : sous fonctionnement normal (mouvements passes exclusivement
+    par `services.moves`), `recorded_qty` (StkQuant) egale toujours
+    `derived_qty` (agregat StkMove) — RG-STK-1 garanti par construction."""
+    tenant, production, internal = consistency_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        supplier = create_location(
+            tenant=tenant,
+            warehouse=internal.warehouse,
+            code="FRS",
+            name="Fournisseur",
+            type=StkLocation.TYPE_FOURNISSEUR,
+        )
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(30),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("500"),
+        )
+        validate_move(move)
+
+        report = quant_ledger_consistency_report(tenant)
+        internal_row = next(r for r in report if r["location_id"] == internal.id)
+        assert internal_row["recorded_qty"] == Decimal("30.0000")
+        assert internal_row["derived_qty"] == Decimal("30.0000")
+        assert internal_row["variance"] == Decimal("0.0000")
+        assert internal_row["anomaly"] is False
+        supplier_row = next(r for r in report if r["location_id"] == supplier.id)
+        assert supplier_row["anomaly"] is False
+
+
+def test_quant_ledger_consistency_report_detects_manually_introduced_divergence(
+    consistency_setup,
+) -> None:
+    """STK-2 : le rapport existe précisément pour détecter une dérive qui
+    échapperait à la garantie structurelle RG-STK-1 — simulée ici par une
+    modification directe de `StkQuant.qty` hors de `services.moves` (ex.
+    admin Django brut, bug de service), le seul scénario où
+    `recorded_qty` peut légitimement diverger de `derived_qty`."""
+    tenant, production, internal = consistency_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        supplier = create_location(
+            tenant=tenant,
+            warehouse=internal.warehouse,
+            code="FRS2",
+            name="Fournisseur",
+            type=StkLocation.TYPE_FOURNISSEUR,
+        )
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(30),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("500"),
+        )
+        validate_move(move)
+
+        # `.update()` (pas `.save()`) : contourne deliberement `services.
+        # moves` pour simuler une derive qui echapperait a la discipline de
+        # service normale — meme raisonnement que le contournement de
+        # `auto_now` documente plus haut dans ce fichier.
+        StkQuant.objects.filter(variant_id=variant_id, location=internal).update(
+            qty=Decimal("25.0000")
+        )
+
+        report = quant_ledger_consistency_report(tenant)
+        internal_row = next(r for r in report if r["location_id"] == internal.id)
+        assert internal_row["recorded_qty"] == Decimal("25.0000")
+        assert internal_row["derived_qty"] == Decimal("30.0000")
+        assert internal_row["variance"] == Decimal("-5.0000")
+        assert internal_row["anomaly"] is True

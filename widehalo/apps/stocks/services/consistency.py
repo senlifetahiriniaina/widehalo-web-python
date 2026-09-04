@@ -1,9 +1,15 @@
-"""Cohérence production/stock (§5.8, ST6 du sous-sequencement `stocks` —
-cf. plan) : RG-STK-6, controle automatique (commande de management, jamais
-un job cron auto-enregistre, meme discipline que
-`run_purchase_reordering`/`expire_stock_reservations`) comparant la
-quantite DECLAREE produite par un ordre de fabrication a la quantite REELLEMENT
-entree en stock pour cet ordre.
+"""Rapports de coherence de `stocks` (§5.8) — deux controles distincts,
+co-localises ici car tous deux sont des controles OPERATIONNELS de
+divergence (commande de management, jamais un job cron auto-enregistre,
+meme discipline que `run_purchase_reordering`/`expire_stock_reservations`),
+pas des regles de service qui bloqueraient une operation :
+
+- `production_consistency_report` (ST6, RG-STK-6) : quantite DECLAREE
+  produite par un ordre de fabrication vs quantite REELLEMENT entree en
+  stock pour cet ordre.
+- `quant_ledger_consistency_report` (A1, STK-2) : quantite materialisee
+  d'un `StkQuant` vs quantite RE-DERIVEE en reagregant les `StkMove`
+  correspondants — cf. son propre docstring pour le detail.
 
 **Perimetre honnete retenu (3e jambe du RG-STK-6 non implementee)** : le
 CDC (RG-STK-6) demande litteralement de comparer 3 nombres — quantite
@@ -65,7 +71,7 @@ from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
 from apps.mrp.services.public import list_closed_orders
-from apps.stocks.models import StkMove
+from apps.stocks.models import StkMove, StkQuant
 
 # RG-STK-6 ne fixe aucune fenetre par defaut pour "les ordres clotures
 # recemment" — 30 jours retenu ici comme defaut assume (coherent avec la
@@ -120,6 +126,61 @@ def production_consistency_report(
                 "workshop_id": order["workshop_id"],
                 "qty_declared": qty_declared,
                 "qty_entered_stock": qty_entered_stock,
+                "variance": variance,
+                "anomaly": variance != 0,
+            }
+        )
+    return rows
+
+
+def quant_ledger_consistency_report(tenant: Tenant) -> list[dict[str, Any]]:
+    """STK-2 (cahier §5.8, sprint A1) : « Égalité mouvement/agrégat » —
+    pour chaque `StkQuant` du tenant, compare la quantité ACTUELLEMENT
+    matérialisée (`StkQuant.qty`, mise à jour incrémentalement par
+    `services.moves.validate_move`/`_apply_quant_delta` à chaque
+    mouvement) à la quantité RE-DÉRIVÉE en réagrégeant tous les `StkMove`
+    `done` qui touchent ce couple (variant, emplacement) — entrées moins
+    sorties.
+
+    Sous fonctionnement normal, ces deux valeurs sont TOUJOURS égales par
+    construction (RG-STK-1, déjà garanti structurellement — chaque
+    `StkMove` porte exactement un `from` et un `to` — et déjà prouvé par
+    le test de propriété Hypothesis `test_rg_stk_1_algebraic_sum_is_
+    always_zero_per_variant`). Ce rapport n'existe PAS pour re-prouver
+    cette règle (déjà testée), mais pour la VÉRIFIER OPÉRATIONNELLEMENT
+    sur des données réelles — écart possible malgré la garantie
+    structurelle en cas de bug de service, de modification hors service
+    (admin Django brut), ou de migration de données. L'audit Phase 3 avait
+    relevé que l'égalité était « prouvée par test » mais qu'aucun écran de
+    contrôle de divergence n'existait pour la vérifier en pratique — c'est
+    ce gap que ce rapport comble, même discipline "toutes les lignes,
+    l'appelant filtre" que `production_consistency_report` ci-dessus."""
+    rows: list[dict[str, Any]] = []
+    for quant in StkQuant.objects.filter(tenant=tenant).select_related("location"):
+        incoming = StkMove.objects.filter(
+            tenant=tenant,
+            location_to=quant.location_id,
+            variant_id=quant.variant_id,
+            lot=quant.lot_id,
+            state=StkMove.STATE_DONE,
+        ).aggregate(total=Sum("qty"))["total"] or Decimal(0)
+        outgoing = StkMove.objects.filter(
+            tenant=tenant,
+            location_from=quant.location_id,
+            variant_id=quant.variant_id,
+            lot=quant.lot_id,
+            state=StkMove.STATE_DONE,
+        ).aggregate(total=Sum("qty"))["total"] or Decimal(0)
+        derived_qty = incoming - outgoing
+        variance = quant.qty - derived_qty
+        rows.append(
+            {
+                "quant_id": quant.id,
+                "variant_id": quant.variant_id,
+                "location_id": quant.location_id,
+                "lot_id": quant.lot_id,
+                "recorded_qty": quant.qty,
+                "derived_qty": derived_qty,
                 "variance": variance,
                 "anomaly": variance != 0,
             }

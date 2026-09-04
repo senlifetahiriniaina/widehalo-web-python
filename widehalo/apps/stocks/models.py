@@ -467,6 +467,60 @@ class StkMove(BaseModel, ReferenceMixin):
         (STATE_CANCELLED, "Annule"),
     ]
 
+    # Phase 3 §5.8 (decision A1, plan Vague 2 Bloc A) : le cahier enumere
+    # EXPLICITEMENT « douze natures, une table » — reception d'achat, retour
+    # fournisseur, transfert, prelevement, expedition, vente au comptoir,
+    # consommation d'atelier, entree de production, sous-produit, rebut,
+    # casse, regularisation d'inventaire. Correspondance verifiee ligne a
+    # ligne contre les choix ci-dessous :
+    #   reception d'achat      -> TYPE_RECEPTION
+    #   retour fournisseur     -> TYPE_RETOUR
+    #   transfert               -> TYPE_TRANSFERT_INTERNE (+ services.moves.
+    #                              transfer_between_warehouses pour le cas
+    #                              inter-depots via emplacement TYPE_TRANSIT)
+    #   prelevement             -> PAS un `move_type` distinct : le cahier
+    #                              associe systematiquement ce terme a la
+    #                              REGLE de selection FEFO/FIFO (§12.3,
+    #                              "regle de prelevement") et au document
+    #                              `StkPicking` qui groupe les `StkMove`
+    #                              d'une preparation (cf. docstring
+    #                              `StkPicking` ci-dessous) — le mouvement
+    #                              physique reellement enregistre a l'issue
+    #                              du prelevement EST l'expedition
+    #                              (TYPE_LIVRAISON), jamais une ligne
+    #                              separee. Decision documentee ici plutot
+    #                              que redecouverte a chaque lecture.
+    #   expedition              -> TYPE_LIVRAISON
+    #   vente au comptoir       -> TYPE_VENTE_COMPTOIR (nouveau) : la sortie
+    #                              de caisse POS, jusqu'ici un mouvement
+    #                              seulement "indicatif" (cf. cahier §2,
+    #                              "bascule du mouvement indicatif du POS en
+    #                              mouvement reel"), reste hors perimetre de
+    #                              CE lot (le cablage reel d'`apps.pos` sur
+    #                              cette nouvelle valeur est un chantier
+    #                              distinct) — seule la NATURE est ajoutee
+    #                              ici pour que `MOVE_TYPE_CHOICES` porte
+    #                              deja les douze natures completes.
+    #   consommation d'atelier  -> TYPE_PRODUCTION_OUT
+    #   entree de production    -> TYPE_PRODUCTION_IN
+    #   sous-produit            -> TYPE_SOUS_PRODUIT (nouveau) : distinct de
+    #                              TYPE_PRODUCTION_IN pour permettre un
+    #                              traitement de valorisation different
+    #                              (cout de revient) sur un coproduit d'une
+    #                              nomenclature de process (Bloc C, C5).
+    #   rebut                   -> TYPE_REBUT
+    #   casse                   -> TYPE_CASSE (nouveau) : distinct de
+    #                              TYPE_REBUT — la casse (perte accidentelle
+    #                              a la manutention) et le rebut (decision
+    #                              qualite) sont deux dimensions de reporting
+    #                              separees au cahier (§9, "casse et
+    #                              demarque" cite independamment des sorties
+    #                              par nature).
+    #   regularisation d'inventaire -> TYPE_AJUSTEMENT
+    # `TYPE_SOUS_TRAITANCE` reste un 13e choix, AU-DELA des douze natures du
+    # cahier — necessaire au flux reel de sous-traitance de facon (Bloc C,
+    # C2 : emplacement TYPE_SOUS_TRAITANT deja modelise), le cahier ne
+    # l'evoque simplement pas dans son enumeration des natures de stock pur.
     TYPE_RECEPTION = "reception"
     TYPE_LIVRAISON = "livraison"
     TYPE_TRANSFERT_INTERNE = "transfert_interne"
@@ -476,6 +530,9 @@ class StkMove(BaseModel, ReferenceMixin):
     TYPE_REBUT = "rebut"
     TYPE_AJUSTEMENT = "ajustement"
     TYPE_SOUS_TRAITANCE = "sous_traitance"
+    TYPE_VENTE_COMPTOIR = "vente_comptoir"
+    TYPE_SOUS_PRODUIT = "sous_produit"
+    TYPE_CASSE = "casse"
     MOVE_TYPE_CHOICES = [
         (TYPE_RECEPTION, "Reception"),
         (TYPE_LIVRAISON, "Livraison"),
@@ -486,6 +543,9 @@ class StkMove(BaseModel, ReferenceMixin):
         (TYPE_REBUT, "Rebut"),
         (TYPE_AJUSTEMENT, "Ajustement"),
         (TYPE_SOUS_TRAITANCE, "Sous-traitance"),
+        (TYPE_VENTE_COMPTOIR, "Vente au comptoir"),
+        (TYPE_SOUS_PRODUIT, "Sous-produit"),
+        (TYPE_CASSE, "Casse"),
     ]
 
     variant_id = models.UUIDField()

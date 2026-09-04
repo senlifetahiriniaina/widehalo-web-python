@@ -38,7 +38,10 @@ from apps.stocks.models import (
     StkQuant,
     StkWarehouse,
 )
-from apps.stocks.services.consistency import production_consistency_report
+from apps.stocks.services.consistency import (
+    production_consistency_report,
+    quant_ledger_consistency_report,
+)
 from apps.stocks.services.defect_types import create_defect_type
 from apps.stocks.services.inventory import (
     add_inventory_line,
@@ -46,7 +49,13 @@ from apps.stocks.services.inventory import (
     validate_inventory,
 )
 from apps.stocks.services.measurements import record_measurement
-from apps.stocks.services.moves import cancel_move, create_move, validate_move
+from apps.stocks.services.moves import (
+    cancel_move,
+    create_move,
+    receive_warehouse_transfer,
+    transfer_between_warehouses,
+    validate_move,
+)
 from apps.stocks.services.pickings import (
     add_picking_line,
     create_picking,
@@ -240,6 +249,23 @@ class MoveIn(Schema):
     lot_id: str | None = None
 
 
+class TransferIn(Schema):
+    variant_id: str
+    qty: Decimal
+    uom: str = ""
+    source_warehouse_id: str
+    destination_warehouse_id: str
+    date: str
+    source_document: str = ""
+    unit_cost_mga: Decimal = Decimal(0)
+    lot_id: str | None = None
+
+
+class ReceiveTransferIn(Schema):
+    date: str
+    qty: Decimal | None = None
+
+
 class PickingIn(Schema):
     type: str
     location_from_id: str
@@ -406,6 +432,81 @@ def cancel_move_endpoint(request, move_id: str, reason: str = ""):
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return _serialize_move(move)
+
+
+@router.post("/stocks/transfers")
+@require_permission("stocks.add_stkmove")
+def transfer_between_warehouses_endpoint(request, payload: TransferIn):
+    """STK-5 (Phase 3 §5.8, sprint A1) : départ d'un transfert entre deux
+    entrepôts distincts (phase 1 — cf. `services.moves.
+    transfer_between_warehouses`). La marchandise passe par un emplacement
+    de transit ; `receive_transfer_endpoint` ci-dessous clôture le
+    transfert à l'arrivée réelle (phase 2)."""
+    tenant = _tenant(request)
+    lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
+    try:
+        move = transfer_between_warehouses(
+            tenant=tenant,
+            variant_id=uuid.UUID(payload.variant_id),
+            qty=payload.qty,
+            uom=payload.uom,
+            source_warehouse=get_object_or_404(StkWarehouse, id=payload.source_warehouse_id),
+            destination_warehouse=get_object_or_404(
+                StkWarehouse, id=payload.destination_warehouse_id
+            ),
+            date=dt.date.fromisoformat(payload.date),
+            source_document=payload.source_document,
+            unit_cost_mga=payload.unit_cost_mga,
+            lot=lot,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_move(move)
+
+
+@router.post("/stocks/transfers/{move_id}/receive")
+@require_permission("stocks.add_stkmove")
+def receive_transfer_endpoint(request, move_id: str, payload: ReceiveTransferIn):
+    """STK-5 : arrivée réelle d'un transfert entre entrepôts démarré via
+    `transfer_between_warehouses_endpoint` ci-dessus (phase 2 — cf.
+    `services.moves.receive_warehouse_transfer`). `move_id` est le
+    mouvement de DÉPART (destination = emplacement de transit)."""
+    transit_move = get_object_or_404(StkMove, id=move_id)
+    try:
+        move = receive_warehouse_transfer(
+            transit_move,
+            date=dt.date.fromisoformat(payload.date),
+            qty=payload.qty,
+        )
+    except ValidationError as exc:
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+    return _serialize_move(move)
+
+
+@router.get("/stocks/quant-consistency-report")
+@require_permission("stocks.view_stkmove")
+def quant_consistency_report_endpoint(request):
+    """STK-2 (Phase 3 §5.8, sprint A1) : écran/API de contrôle de
+    divergence entre `StkQuant` (matérialisé) et l'agrégat des `StkMove`
+    (source de vérité) — cf. `services.consistency.
+    quant_ledger_consistency_report`."""
+    tenant = _tenant(request)
+    rows = quant_ledger_consistency_report(tenant)
+    return {
+        "results": [
+            {
+                "quant_id": str(row["quant_id"]),
+                "variant_id": str(row["variant_id"]),
+                "location_id": str(row["location_id"]),
+                "lot_id": str(row["lot_id"]) if row["lot_id"] else None,
+                "recorded_qty": row["recorded_qty"],
+                "derived_qty": row["derived_qty"],
+                "variance": row["variance"],
+                "anomaly": row["anomaly"],
+            }
+            for row in rows
+        ]
+    }
 
 
 @router.get("/stocks/pickings")
