@@ -38,6 +38,14 @@ CODE_FMFP_RATE = "payroll.fmfp_rate"
 CODE_SME = "payroll.sme"
 CODE_SOCIAL_CEILING_MULTIPLIER = "payroll.social_ceiling_multiplier"
 CODE_OVERTIME_EXEMPT_HOURS = "payroll.overtime_exempt_hours"
+# Bloc E, E1 (PAY-1) : multiplicateurs par categorie d'heures
+# supplementaires — auparavant un dict Python en dur
+# (`apps.payroll.services.expr.DEFAULT_OVERTIME_MULTIPLIERS`, retire par
+# ce chantier), desormais un `RegulatoryParameter` versionne comme tous
+# les autres baremes/taux de ce fichier (§5.10.6, RG-PAY-1). Memes valeurs
+# numeriques que l'ancien defaut — aucun changement de comportement pour
+# les tenants deja seedes avant ce chantier.
+CODE_OVERTIME_MULTIPLIERS = "payroll.overtime_multipliers"
 
 
 def seed_payroll_regulatory_params(tenant: Tenant, *, effective_date: dt.date | None = None) -> int:
@@ -104,6 +112,18 @@ def seed_payroll_regulatory_params(tenant: Tenant, *, effective_date: dt.date | 
             CODE_OVERTIME_EXEMPT_HOURS,
             {"hours": "20"},
             "CGI",
+            effective_date,
+        ),
+        (
+            CODE_OVERTIME_MULTIPLIERS,
+            {
+                "h_sup_30": "1.30",
+                "h_sup_50": "1.50",
+                "nuit": "1.30",
+                "dimanche": "1.40",
+                "ferie": "2.00",
+            },
+            "Code du Travail",
             effective_date,
         ),
     ]

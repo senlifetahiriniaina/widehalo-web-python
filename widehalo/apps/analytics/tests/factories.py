@@ -15,6 +15,9 @@ from apps.analytics.models import (
     AnDimTiers,
     AnFactEcriture,
     AnFactEncaissement,
+    AnFactMouvementStock,
+    AnFactOrdreFabrication,
+    AnFactReception,
     AnFactTicketPos,
     AnFactVente,
     AnMetricDefinition,
@@ -129,6 +132,46 @@ class AnFactEcritureFactory(factory.django.DjangoModelFactory):
     debit_mga = Decimal("0")
     credit_mga = Decimal("10000")
     solde_mga = Decimal("-10000")
+
+
+class AnFactMouvementStockFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AnFactMouvementStock
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_move_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    move_reference = "OF-0001"
+    move_type = "transfert_interne"
+    qty = Decimal("1")
+    unit_cost_mga = Decimal("1000")
+    value_mga = Decimal("1000")
+
+
+class AnFactReceptionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AnFactReception
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_receipt_line_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    order_reference = "PO-0001"
+    qty_received = Decimal("1")
+    unit_price_mga = Decimal("1000")
+
+
+class AnFactOrdreFabricationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AnFactOrdreFabrication
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_order_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    order_reference = "OF-0001"
+    qty_produced = Decimal("1")
+    cout_reel_mga = Decimal("1000")
+    cout_planifie_mga = Decimal("900")
+    ecart_cout_mga = Decimal("100")
 
 
 class AnWarehouseStateFactory(factory.django.DjangoModelFactory):

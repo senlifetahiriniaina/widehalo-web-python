@@ -22,6 +22,7 @@ from apps.payroll.services.seed import (
     CODE_IRSA_MINIMUM,
     CODE_OSTIE_RATE,
     CODE_OVERTIME_EXEMPT_HOURS,
+    CODE_OVERTIME_MULTIPLIERS,
     CODE_SME,
     CODE_SOCIAL_CEILING_MULTIPLIER,
 )
@@ -53,6 +54,12 @@ class PayrollParams:
     sme: Decimal
     social_ceiling_multiplier: Decimal
     overtime_exempt_hours: Decimal
+    # Bloc E, E1 (PAY-1) : multiplicateurs par categorie d'heures
+    # supplementaires (RegulatoryParameter `payroll.overtime_multipliers`),
+    # transmis tel quel a `apps.payroll.services.expr.overtime_total_pay`/
+    # `overtime_exempt_pay` via `params['overtime_multipliers']` — jamais un
+    # defaut en dur dans `expr.py`.
+    overtime_multipliers: dict[str, Decimal]
 
     @property
     def social_ceiling(self) -> Decimal:
@@ -85,6 +92,10 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
     overtime_exempt = Decimal(
         get_parameter(CODE_OVERTIME_EXEMPT_HOURS, at_date, tenant=tenant)["hours"]
     )
+    overtime_multipliers_raw = get_parameter(CODE_OVERTIME_MULTIPLIERS, at_date, tenant=tenant)
+    overtime_multipliers = {
+        category: Decimal(rate) for category, rate in overtime_multipliers_raw.items()
+    }
     return PayrollParams(
         at_date=at_date,
         irsa_brackets=brackets,
@@ -98,6 +109,7 @@ def resolve_params(tenant: Tenant, at_date: dt.date) -> PayrollParams:
         sme=sme,
         social_ceiling_multiplier=ceiling_multiplier,
         overtime_exempt_hours=overtime_exempt,
+        overtime_multipliers=overtime_multipliers,
     )
 
 

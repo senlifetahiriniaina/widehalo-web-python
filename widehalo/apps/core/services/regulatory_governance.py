@@ -54,6 +54,11 @@ ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
         "payroll.sme",
         "payroll.social_ceiling_multiplier",
         "payroll.overtime_exempt_hours",
+        # Bloc E, E1 (PAY-1) : ancien defaut en dur
+        # (`apps.payroll.services.expr.DEFAULT_OVERTIME_MULTIPLIERS`) retire,
+        # desormais reellement lu par `overtime_total_pay`/
+        # `overtime_exempt_pay` via `PayrollParams.overtime_multipliers`.
+        "payroll.overtime_multipliers",
     }
 )
 

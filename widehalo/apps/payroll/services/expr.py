@@ -25,27 +25,10 @@ from apps.core.services.expr import RestrictedExpressionError
 from apps.core.services.expr import safe_eval as _core_safe_eval
 
 __all__ = [
-    "DEFAULT_OVERTIME_MULTIPLIERS",
     "PAYROLL_FUNCTIONS",
     "RestrictedExpressionError",
     "safe_eval",
 ]
-
-# Multiplicateurs par defaut des categories d'heures supplementaires — le
-# CDC (§5.10.6, RG-PAY-1) renvoie a `PrsWorkCalendar.overtime_rules`
-# (JSONField cote `presence`), mais ce champ n'est PAS expose par
-# `apps.presence.services.public` (couplage n1 : jamais d'acces direct au
-# modele) — table par defaut assumee ici, disclosed. Une vraie
-# parametrisation par tenant deviendrait naturellement un nouveau
-# `RegulatoryParameter` (`payroll.overtime_multipliers`) si le besoin se
-# confirme, hors perimetre de ce chantier.
-DEFAULT_OVERTIME_MULTIPLIERS: dict[str, Decimal] = {
-    "h_sup_30": Decimal("1.30"),
-    "h_sup_50": Decimal("1.50"),
-    "nuit": Decimal("1.30"),
-    "dimanche": Decimal("1.40"),
-    "ferie": Decimal("2.00"),
-}
 
 
 def _floor100(value: Any) -> Decimal:  # noqa: ANN401
@@ -85,19 +68,27 @@ def _irsa_tranche(base: Any, brackets: Any, minimum: Any) -> Decimal:  # noqa: A
     return max(tax, minimum_decimal)
 
 
-def _overtime_total_pay(hourly_rate: Any, overtime_hours: Any) -> Decimal:  # noqa: ANN401
+def _overtime_total_pay(hourly_rate: Any, overtime_hours: Any, multipliers: Any) -> Decimal:  # noqa: ANN401
     """Total paye des heures supplementaires, toutes categories confondues,
-    majorees selon `DEFAULT_OVERTIME_MULTIPLIERS` (categorie inconnue -> pas
-    de majoration, multiplicateur 1)."""
+    majorees selon `multipliers` (E1, Bloc E — `RegulatoryParameter`
+    `payroll.overtime_multipliers`, resolu par
+    `apps.payroll.services.params.resolve_params` et transmis explicitement
+    par la formule via `params['overtime_multipliers']`, jamais un defaut en
+    dur ici : categorie inconnue -> pas de majoration, multiplicateur 1)."""
     rate = Decimal(str(hourly_rate))
     total = Decimal(0)
     for category, hours in overtime_hours.items():
-        multiplier = DEFAULT_OVERTIME_MULTIPLIERS.get(category, Decimal(1))
+        multiplier = Decimal(str(multipliers.get(category, 1)))
         total += Decimal(str(hours)) * rate * multiplier
     return total
 
 
-def _overtime_exempt_pay(hourly_rate: Any, overtime_hours: Any, exempt_hours: Any) -> Decimal:  # noqa: ANN401
+def _overtime_exempt_pay(
+    hourly_rate: Any,  # noqa: ANN401
+    overtime_hours: Any,  # noqa: ANN401
+    exempt_hours: Any,  # noqa: ANN401
+    multipliers: Any,  # noqa: ANN401
+) -> Decimal:
     """RG-PAY (§5.10.3) : les `exempt_hours` PREMIERES heures sup sont
     exonerees d'IRSA (jamais de cotisations sociales — non precise par le
     CDC, disclosed que seule l'exoneration IRSA est modelisee). Simplification
@@ -107,7 +98,7 @@ def _overtime_exempt_pay(hourly_rate: Any, overtime_hours: Any, exempt_hours: An
     total_hours = sum((Decimal(str(h)) for h in overtime_hours.values()), Decimal(0))
     if total_hours <= 0:
         return Decimal(0)
-    total_pay = _overtime_total_pay(hourly_rate, overtime_hours)
+    total_pay = _overtime_total_pay(hourly_rate, overtime_hours, multipliers)
     average_rate = total_pay / total_hours
     exempt = min(total_hours, Decimal(str(exempt_hours)))
     return average_rate * exempt

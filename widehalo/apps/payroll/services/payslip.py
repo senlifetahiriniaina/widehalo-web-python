@@ -48,6 +48,7 @@ def _params_as_expr_dict(tenant: Tenant, period_date_from: object) -> dict[str, 
         "sme": params.sme,
         "social_ceiling": params.social_ceiling,
         "overtime_exempt_hours": params.overtime_exempt_hours,
+        "overtime_multipliers": params.overtime_multipliers,
     }
 
 
