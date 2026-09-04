@@ -10,6 +10,7 @@ from django.utils.translation import gettext as _
 
 import apps.accounting.services.public as accounting_public
 from apps.core.models.user import User
+from apps.core.services.regulatory_governance import unvalidated_active_parameters
 from apps.core.services.workflow import attempt_transition
 from apps.payroll.models import PayBatch, PayPayslip, PayPeriod
 from apps.payroll.services.anomalies import Anomaly, detect_batch_anomalies
@@ -61,12 +62,33 @@ def validate_and_post_batch(
     chaque bulletin -> fait avancer la periode a "validee" (RG-PAY-10,
     irreversibilite au-dela de ce point).
 
+    Verrou OECFM (cahier Phase 3 §13.3, ACC-9, decision D5) : refuse
+    INCONDITIONNELLEMENT la publication si un `RegulatoryParameter`
+    actuellement effectif, pour un des 9 codes de calcul actifs de la
+    paie, porte encore le statut NON_VALIDE — aucune echappatoire de type
+    `force_despite_anomalies`, contrairement au controle PAY-CTRL1
+    ci-dessous (blocage strict impose par D5, pas un garde-fou de premiere
+    ligne). Meme verrou logique que `apps.core.management.commands.
+    check_regulatory_validation` (verifie au deploiement), applique ici au
+    moment reel de publication d'un cycle plutot qu'a la seule pipeline CI.
+
     PAY-CTRL1 : refuse la validation si des anomalies non acquittees
     subsistent, SAUF `force_despite_anomalies=True` (decision explicite de
     l'appelant, ex. RH qui a examine et ecarte les alertes — le CDC ne
     precise pas de blocage dur, "avant validation" est interprete comme un
     garde-fou de premiere ligne, contournable en connaissance de cause,
     disclosed)."""
+    blocking = unvalidated_active_parameters(tenants=[batch.tenant])
+    if blocking:
+        codes = sorted({row.code for row in blocking})
+        raise ValidationError(
+            _(
+                "Publication refusée : %(count)d paramètre(s) réglementaire(s) actif(s) "
+                "non validé(s) par un expert-comptable OECFM (%(codes)s)."
+            )
+            % {"count": len(blocking), "codes": ", ".join(codes)}
+        )
+
     anomalies = detect_batch_anomalies(batch)
     if anomalies and not force_despite_anomalies:
         raise ValidationError(
