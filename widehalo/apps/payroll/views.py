@@ -28,11 +28,13 @@ from typing import Any
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.utils.translation import gettext as _
 
 from apps.core.services.audit import log_pii_access
 from apps.core.services.permissions import user_role_codes
 from apps.core.views.tenant_web import resolve_tenant
-from apps.payroll.models import PayPayslip, PayPeriod
+from apps.payroll.models import PayContract, PayPayslip, PayPeriod
+from apps.payroll.services.payslip import simulate_payslip
 
 _STAFF_ROLES = {"rh", "admin", "direction"}
 
@@ -85,3 +87,66 @@ def hr_dashboard(request: HttpRequest) -> HttpResponse:
             "can_see_amounts": can_see_amounts,
         },
     )
+
+
+@login_required
+def rubric_simulation(request: HttpRequest) -> HttpResponse:
+    """Bloc E, E4 (PAY-5) : simulation de rubrique sur salarié témoin —
+    calcule un aperçu de bulletin via EXACTEMENT le même moteur que
+    `compute_payslip` (`apps.payroll.services.payslip.simulate_payslip`),
+    contre un CONTRAT REEL choisi par l'utilisateur (« salarié témoin »)
+    et une période réelle, mais SANS JAMAIS créer/persister de
+    `PayPayslip`/`PayPayslipLine` — un simple GET (action sans effet de
+    bord, jamais un POST). Réservé aux mêmes rôles que `hr_dashboard`
+    (données salariales individuelles d'un vrai employé) ; chaque
+    simulation effectivement calculée déclenche `log_pii_access` (même
+    discipline que `hr_dashboard`/`apps.payroll.api._serialize_payslip`,
+    P5)."""
+    tenant = resolve_tenant(request)
+    role_codes = user_role_codes(request.user)  # type: ignore[arg-type]
+    if not bool(role_codes & _STAFF_ROLES):
+        return HttpResponse(status=403)
+
+    contracts = list(
+        PayContract.objects.filter(tenant=tenant, is_active=True, state=PayContract.STATE_ACTIVE)
+        .select_related("salary_structure")
+        .order_by("reference")
+    )
+    periods = list(PayPeriod.objects.filter(tenant=tenant, is_active=True).order_by("-date_from"))
+
+    context: dict[str, Any] = {
+        "contracts": contracts,
+        "periods": periods,
+        "selected_contract_id": request.GET.get("contract_id", ""),
+        "selected_period_id": request.GET.get("period_id", ""),
+        "dependents": request.GET.get("dependents", "0"),
+    }
+
+    contract_id = request.GET.get("contract_id")
+    period_id = request.GET.get("period_id")
+    if contract_id and period_id:
+        contract = next((c for c in contracts if str(c.id) == contract_id), None)
+        period = next((p for p in periods if str(p.id) == period_id), None)
+        if contract is None or period is None:
+            context["error"] = _("Contrat ou période introuvable.")
+        else:
+            try:
+                dependents = int(request.GET.get("dependents") or 0)
+            except ValueError:
+                dependents = 0
+            simulation = simulate_payslip(
+                tenant,
+                contract,
+                employee_id=contract.employee_id,
+                date_from=period.date_from,
+                date_to=period.date_to,
+                dependents=dependents,
+            )
+            context["simulation_results"] = simulation.results
+            log_pii_access(
+                request.user,  # type: ignore[arg-type]
+                contract,
+                ["wage_base", "simulation_results"],
+            )
+
+    return render(request, "payroll/rubric_simulation.html", context)

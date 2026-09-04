@@ -8,6 +8,9 @@
 </c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Périodes de paie" %}</h1>
+  {% if can_see_amounts %}
+  <a class="btn btn-secondary" href="{% url 'payroll:rubric_simulation' %}">{% trans "Simulation sur salarié témoin" %}</a>
+  {% endif %}
 </div>
 <table>
   <thead>

@@ -14,8 +14,13 @@ import uuid
 from decimal import Decimal
 
 import factory
+from django.contrib.auth.models import Group
+from django.test import Client
+from django_otp.oath import totp
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
+from apps.core.services import mfa as mfa_service
 from apps.payroll.models import (
     PayAdvance,
     PayBatch,
@@ -31,11 +36,55 @@ from apps.payroll.models import (
 )
 from apps.payroll.services.seed import seed_payroll_regulatory_params
 from apps.payroll.services.structures import load_madagascar_structure
+from apps.presence.tests.factories import PrsEmployeeFactory
 
 
 def setup_payroll_reference_data(tenant: Tenant) -> None:
     seed_payroll_regulatory_params(tenant)
     load_madagascar_structure(tenant)
+
+
+def staff_client(tenant: Tenant, *, role: str = "rh") -> tuple[Client, User]:
+    """Client HTTP connecte comme membre d'un role soumis a MFA obligatoire
+    (`rh`/`admin`/`direction` appartiennent a `settings.
+    CORE_MFA_REQUIRED_ROLES`) — un simple `force_login` ne suffit pas
+    (`MFAEnforcementMiddleware` redirigerait vers `/mfa/`) : connexion
+    reelle via `/login/`, puis enrolement + verification TOTP pour marquer
+    la SESSION verifiee, meme patron que `apps.core.tests.test_mfa_web.
+    _logged_in_client`."""
+    user = User.objects.create_user(email=f"{role}@example.com", password="Str0ngPassw0rd!23")
+    group, _ = Group.objects.get_or_create(name=role)
+    user.groups.add(group)
+    client = Client()
+    response = client.post("/login/", {"email": user.email, "password": "Str0ngPassw0rd!23"})
+    assert response.status_code == 302, response.content
+
+    device = mfa_service.enroll_device(user)
+    device.confirmed = True
+    device.save(update_fields=["confirmed"])
+    token = str(totp(device.bin_key)).zfill(6)
+    verify_response = client.post("/mfa/", {"token": token})
+    assert verify_response.status_code == 302, verify_response.content
+
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+    return client, user
+
+
+def employee_client(tenant: Tenant, employee_id: uuid.UUID) -> Client:
+    """Client HTTP connecte comme un simple employe (aucun role
+    `CORE_MFA_REQUIRED_ROLES` — jamais soumis a MFA)."""
+    user = User.objects.create_user(
+        email=f"emp-{employee_id}@example.com", password="Str0ngPassw0rd!23"
+    )
+    PrsEmployeeFactory(tenant=tenant, id=employee_id, user=user)
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+    return client
 
 
 def make_contract_type(tenant: Tenant, *, code: str = "CDI") -> PayContractType:

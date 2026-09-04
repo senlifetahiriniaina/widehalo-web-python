@@ -10,65 +10,25 @@ import uuid
 from decimal import Decimal
 
 import pytest
-from django.contrib.auth.models import Group
-from django.test import Client
-from django_otp.oath import totp
 
 from apps.core.models.audit import AuditLog
 from apps.core.models.tenant import Tenant
-from apps.core.models.user import User
-from apps.core.services import mfa as mfa_service
 from apps.core.tests.utils import use_tenant
 from apps.payroll.models import PayPayslip
 from apps.payroll.services.payslip import compute_payslip
+from apps.payroll.tests.factories import (
+    employee_client as _employee_client,
+)
 from apps.payroll.tests.factories import (
     make_active_contract,
     make_period,
     setup_payroll_reference_data,
 )
-from apps.presence.tests.factories import PrsEmployeeFactory
+from apps.payroll.tests.factories import (
+    staff_client as _staff_client,
+)
 
 pytestmark = pytest.mark.django_db
-
-
-def _staff_client(tenant: Tenant, *, role: str = "rh") -> tuple[Client, User]:
-    """`role` (rh/admin/direction) appartient a `settings.
-    CORE_MFA_REQUIRED_ROLES` — un simple `force_login` ne suffit pas
-    (`MFAEnforcementMiddleware` redirigerait vers `/mfa/`, cf.
-    `apps.core.tests.test_mfa_web._logged_in_client`, meme patron repris
-    ici a l'identique) : connexion reelle via `/login/`, puis
-    enrolement + verification TOTP pour marquer la SESSION verifiee."""
-    user = User.objects.create_user(email=f"{role}@example.com", password="Str0ngPassw0rd!23")
-    group, _ = Group.objects.get_or_create(name=role)
-    user.groups.add(group)
-    client = Client()
-    response = client.post("/login/", {"email": user.email, "password": "Str0ngPassw0rd!23"})
-    assert response.status_code == 302, response.content
-
-    device = mfa_service.enroll_device(user)
-    device.confirmed = True
-    device.save(update_fields=["confirmed"])
-    token = str(totp(device.bin_key)).zfill(6)
-    verify_response = client.post("/mfa/", {"token": token})
-    assert verify_response.status_code == 302, verify_response.content
-
-    session = client.session
-    session["tenant_id"] = str(tenant.id)
-    session.save()
-    return client, user
-
-
-def _employee_client(tenant: Tenant, employee_id) -> Client:
-    user = User.objects.create_user(
-        email=f"emp-{employee_id}@example.com", password="Str0ngPassw0rd!23"
-    )
-    PrsEmployeeFactory(tenant=tenant, id=employee_id, user=user)
-    client = Client()
-    client.force_login(user)
-    session = client.session
-    session["tenant_id"] = str(tenant.id)
-    session.save()
-    return client
 
 
 def _computed_payslip(tenant: Tenant, employee_id) -> PayPayslip:

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Simulation sur salarié témoin" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'payroll:hr_dashboard' %}">{% trans "Paie" %}</a>
+  <span>/</span> {% trans "Simulation sur salarié témoin" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Simulation sur salarié témoin" %}</h1>
+</div>
+<p class="text-sm">
+  {% trans "Calcule un aperçu de bulletin pour le contrat et la période choisis, avec le même moteur de règles que le calcul réel — rien n'est jamais enregistré (aucun bulletin, aucune ligne)." %}
+</p>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<form method="get">
+  <div class="form-field">
+    <label for="contract_id">{% trans "Contrat (salarié témoin)" %}</label>
+    <select name="contract_id" id="contract_id" required>
+      <option value="">{% trans "— Choisir —" %}</option>
+      {% for contract in contracts %}
+      <option value="{{ contract.id }}" {% if selected_contract_id == contract.id|stringformat:"s" %}selected{% endif %}>
+        {{ contract.reference }} — {{ contract.employee_id }} ({{ contract.wage_base }} Ar)
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="period_id">{% trans "Période de référence" %}</label>
+    <select name="period_id" id="period_id" required>
+      <option value="">{% trans "— Choisir —" %}</option>
+      {% for period in periods %}
+      <option value="{{ period.id }}" {% if selected_period_id == period.id|stringformat:"s" %}selected{% endif %}>
+        {{ period.code }} ({{ period.date_from }} → {{ period.date_to }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="dependents">{% trans "Personnes à charge" %}</label>
+    <input type="number" name="dependents" id="dependents" min="0" value="{{ dependents }}">
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Simuler" %}</c-button>
+</form>
+
+{% if simulation_results %}
+<h2>{% trans "Résultat de la simulation (aperçu, non enregistré)" %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th>{% trans "Code" %}</th>
+      <th>{% trans "Libellé" %}</th>
+      <th>{% trans "Catégorie" %}</th>
+      <th>{% trans "Base" %}</th>
+      <th>{% trans "Taux" %}</th>
+      <th>{% trans "Montant" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for result in simulation_results %}
+    <tr>
+      <td>{{ result.rule.code }}</td>
+      <td>{{ result.rule.name }}</td>
+      <td>{{ result.rule.category }}</td>
+      <td>{{ result.base }}</td>
+      <td>{{ result.rate|default:"" }}</td>
+      <td>{{ result.amount }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

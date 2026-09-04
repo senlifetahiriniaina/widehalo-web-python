@@ -13,6 +13,8 @@ reproduit EXACTEMENT le meme resultat."""
 
 from __future__ import annotations
 
+import datetime as dt
+from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
@@ -24,7 +26,7 @@ import apps.presence.services.public as presence_public
 from apps.core.models.tenant import Tenant
 from apps.payroll.models import PayAdvance, PayContract, PayPayslip, PayPayslipLine, PaySalaryRule
 from apps.payroll.services.params import PayrollParams, resolve_params
-from apps.payroll.services.rules_engine import evaluate_structure
+from apps.payroll.services.rules_engine import RuleResult, evaluate_structure
 
 # Jours ouvrables de reference par mois — convention malgache usuelle (le
 # CDC ne fixe pas explicitement cette valeur) : 26 jours, disclosed.
@@ -66,6 +68,128 @@ def _pending_advance_installment(tenant: Tenant, employee_id: UUID) -> Decimal:
     return total
 
 
+@dataclass
+class PayslipSimulation:
+    """Resultat purement fonctionnel de `simulate_payslip` — AUCUN champ
+    ici n'est jamais ecrit en base par cette fonction elle-meme (Bloc E,
+    E4/PAY-5 : reutilise tel quel par l'ecran de simulation sur salarie
+    temoin, qui ne persiste JAMAIS)."""
+
+    results: list[RuleResult]
+    worked_days: Decimal
+    absence_summary: list[dict[str, object]]
+    overtime_hours: dict[str, object]
+    payroll_params: PayrollParams
+
+
+def simulate_payslip(
+    tenant: Tenant,
+    contract: PayContract,
+    *,
+    employee_id: UUID,
+    date_from: dt.date,
+    date_to: dt.date,
+    dependents: int = 0,
+    apply_advance_deduction: bool = True,
+    overtime_hours: dict[str, object] | None = None,
+    extra_payslip_vars: dict[str, object] | None = None,
+) -> PayslipSimulation:
+    """Coeur PUREMENT FONCTIONNEL de `compute_payslip` (construit
+    `variables`, PAY-M2, et appelle `evaluate_structure`) — AUCUNE
+    ECRITURE EN BASE ici (ni `PayPayslipLine`, ni mise a jour d'un
+    `PayPayslip`). Extrait pour etre reutilise a l'identique par
+    `compute_payslip` (qui persiste le resultat) ET par l'ecran de
+    simulation de rubrique sur salarie temoin (Bloc E, E4/PAY-5,
+    `apps.payroll.views.rubric_simulation`, qui ne persiste jamais) — un
+    seul chemin de calcul, jamais deux implementations potentiellement
+    divergentes.
+
+    PAY-M3 : `date_from` pilote SEULE la resolution des parametres
+    reglementaires (jamais `date.today()`), meme discipline que
+    `compute_payslip`."""
+    absence_summary = presence_public.get_period_absence_summary(
+        tenant, employee_id, date_from=date_from, date_to=date_to
+    )
+    unjustified_or_paid_absence_days = sum(
+        (Decimal(str(a["days"])) for a in absence_summary), Decimal(0)
+    )
+    # Convention malgache usuelle assumee (le CDC ne fixe pas explicitement
+    # cette valeur, disclosed) : un mois de paie complet = `reference_days`
+    # jours ouvrables FORFAITAIRES, independamment du nombre reel de jours
+    # calendaires de la periode (28/30/31) — pas de prorata calendaire
+    # supplementaire, seule l'absence reduit ce forfait.
+    reference_days = DEFAULT_REFERENCE_DAYS
+    worked_days = max(reference_days - unjustified_or_paid_absence_days, Decimal(0))
+
+    overtime_total_hours = presence_public.get_validated_overtime_hours(
+        tenant, employee_id, date_from=date_from, date_to=date_to
+    )
+    # `presence` n'expose que le TOTAL valide (pas la ventilation par
+    # categorie de majoration, cf. docstring `get_validated_overtime_hours`)
+    # — la ventilation reelle fournie par l'appelant (via `payslip.
+    # overtime_hours` pour un bulletin reel, ou saisie directe pour une
+    # simulation) prevaut ; a defaut, tout est impute a la categorie
+    # "h_sup_30" par defaut, disclosed.
+    resolved_overtime_hours: dict[str, object] = (
+        dict(overtime_hours) if overtime_hours else {"h_sup_30": overtime_total_hours}
+    )
+
+    hourly_rate = contract.wage_base / (reference_days * HOURS_PER_DAY)
+
+    benefits = [
+        {
+            "type": b.type,
+            "amount": b.amount,
+            "is_taxable": b.is_taxable,
+            "is_subject_to_social": b.is_subject_to_social,
+        }
+        for b in contract.benefits.filter(is_active=True)
+        if b.date_from is None or b.date_from <= date_to
+        if b.date_to is None or b.date_to >= date_from
+    ]
+
+    advance_deduction = (
+        _pending_advance_installment(tenant, employee_id) if apply_advance_deduction else Decimal(0)
+    )
+
+    payslip_vars: dict[str, object] = {"advance_deduction": advance_deduction}
+    if extra_payslip_vars:
+        payslip_vars.update(extra_payslip_vars)
+
+    # PAY-M3 : resolu UNE SEULE fois, a la date DE REFERENCE (`date_from` —
+    # la periode pour un bulletin reel, une date choisie par l'utilisateur
+    # pour une simulation). Reutilise a la fois pour l'environnement de
+    # formule (`_params_as_expr_dict`) et pour l'instantane de versions
+    # trace sur chaque `PayPayslipLine` (Bloc E, E3/PAY-4).
+    payroll_params: PayrollParams = resolve_params(tenant, date_from)
+
+    variables: dict[str, object] = {
+        "contract": {
+            "wage_base": contract.wage_base,
+            "wage_type": contract.wage_type,
+            "reference_days": reference_days,
+            "hourly_rate": hourly_rate,
+            "notice_days": Decimal(contract.notice_days),
+        },
+        "employee": {"id": str(employee_id), "dependents": Decimal(dependents)},
+        "payslip": payslip_vars,
+        "worked_days": worked_days,
+        "absences": absence_summary,
+        "overtime": resolved_overtime_hours,
+        "benefits": benefits,
+        "params": _params_as_expr_dict(payroll_params),
+    }
+
+    results = evaluate_structure(contract.salary_structure, variables)
+    return PayslipSimulation(
+        results=results,
+        worked_days=worked_days,
+        absence_summary=absence_summary,
+        overtime_hours=resolved_overtime_hours,
+        payroll_params=payroll_params,
+    )
+
+
 @transaction.atomic
 def compute_payslip(
     payslip: PayPayslip,
@@ -94,84 +218,20 @@ def compute_payslip(
     if contract.employee_id != payslip.employee_id:
         raise ValidationError(_("Le contrat ne correspond pas a l'employé du bulletin."))
 
-    absence_summary = presence_public.get_period_absence_summary(
-        tenant, payslip.employee_id, date_from=payslip.date_from, date_to=payslip.date_to
+    simulation = simulate_payslip(
+        tenant,
+        contract,
+        employee_id=payslip.employee_id,
+        date_from=payslip.date_from,
+        date_to=payslip.date_to,
+        dependents=dependents,
+        apply_advance_deduction=apply_advance_deduction,
+        overtime_hours=payslip.overtime_hours or None,
+        extra_payslip_vars=extra_payslip_vars,
     )
-    unjustified_or_paid_absence_days = sum(
-        (Decimal(str(a["days"])) for a in absence_summary), Decimal(0)
-    )
-    # Convention malgache usuelle assumee (le CDC ne fixe pas explicitement
-    # cette valeur, disclosed) : un mois de paie complet = `reference_days`
-    # jours ouvrables FORFAITAIRES, independamment du nombre reel de jours
-    # calendaires de la periode (28/30/31) — pas de prorata calendaire
-    # supplementaire, seule l'absence reduit ce forfait.
-    reference_days = DEFAULT_REFERENCE_DAYS
-    worked_days = max(reference_days - unjustified_or_paid_absence_days, Decimal(0))
-
-    overtime_total_hours = presence_public.get_validated_overtime_hours(
-        tenant, payslip.employee_id, date_from=payslip.date_from, date_to=payslip.date_to
-    )
-    # `presence` n'expose que le TOTAL valide (pas la ventilation par
-    # categorie de majoration, cf. docstring `get_validated_overtime_hours`)
-    # — la ventilation reelle stockee au prealable sur `payslip.
-    # overtime_hours` (alimentee par l'appelant via l'API/ecran de saisie)
-    # prevaut ; a defaut, tout est impute a la categorie "h_sup_30" par
-    # defaut, disclosed.
-    overtime_hours: dict[str, object] = (
-        dict(payslip.overtime_hours)
-        if payslip.overtime_hours
-        else {"h_sup_30": overtime_total_hours}
-    )
-
-    hourly_rate = contract.wage_base / (reference_days * HOURS_PER_DAY)
-
-    benefits = [
-        {
-            "type": b.type,
-            "amount": b.amount,
-            "is_taxable": b.is_taxable,
-            "is_subject_to_social": b.is_subject_to_social,
-        }
-        for b in contract.benefits.filter(is_active=True)
-        if b.date_from is None or b.date_from <= payslip.date_to
-        if b.date_to is None or b.date_to >= payslip.date_from
-    ]
-
-    advance_deduction = (
-        _pending_advance_installment(tenant, payslip.employee_id)
-        if apply_advance_deduction
-        else Decimal(0)
-    )
-
-    payslip_vars: dict[str, object] = {"advance_deduction": advance_deduction}
-    if extra_payslip_vars:
-        payslip_vars.update(extra_payslip_vars)
-
-    # PAY-M3 : resolu UNE SEULE fois, a la date de la PERIODE — jamais
-    # `date.today()`. Reutilise a la fois pour l'environnement de formule
-    # (`_params_as_expr_dict`) et pour l'instantane de versions trace sur
-    # chaque `PayPayslipLine` (Bloc E, E3/PAY-4).
-    payroll_params: PayrollParams = resolve_params(tenant, payslip.period.date_from)
-
-    variables: dict[str, object] = {
-        "contract": {
-            "wage_base": contract.wage_base,
-            "wage_type": contract.wage_type,
-            "reference_days": reference_days,
-            "hourly_rate": hourly_rate,
-            "notice_days": Decimal(contract.notice_days),
-        },
-        "employee": {"id": str(payslip.employee_id), "dependents": Decimal(dependents)},
-        "payslip": payslip_vars,
-        "worked_days": worked_days,
-        "absences": absence_summary,
-        "overtime": overtime_hours,
-        "benefits": benefits,
-        "params": _params_as_expr_dict(payroll_params),
-    }
-
-    results = evaluate_structure(contract.salary_structure, variables)
+    results = simulation.results
     result_by_code = {r.rule.code: r for r in results}
+    payroll_params = simulation.payroll_params
 
     payslip.lines.all().delete()
     for result in results:
@@ -196,17 +256,17 @@ def compute_payslip(
         r = result_by_code.get(code)
         return r.amount if r else Decimal(0)
 
-    payslip.worked_days = worked_days
-    payslip.worked_hours = worked_days * HOURS_PER_DAY
+    payslip.worked_days = simulation.worked_days
+    payslip.worked_hours = simulation.worked_days * HOURS_PER_DAY
     # JSONField : les `Decimal` ne sont pas serialisables tels quels (le
     # backend Postgres passe par `json.dumps`) — converties en `str` a
     # l'ecriture, jamais un `DjangoJSONEncoder` custom qui perdrait la
     # precision decimale a la relecture.
     payslip.absence_days = [
         {**a, "days": str(a["days"]), "pay_rate_pct": str(a["pay_rate_pct"])}
-        for a in absence_summary
+        for a in simulation.absence_summary
     ]
-    payslip.overtime_hours = {k: str(v) for k, v in overtime_hours.items()}
+    payslip.overtime_hours = {k: str(v) for k, v in simulation.overtime_hours.items()}
     payslip.gross = _get("BRUT")
     payslip.taxable_base = _get("BASE_IMPOSABLE")
     payslip.irsa = _get("IRSA_NET")
