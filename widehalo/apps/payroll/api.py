@@ -17,7 +17,9 @@ from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
 import apps.presence.services.public as presence_public
+from apps.core.services.audit import log_pii_access
 from apps.core.services.permissions import (
+    SENSITIVE_FIELDS,
     filter_fields_for_role,
     require_permission,
     user_role_codes,
@@ -59,7 +61,14 @@ def _own_employee_id(request: Any) -> uuid.UUID | None:
     return presence_public.get_employee_id_for_user(_tenant(request), request.auth)
 
 
-def _serialize_payslip(payslip: PayPayslip, role_codes: set[str]) -> dict[str, Any]:
+def _serialize_payslip(payslip: PayPayslip, role_codes: set[str], actor: Any) -> dict[str, Any]:
+    """Phase 3 §5 (audit, decision P5) : point reel de « revelation » d'un
+    montant masque par N4 (`SENSITIVE_FIELDS`) — le masquage lui-meme reste
+    binaire (champ present ou absent, `filter_fields_for_role`), mais
+    chaque fois qu'un champ sensible EST effectivement inclus pour ce
+    role (montant vraiment revele a l'acteur courant), l'acces est
+    journalise via `log_pii_access` (existait deja, jamais appele avant ce
+    correctif)."""
     data = {
         "id": str(payslip.id),
         "reference": payslip.reference,
@@ -74,7 +83,12 @@ def _serialize_payslip(payslip: PayPayslip, role_codes: set[str]) -> dict[str, A
         "social_employer": payslip.social_employer,
         "net_to_pay": payslip.net_to_pay,
     }
-    return filter_fields_for_role("payroll.PayPayslip", role_codes, data)
+    filtered = filter_fields_for_role("payroll.PayPayslip", role_codes, data)
+    sensitive_fields = SENSITIVE_FIELDS.get("payroll.PayPayslip", {}).keys()
+    revealed_amount_fields = sorted(sensitive_fields & filtered.keys())
+    if revealed_amount_fields:
+        log_pii_access(actor, payslip, revealed_amount_fields)
+    return filtered
 
 
 class ContractTypeIn(Schema):
@@ -266,7 +280,7 @@ def list_payslips(
     if not (role_codes & _STAFF_ROLES):
         own_id = _own_employee_id(request)
         queryset = queryset.filter(employee_id=own_id) if own_id else queryset.none()
-    return [_serialize_payslip(p, role_codes) for p in queryset]
+    return [_serialize_payslip(p, role_codes, request.auth) for p in queryset]
 
 
 @router.post("/payroll/payslips/{payslip_id}/recompute")

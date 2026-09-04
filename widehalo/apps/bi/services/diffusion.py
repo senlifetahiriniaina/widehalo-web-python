@@ -3,12 +3,14 @@ et journalisation systématique de chaque envoi (`BiDiffusionLog`), succès
 ou échec — jamais un envoi silencieux.
 
 Diffère de `apps.reporting.services.scheduling.run_schedule` (RPT-7) sur
-un point structurant : celui-ci envoie UN SEUL e-mail identique à tous les
-destinataires (`RptSchedule.recipients`, sans re-scoping par destinataire) ;
-celui-ci RECALCULE le rapport POUR CHAQUE destinataire (son rôle réel
-détermine son périmètre réel, BI-6 — deux destinataires peuvent recevoir
-des valeurs différentes, cahier §13.1 : « l'interface l'indique ») et
-journalise chaque envoi séparément — non réutilisable tel quel, d'où ce
+un point structurant : celui-ci envoie UN SEUL e-mail au CONTENU IDENTIQUE
+à tous les destinataires autorisés (`RptSchedule.recipients` — depuis la
+décision P5, chaque destinataire est revalidé par permission et exclu s'il
+ne l'a plus, mais tous les destinataires restants reçoivent le MÊME
+rendu) ; celui-ci RECALCULE le rapport POUR CHAQUE destinataire (son rôle
+réel détermine son périmètre réel, BI-6 — deux destinataires peuvent
+recevoir des valeurs différentes, cahier §13.1 : « l'interface l'indique »)
+et journalise chaque envoi séparément — non réutilisable tel quel, d'où ce
 mécanisme parallèle plutôt qu'une extension de `RptSchedule` (cf. docstring
 `apps.bi.models`)."""
 

@@ -13,6 +13,8 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
+from apps.core.services.reports_registry import get_registered_report
 from apps.core.tenant_context import activate_tenant
 from apps.reporting.models import RptSchedule
 from apps.reporting.services.engine import generate_report
@@ -36,15 +38,15 @@ def compute_next_run_at(frequency: str, *, after: dt.datetime | None = None) -> 
     raise ValueError(_("fréquence de planification inconnue : %(freq)s") % {"freq": frequency})
 
 
-def _send_schedule_email(schedule: RptSchedule, data: bytes) -> None:
-    recipients = list(schedule.recipients.values_list("email", flat=True))
-    if not recipients:
+def _send_schedule_email(schedule: RptSchedule, data: bytes, *, recipients: list[User]) -> None:
+    email_addresses = [recipient.email for recipient in recipients]
+    if not email_addresses:
         return
     message = EmailMessage(
         subject=_("Rapport planifie : %(name)s") % {"name": schedule.name},
         body=_("Veuillez trouver ci-joint le rapport planifie « %(name)s ».")
         % {"name": schedule.name},
-        to=recipients,
+        to=email_addresses,
     )
     message.attach(
         f"{schedule.report_code}.{schedule.format}", data, _CONTENT_TYPES[schedule.format]
@@ -55,7 +57,36 @@ def _send_schedule_email(schedule: RptSchedule, data: bytes) -> None:
 def run_schedule(schedule: RptSchedule) -> None:
     """Genere le rapport (toujours en synchrone : une planification n'a pas
     de requete web a liberer, `estimated_row_count` reste donc None) et
-    l'envoie par e-mail aux destinataires, puis avance `next_run_at`."""
+    l'envoie par e-mail aux destinataires, puis avance `next_run_at`.
+
+    Audit Phase 3 §5 (decision P5) : la permission du rapport cible n'est
+    PAS revalidee qu'a la CREATION de la planification
+    (`apps.reporting.api.create_schedule_endpoint`) — elle est revalidee
+    ICI, a CHAQUE execution : (a) si le createur (`schedule.created_by`) n'a
+    plus (ou n'a jamais eu, compte supprime -> `None`) la permission du
+    rapport cible, la planification tout entiere est desactivee
+    (`enabled=False`) plutot que de continuer a s'executer indefiniment en
+    silence — deja journalise automatiquement par `core.audit_signals`
+    (RPT-8, cf. docstring `RptSchedule`), aucun code d'audit supplementaire
+    necessaire ; (b) chaque destinataire (`RptSchedule.recipients`) est
+    revalide individuellement — un destinataire qui n'a lui-meme plus la
+    permission du rapport ne recoit PLUS l'e-mail, sans bloquer l'envoi aux
+    destinataires encore autorises (ecart concret releve par l'audit : un
+    `rh` pouvait planifier `PAY-BULL`, bulletin individuel, vers des
+    destinataires n'ayant eux-memes pas acces a la paie)."""
+    report = get_registered_report(schedule.report_code)
+    authorized_recipients = list(schedule.recipients.all())
+    if report is not None:
+        if schedule.created_by is None or not schedule.created_by.has_perm(report.permission):
+            schedule.enabled = False
+            schedule.save(update_fields=["enabled"])
+            return
+        authorized_recipients = [
+            recipient
+            for recipient in authorized_recipients
+            if recipient.has_perm(report.permission)
+        ]
+
     job = generate_report(
         code=schedule.report_code,
         params=schedule.params,
@@ -67,7 +98,7 @@ def run_schedule(schedule: RptSchedule) -> None:
     if job.file:
         job.file.open("rb")
         try:
-            _send_schedule_email(schedule, job.file.read())
+            _send_schedule_email(schedule, job.file.read(), recipients=authorized_recipients)
         finally:
             job.file.close()
 
