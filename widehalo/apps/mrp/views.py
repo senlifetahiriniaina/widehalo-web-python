@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from apps.catalog.services.public import get_variant_sector_code
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
@@ -265,6 +266,13 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "genealogy": order_genealogy(order),
             "output_locations": available_output_locations(order),
             "first_pass_yield": first_pass_yield(order),
+            # Bloc C, C5 (PRD-4) : nudge écran — rend `output_lot_name`
+            # obligatoire par défaut pour un ordre sur un produit
+            # agroalimentaire (jamais un blocage service, cf.
+            # `services/transformation.py`).
+            "variant_sector_code": (
+                get_variant_sector_code(order.variant_id) if order.variant_id else None
+            ),
             # Chatter (Sprint 3 / L2) : premiere utilisation dans `mrp`,
             # meme patron que `apps.sales.views` (cf. templates/cotton/
             # chatter.html) — un seul fil par ordre de fabrication,

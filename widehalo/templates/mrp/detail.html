@@ -18,8 +18,10 @@
       {% if order.state == "quality_control" %}
       <input type="number" name="qty_scrapped" placeholder="{% trans 'Quantite rebutee' %}" step="0.0001"
              aria-label="{% trans 'Quantite rebutee' %}">
-      <input type="text" name="output_lot_name" placeholder="{% trans 'N° de lot de sortie (optionnel)' %}"
-             aria-label="{% trans 'N° de lot de sortie' %}">
+      <input type="text" name="output_lot_name"
+             placeholder="{% if variant_sector_code == 'agroalimentaire' %}{% trans 'N° de lot de sortie' %}{% else %}{% trans 'N° de lot de sortie (optionnel)' %}{% endif %}"
+             aria-label="{% trans 'N° de lot de sortie' %}"
+             {% if variant_sector_code == "agroalimentaire" %}required{% endif %}>
       <select name="location_to_id" aria-label="{% trans 'Emplacement de réception' %}">
         <option value="">{% trans "— Emplacement de réception —" %}</option>
         {% for loc in output_locations %}<option value="{{ loc.id }}">{{ loc.code }} — {{ loc.name }}</option>{% endfor %}

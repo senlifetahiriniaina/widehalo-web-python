@@ -9,7 +9,14 @@ from django.core.exceptions import ValidationError
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpBom
-from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom, explode, new_version
+from apps.mrp.services.bom import (
+    activate_bom,
+    add_bom_line,
+    add_by_product,
+    create_bom,
+    explode,
+    new_version,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -155,3 +162,104 @@ def test_conditional_component_skipped_without_matching_attribute(bom_setup) -> 
 
         assert rows_without_match == []
         assert len(rows_with_match) == 1
+
+
+def test_add_by_product_requires_process_type(bom_setup) -> None:
+    tenant = bom_setup
+    with use_tenant(tenant.id):
+        product_id = uuid.uuid4()
+        bom = create_bom(tenant=tenant, code="BOM-MFG", product_template_id=product_id)
+        with pytest.raises(ValidationError):
+            add_by_product(
+                bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10")
+            )
+
+
+def test_add_by_product_refuses_on_active_bom(bom_setup) -> None:
+    tenant = bom_setup
+    with use_tenant(tenant.id):
+        product_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PROC", product_template_id=product_id, type=MrpBom.TYPE_PROCESS
+        )
+        activate_bom(bom)
+        with pytest.raises(ValidationError):
+            add_by_product(
+                bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10")
+            )
+
+
+def test_add_by_product_declares_yield_and_coproduct_data(bom_setup) -> None:
+    """Bloc C, C5 (PRD-7) : nomenclature de process avec rendement +
+    sous-produit déclarés — données purement déclaratives, consommées
+    par la réconciliation matière de C3."""
+    tenant = bom_setup
+    with use_tenant(tenant.id):
+        product_id = uuid.uuid4()
+        by_product_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PROC", product_template_id=product_id, type=MrpBom.TYPE_PROCESS
+        )
+        bom.expected_yield_pct = Decimal("85")
+        bom.save(update_fields=["expected_yield_pct"])
+
+        add_by_product(
+            bom,
+            component_template_id=by_product_id,
+            expected_qty_pct=Decimal("12.50"),
+            label="Sous-produit A",
+            is_coproduct=True,
+        )
+        bom.refresh_from_db()
+        assert bom.expected_yield_pct == Decimal("85")
+        assert bom.by_products == [
+            {
+                "component_template_id": str(by_product_id),
+                "label": "Sous-produit A",
+                "expected_qty_pct": "12.50",
+                "is_coproduct": True,
+            }
+        ]
+
+
+def test_new_version_copies_yield_and_by_products(bom_setup) -> None:
+    tenant = bom_setup
+    with use_tenant(tenant.id):
+        product_id = uuid.uuid4()
+        by_product_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PROC", product_template_id=product_id, type=MrpBom.TYPE_PROCESS
+        )
+        bom.expected_yield_pct = Decimal("90")
+        bom.save(update_fields=["expected_yield_pct"])
+        add_by_product(bom, component_template_id=by_product_id, expected_qty_pct=Decimal("5"))
+        activate_bom(bom)
+
+        v2 = new_version(bom)
+        assert v2.expected_yield_pct == Decimal("90")
+        assert v2.by_products == bom.by_products
+        # Copie independante : muter la v2 n'affecte pas la v1 archivee.
+        add_by_product(v2, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("1"))
+        bom.refresh_from_db()
+        assert len(bom.by_products) == 1
+        assert len(v2.by_products) == 2
+
+
+def test_explode_ignores_by_products_declaration(bom_setup) -> None:
+    """Preuve du perimetre scope C5 : les sous-produits/coproduits sont
+    purement declaratifs, `explode()` (le seul point qui materialise les
+    composants d'un ordre reel) ne les voit jamais."""
+    tenant = bom_setup
+    with use_tenant(tenant.id):
+        product_id = uuid.uuid4()
+        component_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PROC", product_template_id=product_id, type=MrpBom.TYPE_PROCESS
+        )
+        add_bom_line(bom, component_template_id=component_id, qty=Decimal(2))
+        add_by_product(bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10"))
+        activate_bom(bom)
+
+        rows = explode(bom, Decimal(5))
+        assert len(rows) == 1
+        assert rows[0]["component_template_id"] == component_id

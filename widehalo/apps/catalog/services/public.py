@@ -15,6 +15,7 @@ from django.utils.translation import gettext as _
 
 from apps.catalog.models import (
     CatalogCertification,
+    CatalogSectorSpec,
     Packaging,
     ProductSupplierInfo,
     ProductVariant,
@@ -400,6 +401,17 @@ def get_variant_packaging(variant_id: Any) -> dict[str, Any] | None:
     if packaging is None:
         return None
     return {"unit_count": packaging.unit_count, "uom_code": packaging.uom.code}
+
+
+def get_variant_sector_code(variant_id: Any) -> str | None:
+    """Bloc C, C5 (PRD-4) : résout le secteur métier d'une variante
+    (`CatalogSectorSpec.sector_code`) pour un appelant cross-app (`mrp`,
+    nudge « rendre `output_lot_name` obligatoire par défaut pour une
+    nomenclature agroalimentaire »). Retourne `None`, jamais une
+    exception, si la variante n'a aucune fiche sectorielle — même
+    discipline que `get_variant_reference` ci-dessus."""
+    spec = CatalogSectorSpec.objects.filter(variant_id=variant_id).first()
+    return spec.sector_code if spec is not None else None
 
 
 def get_valid_certifications(variant_id: Any, *, on_date: dt.date | None = None) -> list[str]:

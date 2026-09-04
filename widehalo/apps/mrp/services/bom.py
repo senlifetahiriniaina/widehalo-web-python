@@ -96,6 +96,47 @@ def add_bom_line(
     )
 
 
+def add_by_product(
+    bom: MrpBom,
+    *,
+    component_template_id: UUID,
+    expected_qty_pct: Decimal,
+    label: str = "",
+    is_coproduct: bool = False,
+) -> MrpBom:
+    """Bloc C, C5 (PRD-7) : ajoute une ligne DÉCLARATIVE de sous-produit/
+    coproduit — même garde d'immutabilité que `add_bom_line` (nomenclature
+    active = immuable, toute évolution passe par `new_version`).
+
+    N'affecte JAMAIS `explode()` : purement déclaratif, consommé
+    uniquement par la réconciliation matière de C3
+    (`apps.mrp.services.costing.check_material_reconciliation`). Refuse
+    sur une nomenclature qui n'est pas de type `TYPE_PROCESS` — seul type
+    qui a un sens pour un rendement/des sous-produits agroalimentaires."""
+    if bom.type != MrpBom.TYPE_PROCESS:
+        raise ValidationError(
+            _(
+                "Seule une nomenclature de type « process » peut porter des "
+                "sous-produits/coproduits."
+            )
+        )
+    if bom.state == MrpBom.STATE_ACTIVE:
+        raise ValidationError(
+            _("Une nomenclature active est immuable — créer une nouvelle version.")
+        )
+    bom.by_products = [
+        *bom.by_products,
+        {
+            "component_template_id": str(component_template_id),
+            "label": label,
+            "expected_qty_pct": str(expected_qty_pct),
+            "is_coproduct": is_coproduct,
+        },
+    ]
+    bom.save(update_fields=["by_products"])
+    return bom
+
+
 def activate_bom(bom: MrpBom) -> MrpBom:
     """Rend cette version active et bascule toute version active precedente
     du meme produit en obsolete."""
@@ -127,6 +168,8 @@ def new_version(bom: MrpBom) -> MrpBom:
         state=MrpBom.STATE_DRAFT,
         parent_bom=bom,
         notes=bom.notes,
+        expected_yield_pct=bom.expected_yield_pct,
+        by_products=list(bom.by_products),
     )
     for line in bom.lines.all():
         MrpBomLine.objects.create(

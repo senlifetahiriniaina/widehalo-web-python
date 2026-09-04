@@ -121,10 +121,16 @@ class MrpBom(BaseModel):
     TYPE_MANUFACTURE = "manufacture"
     TYPE_KIT = "kit"
     TYPE_SUBCONTRACT = "subcontract"
+    # Bloc C, C5 : nomenclature agroalimentaire — seul type qui porte un
+    # rendement attendu et des sous-produits/coproduits (`expected_yield_
+    # pct`/`by_products` ci-dessous), consomme par la reconciliation
+    # matiere de C3 (PRD-7).
+    TYPE_PROCESS = "process"
     TYPE_CHOICES = [
         (TYPE_MANUFACTURE, "Fabrication"),
         (TYPE_KIT, "Kit"),
         (TYPE_SUBCONTRACT, "Sous-traitance"),
+        (TYPE_PROCESS, "Process (agroalimentaire)"),
     ]
 
     STATE_DRAFT = "draft"
@@ -155,6 +161,22 @@ class MrpBom(BaseModel):
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="versions"
     )
     notes = models.TextField(blank=True)
+    # Bloc C, C5 (PRD-7) : rendement attendu du produit PRINCIPAL, en % de
+    # la matiere engagee — pertinent uniquement pour type=TYPE_PROCESS,
+    # valide en service (`services/bom.py::add_by_product`). Consomme par
+    # la reconciliation matiere de C3.
+    expected_yield_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    # Sous-produits/coproduits declaratifs :
+    # [{"component_template_id": "<uuid>", "label": "...",
+    #   "expected_qty_pct": "12.50", "is_coproduct": true}, ...].
+    # JSONField plutot qu'un modele dedie — budget de modeles a 290/290
+    # (zero marge, cf. tests/architecture/test_budget.py), meme patron
+    # que `CatalogSectorSpec.attributes`/`MrpBomLine.qty_by_size`.
+    # Purement declaratif : n'affecte JAMAIS `explode()`, consomme
+    # uniquement par la reconciliation matiere de C3 (PRD-7).
+    by_products = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "mrp_bom"
