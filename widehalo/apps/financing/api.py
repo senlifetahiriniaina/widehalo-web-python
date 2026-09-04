@@ -294,9 +294,19 @@ _CREDOC_TRANSITIONS = {
 }
 
 
+class CredocTransitionIn(Schema):
+    # B2 : motif desormais obligatoire sur les 4 transitions
+    # (`services/credoc.py`) — vide par defaut ici pour laisser le service
+    # lever la `ValidationError` i18n habituelle (capturee ci-dessous)
+    # plutot qu'un rejet de schema Ninja moins explicite.
+    reason: str = ""
+
+
 @router.post("/financing/credocs/{credoc_id}/transition/{action}")
 @require_permission("financing.change_fincredoc")
-def transition_credoc_endpoint(request: Any, credoc_id: str, action: str) -> dict[str, Any]:
+def transition_credoc_endpoint(
+    request: Any, credoc_id: str, action: str, payload: CredocTransitionIn
+) -> dict[str, Any]:
     credoc = get_object_or_404(FinCredoc, id=credoc_id)
     transition_fn = _CREDOC_TRANSITIONS.get(action)
     if transition_fn is None:
@@ -304,8 +314,9 @@ def transition_credoc_endpoint(request: Any, credoc_id: str, action: str) -> dic
     user = request.auth
     assert isinstance(user, User)
     try:
-        transition_fn(credoc, user)
-    except TransitionPermissionError as exc:
-        return JsonResponse({"detail": str(exc)}, status=400)
+        transition_fn(credoc, user, reason=payload.reason)
+    except (ValidationError, TransitionPermissionError) as exc:
+        message = "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
+        return JsonResponse({"detail": message}, status=400)
     credoc.refresh_from_db()
     return _serialize_credoc(credoc)

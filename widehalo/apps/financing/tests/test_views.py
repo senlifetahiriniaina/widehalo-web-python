@@ -93,3 +93,67 @@ def test_credoc_detail_screen_renders(web_financing) -> None:
 
     response = client.get(f"/financing/credocs/{credoc.id}/", HTTP_X_TENANT_ID=str(tenant.id))
     assert response.status_code == 200
+
+
+def test_credoc_dossier_timeline_screen_renders(web_financing) -> None:
+    """B2 : nouvel écran composite lecture-seule."""
+    tenant, user = web_financing
+    with use_tenant(tenant.id):
+        credoc = create_credoc(
+            tenant,
+            purchase_order_id=uuid.uuid4(),
+            bank="Banque emettrice",
+            beneficiary="Fournisseur",
+            amount_mga=Decimal("10000000"),
+            validity_date=dt.date(2026, 12, 31),
+        )
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.get(
+        f"/financing/credocs/{credoc.id}/dossier/", HTTP_X_TENANT_ID=str(tenant.id)
+    )
+    assert response.status_code == 200
+
+
+def test_credoc_detail_transition_requires_a_reason(web_financing) -> None:
+    """B2 : le formulaire HTML omettant le motif doit re-rendre la page
+    avec une erreur (302 -> refus, jamais une transition silencieuse sans
+    motif) — même round-trip HTTP réel que le reste de ce dépôt pour un
+    garde-fou métier."""
+    tenant, user = web_financing
+    with use_tenant(tenant.id):
+        credoc = create_credoc(
+            tenant,
+            purchase_order_id=uuid.uuid4(),
+            bank="Banque emettrice",
+            beneficiary="Fournisseur",
+            amount_mga=Decimal("10000000"),
+            validity_date=dt.date(2026, 12, 31),
+        )
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    response = client.post(
+        f"/financing/credocs/{credoc.id}/",
+        {"action": "open", "reason": ""},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    assert b"motif" in response.content.lower() or b"obligatoire" in response.content.lower()
+
+    response = client.post(
+        f"/financing/credocs/{credoc.id}/",
+        {"action": "open", "reason": "Accord de la banque émettrice reçu"},
+        HTTP_X_TENANT_ID=str(tenant.id),
+    )
+    assert response.status_code == 200
+    with use_tenant(tenant.id):
+        credoc.refresh_from_db()
+        assert credoc.state == "ouvert"

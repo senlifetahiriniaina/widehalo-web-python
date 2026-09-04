@@ -11,4 +11,9 @@ urlpatterns = [
     path("credocs/", views.credoc_list, name="credoc-list"),
     path("credocs/new/", views.credoc_create, name="credoc-create"),
     path("credocs/<uuid:credoc_id>/", views.credoc_detail, name="credoc-detail"),
+    path(
+        "credocs/<uuid:credoc_id>/dossier/",
+        views.credoc_dossier_timeline,
+        name="credoc-dossier-timeline",
+    ),
 ]

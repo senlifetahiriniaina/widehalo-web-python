@@ -21,6 +21,7 @@ from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.financing.models import FinCredoc, FinGuarantee, FinLoanApplication
 from apps.financing.services.credoc import (
+    build_dossier_timeline,
     close_credoc,
     create_credoc,
     credoc_fx_variance,
@@ -141,11 +142,16 @@ CREDOC_COLUMNS = [
     Column(key="amount_mga", label="Montant", searchable=False),
 ]
 
+# B2 : chaque transition CREDOC exige desormais un motif obligatoire
+# (`reason`, cf. `services/credoc.py`) — meme patron `post.get("reason", "")`
+# que `apps.purchase.views._ORDER_ACTIONS` pour `cancel`/`open_dispute`.
 _CREDOC_TRANSITIONS = {
-    "open": open_credoc,
-    "receive_documents": receive_documents,
-    "pay": pay_credoc,
-    "close": close_credoc,
+    "open": lambda credoc, user, post: open_credoc(credoc, user, reason=post.get("reason", "")),
+    "receive_documents": lambda credoc, user, post: receive_documents(
+        credoc, user, reason=post.get("reason", "")
+    ),
+    "pay": lambda credoc, user, post: pay_credoc(credoc, user, reason=post.get("reason", "")),
+    "close": lambda credoc, user, post: close_credoc(credoc, user, reason=post.get("reason", "")),
 }
 
 
@@ -196,8 +202,8 @@ def credoc_detail(request: HttpRequest, credoc_id: str) -> HttpResponse:
         transition_fn = _CREDOC_TRANSITIONS.get(action or "")
         if transition_fn is not None:
             try:
-                transition_fn(credoc, cast(User, request.user))
-            except TransitionPermissionError as exc:
+                transition_fn(credoc, cast(User, request.user), request.POST)
+            except (ValidationError, TransitionPermissionError) as exc:
                 error = str(exc)
             credoc.refresh_from_db()
 
@@ -205,4 +211,19 @@ def credoc_detail(request: HttpRequest, credoc_id: str) -> HttpResponse:
         request,
         "financing/credoc_detail.html",
         {"credoc": credoc, "error": error, "fx_variance": credoc_fx_variance(credoc)},
+    )
+
+
+@login_required
+def credoc_dossier_timeline(request: HttpRequest, credoc_id: str) -> HttpResponse:
+    """B2 (Phase 3, "chronologie unifiée CREDOC/import/coût débarqué", cf.
+    plan) : écran composite EN LECTURE SEULE — aucune action de transition
+    ici, uniquement `build_dossier_timeline` (`services/credoc.py`), qui
+    agrège via les `services.public` de `purchase`/`logistics` (jamais un
+    accès direct à leurs modèles, règle de couplage n°1)."""
+    credoc = get_object_or_404(FinCredoc, id=credoc_id)
+    return render(
+        request,
+        "financing/credoc_dossier_timeline.html",
+        {"credoc": credoc, "dossier": build_dossier_timeline(credoc)},
     )

@@ -18,8 +18,10 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.purchase.models import PurCri, PurRequisition, PurRequisitionLine
+from apps.purchase.services.orders import create_order
 from apps.purchase.services.public import (
     create_requisition_line_from_source,
+    get_order_summary,
     open_purchase_incident,
 )
 
@@ -156,3 +158,33 @@ def test_create_requisition_line_from_source_returns_none_without_real_variant(
         # La demande cree puis avortee (echec de resolution de variante)
         # est annulee en transaction — aucune demande orpheline sans ligne.
         assert not PurRequisition.objects.exists()
+
+
+# ---------------------------------------------------------------------------
+# get_order_summary — gap B2 (Phase 3, "chronologie unifiee CREDOC/import/
+# cout debarque", cf. plan) : `financing` en a besoin pour ancrer sa frise
+# chronologique sur le dossier d'achat.
+# ---------------------------------------------------------------------------
+
+
+def test_get_order_summary_resolves_existing_order() -> None:
+    tenant = Tenant.objects.create(code="PUR-PUB-SUM1", name="Purchase Public Summary Tenant 1")
+    with use_tenant(tenant.id):
+        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date(2026, 3, 1))
+
+        summary = get_order_summary(order.id)
+
+        assert summary == {
+            "id": order.id,
+            "reference": order.reference,
+            "state": order.state,
+            "date": order.date,
+            "date_expected": order.date_expected,
+            "import_dossier_pending": order.import_dossier_pending,
+        }
+
+
+def test_get_order_summary_returns_none_for_unknown_order() -> None:
+    tenant = Tenant.objects.create(code="PUR-PUB-SUM2", name="Purchase Public Summary Tenant 2")
+    with use_tenant(tenant.id):
+        assert get_order_summary(uuid.uuid4()) is None

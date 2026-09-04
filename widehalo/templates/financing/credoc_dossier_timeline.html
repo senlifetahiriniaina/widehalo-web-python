@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load i18n core_extras %}
+{% block title %}{% trans "Chronologie du dossier" %} — {{ credoc.reference }} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'financing:credoc-list' %}">{% trans "Crédits documentaires (CREDOC)" %}</a>
+  <span>/</span> <a href="{% url 'financing:credoc-detail' credoc.id %}">{{ credoc.reference }}</a>
+  <span>/</span> {% trans "Chronologie du dossier" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Chronologie du dossier" %} — {{ credoc.reference }}</h1>
+</div>
+
+{% if dossier.order %}
+  <p>
+    {% trans "Commande d'achat" %} : {{ dossier.order.reference }} —
+    <span class="badge {{ dossier.order.state|state_badge_class }}">{{ dossier.order.state }}</span>
+    {% if dossier.order.import_dossier_pending %}
+      — {% trans "dossier d'importation en attente d'ouverture (RG-PUR-7)" %}
+    {% endif %}
+  </p>
+{% else %}
+  <p class="hint">{% trans "Commande d'achat introuvable pour ce CREDOC." %}</p>
+{% endif %}
+
+<h2>{% trans "Frise chronologique" %}</h2>
+<ul>
+  {% for event in dossier.events %}
+    <li><strong>{{ event.at }}</strong> — {{ event.label }}</li>
+  {% empty %}
+    <li>{% trans "Aucun évènement enregistré pour ce dossier." %}</li>
+  {% endfor %}
+</ul>
+
+<h2>{% trans "Expéditions" %}</h2>
+{% for shipment in dossier.shipments %}
+  <div class="card">
+    <h3>
+      {{ shipment.reference }} —
+      <span class="badge {{ shipment.state|state_badge_class }}">{{ shipment.state }}</span>
+    </h3>
+    <p>{{ shipment.origin }} → {{ shipment.destination }}</p>
+    {% if shipment.block_reason %}
+      <p class="form-error">{% trans "Motif de blocage" %} : {{ shipment.block_reason }}</p>
+    {% endif %}
+    {% for customs_file in shipment.customs_files %}
+      <p>
+        {% trans "Dossier douanier" %} {{ customs_file.reference }} —
+        <span class="badge {{ customs_file.state|state_badge_class }}">{{ customs_file.state }}</span>
+        {% if customs_file.landed_cost_batch_id %}
+          — {% trans "coût débarqué appliqué" %}
+        {% endif %}
+      </p>
+    {% empty %}
+      <p class="hint">{% trans "Aucun dossier douanier ouvert pour cette expédition." %}</p>
+    {% endfor %}
+  </div>
+{% empty %}
+  <p class="hint">{% trans "Aucune expédition rattachée à ce dossier pour l'instant." %}</p>
+{% endfor %}
+{% endblock %}

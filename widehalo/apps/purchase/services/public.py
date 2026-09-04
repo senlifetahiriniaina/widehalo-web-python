@@ -74,6 +74,29 @@ def get_order_reference(order_id: Any) -> str:
     return order.reference if order is not None else ""
 
 
+def get_order_summary(order_id: Any) -> dict[str, Any] | None:
+    """Gap B2 (Phase 3, "chronologie unifiée CREDOC/import/coût débarqué",
+    cf. plan) : `financing` a besoin de plus qu'une simple référence
+    (`get_order_reference` ci-dessus) pour ancrer la frise chronologique
+    d'un dossier — son statut et ses dates. Retourne un dict primitif
+    `{"id", "reference", "state", "date", "date_expected",
+    "import_dossier_pending"}`, jamais l'objet `PurOrder` (règle de
+    couplage n°1). Retourne `None`, jamais une exception, si la commande
+    n'existe pas — même discipline que `get_order_reference` (qui
+    retourne une chaîne vide dans ce cas, adaptée ici au type de retour)."""
+    order = PurOrder.objects.filter(id=order_id).first()
+    if order is None:
+        return None
+    return {
+        "id": order.id,
+        "reference": order.reference,
+        "state": order.state,
+        "date": order.date,
+        "date_expected": order.date_expected,
+        "import_dossier_pending": order.import_dossier_pending,
+    }
+
+
 def create_requisition_line_from_source(
     tenant: Tenant,
     *,

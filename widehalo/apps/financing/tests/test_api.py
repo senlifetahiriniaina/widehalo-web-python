@@ -158,13 +158,52 @@ def test_credoc_lifecycle_via_api(api_financing) -> None:
     credoc_id = create_response.json()["id"]
     assert create_response.json()["state"] == "demande"
 
+    # B2 : motif desormais obligatoire sur chaque transition — omis ici
+    # (`reason` retombe sur son defaut vide de `CredocTransitionIn`), le
+    # service refuse (400), jamais un 500.
+    missing_reason_response = client.post(
+        f"/api/v1/financing/credocs/{credoc_id}/transition/open",
+        {},
+        content_type="application/json",
+        **headers,
+    )
+    assert missing_reason_response.status_code == 400
+
     open_response = client.post(
         f"/api/v1/financing/credocs/{credoc_id}/transition/open",
+        {"reason": "Accord de la banque émettrice reçu"},
         content_type="application/json",
         **headers,
     )
     assert open_response.status_code == 200
     assert open_response.json()["state"] == "ouvert"
+
+    receive_documents_response = client.post(
+        f"/api/v1/financing/credocs/{credoc_id}/transition/receive_documents",
+        {"reason": "Jeu de documents complet reçu du fournisseur"},
+        content_type="application/json",
+        **headers,
+    )
+    assert receive_documents_response.status_code == 200
+    assert receive_documents_response.json()["state"] == "documents_recus"
+
+    pay_response = client.post(
+        f"/api/v1/financing/credocs/{credoc_id}/transition/pay",
+        {"reason": "Documents conformes, paiement autorisé"},
+        content_type="application/json",
+        **headers,
+    )
+    assert pay_response.status_code == 200
+    assert pay_response.json()["state"] == "paye"
+
+    close_response = client.post(
+        f"/api/v1/financing/credocs/{credoc_id}/transition/close",
+        {"reason": "Marchandise livrée, dossier soldé"},
+        content_type="application/json",
+        **headers,
+    )
+    assert close_response.status_code == 200
+    assert close_response.json()["state"] == "clos"
 
 
 def test_role_without_financing_permission_is_denied(api_financing) -> None:

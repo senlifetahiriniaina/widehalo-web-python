@@ -44,13 +44,16 @@ def test_open_credoc_publishes_credoc_state_changed() -> None:
         grant_role(user, "comptable")
         credoc = _credoc(tenant)
 
-        open_credoc(credoc, user)
+        open_credoc(credoc, user, reason="Accord de la banque émettrice reçu")
 
     event = EventLog.objects.get(
         event_type="financing.credoc_state_changed", tenant_id=str(tenant.id)
     )
     assert event.payload["credoc_id"] == str(credoc.id)
     assert event.payload["state"] == FinCredoc.STATE_OPENED
+    # B2 : le motif rejoint desormais le payload de l'evenement — meme
+    # discipline que `purchase.dispute_opened`/`logistics.shipment_blocked`.
+    assert event.payload["reason"] == "Accord de la banque émettrice reçu"
 
 
 def test_each_transition_publishes_its_own_event() -> None:
@@ -60,10 +63,10 @@ def test_each_transition_publishes_its_own_event() -> None:
         grant_role(user, "comptable")
         credoc = _credoc(tenant)
 
-        open_credoc(credoc, user)
-        receive_documents(credoc, user)
-        pay_credoc(credoc, user)
-        close_credoc(credoc, user)
+        open_credoc(credoc, user, reason="Accord de la banque émettrice reçu")
+        receive_documents(credoc, user, reason="Jeu de documents complet reçu")
+        pay_credoc(credoc, user, reason="Documents conformes, paiement autorisé")
+        close_credoc(credoc, user, reason="Marchandise livrée, dossier soldé")
 
     events = list(
         EventLog.objects.filter(

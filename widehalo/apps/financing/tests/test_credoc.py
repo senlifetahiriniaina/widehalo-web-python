@@ -62,19 +62,19 @@ def test_credoc_full_workflow() -> None:
         grant_role(user, "comptable")
         credoc = _credoc(tenant)
 
-        open_credoc(credoc, user)
+        open_credoc(credoc, user, reason="Accord de la banque émettrice reçu")
         credoc.refresh_from_db()
         assert credoc.state == FinCredoc.STATE_OPENED
 
-        receive_documents(credoc, user)
+        receive_documents(credoc, user, reason="Jeu de documents complet reçu du fournisseur")
         credoc.refresh_from_db()
         assert credoc.state == FinCredoc.STATE_DOCUMENTS_RECEIVED
 
-        pay_credoc(credoc, user)
+        pay_credoc(credoc, user, reason="Documents conformes, paiement autorisé")
         credoc.refresh_from_db()
         assert credoc.state == FinCredoc.STATE_PAID
 
-        close_credoc(credoc, user)
+        close_credoc(credoc, user, reason="Marchandise livrée, dossier soldé")
         credoc.refresh_from_db()
         assert credoc.state == FinCredoc.STATE_CLOSED
 
@@ -87,4 +87,24 @@ def test_credoc_cannot_skip_states() -> None:
         credoc = _credoc(tenant)
 
         with pytest.raises(TransitionPermissionError):
-            pay_credoc(credoc, user)
+            pay_credoc(credoc, user, reason="Tentative de saut d'étape")
+
+
+# B2 (Phase 3, "transitions motivées") : motif obligatoire sur les 4
+# transitions — même patron que
+# `apps.logistics.tests.test_shipments::test_block_shipment_requires_reason`.
+def test_credoc_transitions_require_a_reason() -> None:
+    tenant = Tenant.objects.create(code="FIN-CRED5", name="Financing Credoc Tenant 5")
+    with use_tenant(tenant.id):
+        user = UserFactory()
+        grant_role(user, "comptable")
+        credoc = _credoc(tenant)
+
+        with pytest.raises(ValidationError):
+            open_credoc(credoc, user, reason="")
+        credoc.refresh_from_db()
+        assert credoc.state == FinCredoc.STATE_REQUESTED
+
+        open_credoc(credoc, user, reason="Accord de la banque émettrice reçu")
+        with pytest.raises(ValidationError):
+            receive_documents(credoc, user, reason="")
