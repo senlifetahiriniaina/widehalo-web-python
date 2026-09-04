@@ -122,8 +122,21 @@ def _is_valuation_internal(location: StkLocation) -> bool:
     inchange — "stock physique disponible" et "perimetre de valorisation"
     sont deux notions differentes qui n'ont pas a co-evoluer). Inclut
     `TYPE_REBUT` en plus de `TYPE_INTERNE` : cf. docstring de module
-    ci-dessus (ajustement ST3, RG-STK-7)."""
-    return location.type in (StkLocation.TYPE_INTERNE, StkLocation.TYPE_REBUT)
+    ci-dessus (ajustement ST3, RG-STK-7).
+
+    Bloc C, C2/PRD-9 : inclut aussi `TYPE_SOUS_TRAITANT` — « la matiere
+    sortie vers un faconnier reste dans la valeur de stock de
+    l'entreprise, dans un emplacement de sous-traitance ». Un mouvement
+    interne -> sous_traitant ne doit donc PAS consommer/creer de couche
+    de valorisation, meme raisonnement exact que l'exception `TYPE_REBUT`
+    ci-dessus. Duplique dans `services/ai_anomaly_registration.py::
+    _check_negative_stock` (perimetre auto-declare identique) — a tenir
+    synchronise."""
+    return location.type in (
+        StkLocation.TYPE_INTERNE,
+        StkLocation.TYPE_REBUT,
+        StkLocation.TYPE_SOUS_TRAITANT,
+    )
 
 
 def _quantize_mga(value: Decimal) -> Decimal:

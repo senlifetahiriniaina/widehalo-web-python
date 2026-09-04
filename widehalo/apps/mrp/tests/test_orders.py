@@ -30,7 +30,11 @@ from apps.mrp.services.orders import (
     suspend_order,
 )
 from apps.stocks.models import StkReservation
-from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory
+from apps.stocks.tests.factories import (
+    StkLocationFactory,
+    StkQuantFactory,
+    StkWarehouseFactory,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -145,11 +149,25 @@ def test_work_order_lifecycle(order_setup) -> None:
 
 
 def test_subcontracting_round_trip(order_setup) -> None:
-    tenant, user, _workshop, _workcenter, order = order_setup
+    """Bloc C, C2 : l'envoi/reception produit desormais un VRAI mouvement
+    de stock — l'atelier doit avoir un entrepot configure, avec un quant
+    interne suffisant pour l'article envoye (meme discipline que
+    `reservation_setup`)."""
+    tenant, user, workshop, _workcenter, order = order_setup
     with use_tenant(tenant.id):
+        warehouse = StkWarehouseFactory(tenant=tenant)
+        workshop.warehouse_id = warehouse.id
+        workshop.save(update_fields=["warehouse_id"])
+        location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+        variant_id = uuid.uuid4()
+        StkQuantFactory(tenant=tenant, variant_id=variant_id, location=location, qty=Decimal(10))
+
         confirm_order(order, user)
-        subcontract = send_to_subcontractor(order, partner_id=uuid.uuid4(), qty=Decimal(10))
+        subcontract = send_to_subcontractor(
+            order, partner_id=uuid.uuid4(), variant_id=variant_id, qty=Decimal(10)
+        )
         assert subcontract.state == "sent"
+        assert subcontract.send_move_id is not None
         received = receive_from_subcontractor(subcontract, qty_received=Decimal(10))
         assert received.state == "received"
         assert received.date_received is not None

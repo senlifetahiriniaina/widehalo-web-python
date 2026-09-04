@@ -6,7 +6,8 @@ etablis dans ce module.
 
 **Adaptateur mince, pas une nouvelle regle metier** : `_check_negative_
 stock` reutilise le perimetre "interne au sens valorisation" deja defini
-par RG-STK-10/ST7 (`StkLocation.TYPE_INTERNE`/`TYPE_REBUT`, cf.
+par RG-STK-10/ST7 (`StkLocation.TYPE_INTERNE`/`TYPE_REBUT`, plus
+`TYPE_SOUS_TRAITANT` depuis Bloc C/C2/PRD-9, cf.
 `services.moves._is_valuation_internal`, reimplemente ici a l'identique —
 fonction privee, meme raisonnement "reuse si importable, sinon mirror
 inline" que `services/budgets.py::_ratio_or_none`, A14) et
@@ -39,7 +40,11 @@ def _check_negative_stock(tenant_id: str) -> list[AnomalyCandidate]:
     quants = StkQuant.objects.filter(
         tenant_id=tenant_id,
         qty__lt=0,
-        location__type__in=(StkLocation.TYPE_INTERNE, StkLocation.TYPE_REBUT),
+        location__type__in=(
+            StkLocation.TYPE_INTERNE,
+            StkLocation.TYPE_REBUT,
+            StkLocation.TYPE_SOUS_TRAITANT,
+        ),
     ).select_related("location")
 
     for quant in quants:

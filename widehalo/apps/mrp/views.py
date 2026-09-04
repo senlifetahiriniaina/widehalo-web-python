@@ -169,6 +169,7 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
                 send_to_subcontractor(
                     order,
                     partner_id=UUID(post.get("partner_id") or ""),
+                    variant_id=UUID(post.get("sub_variant_id") or ""),
                     qty=Decimal(post.get("sub_qty") or "0"),
                     price_unit=Decimal(post.get("price_unit") or "0"),
                 )

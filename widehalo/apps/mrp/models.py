@@ -383,10 +383,11 @@ class MrpWorkOrder(BaseModel):
 
 class MrpSubcontractOrder(BaseModel):
     """RG-MRP-8 : l'envoi de matiere a un sous-traitant genere un mouvement
-    de stock vers un emplacement virtuel « chez le sous-traitant » (futur
-    module `stocks`, non construit — le mouvement de stock lui-meme sera
-    branche via `stocks.services.public` quand ce module existera ; cette
-    entite MRP trace deja l'operation cote production)."""
+    de stock vers un emplacement virtuel « chez le sous-traitant ».
+
+    Bloc C, C2 : le mouvement de stock reel est desormais branche via
+    `stocks.services.public.send_to_subcontractor`/
+    `receive_from_subcontractor` (`send_move_id` en garde la trace)."""
 
     STATE_SENT = "sent"
     STATE_RECEIVED = "received"
@@ -400,6 +401,12 @@ class MrpSubcontractOrder(BaseModel):
     operation = models.ForeignKey(
         MrpOperation, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # Bloc C, C2 : l'article MATIERE envoye au sous-traitant — ni
+    # `order.variant_id` (le produit FINI de l'ordre, pas la matiere
+    # envoyee) ni `operation` (ne porte aucune variante) ne l'identifient.
+    # Fourni explicitement par l'appelant a l'envoi, persiste ici pour que
+    # la reception n'ait pas a le refournir.
+    variant_id = models.UUIDField(null=True, blank=True)
     qty = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     price_unit = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     date_sent = models.DateField(null=True, blank=True)
@@ -408,6 +415,10 @@ class MrpSubcontractOrder(BaseModel):
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_SENT)
     qty_received = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     qty_rejected = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # Bloc C, C2 : UUID du StkMove d'envoi (jamais une FK Django, regle de
+    # couplage n1) — resolu via `stocks.services.public.
+    # receive_from_subcontractor` a la reception.
+    send_move_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "mrp_subcontract_order"

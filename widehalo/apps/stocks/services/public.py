@@ -420,6 +420,7 @@ def decide_stock_import_qualification(
 from apps.stocks.models import StkLot, StkMove  # noqa: E402
 from apps.stocks.services.genealogy import genealogy_tree, record_consumption  # noqa: E402
 from apps.stocks.services.moves import create_move, validate_move  # noqa: E402
+from apps.stocks.services.quants import get_quant  # noqa: E402
 
 
 def list_locations(tenant: Tenant) -> list[dict[str, Any]]:
@@ -611,6 +612,192 @@ def receive_purchase_line(
     validate_move(move)
     move_id: UUID = move.id
     return move_id
+
+
+def send_to_subcontractor(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    qty: Decimal,
+    uom: str,
+    warehouse_id: Any,
+    date: dt.date,
+    source_document: str = "",
+    unit_cost_mga: Decimal = Decimal(0),
+    lot_name: str = "",
+    operator: User | None = None,
+) -> UUID:
+    """Bloc C, C2 (RG-MRP-8, PRD-9) : phase 1 (envoi) d'une sous-traitance
+    de façon — interne -> sous-traitant (emplacement virtuel
+    `TYPE_SOUS_TRAITANT`, `get_or_create` par entrepôt, même convention
+    que `TYPE_PRODUCTION`/`TYPE_FOURNISSEUR` ci-dessus). Type de
+    mouvement `TYPE_TRANSFERT_INTERNE` (PAS `TYPE_SOUS_TRAITANCE`,
+    réservé à la jambe RETOUR par `services.traceability.
+    _UPSTREAM_MOVE_TYPES`) : la matière reste dans le périmètre de
+    valorisation TRACÉ (`_is_valuation_internal` étend désormais
+    `TYPE_SOUS_TRAITANT`, PRD-9 — « la matière sortie vers un façonnier
+    reste dans la valeur de stock de l'entreprise »).
+
+    Même patron en deux phases que `services.moves.
+    transfer_between_warehouses`/`receive_warehouse_transfer` (deux
+    mouvements DISTINCTS et durablement persistés, jamais une seule
+    transaction couvrant tout l'aller-retour) plutôt que les patrons à
+    une phase (`receive_production_output`/`receive_purchase_line`) —
+    l'envoi et la réception chez un sous-traitant peuvent être séparés
+    de plusieurs semaines.
+
+    Refuse (`ValidationError`) si l'entrepôt n'a aucun emplacement
+    interne configuré — contrairement à `receive_purchase_line`, cette
+    fonction lève plutôt que de retourner `None` : elle est appelée
+    depuis un flux `mrp` explicitement déclenché par l'utilisateur
+    (« Envoyer en sous-traitance »), pas depuis une réception
+    automatique où un gap de configuration doit rester silencieux."""
+    warehouse = StkWarehouse.objects.get(tenant=tenant, id=warehouse_id)
+    source_internal = StkLocation.objects.filter(
+        tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_INTERNE
+    ).first()
+    if source_internal is None:
+        raise ValidationError(
+            _("Cet entrepôt ne possède aucun emplacement interne configuré.")
+        )
+    subcontractor_location, _created = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=warehouse,
+        type=StkLocation.TYPE_SOUS_TRAITANT,
+        defaults={"code": f"{warehouse.code}-SOUSTRAIT", "name": "Sous-traitant (virtuel)"},
+    )
+
+    lot = None
+    if lot_name:
+        lot_id = get_or_create_lot(tenant=tenant, variant_id=variant_id, name=lot_name)
+        lot = StkLot.objects.get(id=lot_id)
+
+    move = create_move(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom=uom,
+        location_from=source_internal,
+        location_to=subcontractor_location,
+        date=date,
+        move_type=StkMove.TYPE_TRANSFERT_INTERNE,
+        source_document=source_document,
+        unit_cost_mga=unit_cost_mga,
+        lot=lot,
+        operator=operator,
+    )
+    validate_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
+def receive_from_subcontractor(
+    *,
+    tenant: Tenant,
+    send_move_id: UUID,
+    date: dt.date,
+    qty_received: Decimal,
+    qty_rejected: Decimal = Decimal(0),
+    rebut_location_id: Any | None = None,
+    operator: User | None = None,
+) -> dict[str, UUID | None]:
+    """Bloc C, C2 : phase 2 (réception) de la sous-traitance démarrée par
+    `send_to_subcontractor` ci-dessus — miroir de `services.moves.
+    receive_warehouse_transfer`. Sous-traitant -> interne
+    (`TYPE_SOUS_TRAITANCE`, déjà réservé à cet usage exact par
+    `services.traceability`) pour la quantité bonne reçue, et
+    sous-traitant -> rebut (`TYPE_REBUT`, emplacement FOURNI
+    explicitement par l'appelant, jamais auto-créé — même patron que
+    `services.quality.apply_quality_decision`) pour la quantité rejetée.
+
+    Réception PARTIELLE possible : `qty_received + qty_rejected` peut
+    être inférieure à la quantité envoyée — le solde non réceptionné
+    reste chez le sous-traitant, une réception ultérieure du même
+    `send_move_id` reste possible. Refuse si la quantité demandée
+    dépasse ce qui est RÉELLEMENT encore disponible chez le
+    sous-traitant (`get_quant`, même garde que `receive_warehouse_
+    transfer` sur son emplacement de transit, pour la même raison :
+    `TYPE_SOUS_TRAITANT` est un emplacement virtuel, `_is_valuation_
+    internal` l'inclut désormais mais RG-STK-10/ST7 ne s'applique
+    qu'aux mouvements dont la SOURCE est un emplacement réellement
+    possédé, cf. `services.moves.validate_move` — sans cette
+    vérification explicite ici, une réception en trop ferait
+    silencieusement passer le quant sous-traitant en négatif)."""
+    send_move = StkMove.objects.select_related("location_to__warehouse").get(
+        tenant=tenant, id=send_move_id, state=StkMove.STATE_DONE
+    )
+    subcontractor_location = send_move.location_to
+    if subcontractor_location.type != StkLocation.TYPE_SOUS_TRAITANT:
+        raise ValidationError(_("Ce mouvement n'est pas un envoi vers un sous-traitant."))
+    if qty_received < 0 or qty_rejected < 0:
+        raise ValidationError(_("Les quantités reçues/rejetées ne peuvent pas être négatives."))
+    total_to_move = qty_received + qty_rejected
+    if total_to_move <= 0:
+        raise ValidationError(_("Au moins une quantité reçue ou rejetée doit être renseignée."))
+
+    remaining_quant = get_quant(send_move.variant_id, subcontractor_location, send_move.lot)
+    available = remaining_quant.qty if remaining_quant is not None else Decimal(0)
+    if total_to_move > available:
+        raise ValidationError(
+            _(
+                "Quantité chez le sous-traitant insuffisante pour cette réception "
+                "(demandée : %(requested)s, disponible : %(available)s)."
+            )
+            % {"requested": total_to_move, "available": available}
+        )
+
+    destination_internal = StkLocation.objects.filter(
+        tenant=tenant, warehouse=subcontractor_location.warehouse, type=StkLocation.TYPE_INTERNE
+    ).first()
+    if destination_internal is None:
+        raise ValidationError(
+            _("L'entrepôt de destination ne possède aucun emplacement interne configuré.")
+        )
+
+    received_move_id: UUID | None = None
+    if qty_received > 0:
+        received_move = create_move(
+            tenant=tenant,
+            variant_id=send_move.variant_id,
+            qty=qty_received,
+            uom=send_move.uom,
+            location_from=subcontractor_location,
+            location_to=destination_internal,
+            date=date,
+            move_type=StkMove.TYPE_SOUS_TRAITANCE,
+            source_document=send_move.source_document,
+            unit_cost_mga=send_move.unit_cost_mga,
+            lot=send_move.lot,
+            operator=operator,
+        )
+        validate_move(received_move)
+        received_move_id = received_move.id
+
+    rejected_move_id: UUID | None = None
+    if qty_rejected > 0:
+        if rebut_location_id is None:
+            raise ValidationError(
+                _("Un emplacement de rebut est requis pour une quantité rejetée.")
+            )
+        rebut_location = StkLocation.objects.get(tenant=tenant, id=rebut_location_id)
+        rejected_move = create_move(
+            tenant=tenant,
+            variant_id=send_move.variant_id,
+            qty=qty_rejected,
+            uom=send_move.uom,
+            location_from=subcontractor_location,
+            location_to=rebut_location,
+            date=date,
+            move_type=StkMove.TYPE_REBUT,
+            source_document=send_move.source_document,
+            unit_cost_mga=send_move.unit_cost_mga,
+            lot=send_move.lot,
+            operator=operator,
+        )
+        validate_move(rejected_move)
+        rejected_move_id = rejected_move.id
+
+    return {"received_move_id": received_move_id, "rejected_move_id": rejected_move_id}
 
 
 def record_lot_genealogy(

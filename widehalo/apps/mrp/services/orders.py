@@ -316,21 +316,55 @@ def send_to_subcontractor(
     order: MrpOrder,
     *,
     partner_id: UUID,
+    variant_id: UUID,
     qty: Decimal,
     price_unit: Decimal = Decimal(0),
     operation: MrpOperation | None = None,
+    uom_code: str = "",
+    lot_name: str = "",
 ) -> MrpSubcontractOrder:
-    """RG-MRP-8 : trace l'envoi de matiere a un sous-traitant. Le mouvement
-    de stock vers l'emplacement virtuel « chez le sous-traitant » sera
-    branche via `stocks.services.public` une fois ce module construit."""
+    """RG-MRP-8 : trace l'envoi de matiere a un sous-traitant.
+
+    Bloc C, C2 : le mouvement de stock vers l'emplacement virtuel « chez
+    le sous-traitant » est desormais un VRAI `StkMove`
+    (`stocks.services.public.send_to_subcontractor`), plus une simple
+    trace `mrp` sans contrepartie stock. Refuse (`ValidationError`) si
+    l'atelier de l'ordre n'a aucun entrepot configure — meme discipline
+    que le reste de ce fichier (`suspend_order`/`cancel_order`), un motif
+    utilisateur explicite plutot qu'un `None` silencieux, cette action
+    etant toujours declenchee par un utilisateur reel depuis l'ecran de
+    detail de l'ordre."""
+    # Import local : meme raison que `reserve_order` ci-dessus (cycle
+    # d'import reel via apps.mrp.apps.ready()).
+    from apps.stocks.services.public import (
+        send_to_subcontractor as stocks_send_to_subcontractor,
+    )
+
+    if order.workshop.warehouse_id is None:
+        raise ValidationError(
+            _("L'atelier de cet ordre n'a aucun entrepôt configuré pour la sous-traitance.")
+        )
+    move_id = stocks_send_to_subcontractor(
+        tenant=order.tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom=uom_code or order.uom_code,
+        warehouse_id=order.workshop.warehouse_id,
+        date=timezone.now().date(),
+        source_document=order.reference,
+        unit_cost_mga=price_unit,
+        lot_name=lot_name,
+    )
     return MrpSubcontractOrder.objects.create(
         tenant=order.tenant,
         order=order,
         partner_id=partner_id,
         operation=operation,
+        variant_id=variant_id,
         qty=qty,
         price_unit=price_unit,
         date_sent=timezone.now().date(),
+        send_move_id=move_id,
     )
 
 
@@ -339,7 +373,30 @@ def receive_from_subcontractor(
     *,
     qty_received: Decimal,
     qty_rejected: Decimal = Decimal(0),
+    rebut_location_id: UUID | None = None,
 ) -> MrpSubcontractOrder:
+    """Bloc C, C2 : reçoit (ou rejette) la matière chez le sous-traitant
+    via un VRAI mouvement de stock retour (`stocks.services.public.
+    receive_from_subcontractor`), quand `send_move_id` a été renseigné à
+    l'envoi. `send_move_id` absent (traces `MrpSubcontractOrder`
+    antérieures à ce chantier, ou envoi créé sans passer par
+    `send_to_subcontractor` ci-dessus) : repli sur l'ancien comportement
+    (trace `mrp` seule, aucun mouvement de stock) — jamais une exception
+    pour une donnée historique légitime."""
+    if subcontract_order.send_move_id is not None:
+        # Import local : meme raison que `reserve_order` ci-dessus.
+        from apps.stocks.services.public import (
+            receive_from_subcontractor as stocks_receive_from_subcontractor,
+        )
+
+        stocks_receive_from_subcontractor(
+            tenant=subcontract_order.tenant,
+            send_move_id=subcontract_order.send_move_id,
+            date=timezone.now().date(),
+            qty_received=qty_received,
+            qty_rejected=qty_rejected,
+            rebut_location_id=rebut_location_id,
+        )
     subcontract_order.state = MrpSubcontractOrder.STATE_RECEIVED
     subcontract_order.qty_received = qty_received
     subcontract_order.qty_rejected = qty_rejected
