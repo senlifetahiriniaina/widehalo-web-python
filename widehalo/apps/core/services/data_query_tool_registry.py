@@ -69,10 +69,14 @@ from typing import Any
 # Une fonction de tool recoit le tenant courant et les arguments DEJA
 # valides contre `parameters_schema` (validation faite par l'appelant,
 # `apps.ai.services.data_query_gateway.ask`, jamais par ce registre) et
-# renvoie une liste de lignes tabulaires (meme forme que les fonctions de
-# `services/reports.py` qu'elle enveloppe) — jamais un appel LLM a
-# l'interieur de cette fonction.
-DataQueryToolFunction = Callable[..., list[dict[str, Any]]]
+# renvoie soit une liste de lignes tabulaires (meme forme que les fonctions
+# de `services/reports.py` qu'elle enveloppe), soit un dict unique pour un
+# tool non tabulaire (ex. `apps.simulation.services.ai_data_query_
+# registration`, qui renvoie un jeu d'indicateurs) — l'appelant
+# (`apps.ai.services.data_query_gateway.ask`) se contente de serialiser le
+# resultat en JSON (`json.dumps(rows, default=str)`), sans distinguer les
+# deux formes — jamais un appel LLM a l'interieur de cette fonction.
+DataQueryToolFunction = Callable[..., list[dict[str, Any]] | dict[str, Any]]
 
 
 @dataclass(frozen=True)

@@ -5,8 +5,9 @@ calcul de l'encours attendu, clôture avec écart et écriture consolidée
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -80,7 +81,7 @@ def add_cash_movement(
     )
 
 
-def _cash_payment_method_ids(session: PosSession) -> set:
+def _cash_payment_method_ids(session: PosSession) -> set[uuid.UUID]:
     return set(
         PosPaymentMethod.objects.filter(
             tenant=session.tenant, type=PosPaymentMethod.TYPE_CASH
@@ -122,7 +123,7 @@ def compute_expected_cash(session: PosSession) -> Decimal:
     return session.opening_cash_amount + cash_sales - cash_returns + movements_in - movements_out
 
 
-def _net_payment_totals(session: PosSession) -> list[dict]:
+def _net_payment_totals(session: PosSession) -> list[dict[str, Any]]:
     """Un montant PAR MOYEN DE PAIEMENT, net ventes - retours (le moyen
     espèces sera remplacé par le montant COMPTÉ par l'appelant, cf.
     `close_session` — cette fonction retourne le théorique pour tous les

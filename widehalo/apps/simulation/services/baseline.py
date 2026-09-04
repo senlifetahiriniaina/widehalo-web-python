@@ -92,6 +92,10 @@ def build_baseline(
         raw["resultat_net_ref"] = ca_ref
         raw["ebe_ref"] = ca_ref
     else:
+        # `degraded = statement_rows is None` ci-dessus garantit deja cette
+        # condition — assert de narrowing mypy uniquement, jamais une regle
+        # metier.
+        assert statement_rows is not None
         raw = {key: _poste(statement_rows, label) for key, label in _STATEMENT_LABELS.items()}
 
     try:

@@ -15,7 +15,7 @@ mécanisme parallèle plutôt qu'une extension de `RptSchedule` (cf. docstring
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.core.mail import EmailMessage
 from django.utils import timezone
@@ -40,11 +40,11 @@ def compute_next_run_at(frequency: str, *, after: dt.datetime | None = None) -> 
     raise ValueError(_("fréquence de diffusion inconnue : %(freq)s") % {"freq": frequency})
 
 
-def _format_scope_summary(result: dict) -> str:
+def _format_scope_summary(result: dict[str, Any]) -> str:
     return "; ".join(result["scope_notes"]) if result["scope_notes"] else "périmètre complet"
 
 
-def _render_summary_body(report: BiReport, result: dict) -> str:
+def _render_summary_body(report: BiReport, result: dict[str, Any]) -> str:
     lines = [f"Rapport « {report.name} »", ""]
     for payload in result["metrics"].values():
         unite = payload["unite"] or "sans unité"

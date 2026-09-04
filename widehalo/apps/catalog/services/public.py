@@ -374,7 +374,7 @@ def list_variants_for_warehouse(
             "libelle": variant.template.name if variant.template_id else "",
             "categorie_nom": (
                 variant.template.category.name
-                if variant.template_id and variant.template.category_id
+                if variant.template_id and variant.template.category is not None
                 else ""
             ),
             "is_sellable": variant.template.is_sellable if variant.template_id else False,

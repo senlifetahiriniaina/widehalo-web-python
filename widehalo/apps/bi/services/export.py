@@ -30,7 +30,10 @@ def render_bi_report_rows(params: dict[str, Any], actor: User | None) -> list[di
     explicitement son tenant pour l'exécution de la requête elle-même."""
     if actor is None:
         return []
-    report = BiReport.all_objects.filter(id=params.get("bi_report_id")).first()
+    bi_report_id = params.get("bi_report_id")
+    if bi_report_id is None:
+        return []
+    report = BiReport.all_objects.filter(id=str(bi_report_id)).first()
     if report is None:
         return []
     with activate_tenant(report.tenant_id):

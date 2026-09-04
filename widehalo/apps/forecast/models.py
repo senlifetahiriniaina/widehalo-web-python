@@ -22,6 +22,8 @@ que Phase 3 n'existe pas)."""
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from apps.core.models.base import BaseModel
 from django.db import models
 
@@ -167,7 +169,7 @@ class ForSeriesForecast(BaseModel):
         return f"{self.dimension_type}:{self.dimension_value} @ {self.period}"
 
     @property
-    def final_value(self):
+    def final_value(self) -> Decimal:
         return self.adjusted_value if self.adjusted_value is not None else self.statistical_value
 
 

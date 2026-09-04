@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
 from django.db import models
 
 from apps.core.db.uuid7 import uuid7
+
+if TYPE_CHECKING:
+    from django.db.models.base import ModelBase
 
 
 class RegulatoryParameter(models.Model):
@@ -57,7 +63,13 @@ class RegulatoryParameter(models.Model):
     def __str__(self) -> str:
         return f"{self.code} ({self.valid_from} → {self.valid_to or '...'})"
 
-    def save(self, *args: object, **kwargs: object) -> None:
+    def save(
+        self,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
         # Auto-numerotation de `version` a la creation, sauf si l'appelant
         # a deja fixe explicitement une valeur differente du defaut (1) —
         # heuristique volontairement simple (cf. docstring du champ
@@ -71,7 +83,12 @@ class RegulatoryParameter(models.Model):
             )
             if existing_max:
                 self.version = existing_max + 1
-        super().save(*args, **kwargs)  # type: ignore[misc]
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
     def mark_validated(self, by: object) -> None:
         """Validation OECFM (ACC-8) : ne modifie QUE le statut/valideur/date

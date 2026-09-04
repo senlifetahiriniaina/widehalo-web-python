@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db.models import Max
@@ -93,7 +94,7 @@ def create_budget_from_simulation_scenario(
     variance` les ignore alors, cf. sa docstring)."""
     from apps.simulation.services.public import get_scenario_summary
 
-    summary = get_scenario_summary(scenario_id)
+    summary = get_scenario_summary(UUID(scenario_id))
     if summary is None:
         raise ValidationError(
             _("Scénario de simulation introuvable : %(id)s") % {"id": scenario_id}
@@ -258,7 +259,9 @@ def compute_variance(
         )
         variance_value = actual - budgeted if actual is not None else None
         variance_pct = (
-            (variance_value / budgeted * 100) if actual is not None and budgeted != 0 else None
+            (variance_value / budgeted * 100)
+            if variance_value is not None and budgeted != 0
+            else None
         )
         exceeds_threshold = variance_pct is not None and abs(variance_pct) > threshold_pct
         results.append(

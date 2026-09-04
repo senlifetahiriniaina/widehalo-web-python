@@ -15,6 +15,7 @@ sélection."""
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -133,7 +134,8 @@ def regression_calendaire(history: list[float], month_indices: list[int]) -> flo
     return trend_forecast + residual_by_month.get(next_month, 0.0)
 
 
-MODEL_FUNCTIONS = {
+_ModelFn = Callable[[list[float], list[int]], float]
+MODEL_FUNCTIONS: dict[str, _ModelFn] = {
     "naive_saisonnier": lambda hist, months: naive_seasonal(hist),
     "moyenne_mobile": lambda hist, months: moving_average(hist),
     "lissage_simple": lambda hist, months: simple_exponential_smoothing(hist),
@@ -252,6 +254,10 @@ def select_model(
     naive_mae = naive_result.mae_pct if naive_result else None
     beats_naive = naive_mae is None or best_result.mae_pct <= naive_mae
     if not beats_naive:
+        # `beats_naive` n'est jamais False si `naive_mae` (donc `naive_result`)
+        # est None — garanti par le court-circuit `or` ci-dessus — assert
+        # de narrowing mypy uniquement, jamais une regle metier.
+        assert naive_result is not None
         best_code = "naive_saisonnier"
         best_result = naive_result
 

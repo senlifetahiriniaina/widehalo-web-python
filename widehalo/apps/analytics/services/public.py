@@ -218,22 +218,22 @@ def get_sales_value_series(
 
     monthly: dict[dt.date, Decimal] = defaultdict(Decimal)
     if include_vente:
-        rows = (
+        vente_rows = (
             AnFactVente.objects.filter(tenant=tenant, **filters_vente)
             .annotate(month=TruncMonth("dim_temps__date"))
             .values("month")
             .annotate(total=Sum("montant_ht_mga"))
         )
-        for row in rows:
+        for row in vente_rows:
             monthly[row["month"]] += row["total"] or Decimal(0)
     if include_ticket:
-        rows = (
+        ticket_rows = (
             AnFactTicketPos.objects.filter(tenant=tenant, **filters_ticket)
             .annotate(month=TruncMonth("dim_temps__date"))
             .values("month")
             .annotate(total=Sum("montant_ht_mga"))
         )
-        for row in rows:
+        for row in ticket_rows:
             monthly[row["month"]] += row["total"] or Decimal(0)
 
     if not monthly:
