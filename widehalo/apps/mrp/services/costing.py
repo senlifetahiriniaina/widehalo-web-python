@@ -197,3 +197,64 @@ def consume_component(
     component.state = "consumed"
     component.save(update_fields=["qty_consumed", "variance_reason", "state"])
     return component
+
+
+def check_material_reconciliation(
+    order: MrpOrder,
+    *,
+    reason: str = "",
+    threshold_pct: Decimal = DEFAULT_VARIANCE_THRESHOLD_PCT,
+) -> dict[str, Decimal] | None:
+    """Bloc C, C3 (PRD-7), nomenclature de type `TYPE_PROCESS`
+    UNIQUEMENT. Compare la matière ENGAGÉE (somme des `qty_consumed` des
+    composants) au rendement DÉCLARÉ attendu
+    (`bom.expected_yield_pct` + somme des `bom.by_products[].
+    expected_qty_pct`, tous deux en % de la matière engagée, cf.
+    `services/bom.py::add_by_product`) contre la production RÉELLE
+    (`qty_produced + qty_scrapped` — le rebut fait partie de la matière
+    "sortie", pas seulement le produit bon). Au-delà de la tolérance, un
+    motif est obligatoire — même discipline "motif au-delà du seuil" que
+    `consume_component`/RG-MRP-11.
+
+    Retourne `None`, jamais une exception, si la nomenclature n'est pas
+    de type process (aucune notion de rendement/sous-produit n'a de sens
+    pour une nomenclature manufacture/kit/sous-traitance) ou si aucune
+    matière n'a encore été consommée (rien à réconcilier avant la fin de
+    production)."""
+    if order.bom.type != MrpBom.TYPE_PROCESS:
+        return None
+
+    material_engaged = sum((c.qty_consumed for c in order.components.all()), Decimal(0))
+    if material_engaged <= 0:
+        return None
+
+    expected_total_pct = (order.bom.expected_yield_pct or Decimal(0)) + sum(
+        (Decimal(bp["expected_qty_pct"]) for bp in order.bom.by_products), Decimal(0)
+    )
+    expected_output = material_engaged * expected_total_pct / Decimal(100)
+    actual_output = order.qty_produced + order.qty_scrapped
+
+    if expected_output:
+        variance_pct = abs(actual_output - expected_output) / expected_output * Decimal(100)
+    else:
+        variance_pct = Decimal(100) if actual_output else Decimal(0)
+
+    if variance_pct > threshold_pct and not reason:
+        raise ValidationError(
+            _(
+                "Un motif est obligatoire : l'écart entre la matière engagée et le "
+                "rendement attendu (produit + sous-produits + rebuts) dépasse le "
+                "seuil autorisé."
+            )
+        )
+
+    if reason:
+        order.material_reconciliation_reason = reason
+        order.save(update_fields=["material_reconciliation_reason"])
+
+    return {
+        "material_engaged": material_engaged,
+        "expected_output": expected_output,
+        "actual_output": actual_output,
+        "variance_pct": variance_pct,
+    }

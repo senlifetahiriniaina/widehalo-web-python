@@ -23,6 +23,7 @@ from apps.stocks.services.public import (
     check_and_reserve_stock,
     deliver_reserved_stock,
     get_available_stock_qty,
+    get_variant_unit_cost,
     receive_pos_return,
     sell_from_stock,
 )
@@ -81,6 +82,60 @@ def test_apply_landed_cost_to_valuation_prorates_across_active_layers(tenant) ->
 def test_apply_landed_cost_to_valuation_returns_false_without_active_layers(tenant) -> None:
     result = apply_landed_cost_to_valuation(uuid.uuid4(), additional_cost_mga=Decimal("10000"))
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# get_variant_unit_cost (Bloc C, C3) — coût CUMP courant en lecture pure.
+# ---------------------------------------------------------------------------
+
+
+def test_get_variant_unit_cost_is_weighted_average_across_active_layers(tenant) -> None:
+    variant_id = uuid.uuid4()
+    StkValuationLayerFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=Decimal(30),
+        remaining_qty=Decimal(30),
+        value_mga=Decimal("300000"),
+        remaining_value_mga=Decimal("300000"),
+    )
+    StkValuationLayerFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=Decimal(10),
+        remaining_qty=Decimal(10),
+        value_mga=Decimal("100000"),
+        remaining_value_mga=Decimal("100000"),
+    )
+
+    # (300000 + 100000) / (30 + 10) = 10000 Ar/unite.
+    assert get_variant_unit_cost(tenant, variant_id) == Decimal(10000)
+
+
+def test_get_variant_unit_cost_ignores_exhausted_layers(tenant) -> None:
+    variant_id = uuid.uuid4()
+    StkValuationLayerFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=Decimal(30),
+        remaining_qty=Decimal(0),  # couche epuisee, exclue du calcul
+        value_mga=Decimal("300000"),
+        remaining_value_mga=Decimal("0"),
+    )
+    StkValuationLayerFactory(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=Decimal(5),
+        remaining_qty=Decimal(5),
+        value_mga=Decimal("50000"),
+        remaining_value_mga=Decimal("50000"),
+    )
+
+    assert get_variant_unit_cost(tenant, variant_id) == Decimal(10000)
+
+
+def test_get_variant_unit_cost_is_none_without_any_active_layer(tenant) -> None:
+    assert get_variant_unit_cost(tenant, uuid.uuid4()) is None
 
 
 # ---------------------------------------------------------------------------

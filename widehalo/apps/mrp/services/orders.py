@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -29,6 +30,7 @@ from apps.mrp.models import (
     MrpWorkshop,
 )
 from apps.mrp.services.bom import explode
+from apps.mrp.services.costing import check_material_reconciliation, compute_real_cost
 
 
 def create_order(
@@ -188,11 +190,59 @@ def finish_order(
     return order
 
 
-def close_order(order: MrpOrder, user: User) -> MrpOrder:
-    attempt_transition(order, "close", user)
-    order.save(update_fields=["state"])
-    _release_component_reservations(order)
-    return order
+def close_order(
+    order: MrpOrder,
+    user: User,
+    *,
+    overhead_rate_pct: Decimal = Decimal(0),
+    reconciliation_reason: str = "",
+) -> MrpOrder:
+    """Bloc C, C3 (RG-MRP-6/PRD-9, PRD-7) : la clôture calcule désormais
+    automatiquement le coût réel au CUMP courant (`stocks.services.
+    public.get_variant_unit_cost`, jamais fourni manuellement par
+    l'appelant comme avant ce chantier) + le coût de sous-traitance, et
+    vérifie la réconciliation matière (no-op hors nomenclature process).
+
+    `@transaction.atomic` (même discipline que `finish_transformation_
+    order`, A2) : si `check_material_reconciliation` refuse (motif
+    manquant au-delà du seuil), la transition FSM elle-même, le calcul
+    de coût et la libération des réservations doivent être annulés avec
+    — jamais un ordre déjà `closed` en base dont l'appelant croit,
+    d'après l'exception reçue, que la clôture a échoué."""
+    # Import local (stocks.services.public uniquement) : meme raison que
+    # reserve_order ci-dessus (cycle d'import reel via
+    # apps.mrp.apps.ready()). `services.costing` n'a pas ce probleme
+    # (deja importe au niveau module par `services/public.py` avant
+    # `services/orders.py`, aucun cycle reel avec ce module).
+    from apps.stocks.services.public import get_variant_unit_cost
+
+    with transaction.atomic():
+        attempt_transition(order, "close", user)
+        order.save(update_fields=["state"])
+        _release_component_reservations(order)
+
+        component_unit_costs: dict[UUID, Decimal] = {}
+        for component in order.components.select_related("bom_line").all():
+            if component.variant_id is None:
+                continue
+            unit_cost = get_variant_unit_cost(order.tenant, component.variant_id)
+            if unit_cost is not None:
+                component_unit_costs[component.bom_line.component_template_id] = unit_cost
+
+        result = compute_real_cost(
+            order, component_unit_costs=component_unit_costs, overhead_rate_pct=overhead_rate_pct
+        )
+
+        subcontracting_cost = sum(
+            (sub.price_unit * sub.qty_received for sub in order.subcontract_orders.all()),
+            Decimal(0),
+        )
+        order.cost_subcontracting_mga = subcontracting_cost
+        order.cost_total_mga = result["total"] + subcontracting_cost
+        order.save(update_fields=["cost_subcontracting_mga", "cost_total_mga"])
+
+        check_material_reconciliation(order, reason=reconciliation_reason)
+        return order
 
 
 def cancel_order(order: MrpOrder, user: User, *, reason: str) -> MrpOrder:

@@ -81,6 +81,31 @@ def apply_landed_cost_to_valuation(variant_id: Any, *, additional_cost_mga: Deci
     return True
 
 
+def get_variant_unit_cost(tenant: Tenant, variant_id: Any) -> Decimal | None:
+    """Bloc C, C3 (RG-MRP-6/PRD-9) : coût unitaire courant CUMP d'une
+    variante — moyenne pondérée des couches `StkValuationLayer` ACTIVES
+    (`remaining_qty > 0`), même agrégat que `_consume_average_cost`
+    (`services.moves`) mais en LECTURE PURE (aucune couche modifiée).
+    Consommée par `mrp.services.orders.close_order` pour assembler
+    `component_unit_costs` sans que l'appelant ait à connaître le détail
+    interne de `stocks` (couches, quants).
+
+    Retourne `None`, jamais une exception, si la variante n'a aucune
+    couche active — même discipline que les autres gaps `services.public`
+    de ce fichier (`check_and_reserve_stock` ci-dessous, par ex.)."""
+    layers = StkValuationLayer.objects.filter(
+        tenant=tenant, variant_id=variant_id, remaining_qty__gt=0
+    )
+    total_qty = Decimal(0)
+    total_value = Decimal(0)
+    for layer in layers:
+        total_qty += layer.remaining_qty
+        total_value += layer.remaining_value_mga
+    if total_qty <= 0:
+        return None
+    return total_value / total_qty
+
+
 def check_and_reserve_stock(
     tenant: Tenant,
     *,

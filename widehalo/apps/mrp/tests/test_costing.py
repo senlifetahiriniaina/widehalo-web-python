@@ -10,6 +10,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import (
+    MrpBom,
     MrpOperation,
     MrpOrder,
     MrpRouting,
@@ -19,6 +20,7 @@ from apps.mrp.models import (
 )
 from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
 from apps.mrp.services.costing import (
+    check_material_reconciliation,
     compute_planned_cost,
     compute_real_cost,
     consume_component,
@@ -26,11 +28,24 @@ from apps.mrp.services.costing import (
 )
 from apps.mrp.services.cra import create_cra, submit_cra, validate_cra
 from apps.mrp.services.orders import (
+    close_order,
     confirm_order,
     create_order,
     create_work_order,
     done_work_order,
+    finish_order,
+    receive_from_subcontractor,
+    reserve_order,
+    send_to_quality_control,
+    send_to_subcontractor,
+    start_order,
     start_work_order,
+)
+from apps.stocks.tests.factories import (
+    StkLocationFactory,
+    StkQuantFactory,
+    StkValuationLayerFactory,
+    StkWarehouseFactory,
 )
 
 pytestmark = pytest.mark.django_db
@@ -238,3 +253,208 @@ def test_simulate_bom_cost_does_not_persist_anything() -> None:
         assert costs["labor"] == Decimal(0)
         assert costs["total"] == Decimal(7500)
         assert MrpOrder.objects.count() == orders_before
+
+
+# ---------------------------------------------------------------------------
+# Bloc C, C3 : close_order calcule desormais le cout reel automatiquement
+# au CUMP courant + replie le cout de sous-traitance ; check_material_
+# reconciliation (PRD-7, nomenclature de type process uniquement).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_cost_close_setup():
+    """Ordre confirme/reserve/demarre/en controle qualite, pret pour
+    `finish_order`+`close_order` — composant a `variant_id` reel couvert
+    par une couche de valorisation active (CUMP = 500 Ar/unite)."""
+    tenant = Tenant.objects.create(code="MRP-RCOST", name="MRP Real Cost Tenant")
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="rcost@example.com", password="Str0ngPassw0rd!23")
+        workshop = MrpWorkshop.objects.create(tenant=tenant, code="ATL-RC", name="Atelier")
+        component_template_id = uuid.uuid4()
+        component_variant_id = uuid.uuid4()
+        bom = create_bom(tenant=tenant, code="BOM-RC", product_template_id=uuid.uuid4())
+        add_bom_line(
+            bom,
+            component_template_id=component_template_id,
+            component_variant_id=component_variant_id,
+            qty=Decimal(2),
+        )
+        activate_bom(bom)
+        order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=Decimal(10))
+        StkValuationLayerFactory(
+            tenant=tenant,
+            variant_id=component_variant_id,
+            qty=Decimal(100),
+            remaining_qty=Decimal(100),
+            value_mga=Decimal(50000),
+            remaining_value_mga=Decimal(50000),
+        )
+        confirm_order(order, user)
+        reserve_order(order, user)
+        start_order(order, user)
+        send_to_quality_control(order, user)
+        return tenant, user, order
+
+
+def test_close_order_computes_real_cost_from_cump_automatically(real_cost_close_setup) -> None:
+    tenant, user, order = real_cost_close_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        # qty_planned = 2 * 10 = 20.
+        consume_component(component, qty_consumed=Decimal(20))
+        finish_order(order, user, qty_produced=Decimal(10))
+        closed = close_order(order, user)
+
+        # material = 20 (qty_consumed) * 500 (CUMP) = 10000 ; aucun
+        # travail/CRA valide dans ce setup -> labor/overhead nuls.
+        assert closed.cost_material_mga == Decimal(10000)
+        assert closed.cost_total_mga == Decimal(10000)
+        assert closed.cost_subcontracting_mga == Decimal(0)
+
+
+def test_close_order_folds_in_subcontracting_cost(real_cost_close_setup) -> None:
+    tenant, user, order = real_cost_close_setup
+    with use_tenant(tenant.id):
+        warehouse = StkWarehouseFactory(tenant=tenant)
+        order.workshop.warehouse_id = warehouse.id
+        order.workshop.save(update_fields=["warehouse_id"])
+        location = StkLocationFactory(tenant=tenant, warehouse=warehouse)
+        sub_variant_id = uuid.uuid4()
+        StkQuantFactory(tenant=tenant, variant_id=sub_variant_id, location=location, qty=Decimal(5))
+
+        subcontract = send_to_subcontractor(
+            order, partner_id=uuid.uuid4(), variant_id=sub_variant_id,
+            qty=Decimal(5), price_unit=Decimal(2000),
+        )
+        receive_from_subcontractor(subcontract, qty_received=Decimal(5))
+
+        component = order.components.first()
+        consume_component(component, qty_consumed=Decimal(20))
+        finish_order(order, user, qty_produced=Decimal(10))
+        closed = close_order(order, user)
+
+        # sous-traitance : 5 (qty_received) * 2000 (price_unit) = 10000.
+        assert closed.cost_subcontracting_mga == Decimal(10000)
+        # material (10000, cf. test precedent) + sous-traitance (10000).
+        assert closed.cost_total_mga == Decimal(20000)
+
+
+@pytest.fixture
+def process_bom_setup():
+    tenant = Tenant.objects.create(code="MRP-PROC", name="MRP Process Tenant")
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="proc@example.com", password="Str0ngPassw0rd!23")
+        workshop = MrpWorkshop.objects.create(tenant=tenant, code="ATL-PR", name="Atelier")
+        component_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PROC", product_template_id=uuid.uuid4(),
+            type=MrpBom.TYPE_PROCESS,
+        )
+        add_bom_line(bom, component_template_id=component_id, qty=Decimal(1))
+        bom.expected_yield_pct = Decimal(80)
+        bom.save(update_fields=["expected_yield_pct"])
+        activate_bom(bom)
+        order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=Decimal(100))
+        confirm_order(order, user)
+        return tenant, user, order
+
+
+def test_check_material_reconciliation_is_none_outside_process_bom(costing_setup) -> None:
+    tenant, _user, order, _work_order, _component_id = costing_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        component.qty_consumed = Decimal(20)
+        component.save(update_fields=["qty_consumed"])
+        assert check_material_reconciliation(order) is None
+
+
+def test_check_material_reconciliation_is_none_without_material_engaged(
+    process_bom_setup,
+) -> None:
+    tenant, _user, order = process_bom_setup
+    with use_tenant(tenant.id):
+        assert check_material_reconciliation(order) is None
+
+
+def test_check_material_reconciliation_within_threshold_needs_no_reason(
+    process_bom_setup,
+) -> None:
+    tenant, _user, order = process_bom_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        component.qty_consumed = Decimal(100)
+        component.save(update_fields=["qty_consumed"])
+        # expected_output = 100 * 80% = 80. actual = 82 -> 2.5% ecart, tolere.
+        order.qty_produced = Decimal(82)
+        order.save(update_fields=["qty_produced"])
+
+        result = check_material_reconciliation(order)
+        assert result is not None
+        assert result["material_engaged"] == Decimal(100)
+        assert result["expected_output"] == Decimal(80)
+        assert result["variance_pct"] == Decimal("2.5")
+
+
+def test_check_material_reconciliation_beyond_threshold_requires_reason(
+    process_bom_setup,
+) -> None:
+    tenant, _user, order = process_bom_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        component.qty_consumed = Decimal(100)
+        component.save(update_fields=["qty_consumed"])
+        # expected_output = 80, actual = 60 -> 25% ecart, motif requis.
+        order.qty_produced = Decimal(60)
+        order.save(update_fields=["qty_produced"])
+
+        with pytest.raises(ValidationError):
+            check_material_reconciliation(order)
+
+        result = check_material_reconciliation(order, reason="Sechage plus long que prevu")
+        assert result is not None
+        order.refresh_from_db()
+        assert order.material_reconciliation_reason == "Sechage plus long que prevu"
+
+
+def test_check_material_reconciliation_counts_scrapped_qty_as_output(process_bom_setup) -> None:
+    """Le rebut fait partie de la matiere "sortie", pas seulement le
+    produit bon — qty_produced + qty_scrapped, jamais qty_produced seul."""
+    tenant, _user, order = process_bom_setup
+    with use_tenant(tenant.id):
+        component = order.components.first()
+        component.qty_consumed = Decimal(100)
+        component.save(update_fields=["qty_consumed"])
+        order.qty_produced = Decimal(70)
+        order.qty_scrapped = Decimal(12)
+        order.save(update_fields=["qty_produced", "qty_scrapped"])
+
+        # actual_output = 82, expected_output = 80 -> 2.5%, tolere.
+        result = check_material_reconciliation(order)
+        assert result is not None
+        assert result["actual_output"] == Decimal(82)
+
+
+def test_close_order_requires_reconciliation_reason_beyond_threshold(process_bom_setup) -> None:
+    tenant, user, order = process_bom_setup
+    with use_tenant(tenant.id):
+        reserve_order(order, user)
+        start_order(order, user)
+        send_to_quality_control(order, user)
+        component = order.components.first()
+        consume_component(component, qty_consumed=Decimal(100))
+        finish_order(order, user, qty_produced=Decimal(60))
+
+        with pytest.raises(ValidationError):
+            close_order(order, user)
+
+        # `close_order` est desormais @transaction.atomic (aucun etat
+        # partiel persiste en base apres le refus) — mais l'objet Python
+        # en memoire garde la mutation FSM tentee par django-fsm avant le
+        # rollback, d'ou le refresh explicite avant de reessayer.
+        order.refresh_from_db()
+        assert order.state == MrpOrder.STATE_DONE
+
+        closed = close_order(order, user, reconciliation_reason="Sechage plus long que prevu")
+        assert closed.state == MrpOrder.STATE_CLOSED
+        assert closed.material_reconciliation_reason == "Sechage plus long que prevu"

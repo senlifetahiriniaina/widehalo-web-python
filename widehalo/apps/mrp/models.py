@@ -284,8 +284,21 @@ class MrpOrder(BaseModel, ReferenceMixin):
     cost_labor_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_overhead_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_total_planned_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # Bloc C, C3 (PRD-9) : coût de sous-traitance replié dans le total à
+    # la clôture — champ PLAT plutôt qu'ajouté au retour de
+    # `compute_real_cost` (cf. services/costing.py) : garde cette
+    # fonction indépendante de la sous-traitance, `close_order` (seul
+    # point avec accès à `order.subcontract_orders`) est le bon endroit
+    # pour l'agréger.
+    cost_subcontracting_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     suspend_reason = models.TextField(blank=True)
     cancel_reason = models.TextField(blank=True)
+    # Bloc C, C3 (PRD-7) : motif de l'écart entre matière engagée et
+    # rendement attendu (produit + sous-produits + rebuts) au-delà du
+    # seuil autorisé — cf. `services/costing.py::
+    # check_material_reconciliation`. Vide si aucun écart n'a jamais
+    # dépassé le seuil, ou si la nomenclature n'est pas de type process.
+    material_reconciliation_reason = models.TextField(blank=True)
     # A2 (L4 Agro, docs/planning/2026-refonte-ux-sprints.md §5) : nom du
     # lot de sortie de production, renseigne a la cloture par
     # `services.transformation.finish_transformation_order`. Convention
