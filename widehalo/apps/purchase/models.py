@@ -330,6 +330,28 @@ class PurOrder(BaseModel, ReferenceMixin):
     partner_id = models.UUIDField()
     date = models.DateField()
     date_expected = models.DateField(null=True, blank=True)
+    # B3 (Phase 3, ACH-6 : "taux de change commande d'achat exploite") :
+    # jusqu'ici deux purs champs de saisie jamais exploites par aucun
+    # service — `exchange_rate` restait bloque a sa valeur par defaut `1`
+    # quel que soit `currency`, aucun appelant de `services/orders.py::
+    # create_order` ne le renseignait. Desormais capture automatiquement
+    # par `create_order` (via `_resolve_exchange_rate`), au taux
+    # `accounting.services.public.convert_amount_to_mga` connu a la date
+    # `date` de la commande — taux fige au booking, jamais recalcule
+    # ensuite, meme discipline que `FinCredoc.amount_mga` (cf.
+    # `apps.financing.services.credoc.credoc_fx_variance`, le patron
+    # explicitement repris ici). Repli documente sur `1` (aucune exception
+    # levee par `create_order`) si aucun `AccExchangeRate` n'est configure
+    # a cette date pour `currency` — un tenant sans FX parametree n'est
+    # jamais bloque a la creation d'une commande, meme discipline "gap de
+    # configuration a la charge du tenant" que `_order_exceeds_budget`
+    # (PUR-BUD1) plus bas dans `services/orders.py`. Exploite en LECTURE
+    # par `services/orders.py::order_fx_variance` (ecart de change
+    # reconstitue par rapport a `amount_total_mga`, cf. sa docstring pour
+    # la nuance "montant etranger implicite" vs. la vraie saisie
+    # `FinCredoc.amount_foreign`) — AUCUNE API/vue/template ne l'affiche
+    # encore ce sprint (a cabler plus tard en une ligne, comme
+    # `credoc_detail.html` le fait deja pour `fx_variance`).
     currency = models.CharField(max_length=3, default="MGA")
     exchange_rate = models.DecimalField(max_digits=18, decimal_places=6, default=1)
     # Jamais de FK Django vers `apps.accounting.models.AccPaymentTerm`.

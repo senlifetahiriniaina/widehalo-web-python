@@ -26,7 +26,10 @@ from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from apps.accounting.services.public import get_budget_variance_for_analytic_account
+from apps.accounting.services.public import (
+    convert_amount_to_mga,
+    get_budget_variance_for_analytic_account,
+)
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest, ApprovalRule
@@ -45,10 +48,54 @@ RULE_NAME_IMPORT = "purchase.order.approval.import"
 # budgetaire — cf. `_order_exceeds_budget`/`_rule_matches` plus bas.
 RULE_NAME_BUDGET = "purchase.order.approval.budget"
 
+# B3 (ACH-6, cf. plan) : ecart de change juge materiel a partir de ce seuil
+# (%, valeur absolue) — constante LOCALE a `purchase`, jamais importee
+# depuis `apps.financing.services.credoc.FX_VARIANCE_ALERT_THRESHOLD_PCT`.
+# Deux raisons independantes l'imposent : (1) regle de couplage n°1, seule
+# `services.public` est une surface cross-app autorisee, et cette
+# constante n'y est pas exposee cote `financing` ; (2) `purchase` ne
+# declare pas — et ne doit pas declarer — `financing` comme dependance
+# dans `module.py` (le sens va deja dans l'autre sens : `financing` depend
+# de `purchase`, cf. `apps.financing.services.credoc.build_dossier_
+# timeline`, B2 — une dependance retour creerait un cycle). Meme valeur
+# numerique par simple convergence de jugement metier assumee, pas par
+# partage de code.
+FX_VARIANCE_ALERT_THRESHOLD_PCT = Decimal("2")
+
 
 class PurchaseApprovalRequiredError(Exception):
     """La commande attend une ou plusieurs decisions d'approbation avant de
     pouvoir etre validee (PUR-ROUT1)."""
+
+
+def _resolve_exchange_rate(*, tenant: Tenant, currency: str, date: dt.date) -> Decimal:
+    """B3 (ACH-6, cf. plan) : capture le taux de change connu de `currency`
+    a la date `date`, via l'unique surface autorisee `accounting.services.
+    public.convert_amount_to_mga` (jamais `accounting.services.currency.
+    get_rate` directement — regle de couplage n°1, `get_rate` n'est pas
+    expose par `services.public`). Astuce : `convert_amount_to_mga(
+    Decimal(1), ...)` renvoie exactement le taux (`convert_to_mga`
+    multiplie par le taux puis `quantize(Decimal("0.0001"))`) — evite
+    d'ajouter une fonction dediee a `accounting.services.public` hors
+    perimetre de ce sprint. Precision assumee et disclosee : le taux
+    capture est donc tronque a 4 decimales alors qu'`AccExchangeRate.
+    rate_to_mga`/`PurOrder.exchange_rate` portent 6 decimales —
+    simplification coherente avec le reste du schema `purchase` (tous les
+    montants MGA du module sont eux-memes a 4 decimales).
+
+    Retourne toujours `Decimal(1)` (jamais d'exception) pour `currency ==
+    "MGA"` (pas de recherche, correspond a la devise pivot) ET si aucun
+    `AccExchangeRate` n'est configure a cette date pour `currency` — meme
+    discipline "gap de configuration a la charge du tenant, jamais un
+    blocage" que `_order_exceeds_budget` plus bas dans ce fichier : une
+    commande d'achat en devise etrangere reste creable meme si le tenant
+    n'a pas encore parametre sa table de taux de change."""
+    if currency == "MGA":
+        return Decimal(1)
+    try:
+        return convert_amount_to_mga(Decimal(1), currency, date, tenant=tenant)
+    except ValidationError:
+        return Decimal(1)
 
 
 def create_order(
@@ -69,6 +116,16 @@ def create_order(
     # creation reelle du dossier appartient au futur module `logistics`
     # (§5.7.5) — cf. docstring du champ sur `PurOrder`.
     optional_fields.setdefault("import_dossier_pending", origin != PurOrder.ORIGIN_LOCAL)
+    # B3 (ACH-6, cf. plan) : ne recalcule jamais un taux explicitement
+    # fourni par l'appelant — respecte un futur appelant qui voudrait
+    # forcer un taux negocie. Garde explicite (pas `.setdefault(...)`) pour
+    # ne payer l'aller-retour comptable de `_resolve_exchange_rate` que
+    # lorsque c'est reellement necessaire (jamais pour un appel qui fournit
+    # deja `exchange_rate`, jamais deux fois).
+    if "exchange_rate" not in optional_fields:
+        optional_fields["exchange_rate"] = _resolve_exchange_rate(
+            tenant=tenant, currency=currency, date=date
+        )
     return PurOrder.objects.create(
         tenant=tenant,
         reference=reference,
@@ -80,6 +137,70 @@ def create_order(
         requisition=requisition,
         **optional_fields,
     )
+
+
+def order_fx_variance(order: PurOrder, *, as_of: dt.date | None = None) -> dict[str, Any] | None:
+    """B3 (ACH-6, cf. plan) : "taux de change commande d'achat exploité" —
+    même patron que `FinCredoc.amount_foreign`/`financing.services.credoc.
+    credoc_fx_variance` déjà livré (B2), adapté à une différence
+    structurelle de `PurOrder` : il n'existe AUCUN champ de montant en
+    devise étrangère stocké (`amount_total_mga` est toujours en MGA). Le
+    montant étranger implicite est donc RECONSTRUIT algébriquement à
+    partir du taux capturé à la création (`order.exchange_rate`, cf.
+    `create_order`/`_resolve_exchange_rate`) :
+    `implied_foreign_total = order.amount_total_mga / order.exchange_rate`.
+    Cette reconstruction n'est exacte QUE si `exchange_rate` est
+    réellement le taux appliqué au booking (vrai depuis ce sprint) — reste
+    une grandeur DÉRIVÉE, PAS la reconversion d'un montant en devise
+    réellement saisi par l'utilisateur (à la différence de
+    `credoc_fx_variance`, garantie plus forte car `FinCredoc.amount_
+    foreign` est une vraie saisie) : simplification assumée, à documenter
+    comme telle partout où ce résultat est consommé.
+
+    Retourne `None`, jamais une exception :
+    (1) pour une commande en MGA (aucun risque de change) ;
+    (2) si `order.exchange_rate` est encore à sa valeur par défaut non
+        exploitée `Decimal(1)` alors que `currency != "MGA"` — signe
+        qu'AUCUN taux réel n'a jamais été capturé pour cette commande
+        (commande antérieure à ce sprint, ou dégradation gracieuse de
+        `_resolve_exchange_rate` faute de `AccExchangeRate` configuré au
+        booking) : diviser par ce `1` produirait un montant étranger
+        implicite ARTEFACTUEL (numériquement égal à `amount_total_mga`),
+        et donc un écart énorme et totalement faux si on le reconvertissait
+        comme si c'était une vraie devise ;
+    (3) si aucun `AccExchangeRate` n'est configuré pour `currency` à la
+        date `as_of` (même discipline "gap de configuration, jamais un
+        blocage").
+
+    `is_material` : `True` si l'écart absolu dépasse
+    `FX_VARIANCE_ALERT_THRESHOLD_PCT` — même seuil et même sémantique que
+    `credoc_fx_variance`, constante locale distincte (cf. son
+    commentaire)."""
+    if order.currency == "MGA" or order.exchange_rate == Decimal(1):
+        return None
+
+    as_of = as_of or dt.date.today()
+    implied_foreign_total = order.amount_total_mga / order.exchange_rate
+    try:
+        current_amount_mga = convert_amount_to_mga(
+            implied_foreign_total, order.currency, as_of, tenant=order.tenant
+        )
+    except ValidationError:
+        return None
+
+    variance_mga = current_amount_mga - order.amount_total_mga
+    variance_pct = (
+        (variance_mga / order.amount_total_mga * Decimal(100))
+        if order.amount_total_mga
+        else Decimal(0)
+    )
+    return {
+        "booked_amount_mga": order.amount_total_mga,
+        "current_amount_mga": current_amount_mga,
+        "variance_mga": variance_mga,
+        "variance_pct": variance_pct,
+        "is_material": abs(variance_pct) >= FX_VARIANCE_ALERT_THRESHOLD_PCT,
+    }
 
 
 def add_order_line(

@@ -8,7 +8,7 @@ import pytest
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 
-from apps.accounting.models import AccBudget
+from apps.accounting.models import AccBudget, AccExchangeRate
 from apps.accounting.tests.factories import (
     AccAnalyticAccountFactory,
     AccBudgetFactory,
@@ -23,6 +23,7 @@ from apps.purchase.models import PurOrder
 from apps.purchase.services.orders import (
     LEVEL1_THRESHOLD_MGA,
     PurchaseApprovalRequiredError,
+    _resolve_exchange_rate,
     add_order_line,
     cancel_order,
     close_order,
@@ -87,6 +88,61 @@ def test_create_order_assigns_reference(orders_setup) -> None:
         order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
         assert order.reference.startswith("PCMD-")
         assert order.state == PurOrder.STATE_DRAFT
+
+
+# B3 (ACH-6, cf. plan) : `create_order` capture desormais un vrai taux de
+# change (au lieu de laisser `exchange_rate` fige a sa valeur par defaut).
+def test_create_order_captures_exchange_rate_when_configured(orders_setup) -> None:
+    tenant, _user = orders_setup
+    with use_tenant(tenant.id):
+        AccExchangeRate.objects.create(
+            tenant=tenant, currency="EUR", date=dt.date(2026, 1, 1), rate_to_mga=Decimal("5000")
+        )
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date(2026, 1, 1), currency="EUR"
+        )
+        assert order.exchange_rate == Decimal("5000.0000")
+
+
+def test_create_order_falls_back_to_default_rate_when_unconfigured(orders_setup) -> None:
+    """Aucun `AccExchangeRate` configure pour USD — meme discipline "gap de
+    configuration a la charge du tenant, jamais un blocage" que le reste
+    de ce module : `create_order` ne leve jamais, se replie sur `1`."""
+    tenant, _user = orders_setup
+    with use_tenant(tenant.id):
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), currency="USD"
+        )
+        assert order.exchange_rate == Decimal(1)
+
+
+def test_create_order_never_resolves_rate_for_mga_order(
+    orders_setup, django_assert_num_queries
+) -> None:
+    """`currency="MGA"` (par defaut) court-circuite sans jamais interroger
+    `AccExchangeRate` — prouve le court-circuit, pas seulement le
+    resultat."""
+    tenant, _user = orders_setup
+    with use_tenant(tenant.id):
+        with django_assert_num_queries(0):
+            rate = _resolve_exchange_rate(tenant=tenant, currency="MGA", date=dt.date.today())
+        assert rate == Decimal(1)
+
+        order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        assert order.exchange_rate == Decimal(1)
+
+
+def test_create_order_respects_explicit_exchange_rate_override(orders_setup) -> None:
+    tenant, _user = orders_setup
+    with use_tenant(tenant.id):
+        order = create_order(
+            tenant=tenant,
+            partner_id=uuid.uuid4(),
+            date=dt.date.today(),
+            currency="EUR",
+            exchange_rate=Decimal("4321.5"),
+        )
+        assert order.exchange_rate == Decimal("4321.5")
 
 
 def test_add_order_line_recomputes_totals_and_refuses_outside_draft(orders_setup) -> None:
