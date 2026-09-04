@@ -39,6 +39,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.core.models.user import User
+from apps.core.services.documents import store_document
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -441,12 +442,28 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
                 )
             elif action == "receive_line":
                 line = get_object_or_404(PurOrderLine, id=post.get("line_id"), order=order)
+                # Bloc D, D2 (QUA-8) : certificat d'analyse uploade dans la
+                # MEME action de reception (pas de flux de pre-upload
+                # separe dans ce depot, cf. `store_document`/PurCri pour
+                # le meme patron) — stocke AVANT `receive_order_line` pour
+                # disposer de son UUID.
+                certificate_document_id = None
+                certificate_file = request.FILES.get("certificate_file")
+                if certificate_file is not None:
+                    certificate_document = store_document(
+                        tenant=order.tenant, uploaded_file=certificate_file, uploaded_by=user,
+                    )
+                    certificate_document_id = certificate_document.id
                 receive_order_line(
                     line,
                     qty_received_now=Decimal(post.get("qty_received_now") or "0"),
                     quality_status=post.get("quality_status") or "conforme",
                     user=user,
                     notes=post.get("receive_notes", ""),
+                    lot_name=post.get("lot_name", ""),
+                    date_production=parse_date(post.get("date_production", "")),
+                    date_expiry=parse_date(post.get("date_expiry", "")),
+                    certificate_document_id=certificate_document_id,
                 )
             elif action == "record_invoice":
                 line = get_object_or_404(PurOrderLine, id=post.get("invoice_line_id"), order=order)

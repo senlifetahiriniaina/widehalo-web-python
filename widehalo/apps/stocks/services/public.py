@@ -27,7 +27,11 @@ from django.db import models, transaction
 from django.db.models import F
 from django.utils.translation import gettext as _
 
-from apps.catalog.services.public import get_conversion_factor, get_variant_base_uom_code
+from apps.catalog.services.public import (
+    get_conversion_factor,
+    get_variant_base_uom_code,
+    requires_certificate_of_analysis,
+)
 from apps.core.models.user import User
 from apps.stocks.models import (
     StkLocation,
@@ -468,20 +472,41 @@ def get_or_create_lot(
     name: str,
     date_production: dt.date | None = None,
     date_expiry: dt.date | None = None,
+    certificate_document_id: UUID | None = None,
 ) -> UUID:
     """Résout un lot existant par `(tenant, variant_id, name)`
     (`UniqueConstraint` déjà en place sur `StkLot`) ou le crée. Ne met
     jamais à jour un lot déjà existant (un lot est un identifiant, pas un
-    enregistrement mutable au fil des appels) — les dates ne sont
-    appliquées qu'à la création."""
+    enregistrement mutable au fil des appels) — les dates ET le
+    certificat (Bloc D, D2/QUA-8) ne sont appliqués qu'à la création."""
     lot, _created = StkLot.objects.get_or_create(
         tenant=tenant,
         variant_id=variant_id,
         name=name,
-        defaults={"date_production": date_production, "date_expiry": date_expiry},
+        defaults={
+            "date_production": date_production,
+            "date_expiry": date_expiry,
+            "certificate_document_id": certificate_document_id,
+        },
     )
     lot_id: UUID = lot.id
     return lot_id
+
+
+def get_lot_certificate_document_id(
+    *, tenant: Tenant, variant_id: Any, name: str
+) -> UUID | None:
+    """Bloc D, D2 (QUA-8) : lecture pure de `StkLot.certificate_document_id`
+    pour un appelant cross-app (`apps.quality`, reporting/tableau de bord
+    — jamais le mécanisme de blocage lui-même, qui vit entièrement dans
+    `receive_purchase_line` ci-dessous). Résout le lot par
+    `(tenant, variant_id, name)`, même convention que
+    `lot_genealogy_tree`. `None`, jamais une exception, si le lot
+    n'existe pas ou n'a aucun certificat rattaché."""
+    lot = StkLot.objects.filter(tenant=tenant, variant_id=variant_id, name=name).first()
+    if lot is None:
+        return None
+    return lot.certificate_document_id
 
 
 def receive_production_output(
@@ -544,6 +569,9 @@ def receive_purchase_line(
     source_document: str,
     unit_cost_mga: Decimal = Decimal(0),
     lot_name: str = "",
+    date_production: dt.date | None = None,
+    date_expiry: dt.date | None = None,
+    certificate_document_id: UUID | None = None,
     operator: User | None = None,
 ) -> UUID | None:
     """Réception d'achat (`purchase.services.receiving.receive_order_line`)
@@ -590,7 +618,19 @@ def receive_purchase_line(
     `receive_pos_return` ci-dessus ; à charge de l'appelant
     (`receive_order_line`) de refuser la réception plutôt que de laisser
     la quantité d'achat diverger silencieusement du stock physique (dans
-    l'unité déclarée ou dans l'unité de stock réelle)."""
+    l'unité déclarée ou dans l'unité de stock réelle).
+
+    Bloc D, D2 (QUA-8) : si l'article (`catalog.services.public.
+    requires_certificate_of_analysis`) exige un certificat d'analyse,
+    lève DIRECTEMENT `ValidationError` (contrairement aux gaps de
+    configuration ci-dessus, qui restent des `None` silencieux) — soit si
+    aucun `lot_name` n'est fourni (impossible de rattacher un certificat
+    sans lot), soit si le lot résolu n'a aucun `certificate_document_id`
+    (ni fourni à cet appel, ni déjà présent sur un lot existant). C'est un
+    contrôle métier RÉEL déjà configuré par le tenant, pas un gap de
+    configuration — un `None` silencieux, multiplexé avec les autres
+    causes ci-dessus, empêcherait l'appelant de produire un message
+    distinct et compréhensible."""
     if warehouse_id is None:
         return None
     warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
@@ -611,6 +651,15 @@ def receive_purchase_line(
         qty = qty * factor
         uom = stock_uom_code
 
+    needs_certificate = requires_certificate_of_analysis(variant_id)
+    if needs_certificate and not lot_name:
+        raise ValidationError(
+            _(
+                "Cet article exige un certificat d'analyse — un numéro de lot "
+                "est obligatoire pour le réceptionner."
+            )
+        )
+
     supplier_location, _created = StkLocation.objects.get_or_create(
         tenant=tenant,
         warehouse=warehouse,
@@ -620,8 +669,22 @@ def receive_purchase_line(
 
     lot = None
     if lot_name:
-        lot_id = get_or_create_lot(tenant=tenant, variant_id=variant_id, name=lot_name)
+        lot_id = get_or_create_lot(
+            tenant=tenant,
+            variant_id=variant_id,
+            name=lot_name,
+            date_production=date_production,
+            date_expiry=date_expiry,
+            certificate_document_id=certificate_document_id,
+        )
         lot = StkLot.objects.get(id=lot_id)
+        if needs_certificate and lot.certificate_document_id is None:
+            raise ValidationError(
+                _(
+                    "Un certificat d'analyse valide est obligatoire pour "
+                    "réceptionner ce lot."
+                )
+            )
 
     move = create_move(
         tenant=tenant,

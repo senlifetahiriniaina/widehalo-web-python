@@ -86,6 +86,19 @@ def is_variant_sellable(variant_id: Any) -> bool:
     return is_sellable
 
 
+def requires_certificate_of_analysis(variant_id: Any) -> bool:
+    """Bloc D, D2 (QUA-8) : meme patron exact qu'`is_variant_sellable`
+    ci-dessus — champ porte par `ProductTemplate`, resolu depuis un
+    `variant_id`, `False` (jamais une exception) si la variante est
+    inconnue. Consomme par `stocks.services.public.receive_purchase_line`
+    pour refuser une reception sans certificat valide rattache au lot."""
+    variant = ProductVariant.objects.filter(id=variant_id).select_related("template").first()
+    if variant is None:
+        return False
+    result: bool = variant.template.requires_certificate_of_analysis
+    return result
+
+
 def list_sellable_variants() -> list[dict[str, Any]]:
     """Alimente les selecteurs de produit des ecrans de devis/facture/
     commande (`sales`/`accounting`) — ne renvoie QUE les variantes dont le

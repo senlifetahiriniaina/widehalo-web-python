@@ -174,6 +174,15 @@ class ProductTemplate(BaseModel, ReferenceMixin):
     # vendable, sauf indication contraire explicite.
     is_sellable = models.BooleanField(default=True)
 
+    # Bloc D, D2 (QUA-8) : niveau TEMPLATE (meme granularite qu'is_sellable
+    # ci-dessus), pas variante — un certificat d'analyse est une exigence
+    # de matiere premiere/type de produit, jamais une propriete de
+    # taille/couleur (a la difference d'is_lot_tracked cote
+    # `ProductVariant`, deliberement au niveau variante pour une raison
+    # differente documentee sur son propre champ). Defaut `False` :
+    # aucune exigence sauf indication contraire explicite du tenant.
+    requires_certificate_of_analysis = models.BooleanField(default=False)
+
     class Meta:
         db_table = "catalog_product_template"
 

@@ -75,6 +75,10 @@ def receive_order_line(
     notes: str = "",
     photo_document_ids: list[UUID] | None = None,
     over_receipt_tolerance_pct: Decimal = DEFAULT_OVER_RECEIPT_TOLERANCE_PCT,
+    lot_name: str = "",
+    date_production: date | None = None,
+    date_expiry: date | None = None,
+    certificate_document_id: UUID | None = None,
 ) -> PurOrderLine:
     """Enregistre UNE reception (partielle ou totale) d'une ligne de
     commande. Refuse (`ValidationError` i18n) :
@@ -92,7 +96,14 @@ def receive_order_line(
     - l'absence d'un entrepot valide (avec au moins un emplacement
       interne) sur la commande — cf. docstring de module, decision P2 :
       une reception qui ne peut pas produire de mouvement de stock reel
-      est refusee plutot que silencieusement acceptee.
+      est refusee plutot que silencieusement acceptee ;
+    - Bloc D, D2 (QUA-8) : un article qui exige un certificat d'analyse
+      (`catalog.services.public.requires_certificate_of_analysis`) sans
+      `lot_name` renseigne, ou dont le lot resolu n'a aucun certificat
+      rattache — leve directement par `receive_stock_move`
+      (`stocks.services.public.receive_purchase_line`), propage tel quel
+      a travers le `@transaction.atomic` de cette fonction (rollback
+      complet, meme garantie que les refus ci-dessus).
 
     `@transaction.atomic` (ajoute par la decision P2) : le mouvement de
     stock, la ligne de reception et l'avancement de l'etat de la commande
@@ -136,6 +147,10 @@ def receive_order_line(
         source_document=order.reference,
         unit_cost_mga=line.unit_price_mga,
         operator=user,
+        lot_name=lot_name,
+        date_production=date_production,
+        date_expiry=date_expiry,
+        certificate_document_id=certificate_document_id,
     )
     if move_id is None:
         raise ValidationError(

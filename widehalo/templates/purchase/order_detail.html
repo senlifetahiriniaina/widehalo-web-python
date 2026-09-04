@@ -91,7 +91,7 @@
 
   {% if order.state == "in_transit" or order.state == "partially_received" %}
     <h3>{% trans "Réceptionner une ligne (RG-PUR-5)" %}</h3>
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
       <input type="hidden" name="action" value="receive_line">
       <select name="line_id" required aria-label="{% trans 'Ligne a receptionner' %}">
@@ -106,6 +106,20 @@
       </select>
       <input type="text" name="receive_notes" placeholder="{% trans 'Notes' %}"
              aria-label="{% trans 'Notes' %}">
+      {# Bloc D, D2 (QUA-8) : numero de lot + certificat d'analyse — #}
+      {# aucun des deux n'etait collecte a la reception avant ce chantier #}
+      {# (aucun StkLot n'etait jamais cree sur ce parcours). #}
+      <input type="text" name="lot_name" placeholder="{% trans 'N° de lot (obligatoire si certificat exigé)' %}"
+             aria-label="{% trans 'Numéro de lot' %}">
+      <label class="sr-only" for="receive-date-production">{% trans "Date de production" %}</label>
+      <input id="receive-date-production" type="date" name="date_production"
+             aria-label="{% trans 'Date de production' %}">
+      <label class="sr-only" for="receive-date-expiry">{% trans "Date de péremption" %}</label>
+      <input id="receive-date-expiry" type="date" name="date_expiry"
+             aria-label="{% trans 'Date de péremption' %}">
+      <label class="sr-only" for="receive-certificate-file">{% trans "Certificat d'analyse" %}</label>
+      <input id="receive-certificate-file" type="file" name="certificate_file"
+             aria-label="{% trans 'Certificat d’analyse (PDF/scan)' %}">
       <c-button variant="primary" type="submit">{% trans "Réceptionner" %}</c-button>
     </form>
 

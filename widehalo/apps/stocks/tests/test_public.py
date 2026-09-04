@@ -15,10 +15,18 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
+from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkLocation, StkPicking, StkQualityState, StkQuant, StkReservation
+from apps.stocks.models import (
+    StkLocation,
+    StkLot,
+    StkPicking,
+    StkQualityState,
+    StkQuant,
+    StkReservation,
+)
 from apps.stocks.services.public import (
     QUALITY_STATE_CONFORME,
     QUALITY_STATE_QUARANTINE,
@@ -26,8 +34,11 @@ from apps.stocks.services.public import (
     check_and_reserve_stock,
     deliver_reserved_stock,
     get_available_stock_qty,
+    get_lot_certificate_document_id,
+    get_or_create_lot,
     get_variant_unit_cost,
     receive_pos_return,
+    receive_purchase_line,
     sell_from_stock,
     set_quality_state,
 )
@@ -447,3 +458,133 @@ def test_set_quality_state_conforme_releases_hold(tenant) -> None:
     )
     lot.refresh_from_db()
     assert lot.is_held() is False
+
+
+# ---------------------------------------------------------------------------
+# receive_purchase_line + certificat d'analyse (Bloc D, D2, QUA-8).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def receiving_certificate_setup(tenant):
+    uom = UnitOfMeasure.objects.create(
+        tenant=tenant, code="KG-COA", name="Kilogramme", category=UnitOfMeasure.CATEGORY_WEIGHT
+    )
+    regulated_template = ProductTemplate.objects.create(
+        tenant=tenant, name="Lait en poudre", base_uom=uom, requires_certificate_of_analysis=True
+    )
+    regulated_variant = ProductVariant.objects.create(tenant=tenant, template=regulated_template)
+    plain_template = ProductTemplate.objects.create(
+        tenant=tenant, name="Carton", base_uom=uom, requires_certificate_of_analysis=False
+    )
+    plain_variant = ProductVariant.objects.create(tenant=tenant, template=plain_template)
+    warehouse = StkWarehouseFactory(tenant=tenant)
+    StkLocationFactory(tenant=tenant, warehouse=warehouse, type=StkLocation.TYPE_INTERNE)
+    return tenant, warehouse, regulated_variant, plain_variant
+
+
+def test_receive_purchase_line_refuses_without_lot_when_certificate_required(
+    receiving_certificate_setup,
+) -> None:
+    tenant, warehouse, regulated_variant, _plain_variant = receiving_certificate_setup
+    with pytest.raises(ValidationError):
+        receive_purchase_line(
+            tenant=tenant,
+            variant_id=regulated_variant.id,
+            qty=Decimal(10),
+            uom="KG-COA",
+            warehouse_id=warehouse.id,
+            date=dt.date(2026, 1, 10),
+            source_document="PO-COA-1",
+        )
+    assert not StkLot.objects.filter(tenant=tenant, variant_id=regulated_variant.id).exists()
+
+
+def test_receive_purchase_line_refuses_lot_without_certificate(receiving_certificate_setup) -> None:
+    tenant, warehouse, regulated_variant, _plain_variant = receiving_certificate_setup
+    with pytest.raises(ValidationError):
+        receive_purchase_line(
+            tenant=tenant,
+            variant_id=regulated_variant.id,
+            qty=Decimal(10),
+            uom="KG-COA",
+            warehouse_id=warehouse.id,
+            date=dt.date(2026, 1, 10),
+            source_document="PO-COA-2",
+            lot_name="LOT-COA-001",
+        )
+
+
+def test_receive_purchase_line_accepts_lot_with_certificate(receiving_certificate_setup) -> None:
+    tenant, warehouse, regulated_variant, _plain_variant = receiving_certificate_setup
+    certificate_id = uuid.uuid4()
+    move_id = receive_purchase_line(
+        tenant=tenant,
+        variant_id=regulated_variant.id,
+        qty=Decimal(10),
+        uom="KG-COA",
+        warehouse_id=warehouse.id,
+        date=dt.date(2026, 1, 10),
+        source_document="PO-COA-3",
+        lot_name="LOT-COA-002",
+        certificate_document_id=certificate_id,
+    )
+    assert move_id is not None
+    lot = StkLot.objects.get(tenant=tenant, variant_id=regulated_variant.id, name="LOT-COA-002")
+    assert lot.certificate_document_id == certificate_id
+    assert (
+        get_lot_certificate_document_id(
+            tenant=tenant, variant_id=regulated_variant.id, name="LOT-COA-002"
+        )
+        == certificate_id
+    )
+
+
+def test_receive_purchase_line_accepts_without_lot_when_certificate_not_required(
+    receiving_certificate_setup,
+) -> None:
+    """Non-régression : un article qui n'exige pas de certificat continue
+    de se réceptionner sans lot, exactement comme avant ce chantier."""
+    tenant, warehouse, _regulated_variant, plain_variant = receiving_certificate_setup
+    move_id = receive_purchase_line(
+        tenant=tenant,
+        variant_id=plain_variant.id,
+        qty=Decimal(10),
+        uom="KG-COA",
+        warehouse_id=warehouse.id,
+        date=dt.date(2026, 1, 10),
+        source_document="PO-COA-4",
+    )
+    assert move_id is not None
+    assert not StkLot.objects.filter(tenant=tenant, variant_id=plain_variant.id).exists()
+
+
+def test_get_or_create_lot_applies_certificate_only_at_creation(tenant) -> None:
+    variant_id = uuid.uuid4()
+    first_certificate = uuid.uuid4()
+    lot_id = get_or_create_lot(
+        tenant=tenant,
+        variant_id=variant_id,
+        name="LOT-CREATE-ONCE",
+        certificate_document_id=first_certificate,
+    )
+    lot = StkLot.objects.get(id=lot_id)
+    assert lot.certificate_document_id == first_certificate
+
+    second_certificate = uuid.uuid4()
+    same_lot_id = get_or_create_lot(
+        tenant=tenant,
+        variant_id=variant_id,
+        name="LOT-CREATE-ONCE",
+        certificate_document_id=second_certificate,
+    )
+    assert same_lot_id == lot_id
+    lot.refresh_from_db()
+    assert lot.certificate_document_id == first_certificate  # inchange, jamais mis a jour
+
+
+def test_get_lot_certificate_document_id_is_none_for_unknown_lot(tenant) -> None:
+    assert (
+        get_lot_certificate_document_id(tenant=tenant, variant_id=uuid.uuid4(), name="INEXISTANT")
+        is None
+    )

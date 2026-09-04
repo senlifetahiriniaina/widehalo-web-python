@@ -767,6 +767,14 @@ class ReceiveLineIn(Schema):
     quality_status: str
     notes: str = ""
     photo_document_ids: list[str] = []
+    # Bloc D, D2 (QUA-8) : le certificat lui-meme reste hors API dans ce
+    # sprint (l'upload de fichier via API Ninja depasse le perimetre
+    # annonce) — documente explicitement, pas silencieux. Un appelant API
+    # qui reçoit un article exigeant un certificat sera donc refuse tant
+    # qu'aucun lot avec certificat n'existe deja (cree via l'ecran).
+    lot_name: str = ""
+    date_production: dt.date | None = None
+    date_expiry: dt.date | None = None
 
 
 @router.post("/purchase/orders/{order_id}/lines/{line_id}/receive")
@@ -781,6 +789,9 @@ def receive_order_line_endpoint(request, order_id: str, line_id: str, payload: R
             user=request.auth,
             notes=payload.notes,
             photo_document_ids=[uuid.UUID(doc_id) for doc_id in payload.photo_document_ids],
+            lot_name=payload.lot_name,
+            date_production=payload.date_production,
+            date_expiry=payload.date_expiry,
         )
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)

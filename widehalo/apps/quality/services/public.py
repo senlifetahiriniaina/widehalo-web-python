@@ -37,6 +37,9 @@ from apps.quality.services.non_conformity import (
     has_open_non_conformity as _has_open_non_conformity,
 )
 from apps.stocks.services.public import QUALITY_STATE_CONFORME
+from apps.stocks.services.public import (
+    get_lot_certificate_document_id as _get_lot_certificate_document_id,
+)
 from apps.stocks.services.public import set_quality_state as _set_stock_quality_state
 
 
@@ -165,3 +168,20 @@ def get_last_measurement_date(
     return _get_last_measurement_date(
         critical_point, lot_variant_id=lot_variant_id, lot_name=lot_name
     )
+
+
+def get_lot_certificate_status(*, tenant: Tenant, lot_variant_id: Any, lot_name: str) -> bool:
+    """Bloc D, D2 (QUA-8) : LECTURE PURE, jamais bloquante — le blocage
+    réel vit entièrement dans `stocks.services.public.
+    receive_purchase_line`/`catalog.services.public.
+    requires_certificate_of_analysis` (cf. Contexte du plan D2 : `quality`
+    orchestre/rapporte, ne duplique jamais le mécanisme). Utile à un futur
+    tableau de bord qualité pour lister les lots dont le certificat
+    manque encore. `True` si un certificat est rattaché ; `False` dans
+    tous les autres cas (lot inconnu OU lot sans certificat — les deux se
+    valent du point de vue « ce lot n'a pas de certificat sur lequel
+    compter », jamais une exception)."""
+    certificate_document_id = _get_lot_certificate_document_id(
+        tenant=tenant, variant_id=lot_variant_id, name=lot_name
+    )
+    return certificate_document_id is not None
