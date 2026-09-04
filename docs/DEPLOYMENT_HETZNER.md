@@ -1,9 +1,9 @@
 # Déploiement sur un VM Hetzner (sous-domaine + certificat SSL automatique)
 
-Ce document décrit la procédure pour déployer l'état actuel du dépôt
-(`claude/erp-v1-bm0gzx`) sur un serveur VM Hetzner Cloud, accessible via un
-sous-domaine du type `app.widehalo.cloud`, avec un certificat SSL/TLS obtenu
-et renouvelé automatiquement (Let's Encrypt, via Caddy).
+Ce document décrit la procédure pour déployer ce dépôt sur un serveur VM
+Hetzner Cloud, accessible via un sous-domaine du type `app.widehalo.cloud`,
+avec un certificat SSL/TLS obtenu et renouvelé automatiquement (Let's
+Encrypt, via Caddy).
 
 Pile utilisée pour ce déploiement : Docker Compose (`docker-compose.prod.yml`,
 nouveau fichier à côté du `docker-compose.yml` de développement), PostgreSQL
