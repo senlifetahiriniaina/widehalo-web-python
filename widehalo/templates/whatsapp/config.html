@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Configuration WhatsApp" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb><a href="{% url 'whatsapp:conversations' %}">{% trans "WhatsApp" %}</a> / {% trans "Configuration" %}</c-breadcrumb>
+<h1>{% trans "Configuration WhatsApp" %}</h1>
+<p class="help-text">{% trans "Cet écran énonce les données sortantes de ce canal : plafond de coût mensuel et bibliothèque de modèles autorisés à être envoyés." %}</p>
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<div class="wh-panel">
+  <h2>{% trans "Plafond de coût mensuel" %}</h2>
+  <p>{% trans "Consommé ce mois-ci" %} : {{ current_month_cost }} Ar</p>
+  <p>{% trans "Reste disponible" %} : {% if remaining_budget is None %}{% trans "Illimité" %}{% else %}{{ remaining_budget }} Ar{% endif %}</p>
+  {% if can_manage %}
+    <form method="post" action="{% url 'whatsapp:cost_cap_update' %}">
+      {% csrf_token %}
+      <input type="number" step="0.01" name="monthly_cost_cap_ariary" placeholder="{% trans "Plafond mensuel (Ar), vide = illimité" %}" value="{{ tenant.whatsapp_monthly_cost_cap_ariary|default:"" }}">
+      <label><input type="checkbox" name="hard_stop" {% if tenant.whatsapp_cost_cap_hard_stop %}checked{% endif %}> {% trans "Bloquer les envois au-delà du plafond" %}</label>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="wh-panel">
+  <h2>{% trans "Bibliothèque de modèles" %}</h2>
+  {% if can_manage %}
+    <form method="post" action="{% url 'whatsapp:template_create' %}">
+      {% csrf_token %}
+      <input type="text" name="code" placeholder="{% trans "Code" %}" required>
+      <input type="text" name="name" placeholder="{% trans "Nom" %}" required>
+      <select name="category">
+        <option value="utility">{% trans "Utilitaire" %}</option>
+        <option value="marketing">{% trans "Marketing" %}</option>
+        <option value="authentication">{% trans "Authentification" %}</option>
+      </select>
+      <textarea name="body_text" placeholder="{% trans "Contenu du modèle" %}" required></textarea>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Code" %}</th><th>{% trans "Nom" %}</th><th>{% trans "Catégorie" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Coût estimé (Ar)" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+        <tr>
+          <td>{{ t.code }}</td>
+          <td>{{ t.name }}</td>
+          <td>{{ t.get_category_display }}</td>
+          <td>
+            {% if t.status == "approved" %}<span class="badge b-success">{{ t.get_status_display }}</span>
+            {% elif t.status == "rejected" %}<span class="badge b-danger">{{ t.get_status_display }}</span>
+            {% else %}<span class="badge b-warning">{{ t.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{{ t.estimated_cost_ariary }}</td>
+          <td>
+            {% if can_manage %}
+              {% if t.status == "draft" or t.status == "rejected" %}
+                <form method="post" action="{% url 'whatsapp:template_submit' t.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-sm">{% trans "Soumettre" %}</button>
+                </form>
+              {% elif t.status == "pending_review" %}
+                <form method="post" action="{% url 'whatsapp:template_approve' t.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-sm">{% trans "Approuver" %}</button>
+                </form>
+                <form method="post" action="{% url 'whatsapp:template_reject' t.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <input type="text" name="reason" placeholder="{% trans "Motif" %}" required>
+                  <button type="submit" class="btn btn-ghost btn-sm">{% trans "Rejeter" %}</button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "Aucun modèle." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

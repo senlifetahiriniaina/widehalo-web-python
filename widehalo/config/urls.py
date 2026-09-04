@@ -65,6 +65,7 @@ urlpatterns = [
     path("analytics/", include("apps.analytics.urls")),
     path("bi/", include("apps.bi.urls")),
     path("forecast/", include("apps.forecast.urls")),
+    path("whatsapp/", include("apps.whatsapp.urls")),
 ]
 
 if settings.DEBUG:

@@ -11,6 +11,7 @@ import datetime
 from decimal import Decimal
 
 import factory
+from django.utils import timezone
 
 from apps.strategy.models import (
     SECTOR_TEXTILE,
@@ -20,6 +21,7 @@ from apps.strategy.models import (
     StgKeyResult,
     StgNote,
     StgObjective,
+    StgReviewPack,
     StgRisk,
     StgSectorBenchmark,
 )
@@ -106,3 +108,14 @@ class StgRiskFactory(factory.django.DjangoModelFactory):
     title = factory.Sequence(lambda n: f"Risque {n}")
     probability = 3
     impact = 3
+
+
+class StgReviewPackFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = StgReviewPack
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    period_start = datetime.date(2026, 1, 1)
+    period_end = datetime.date(2026, 3, 31)
+    generated_at = factory.LazyFunction(timezone.now)
+    snapshot = factory.LazyFunction(dict)

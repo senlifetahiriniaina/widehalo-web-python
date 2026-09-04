@@ -106,6 +106,9 @@ _FACTORY_MODULES = [
     "apps.bi.tests.factories",
     # `forecast` (chantier module Forecast, cahier §13.2) : idem.
     "apps.forecast.tests.factories",
+    # `whatsapp` (chantier module WhatsApp, cahier Phase 2 §13.4) : idem,
+    # ajoute des la livraison plutot qu'en rattrapage.
+    "apps.whatsapp.tests.factories",
 ]
 
 

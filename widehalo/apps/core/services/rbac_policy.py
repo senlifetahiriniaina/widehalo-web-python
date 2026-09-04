@@ -134,6 +134,15 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # acces complet, meme discipline transverse que le reste de la
         # matrice pour ce role.
         "forecast": {"view", "add", "change"},
+        # `whatsapp` (chantier module WhatsApp, cahier Phase 2 §13.4) :
+        # module de gouvernance/messagerie CLIENT — pas une operation
+        # courante de tous les roles (meme discipline que `financing`/
+        # `automation`/`feasibility` ci-dessus) : explicitement restreint a
+        # `admin`/`direction`/`commercial`/`resp_commercial` (les deux
+        # derniers = "domaine cible" naturel, cf. leurs entrees ci-dessous
+        # — la messagerie client relève de leur perimetre CRM/ventes).
+        # Aucun autre role de la matrice ne recoit `whatsapp`.
+        "whatsapp": {"view", "add", "change"},
     },
     "direction": {
         # Role de pilotage/validation transverse (approbateur frequent des
@@ -208,6 +217,13 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # un outil de pilotage technique (rétrotest, ajustement, calendrier),
         # pas un module a large audience comme `bi`.
         "forecast": {"view", "add", "change"},
+        # `whatsapp` : pilotage/gouvernance transverse (approbation des
+        # modeles, plafond de cout) — acces COMPLET comme `admin` ci-dessus
+        # (pas le "view"+"change" habituel de ce role) : la validation des
+        # modeles WhatsApp (WA-3) est un acte de gouvernance/pilotage, pas
+        # une simple consultation, meme raisonnement que `simulation`/
+        # `analytics`/`bi` ci-dessus.
+        "whatsapp": {"view", "add", "change"},
     },
     "comptable": {
         "accounting": {"view", "add", "change"},
@@ -261,6 +277,21 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
+        # `whatsapp` (chantier module WhatsApp, cahier Phase 2 §13.4) :
+        # "domaine cible" pour l'usage OPERATIONNEL (converser, envoyer un
+        # message via un modele DEJA approuve, enregistrer/revoquer un
+        # consentement — cette derniere action exige "change" au sens
+        # Django, cf. `views.py::consent_revoke`). **Limite assumee et
+        # disclosee** (meme granularite par app, pas par modele, que le
+        # reste de ce registre, cf. docstring de tete ET le meme choix deja
+        # fait pour `strategy`/`StgBudget` ci-dessus) : ce "change" donne
+        # techniquement aussi acces a l'approbation de modele/au plafond de
+        # cout (`WaMessageTemplate`/champs `Tenant`) via l'API, alors que
+        # l'ECRAN ne propose ces actions qu'a `can_manage` (calcule sur
+        # `whatsapp.change_wamessagetemplate`, meme permission) — a
+        # restreindre via une permission personnalisee dediee si ce
+        # cloisonnement plus strict s'avere necessaire en pratique.
+        "whatsapp": {"view", "add", "change"},
     },
     "resp_commercial": {
         "crm": {"view", "add", "change"},
@@ -294,6 +325,10 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "projects": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
+        # `whatsapp` : meme raisonnement/limite disclosee que `commercial`
+        # ci-dessus — "domaine cible" operationnel, responsable de
+        # departement commercial.
+        "whatsapp": {"view", "add", "change"},
     },
     "acheteur": {
         # Domaine cible = `purchase` (PU1, demande d'achat) ; conserve
@@ -662,6 +697,7 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
         "accounting.qualify_accimportrow",
         "accounting.qualify_accinvoiceimportrow",
         "stocks.qualify_stkimportrow",
+        "whatsapp.run_message_retry",
     },
     "direction": {
         "accounting.validate_accmove",
@@ -671,6 +707,7 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
         "accounting.qualify_accimportrow",
         "accounting.qualify_accinvoiceimportrow",
         "stocks.qualify_stkimportrow",
+        "whatsapp.run_message_retry",
     },
     "comptable": {
         "accounting.validate_accmove",
@@ -680,6 +717,13 @@ CUSTOM_PERMISSIONS: dict[str, set[str]] = {
     },
     "acheteur": {"purchase.run_reordering", "purchase.run_price_watch_check"},
     "magasinier": {"stocks.qualify_stkimportrow"},
+    # WA-7 (cahier Phase 2 §13.4) : « reprise dediee au canal WhatsApp » —
+    # memes roles que le reste de la gouvernance `whatsapp`
+    # (`ROLE_APP_PERMISSIONS`, commentaire dedie sur le role `admin`) :
+    # admin/direction (pilotage transverse) + commercial/resp_commercial
+    # (domaine cible operationnel, relance un envoi client en echec).
+    "commercial": {"whatsapp.run_message_retry"},
+    "resp_commercial": {"whatsapp.run_message_retry"},
 }
 
 for _role in _RISK_FULL_ROLES:

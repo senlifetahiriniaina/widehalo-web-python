@@ -66,6 +66,20 @@ class Tenant(models.Model):
     phone = models.CharField(max_length=32, blank=True)
     email = models.CharField(max_length=254, blank=True)
 
+    # Gouvernance WhatsApp (WA-5, cahier Phase 2 §13.4) : plafond de cout
+    # mensuel PAR TENANT — champs ajoutes ici plutot qu'un modele
+    # `WaUsageLimit` dedie dans `apps.whatsapp` (budget d'architecture
+    # `tests/architecture/test_budget.py` deja a 288/290 avant ce chantier,
+    # « jamais releve sans decision explicite du commanditaire » —
+    # cf. docstring `apps.whatsapp.models`). `None` = aucun plafond
+    # configure (jamais un plafond implicite a 0 qui bloquerait tout envoi
+    # par defaut).
+    whatsapp_monthly_cost_cap_ariary = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    whatsapp_cost_cap_hard_stop = models.BooleanField(default=True)
+    whatsapp_cost_alert_threshold_pct = models.PositiveSmallIntegerField(default=80)
+
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="sandboxes"

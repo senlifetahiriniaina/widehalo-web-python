@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Conversations WhatsApp" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>{% trans "WhatsApp" %}</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Conversations WhatsApp" %}</h1>
+  <a href="{% url 'whatsapp:config' %}">{% trans "Configuration (modèles, plafond de coût)" %}</a>
+</div>
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<table class="smart-table">
+  <thead><tr><th>{% trans "Numéro" %}</th><th>{% trans "Consentement" %}</th><th>{% trans "Fenêtre de service" %}</th><th>{% trans "Intention" %}</th><th>{% trans "Dernier message entrant" %}</th></tr></thead>
+  <tbody>
+    {% for c in conversations %}
+      <tr {% if selected.id == c.id %}class="row-selected"{% endif %}>
+        <td><a href="?phone={{ c.phone_number|urlencode }}">{{ c.phone_number }}</a></td>
+        <td>{% if c.has_active_consent %}<span class="badge b-success">{% trans "Actif" %}</span>{% else %}<span class="badge b-warning">{% trans "Absent" %}</span>{% endif %}</td>
+        <td>{% if c.is_service_window_open %}<span class="badge b-success">{% trans "Ouverte" %}</span>{% else %}<span class="badge b-warning">{% trans "Fermée" %}</span>{% endif %}</td>
+        <td>{{ c.get_intent_state_display }}</td>
+        <td>{{ c.last_inbound_at|date:"d/m/Y H:i"|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5">{% trans "Aucune conversation." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if selected %}
+<div class="wh-panel">
+  <h2>{{ selected.phone_number }}</h2>
+  {% if selected.chat_channel_id %}<p class="help-text">{% trans "Canal de discussion interne ouvert." %}</p>{% endif %}
+
+  {% if can_manage %}
+    {% if selected.has_active_consent %}
+      <form method="post" action="{% url 'whatsapp:consent_revoke' %}" style="display:inline">
+        {% csrf_token %}
+        <input type="hidden" name="phone_number" value="{{ selected.phone_number }}">
+        <button type="submit" class="btn btn-ghost btn-sm">{% trans "Révoquer le consentement" %}</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'whatsapp:consent_grant' %}" style="display:inline">
+        {% csrf_token %}
+        <input type="hidden" name="phone_number" value="{{ selected.phone_number }}">
+        <input type="text" name="source" placeholder="{% trans "Source du consentement" %}" required>
+        <button type="submit" class="btn btn-ghost btn-sm">{% trans "Enregistrer le consentement" %}</button>
+      </form>
+    {% endif %}
+
+    <form method="post" action="{% url 'whatsapp:send_message' %}">
+      {% csrf_token %}
+      <input type="hidden" name="phone_number" value="{{ selected.phone_number }}">
+      <select name="template_code" required>
+        <option value="">{% trans "Choisir un modèle approuvé" %}</option>
+        {% for t in templates %}<option value="{{ t.code }}">{{ t.name }}</option>{% endfor %}
+      </select>
+      <c-button variant="primary" type="submit">{% trans "Envoyer" %}</c-button>
+    </form>
+  {% endif %}
+
+  <h3>{% trans "Historique" %}</h3>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Sens" %}</th><th>{% trans "Modèle" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Coût (Ar)" %}</th><th>{% trans "Date" %}</th></tr></thead>
+    <tbody>
+      {% for m in messages %}
+        <tr>
+          <td>{{ m.get_direction_display }}</td>
+          <td>{{ m.template_name|default:"—" }}</td>
+          <td>{{ m.get_status_display }}</td>
+          <td>{{ m.cost_ariary|default:"—" }}</td>
+          <td>{{ m.created_at|date:"d/m/Y H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun message." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if can_retry and failed_messages %}
+<div class="wh-panel">
+  <h2>{% trans "Messages en échec" %}</h2>
+  <form method="post" action="{% url 'whatsapp:messages_retry' %}">
+    {% csrf_token %}
+    <c-button variant="primary" type="submit">{% trans "Relancer les envois en échec" %}</c-button>
+  </form>
+  <table class="smart-table">
+    <thead><tr><th>{% trans "Numéro" %}</th><th>{% trans "Modèle" %}</th><th>{% trans "Tentatives" %}</th></tr></thead>
+    <tbody>
+      {% for m in failed_messages %}
+        <tr><td>{{ m.phone_number }}</td><td>{{ m.template_name|default:"—" }}</td><td>{{ m.retry_count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

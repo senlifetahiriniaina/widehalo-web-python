@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.analytics",
     "apps.bi",
     "apps.forecast",
+    "apps.whatsapp",
 ]
 
 MIDDLEWARE = [
@@ -249,6 +250,19 @@ WHATSAPP_ENABLED = env.bool("WHATSAPP_ENABLED", default=False)
 WHATSAPP_PHONE_NUMBER_ID = env.str("WHATSAPP_PHONE_NUMBER_ID", default="")
 WHATSAPP_ACCESS_TOKEN = env.str("WHATSAPP_ACCESS_TOKEN", default="")
 WHATSAPP_WEBHOOK_VERIFY_TOKEN = env.str("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default="")
+# module `apps.whatsapp` (gouvernance, cahier Phase 2 §13.4) : le compte
+# WhatsApp Business ci-dessus (WHATSAPP_PHONE_NUMBER_ID) reste un numero
+# GLOBAL unique pour tout le deploiement (pas un numero par tenant — meme
+# limitation deja presente dans le socle `core` avant ce chantier) ; ce
+# reglage resout donc a QUEL tenant rattacher un message entrant recu par
+# le webhook gouverne (`apps.whatsapp.api::whatsapp_webhook_receive`).
+# Vide par defaut : le webhook gouverne se degrade alors sur la seule
+# journalisation deja existante (`core.services.notifications.
+# record_inbound_whatsapp_message`), sans aucune gouvernance appliquee —
+# jamais une exception. Un vrai routage par tenant (plusieurs numeros
+# WhatsApp Business, un par tenant) resterait a construire si ce besoin
+# multi-tenant reel se confirme — hors perimetre disclosed de ce chantier.
+WHATSAPP_DEFAULT_TENANT_ID = env.str("WHATSAPP_DEFAULT_TENANT_ID", default="")
 
 # --- Veille prix fournisseurs Chine/Europe (PRC1-3) ---
 # Dict vide par defaut = TOUTE plateforme utilise `StubPriceSourceProvider`

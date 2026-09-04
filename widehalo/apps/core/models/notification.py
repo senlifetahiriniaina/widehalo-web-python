@@ -86,6 +86,30 @@ class WhatsAppMessage(models.Model):
     provider_message_id = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING)
 
+    # Gouvernance WhatsApp (WA-4/WA-5/WA-7, cahier Phase 2 §13.4, module
+    # `apps.whatsapp`) : champs ajoutes DIRECTEMENT ici plutot qu'un second
+    # journal dedie dans `apps.whatsapp` — « adaptateur, pas refonte »
+    # (decision actee du cahier §1, deja respectee par ce modele, cf. sa
+    # docstring) s'applique aussi a l'extension de ce journal, pas
+    # seulement a sa creation initiale. `apps.whatsapp` (qui peut importer
+    # `core` librement, regle de couplage n°1) lit/ecrit ces champs
+    # directement ; `core` lui-meme ne connait AUCUN concept de `apps.
+    # whatsapp` (pas de FK vers `WaConversation`/`WaMessageTemplate` :
+    # `conversation_id` ci-dessous est un UUID neutre, jamais une FK
+    # Django — meme discipline que `StgObjective.department_id`).
+    conversation_id = models.UUIDField(null=True, blank=True)
+    category = models.CharField(max_length=16, blank=True)
+    variables = models.JSONField(default=dict, blank=True)
+    cost_ariary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # WA-7 : « file d'attente avec etat visible et reprise dediee au canal
+    # WhatsApp » — `retry_count`/`next_retry_at` rendent cet etat visible
+    # directement sur le journal (pas de table de file d'attente separee),
+    # `apps.whatsapp.services.messaging.retry_failed_messages` est la
+    # reprise dediee (jamais le mecanisme generique de `Notification`, qui
+    # n'en a pas, cf. audit WA-7).
+    retry_count = models.PositiveIntegerField(default=0)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
