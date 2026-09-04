@@ -1,5 +1,10 @@
-"""Test d'acceptance §5.10.10 n°5 : un employe ne peut pas acceder au
-bulletin d'un collegue (403 API)."""
+"""Cahier des charges Phase 3 (§6.1, decision D1) : un `collaborateur` n'a
+plus aucun acces self-service a la paie, meme a ses propres donnees --
+"le salarie n'a pas de compte... il n'existe pas de portail salarie". Avant
+cette decision (test d'acceptance §5.10.10 n°5, cahier Phase 1), un
+`collaborateur` pouvait consulter SES PROPRES bulletins (jamais ceux d'un
+collegue) ; ce fichier verifie desormais qu'il n'a plus aucun acces du
+tout, ni aux siens ni a ceux d'autrui."""
 
 from __future__ import annotations
 
@@ -69,7 +74,6 @@ def payroll_two_employees():
 
 
 def test_collaborateur_cannot_access_colleague_payslip_pdf(payroll_two_employees) -> None:
-    """Test d'acceptance §5.10.10 n°5."""
     tenant, user_a, _user_b, payslip_b = payroll_two_employees
     client = Client()
     token = _access_token(client, user_a.email, "Str0ngPassw0rd!23")
@@ -79,16 +83,26 @@ def test_collaborateur_cannot_access_colleague_payslip_pdf(payroll_two_employees
     assert response.status_code == 403
 
 
-def test_collaborateur_list_only_returns_own_payslip(payroll_two_employees) -> None:
+def test_collaborateur_cannot_access_own_payslip_pdf(payroll_two_employees) -> None:
+    """Decision D1 : plus de self-service, pas meme sur son propre
+    bulletin -- `collaborateur` n'a plus la permission `payroll.
+    view_paypayslip` du tout, donc 403 avant meme la verification "own"."""
     tenant, _user_a, user_b, payslip_b = payroll_two_employees
     client = Client()
     token = _access_token(client, user_b.email, "Str0ngPassw0rd!23")
     headers = _headers(token, str(tenant.id))
 
+    response = client.get(f"/api/v1/payroll/payslips/{payslip_b.id}/pdf", **headers)
+    assert response.status_code == 403
+
+
+def test_collaborateur_cannot_list_payslips(payroll_two_employees) -> None:
+    """Decision D1 : `collaborateur` n'a plus l'entree `payroll` dans
+    `ROLE_APP_PERMISSIONS` -- 403 sur la liste, meme filtree a "own"."""
+    tenant, _user_a, user_b, _payslip_b = payroll_two_employees
+    client = Client()
+    token = _access_token(client, user_b.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+
     response = client.get("/api/v1/payroll/payslips", **headers)
-    assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 1
-    assert results[0]["id"] == str(payslip_b.id)
-    # RG-PAY-9 : l'employe voit SES PROPRES montants (pas masques).
-    assert "net_to_pay" in results[0]
+    assert response.status_code == 403

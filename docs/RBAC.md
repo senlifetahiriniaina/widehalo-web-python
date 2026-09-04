@@ -143,7 +143,7 @@ jamais (§1).
 | `stocks` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
 | `logistics` | v,a,c | v,c | — | — | — | — | — | — | v,a,c | — | — | — | — |
 | `presence` | v,a,c | v,c | — | — | — | — | — | — | — | v,a,c | v | — | — |
-| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | v \* | — | — |
+| `payroll` | — | — | — | — | v \* | — | v \* | v \* | — | v,a,c | — | — | — |
 | `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
 | `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v | v,a |
 | `bi` | v,a,c | v,a,c | v | v | v | v | v | v | v | v | v | v | v,a,c |
@@ -208,8 +208,12 @@ pilotage, pas une simple consultation, même raisonnement que
 \* `payroll` en `view` seul pour `resp_commercial`/`resp_production`/
 `chef_atelier` (les 3 rôles « manager » identifiés, cf. §4.2) donne accès à
 l'existence/l'état d'un bulletin, jamais aux montants (masqués au N4,
-§6) ; pour `collaborateur`, ce `view` est en outre restreint au N3 à ses
-propres bulletins (§5.4).
+§6). **`collaborateur` n'a plus aucune entrée `payroll`** depuis le
+cahier des charges Phase 3 (§6.1, décision D1, 2026-09) : ce rôle portait
+auparavant `view` restreint au N3 à ses propres bulletins (portail
+self-service `my_payslips`/`payslip_detail`/`payslip_download`), retiré
+avec la permission elle-même — « le salarié n'a pas de compte » (cf. §5.4
+et §5.7 pour l'état actuel).
 
 **`accounting` : `absent` pour tous les rôles non listés** — aucun autre
 rôle que `admin`/`direction`/`comptable`/`resp_commercial` (`view` seul) ni
@@ -305,6 +309,12 @@ le CDC dit « aucun montant » sur les montants seulement, pas
 « aucun accès du tout » au bulletin, qui aurait été un sur-refus non
 demandé.
 
+**`collaborateur` n'est pas un rôle « manager » et n'a plus, depuis la
+Phase 3, aucun accès à `payroll`** — voir la note en fin de §3.1 et §5.4 :
+contrairement aux 3 rôles managers ci-dessus (qui gardent une visibilité
+sans montant), le cahier interdit tout accès self-service d'un salarié à
+sa propre paie, y compris masqué.
+
 ## 5. Scoping au niveau enregistrement (N3)
 
 Chaque mécanisme réel trouvé par recherche (`def scope_*_for_user`,
@@ -383,12 +393,21 @@ API (pas dans un fichier `services/scoping.py` dédié) :
   `_can_see_all(request)` teste l'appartenance à ce jeu de rôles. Un
   `collaborateur` (ou tout rôle hors `_STAFF_ROLES`) ne voit que ses
   propres pointages/absences ; RH/admin/direction voient tout.
-- **`payroll`** : même `_STAFF_ROLES = {"rh", "admin", "direction"}`. Un
-  `collaborateur` ne voit que ses propres bulletins (résolu via
-  `presence.services.public.get_employee_id_for_user`/
-  `_own_employee_id`). L'endpoint `GET
+- **`payroll`** : `_STAFF_ROLES = {"rh", "admin", "direction"}`, mais le
+  scope « own » qui filtrait `collaborateur` sur ses propres bulletins a
+  été **retiré avec la permission N2 elle-même** (Phase 3 §6.1, décision
+  D1) — `collaborateur` reçoit désormais 403 sur `GET /api/v1/payroll/
+  payslips` et `GET /api/v1/payroll/payslips/{id}/pdf` avant même
+  d'atteindre ce filtre, `require_permission("payroll.view_paypayslip")`
+  ne trouvant plus aucun rôle correspondant chez lui. Ce code de scope
+  « own » (`_own_employee_id`) reste néanmoins nécessaire et actif : les 3
+  rôles « manager » (`resp_commercial`/`resp_production`/`chef_atelier`,
+  §4.2) empruntent le même chemin et restent filtrés à leurs propres
+  bulletins (avec montants masqués au N4, §6) — seul `collaborateur` en a
+  perdu l'accès. L'endpoint `GET
   /payroll/payslips/{payslip_id}/pdf` applique cette règle avec un soin
-  particulier : un utilisateur hors `_STAFF_ROLES` qui n'est pas
+  particulier pour les rôles qui y accèdent encore : un utilisateur hors
+  `_STAFF_ROLES` qui n'est pas
   l'employé du bulletin reçoit un **403 explicite**, jamais un 404 — un
   404 laisserait deviner l'existence d'un bulletin d'autrui par
   énumération d'UUID (cité du code, test d'acceptance §5.10.10 n°5).
@@ -465,7 +484,7 @@ limitation.
 | `crm` | `scope_leads_for_user` | `apps/crm/services/scoping.py` | commercial = ses leads assignés ; resp_commercial = ceux de son équipe ; direction/admin = tout. |
 | `strategy` | `scope_objectives_for_user`, `assert_can_manage_level` | `apps/strategy/services/scoping.py` | collaborateur = ses objectifs (owner/créateur) ; responsable de département = + ceux de son département ; direction/admin = tout. |
 | `presence` | `_can_see_all`/`_own_employee_id` (API, pas un fichier `scoping.py` dédié) | `apps/presence/api.py` | collaborateur = ses pointages/absences ; rh/admin/direction = tout. |
-| `payroll` | idem (API) | `apps/payroll/api.py` | collaborateur = ses bulletins (403 explicite sur PDF d'autrui, jamais 404) ; rh/admin/direction = tout. |
+| `payroll` | idem (API) | `apps/payroll/api.py` | resp_commercial/resp_production/chef_atelier = leurs propres bulletins, sans montant (N4) ; rh/admin/direction = tout ; **collaborateur = aucun accès** (Phase 3 §6.1, décision D1 — plus de scope « own » pour ce rôle, cf. §5.4). |
 | `helpdesk` | `user_can_manage_ticket` | `apps/helpdesk/services/tickets.py` | tout rôle peut transitionner/commenter un ticket dont il est requester OU assignee, en plus de ce que donne `helpdesk.change_hlpticket`. |
 | `pos` | `assert_can_manage_session` | `apps/pos/services/scoping.py` | caissier = sa propre session (mouvements, clôture, ventes) ; admin/direction = tout. |
 | `simulation` | `visible_scenarios`, `assert_can_manage_scenario`, `assert_can_view_scenario` | `apps/simulation/services/scoping.py` | contrôleur de gestion/direction = ses scénarios + ceux partagés (voit), lui seul peut gérer les siens ; admin/direction = tout. |
@@ -484,8 +503,8 @@ dépôt (`grep -rn "SENSITIVE_FIELDS\["` sur `apps/`) :
 |---|---|---|---|
 | `sales.SalesOrderLine` | `margin_pct`, `cost_estimate_mga` | `direction`, `admin`, `resp_commercial` | RG-SAL-5 : `commercial` est explicitement exclu — il ne doit pas voir la marge sur les lignes qu'il chiffre au client, seulement le prix. `cost_estimate_mga` est masqué avec `margin_pct` car un coût de revient permet de reconstituer la marge par simple soustraction du prix de vente (déjà visible du commercial) — masquer seulement la marge aurait laissé une fuite triviale de la même information. |
 | `sales.SalesQuotationLine` | `margin_pct`, `cost_estimate_mga` | `direction`, `admin`, `resp_commercial` | Même raisonnement que `SalesOrderLine` — le CDC ne mentionnait que `SalesOrderLine` en exemple, mais `SalesQuotationLine` porte la même information sensible sur les devis. |
-| `payroll.PayPayslip` | `gross`, `taxable_base`, `irsa`, `social_employee`, `social_employer`, `net_to_pay` | `rh`, `direction`, `admin`, `collaborateur` | RG-PAY-9 : « managers ne voient aucun montant » — `resp_production`/`chef_atelier`/`resp_commercial` reçoivent `view` sur `payroll` au N2 (§3.1/§4.2) mais restent exclus ici, donc masqués sur tout champ monétaire. `collaborateur` est inclus : un employé doit voir SES PROPRES montants (combiné au scope N3 « own », §5.4) — seul le regard d'un manager sur l'équipe est concerné par la restriction du CDC. |
-| `payroll.PayPayslipLine` | `base`, `rate`, `amount` | `rh`, `direction`, `admin`, `collaborateur` | Même raisonnement que `PayPayslip`. |
+| `payroll.PayPayslip` | `gross`, `taxable_base`, `irsa`, `social_employee`, `social_employer`, `net_to_pay` | `rh`, `direction`, `admin`, `collaborateur` | RG-PAY-9 : « managers ne voient aucun montant » — `resp_production`/`chef_atelier`/`resp_commercial` reçoivent `view` sur `payroll` au N2 (§3.1/§4.2) mais restent exclus ici, donc masqués sur tout champ monétaire. **`collaborateur` reste listé ici mais est désormais inatteignable en pratique** : ce rôle n'a plus aucune entrée `payroll` dans `ROLE_APP_PERMISSIONS` depuis la Phase 3 (§6.1, décision D1) — `filter_fields_for_role` n'est jamais appelée pour lui côté `payroll`, faute d'endpoint accessible. L'entrée n'a pas été retirée de ce registre (qui reste correct isolément : *si* un accès existait, il ne masquerait pas les montants propres à l'employé) mais elle est vestigiale ; `apps/payroll/tests/test_enrichments.py` continue de la tester en isolation. |
+| `payroll.PayPayslipLine` | `base`, `rate`, `amount` | `rh`, `direction`, `admin`, `collaborateur` | Même raisonnement que `PayPayslip` — entrée également vestigiale pour `collaborateur`. |
 
 **Aucune autre entrée n'existe dans `SENSITIVE_FIELDS` à ce jour** — la
 recherche `grep -rn "SENSITIVE_FIELDS\[" apps/` ne retourne que les 4

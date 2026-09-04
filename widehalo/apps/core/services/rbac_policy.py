@@ -417,23 +417,30 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
     },
     "collaborateur": {
         # Role par defaut, acces en lecture aux referentiels partages
-        # uniquement. `presence`/`payroll` : "view" seulement — le
-        # scoping N3 "own" (RG-PRS-9/RG-PAY-9) restreint ensuite cet acces
-        # aux SEULES donnees de l'employe lui-meme, applique au niveau des
-        # endpoints `apps.presence.api`/`apps.payroll.api` (jamais au
-        # niveau de cette matrice N2, qui ne connait pas les
-        # enregistrements).
+        # uniquement. `presence` : "view" seulement — le scoping N3 "own"
+        # (RG-PRS-9) restreint ensuite cet acces aux SEULES donnees de
+        # l'employe lui-meme, applique au niveau de l'endpoint
+        # `apps.presence.api` (jamais au niveau de cette matrice N2, qui ne
+        # connait pas les enregistrements).
+        # `payroll` : AUCUNE entree, delibrement, depuis le cahier des
+        # charges Phase 3 (§6.1, decision D1) : "le salarie n'a pas de
+        # compte... il n'existe pas de portail salarie" — un collaborateur
+        # ne doit avoir aucun acces en self-service a ses propres donnees
+        # de paie, le bulletin etant remis par le gestionnaire. Avant cette
+        # decision, ce role portait "payroll": {"view"} avec un scoping N3
+        # "own" au niveau de `apps.payroll.api`/`apps.payroll.views` — ce
+        # scoping devient sans objet, retire avec la permission elle-meme
+        # plutot que laisse en code mort.
         "partners": {"view"},
         "catalog": {"view"},
         # "view" seul (pas de generation directe) : un collaborateur
         # consulte le catalogue mais les rapports auxquels il a reellement
-        # droit (§RG-PAY-9, "own") restent portes par `RegisteredReport.
+        # droit (§RG-PRS-9, "own") restent portes par `RegisteredReport.
         # permission` propre a chaque module, pas par ce role transverse.
         "reporting": {"view"},
         # `bi` : meme raisonnement que `comptable` ci-dessus (§reporting).
         "bi": {"view"},
         "presence": {"view"},
-        "payroll": {"view"},
         # "add" : un collaborateur cree ses propres objectifs individuels
         # (RBAC `strategy`, cf. plan) — le scoping N3 (`scope_objectives_
         # for_user`) restreint ensuite la LECTURE/MODIFICATION aux seuls

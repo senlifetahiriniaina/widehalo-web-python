@@ -268,11 +268,11 @@ def test_presence_dashboard_is_accessible() -> None:
     _assert_icon_only_controls_have_accessible_name(soup, "presence:dashboard")
 
 
-def test_payroll_my_payslips_is_accessible() -> None:
+def test_payroll_hr_dashboard_is_accessible() -> None:
     client, _tenant = _logged_in_client()
     soup = BeautifulSoup(client.get("/payroll/").content, "html.parser")
-    _assert_all_fields_labelled(soup, "payroll:my_payslips")
-    _assert_icon_only_controls_have_accessible_name(soup, "payroll:my_payslips")
+    _assert_all_fields_labelled(soup, "payroll:hr_dashboard")
+    _assert_icon_only_controls_have_accessible_name(soup, "payroll:hr_dashboard")
 
 
 def test_reporting_catalog_is_accessible() -> None:

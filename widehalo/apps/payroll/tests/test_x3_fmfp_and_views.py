@@ -1,6 +1,9 @@
-"""X3 refonte UX (Sprint 8 / L5, cf. docs/planning/2026-refonte-ux-sprints.md
-§5) : FMFP (jusque-là absent), écran de détail du bulletin, téléchargement
-PDF (corrige un lien mort). Même idiome que test_payslip_acceptance.py."""
+"""X3 refonte UX (Sprint 8 / L5) : FMFP. Le detail de bulletin en
+self-service (`payslip_detail`/`payslip_download`/`my_payslips`) a ete
+retire par le cahier des charges Phase 3 (§6.1, decision D1 : "il n'existe
+pas de portail salarie") -- voir `test_no_employee_self_service_portal`
+ci-dessous, qui confirme l'absence de ces routes plutot que leur
+comportement passe."""
 
 from __future__ import annotations
 
@@ -9,6 +12,7 @@ from decimal import Decimal
 
 import pytest
 from django.test import Client
+from django.urls import NoReverseMatch, reverse
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
@@ -67,8 +71,17 @@ def _employee_client(tenant: Tenant, employee_id) -> Client:
     return client
 
 
-def test_payslip_detail_visible_to_own_employee() -> None:
-    tenant = Tenant.objects.create(code="PAY-DET-1", name="Payslip Detail Tenant 1")
+def test_no_employee_self_service_portal_routes() -> None:
+    """Cahier Phase 3 §6.1 (decision D1) : "le salarie n'a pas de compte...
+    il n'existe pas de portail salarie" -- aucune route nommee
+    `payroll:my_payslips`/`payroll:payslip_detail`/`payroll:payslip_download`
+    ne doit plus exister, et l'URL historique `/payroll/<uuid>/` doit
+    retourner 404 plutot que le detail d'un bulletin."""
+    for route_name in ("my_payslips", "payslip_detail", "payslip_download"):
+        with pytest.raises(NoReverseMatch):
+            reverse(f"payroll:{route_name}", kwargs={"payslip_id": uuid.uuid4()})
+
+    tenant = Tenant.objects.create(code="PAY-NOPORTAL", name="No Portal Tenant")
     with use_tenant(tenant.id):
         setup_payroll_reference_data(tenant)
         employee_id = uuid.uuid4()
@@ -80,57 +93,21 @@ def test_payslip_detail_visible_to_own_employee() -> None:
         compute_payslip(payslip)
         client = _employee_client(tenant, employee_id)
 
-    response = client.get(f"/payroll/{payslip.id}/")
+    assert client.get(f"/payroll/{payslip.id}/").status_code == 404
+    assert client.get(f"/payroll/{payslip.id}/pdf/").status_code == 404
+
+
+def test_payroll_root_renders_hr_dashboard_not_a_payslip_list() -> None:
+    """La racine du module `payroll` n'est plus la liste des bulletins d'un
+    employe : c'est desormais le tableau de bord RH, quel que soit
+    l'utilisateur qui la consulte."""
+    tenant = Tenant.objects.create(code="PAY-ROOT", name="Payroll Root Tenant")
+    with use_tenant(tenant.id):
+        setup_payroll_reference_data(tenant)
+        employee_id = uuid.uuid4()
+        make_active_contract(tenant, employee_id=employee_id, wage_base=Decimal("1200000"))
+        client = _employee_client(tenant, employee_id)
+
+    response = client.get("/payroll/")
     assert response.status_code == 200
-    assert b"FMFP" in response.content
-
-
-def test_payslip_detail_forbidden_for_another_employee() -> None:
-    tenant = Tenant.objects.create(code="PAY-DET-2", name="Payslip Detail Tenant 2")
-    with use_tenant(tenant.id):
-        setup_payroll_reference_data(tenant)
-        owner_id = uuid.uuid4()
-        contract = make_active_contract(tenant, employee_id=owner_id, wage_base=Decimal("1200000"))
-        period = make_period(tenant)
-        payslip = _new_payslip(tenant, contract, period)
-        compute_payslip(payslip)
-        other_client = _employee_client(tenant, uuid.uuid4())
-
-    response = other_client.get(f"/payroll/{payslip.id}/")
-    assert response.status_code == 403
-
-
-def test_payslip_download_returns_a_pdf() -> None:
-    tenant = Tenant.objects.create(code="PAY-PDF", name="Payslip PDF Tenant")
-    with use_tenant(tenant.id):
-        setup_payroll_reference_data(tenant)
-        employee_id = uuid.uuid4()
-        contract = make_active_contract(
-            tenant, employee_id=employee_id, wage_base=Decimal("1200000")
-        )
-        period = make_period(tenant)
-        payslip = _new_payslip(tenant, contract, period)
-        compute_payslip(payslip)
-        client = _employee_client(tenant, employee_id)
-
-    response = client.get(f"/payroll/{payslip.id}/pdf/")
-    assert response.status_code == 200
-    assert response["Content-Type"] == "application/pdf"
-
-
-def test_my_payslips_no_longer_links_to_itself() -> None:
-    tenant = Tenant.objects.create(code="PAY-LINK", name="Payslip Link Tenant")
-    with use_tenant(tenant.id):
-        setup_payroll_reference_data(tenant)
-        employee_id = uuid.uuid4()
-        contract = make_active_contract(
-            tenant, employee_id=employee_id, wage_base=Decimal("1200000")
-        )
-        period = make_period(tenant)
-        payslip = _new_payslip(tenant, contract, period)
-        compute_payslip(payslip)
-        client = _employee_client(tenant, employee_id)
-
-    body = client.get("/payroll/").content.decode()
-    assert f"/payroll/{payslip.id}/pdf/" in body
-    assert f"/payroll/{payslip.id}/" in body
+    assert "Tableau de bord Paie" in response.content.decode()
