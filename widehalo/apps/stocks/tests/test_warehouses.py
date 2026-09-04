@@ -93,13 +93,32 @@ def test_location_tree_traversal(stocks_setup) -> None:
         child2 = create_location(
             tenant=tenant, warehouse=warehouse, code="A2", name="Rayon A2", parent=root
         )
-        grandchild = create_location(
-            tenant=tenant, warehouse=warehouse, code="A1-1", name="Casier A1-1", parent=child1
-        )
         assert set(root.children.values_list("id", flat=True)) == {child1.id, child2.id}
         assert child1.parent_id == root.id
-        assert grandchild.parent_id == child1.id
-        assert grandchild.parent.parent_id == root.id
+        assert child2.parent_id == root.id
+
+
+def test_create_location_refuses_a_third_level(stocks_setup) -> None:
+    """Phase 3 §5.8 (sprint A2) : « dépôt -> zone -> emplacement, à trois
+    niveaux au plus » — `StkWarehouse` (1) -> `StkLocation` racine, "zone"
+    (2) -> `StkLocation` enfant, "emplacement" (3) est le maximum ; un
+    petit-enfant (`Casier A1-1` sous `Rayon A1`, lui-même sous `Zone A`)
+    constituerait un 4e niveau, refusé."""
+    tenant, _manager = stocks_setup
+    with use_tenant(tenant.id):
+        warehouse = create_warehouse(tenant=tenant, code="WH-01", name="Entrepot principal")
+        root = create_location(tenant=tenant, warehouse=warehouse, code="A", name="Zone A")
+        child1 = create_location(
+            tenant=tenant, warehouse=warehouse, code="A1", name="Rayon A1", parent=root
+        )
+        with pytest.raises(ValidationError, match="trois niveaux"):
+            create_location(
+                tenant=tenant,
+                warehouse=warehouse,
+                code="A1-1",
+                name="Casier A1-1",
+                parent=child1,
+            )
 
 
 @pytest.mark.parametrize(

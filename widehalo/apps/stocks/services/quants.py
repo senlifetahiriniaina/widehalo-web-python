@@ -49,15 +49,26 @@ def on_hand_qty(variant_id: UUID, *, location: StkLocation | None = None) -> Dec
 def available_qty(variant_id: UUID, *, location: StkLocation | None = None) -> Decimal:
     """`qty - qty_reserved` agrege, meme perimetre de filtrage que
     `on_hand_qty`. Primitive consommee par RG-STK-8 (reservation, ST5) —
-    aucune logique de reservation construite ici en ST2."""
+    aucune logique de reservation construite ici en ST2.
+
+    **STK-4 (Phase 3, sprint A2)** : un quant dont le lot est bloque
+    (`StkLot.is_held()`) est exclu de l'agregat — « un lot bloque
+    n'apparait ni dans le disponible... et reste present dans la valeur
+    de stock » (cahier, glossaire "Emplacement"/STK-4). C'est precisement
+    la distinction avec `on_hand_qty` ci-dessus, delibirement INCHANGEE :
+    "disponible" (reservable/prelevable) et "present en stock/valorise"
+    sont deux notions differentes, seule la premiere exclut le lot
+    bloque."""
     qs = StkQuant.objects.filter(variant_id=variant_id)
     if location is not None:
         qs = qs.filter(location=location)
     else:
         qs = qs.filter(location__type=StkLocation.TYPE_INTERNE)
     total = Decimal(0)
-    for qty, qty_reserved in qs.values_list("qty", "qty_reserved"):
-        total += qty - qty_reserved
+    for quant in qs.select_related("lot"):
+        if quant.lot is not None and quant.lot.is_held():
+            continue
+        total += quant.qty - quant.qty_reserved
     return total
 
 
@@ -110,6 +121,13 @@ def select_lot_fefo(
     suivant(s) dans l'ordre FEFO, potentiellement en fractionnant
     l'allocation sur plusieurs lots.
 
+    **STK-4 (Phase 3, sprint A2)** : tout candidat dont le lot est bloque
+    (`StkLot.is_held()`) est ignore — « un lot bloque n'apparait ni dans
+    le disponible, ni dans la proposition FEFO » (cahier). Le lot suivant
+    dans l'ordre `date_expiry` est propose a sa place, sans erreur ni
+    signalement particulier (meme discipline que l'exclusion silencieuse
+    d'un candidat deja epuise, `available <= 0`, ci-dessous).
+
     Renvoie `[{"lot_id": UUID, "qty": Decimal}, ...]`, potentiellement une
     liste PLUS COURTE que ce qui couvrirait entierement `qty_needed` si la
     disponibilite totale des candidats est insuffisante (jamais une
@@ -125,6 +143,7 @@ def select_lot_fefo(
             lot__date_expiry__isnull=False,
         )
         .exclude(qty__lte=F("qty_reserved"))
+        .select_related("lot")
         .order_by("lot__date_expiry", "id")
     )
 
@@ -133,6 +152,10 @@ def select_lot_fefo(
     for quant in candidates:
         if remaining <= 0:
             break
+        # Garanti non-nul par le filtre `lot__isnull=False` ci-dessus.
+        assert quant.lot is not None
+        if quant.lot.is_held():
+            continue
         available = quant.qty - quant.qty_reserved
         if available <= 0:
             continue

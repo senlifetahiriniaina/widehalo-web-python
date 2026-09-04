@@ -13,7 +13,8 @@ import pytest
 
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkLocation
+from apps.stocks.models import StkLocation, StkQualityState
+from apps.stocks.services.quality import set_quality_state
 from apps.stocks.services.quants import select_lot_fefo
 from apps.stocks.services.warehouses import create_location, create_warehouse
 from apps.stocks.tests.factories import StkLotFactory, StkQuantFactory
@@ -147,3 +148,30 @@ def test_select_lot_fefo_returns_partial_allocation_when_insufficient_stock(fefo
         allocations = select_lot_fefo(variant_id, location=location, qty_needed=Decimal("20"))
 
         assert allocations == [{"lot_id": lot.id, "qty": Decimal("5")}]
+
+
+def test_select_lot_fefo_excludes_a_held_lot_even_when_earliest_expiring(fefo_setup) -> None:
+    """STK-4 (Phase 3, sprint A2) : « un lot bloqué n'apparaît ni dans le
+    disponible, ni dans la proposition FEFO » — même s'il est le lot le
+    plus urgent en date de péremption, un lot bloqué (`en_quarantaine`)
+    est ignoré ; le lot suivant, non bloqué, est proposé à sa place."""
+    tenant, location = fefo_setup
+    with use_tenant(tenant.id):
+        variant_id = uuid.uuid4()
+        lot_held = StkLotFactory(
+            tenant=tenant, variant_id=variant_id, date_expiry=dt.date(2026, 9, 1)
+        )
+        lot_next = StkLotFactory(
+            tenant=tenant, variant_id=variant_id, date_expiry=dt.date(2027, 1, 1)
+        )
+        StkQuantFactory(
+            tenant=tenant, variant_id=variant_id, location=location, lot=lot_held, qty=Decimal("50")
+        )
+        StkQuantFactory(
+            tenant=tenant, variant_id=variant_id, location=location, lot=lot_next, qty=Decimal("50")
+        )
+        set_quality_state(tenant=tenant, lot=lot_held, state=StkQualityState.STATE_EN_QUARANTAINE)
+
+        allocations = select_lot_fefo(variant_id, location=location, qty_needed=Decimal("30"))
+
+        assert allocations == [{"lot_id": lot_next.id, "qty": Decimal("30")}]

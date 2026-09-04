@@ -14,8 +14,9 @@ from django.core.exceptions import ValidationError
 
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkLocation, StkMove, StkQuant
+from apps.stocks.models import StkLocation, StkLot, StkMove, StkQualityState, StkQuant
 from apps.stocks.services.moves import cancel_move, create_move, reverse_move, validate_move
+from apps.stocks.services.quality import set_quality_state
 from apps.stocks.services.quants import available_qty, get_quant, on_hand_qty
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
@@ -396,3 +397,36 @@ def test_create_and_validate_move_accepts_the_sous_produit_nature(moves_setup) -
         validated = validate_move(move)
         assert validated.state == StkMove.STATE_DONE
         assert get_quant(variant_id, internal).qty == Decimal("4.0000")
+
+
+def test_available_qty_excludes_held_lot_but_on_hand_qty_still_counts_it(moves_setup) -> None:
+    """STK-4 (Phase 3, sprint A2) : « un lot bloqué n'apparaît ni dans le
+    disponible... et reste présent dans la valeur de stock » — un lot
+    passé `en_quarantaine` disparaît de `available_qty` (disponible) mais
+    reste compté dans `on_hand_qty` (stock physique total), distinction
+    assumée entre les deux vues."""
+    tenant, _wh, internal, _i2, supplier, _client = moves_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        lot = StkLot.objects.create(tenant=tenant, variant_id=variant_id, name="LOT-A2-HOLD")
+        move = create_move(
+            tenant=tenant,
+            variant_id=variant_id,
+            qty=Decimal(10),
+            uom="pc",
+            location_from=supplier,
+            location_to=internal,
+            date=dt.date(2026, 1, 1),
+            move_type=StkMove.TYPE_RECEPTION,
+            unit_cost_mga=Decimal("100"),
+            lot=lot,
+        )
+        validate_move(move)
+
+        assert on_hand_qty(variant_id) == Decimal(10)
+        assert available_qty(variant_id) == Decimal(10)
+
+        set_quality_state(tenant=tenant, lot=lot, state=StkQualityState.STATE_EN_QUARANTAINE)
+
+        assert on_hand_qty(variant_id) == Decimal(10)
+        assert available_qty(variant_id) == Decimal(0)

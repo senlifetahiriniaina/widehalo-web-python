@@ -6,7 +6,22 @@ explicitement formulee par le CDC : le `parent` d'un emplacement, quand il
 est fourni, doit appartenir au MEME entrepot que l'emplacement cree
 (deplacer physiquement un emplacement d'un entrepot a un autre via un
 changement de parent n'a pas de sens metier). Documentee ici comme
-contrainte assumee plutot que silencieusement omise."""
+contrainte assumee plutot que silencieusement omise.
+
+**Limite de 3 niveaux (Phase 3, sprint A2)** : le cahier definit
+explicitement (glossaire, entree "Emplacement") : « Hierarchie depot ->
+zone -> emplacement, a trois niveaux au plus. » Lecture retenue (3 noms,
+3 niveaux) : `StkWarehouse` = niveau 1, `StkLocation` racine
+(`parent=None`, "zone") = niveau 2, `StkLocation` enfant d'une zone
+("emplacement") = niveau 3 — un `StkLocation` PETIT-ENFANT (dont le
+parent a lui-meme deja un parent) constituerait un 4e niveau, interdit.
+`create_location` refuse donc la creation si `parent.parent_id` est deja
+renseigne (garde AVANT la garde "meme entrepot" ci-dessus). Aucun autre
+modele arborescent du depot (`catalog.Category.parent`,
+`accounting.AccAccount.parent`, tous deux cites comme precedents par le
+docstring `StkLocation` dans `models.py`) n'impose de limite de
+profondeur — verifie par lecture, cette garde introduit donc un nouveau
+pattern plutot que de reutiliser un existant."""
 
 from __future__ import annotations
 
@@ -51,6 +66,14 @@ def create_location(
     capacity: Decimal | None = None,
     barcode: str = "",
 ) -> StkLocation:
+    if parent is not None and parent.parent_id is not None:
+        raise ValidationError(
+            _(
+                "La hiérarchie des emplacements est limitée à trois niveaux "
+                "(entrepôt/zone/emplacement) — impossible de créer un emplacement "
+                "sous un emplacement déjà imbriqué."
+            )
+        )
     if parent is not None and parent.warehouse_id != warehouse.id:
         raise ValidationError(
             _("L'emplacement parent doit appartenir au même entrepôt que l'emplacement créé.")
