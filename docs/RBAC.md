@@ -147,6 +147,8 @@ jamais (§1).
 | `strategy` | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c | v,a,c |
 | `reporting` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v | v | v,a |
 | `bi` | v,a,c | v,a,c | v | v | v | v | v | v | v | v | v | v | v,a,c |
+| `forecast` | v,a,c | v,a,c | — | — | — | — | — | — | — | — | — | — | v,a,c |
+| `whatsapp` | v,a,c | v,a,c | — | v,a,c | v,a,c | — | — | — | — | — | — | — | — |
 | `projects` | v,a,c | v,c | — | — | v,a,c | — | v,a,c | — | — | — | v,c | — | — |
 | `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — | — |
 | `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — | — |
@@ -186,6 +188,22 @@ filtrage RÉEL par indicateur (BI-6, "y compris en agrégé") passe par
 cette matrice N2 — un rôle avec `bi: {view}` peut ouvrir n'importe quel
 rapport publié, mais `apps.bi.services.query.run_report` retire chaque
 indicateur non autorisé pour son rôle AVANT tout calcul.
+
+**`forecast`/`whatsapp` : même patron d'exception que `simulation`/
+`analytics`/`bi` ci-dessus, pour `direction` comme pour leur rôle
+« domaine cible ».** `forecast` (cahier Phase 2 §13.2) suit exactement le
+persona `controleur_gestion` (propriétaire de l'atelier de prévision :
+rétrotest, ajustement, publication) — `admin`/`direction`/
+`controleur_gestion` seuls reçoivent `v,a,c`, aucun autre rôle n'a
+d'entrée. `whatsapp` (cahier Phase 2 §13.4) est au contraire un module de
+messagerie CLIENT dont le « domaine cible » opérationnel est `commercial`/
+`resp_commercial` (converser, envoyer un message depuis un modèle déjà
+approuvé, gérer le consentement) — `controleur_gestion` n'y a aucun accès,
+contrairement à `forecast`/`analytics`/`bi`/`simulation`.
+`admin`/`direction` reçoivent tous deux l'accès complet sur `whatsapp`
+(gouvernance/approbation des modèles, plafond de coût — un acte de
+pilotage, pas une simple consultation, même raisonnement que
+`simulation`/`analytics`/`bi`).
 
 \* `payroll` en `view` seul pour `resp_commercial`/`resp_production`/
 `chef_atelier` (les 3 rôles « manager » identifiés, cf. §4.2) donne accès à
@@ -271,6 +289,7 @@ auto-générées.
 | `core.add_riskitem` / `core.view_riskitem` / `core.change_riskitem` | admin, direction | RSK1-2 : accès complet — voient/gèrent TOUS les risques, aucun scoping N3. |
 | `core.add_qltchecklisttemplate` / `core.view_qltchecklisttemplate` / `core.change_qltchecklisttemplate` | admin, direction, resp_production, chef_atelier, acheteur | QLT1-2 : `resp_production`/`chef_atelier` (pilotage qualité en atelier/production) et `acheteur` (contrôle qualité à réception fournisseur) reçoivent les 3 actions — pas de scoping « owner » ici, une inspection qualité est une donnée d'équipe, pas un signalement personnel. |
 | `core.add_qltinspection` / `core.view_qltinspection` / `core.change_qltinspection` | admin, direction, resp_production, chef_atelier, acheteur | Idem. |
+| `whatsapp.run_message_retry` | admin, direction, commercial, resp_commercial | WA-7 (cahier Phase 2 §13.4) : « reprise dédiée au canal WhatsApp » — mêmes rôles que le reste de la gouvernance `whatsapp` : admin/direction (pilotage transverse) + commercial/resp_commercial (domaine cible opérationnel, relance un envoi client en échec). |
 
 ### 4.2 Rappel : la restriction « managers ne voient aucun montant » (RG-PAY-9)
 
@@ -522,14 +541,16 @@ registres — en particulier :
 - toute nouvelle entrée dans `SENSITIVE_FIELDS` → ajouter une ligne au
   tableau du §6.
 
-Ce document couvre l'état du dépôt au moment de sa dernière révision (22
+Ce document couvre l'état du dépôt au moment de sa dernière révision (24
 modules métier réels sous `apps/`, hors `core`/`chat`/`automation`/`ai` ;
 ces 2 derniers traités séparément au §3.2 comme infrastructure transverse
 disposant néanmoins d'une entrée RBAC). Le décompte exact des modules
 métier au moment de la rédaction : `accounting`, `analytics`, `bi`,
-`catalog`, `crm`, `feasibility`, `financing`, `helpdesk`, `logistics`,
-`mrp`, `partners`, `patronage`, `payroll`, `pos`, `presence`, `projects`,
-`purchase`, `reporting`, `sales`, `simulation`, `stocks`, `strategy` —
-soit 22, pas 23 ; si un module supplémentaire existe dans une version
-ultérieure du dépôt, ce compte et la matrice du §3 doivent être révisés
-en conséquence.
+`catalog`, `crm`, `feasibility`, `financing`, `forecast`, `helpdesk`,
+`logistics`, `mrp`, `partners`, `patronage`, `payroll`, `pos`, `presence`,
+`projects`, `purchase`, `reporting`, `sales`, `simulation`, `stocks`,
+`strategy`, `whatsapp` — soit 24 (`forecast` et `whatsapp` ajoutés à cette
+révision, chantiers déjà livrés au code mais dont la matrice n'avait pas
+encore été mise à jour — cf. §3.1) ; si un module supplémentaire existe
+dans une version ultérieure du dépôt, ce compte et la matrice du §3
+doivent être révisés en conséquence.
