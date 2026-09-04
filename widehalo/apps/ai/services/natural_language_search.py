@@ -70,7 +70,14 @@ logger = logging.getLogger(__name__)
 # blanche de ce chantier) : `core`/`ai`/`automation`/`chat` en sont
 # volontairement exclus, ce ne sont pas des modules "metier" au sens ou
 # une question en langage naturel ("factures", "commandes"...) les
-# designerait.
+# designerait. `payroll` egalement exclu DELIBEREMENT (Bloc E, E2/decision
+# D6, cf. docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md §2) :
+# meme si le narrowing par `module` ne fait que filtrer en Python des
+# resultats DEJA RBAC-filtres par `global_search()` (jamais une requete
+# additionnelle), retirer `payroll` de cette liste blanche est l'option la
+# plus simple et la plus sure pour ne jamais laisser le LLM cibler
+# explicitement des donnees de paie (PII) via cette extraction de filtres
+# — plutot qu'une garde CI additionnelle plus complexe a maintenir.
 _ALLOWED_MODULES: frozenset[str] = frozenset(
     {
         "accounting",
@@ -82,7 +89,6 @@ _ALLOWED_MODULES: frozenset[str] = frozenset(
         "logistics",
         "stocks",
         "presence",
-        "payroll",
         "reporting",
         "strategy",
         "financing",

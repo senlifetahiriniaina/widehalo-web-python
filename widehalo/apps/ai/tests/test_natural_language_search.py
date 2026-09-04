@@ -123,6 +123,37 @@ def test_well_formed_extraction_is_validated_and_surfaced(
     assert response["results"] == []
 
 
+def test_payroll_module_extraction_is_silently_dropped(
+    tenant: Tenant, user: User, indexed_record, monkeypatch
+) -> None:
+    """Bloc E, E2 (decision D6) : `payroll` a ete retire de
+    `_ALLOWED_MODULES` deliberement — le LLM ne doit jamais pouvoir cibler
+    explicitement des donnees de paie via cette extraction de filtres. Un
+    module extrait `"payroll"` echoue donc sa validation exactement comme
+    n'importe quelle autre valeur hors liste blanche (cf.
+    `test_malformed_extraction_fields_are_silently_dropped`) : ecarte
+    silencieusement, jamais propage, la recherche brute reste
+    fonctionnelle."""
+
+    class _ExtractingProvider:
+        def complete(self, prompt: str, *, max_tokens: int = 500) -> str:
+            return '{"module": "payroll"}'
+
+    monkeypatch.setattr(
+        "apps.ai.services.natural_language_search.get_budget_gated_provider",
+        lambda tenant: _ExtractingProvider(),
+    )
+
+    with use_tenant(tenant.id):
+        response = search("DEV-2026-0777", tenant=tenant, user=user, locale="fr")
+
+    assert response["extracted_filters"] is None
+    assert response["is_ai_enhanced"] is False
+    # Le narrowing n'ayant jamais ete applique (module rejete), la
+    # recherche brute reste fonctionnelle.
+    assert response["results"]
+
+
 def test_matching_module_filter_keeps_matching_results(
     tenant: Tenant, user: User, indexed_record, monkeypatch
 ) -> None:

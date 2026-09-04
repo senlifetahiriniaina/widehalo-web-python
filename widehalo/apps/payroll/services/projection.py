@@ -23,6 +23,10 @@ def project_payroll_mass(
     *,
     months: int = 12,
     planned_increases: dict[str, Decimal] | None = None,
+    # Bloc E, E2 : ce defaut fige est deliberement exempte du garde-fou
+    # `tests/architecture/test_no_hardcoded_payroll_rates.py`
+    # (PAYROLL_FILES_ALLOWED_TO_HARDCODE_RATES) — cf. sa propre entree
+    # pour la justification complete.
     employer_charge_rate: Decimal = Decimal("0.18"),
 ) -> list[MonthProjection]:
     """A EFFECTIF CONSTANT : prend les contrats ACTIFS a la date d'appel
