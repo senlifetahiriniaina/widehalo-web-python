@@ -442,9 +442,12 @@ def decide_stock_import_qualification(
 # existant).
 # --------------------------------------------------------------------------
 
-from apps.stocks.models import StkLot, StkMove  # noqa: E402
+from apps.stocks.models import StkLot, StkMove, StkQualityState  # noqa: E402
 from apps.stocks.services.genealogy import genealogy_tree, record_consumption  # noqa: E402
 from apps.stocks.services.moves import create_move, validate_move  # noqa: E402
+from apps.stocks.services.quality import (  # noqa: E402
+    set_quality_state as _set_quality_state,
+)
 from apps.stocks.services.quants import get_quant  # noqa: E402
 
 
@@ -867,3 +870,49 @@ def lot_genealogy_tree(*, tenant: Tenant, variant_id: Any, name: str) -> dict[st
     if lot is None:
         return None
     return genealogy_tree(lot)
+
+
+# --------------------------------------------------------------------------
+# Bloc D, D1 : premiere consommation cross-app de la garde qualite/lot par
+# `apps.quality` (HACCP) — `quality` ne detient jamais un `StkLot`, seulement
+# son identite opaque `(tenant, variant_id, lot_name)`, meme convention que
+# `lot_genealogy_tree` ci-dessus. Constantes exposees plutot que des chaines
+# litterales dupliquees dans `quality` (`StkQualityState` reste un modele
+# interne a `stocks`, jamais importe cross-app).
+# --------------------------------------------------------------------------
+
+QUALITY_STATE_CONFORME = StkQualityState.STATE_CONFORME
+QUALITY_STATE_QUARANTINE = StkQualityState.STATE_EN_QUARANTAINE
+
+
+def set_quality_state(
+    tenant: Tenant,
+    *,
+    variant_id: Any,
+    lot_name: str,
+    state: str,
+    description: str,
+    decided_by: User,
+) -> UUID | None:
+    """Bloc D, D1 (QUA-1/2/3) : enveloppe PUBLIQUE de `services.quality.
+    set_quality_state` pour un appelant cross-app (`apps.quality`) — motif
+    (`description`) et identité (`decided_by`) rendus OBLIGATOIRES ici
+    (contrairement à la fonction interne, qui les garde optionnels pour
+    ses appelants historiques internes à `stocks`, ex. `apply_quality_
+    decision`/`declare_recall`). Résout le lot par `(tenant, variant_id,
+    lot_name)` — même convention que `lot_genealogy_tree` ci-dessus —
+    jamais une instance `StkLot` passée directement (couplage cross-app
+    interdit, règle de couplage n°1).
+
+    Retourne l'UUID du `StkQualityState` créé, ou `None` (jamais une
+    exception) si ce lot n'existe pas — même discipline « gap de
+    configuration à la charge de l'appelant » que le reste de ce
+    fichier."""
+    lot = StkLot.objects.filter(tenant=tenant, variant_id=variant_id, name=lot_name).first()
+    if lot is None:
+        return None
+    quality_state = _set_quality_state(
+        tenant=tenant, lot=lot, state=state, description=description, decided_by=decided_by
+    )
+    quality_state_id: UUID = quality_state.id
+    return quality_state_id

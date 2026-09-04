@@ -395,7 +395,21 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # 290 et BUDGET_MAX_SCREENS a 240, marge confortable pour le reste de
 # `helpdesk` et le demarrage du pays #2 sans avoir a re-relever a chaque
 # etape restante.
-BUDGET_MAX_MODELS = 290
+# Le plafond de 290 modeles a ete atteint EXACTEMENT (290/290, zero marge) a
+# la cloture du Bloc C (Production, plan Phase 3) — confirme en tete du
+# Bloc D (Qualite/HACCP, decision D2, cf. `docs/planning/2026-09-adr-
+# qualite-haccp-app-dediee.md`) : nouvelle app dediee `apps.quality`
+# necessitant au minimum 4 modeles reels des D1 (plan de controle, point
+# critique, mesure, non-conformite bloquante — un domaine de conformite/
+# audit qui a besoin de lignes interrogeables individuellement, pas d'un
+# sac JSONField comme les simplifications deja pratiquees ailleurs pour
+# economiser le budget), plus une marge realiste pour D2/D4/D5 (certificat
+# obligatoire, eventuel dossier de rappel dedie, decision de migration des
+# modeles qualite existants) — **Decision explicite actee avec
+# l'utilisateur** (meme precedent que chaque relevement precedent) :
+# relever BUDGET_MAX_MODELS a 310, marge de 20 pour l'integralite du
+# Bloc D sans avoir a re-relever a chaque sprint D1-D5.
+BUDGET_MAX_MODELS = 310
 BUDGET_MAX_ENDPOINTS = 600
 BUDGET_MAX_SCREENS = 240
 

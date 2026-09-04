@@ -16,9 +16,12 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.stocks.models import StkLocation, StkPicking, StkQuant, StkReservation
+from apps.stocks.models import StkLocation, StkPicking, StkQualityState, StkQuant, StkReservation
 from apps.stocks.services.public import (
+    QUALITY_STATE_CONFORME,
+    QUALITY_STATE_QUARANTINE,
     apply_landed_cost_to_valuation,
     check_and_reserve_stock,
     deliver_reserved_stock,
@@ -26,9 +29,11 @@ from apps.stocks.services.public import (
     get_variant_unit_cost,
     receive_pos_return,
     sell_from_stock,
+    set_quality_state,
 )
 from apps.stocks.tests.factories import (
     StkLocationFactory,
+    StkLotFactory,
     StkMoveFactory,
     StkQuantFactory,
     StkValuationLayerFactory,
@@ -375,3 +380,70 @@ def test_receive_pos_return_puts_qty_back_into_the_first_internal_location(tenan
 
     quant = StkQuant.objects.get(location=internal_location, variant_id=variant_id)
     assert quant.qty == Decimal(2)
+
+
+# ---------------------------------------------------------------------------
+# set_quality_state (Bloc D, D1) — enveloppe cross-app, motif/identite
+# obligatoires, resolution du lot par (tenant, variant_id, lot_name).
+# ---------------------------------------------------------------------------
+
+
+def test_set_quality_state_resolves_lot_and_blocks_it(tenant) -> None:
+    user = User.objects.create_user(email="qs@example.com", password="Str0ngPassw0rd!23")
+    lot = StkLotFactory(tenant=tenant, name="LOT-PUB-001")
+
+    quality_state_id = set_quality_state(
+        tenant,
+        variant_id=lot.variant_id,
+        lot_name=lot.name,
+        state=QUALITY_STATE_QUARANTINE,
+        description="Mesure hors limites",
+        decided_by=user,
+    )
+    assert quality_state_id is not None
+
+    lot.refresh_from_db()
+    assert lot.is_held() is True
+    quality_state = StkQualityState.objects.get(id=quality_state_id)
+    assert quality_state.state == StkQualityState.STATE_EN_QUARANTAINE
+    assert quality_state.description == "Mesure hors limites"
+    assert quality_state.decided_by_id == user.id
+
+
+def test_set_quality_state_returns_none_for_unknown_lot(tenant) -> None:
+    user = User.objects.create_user(email="qs2@example.com", password="Str0ngPassw0rd!23")
+    result = set_quality_state(
+        tenant,
+        variant_id=uuid.uuid4(),
+        lot_name="INEXISTANT",
+        state=QUALITY_STATE_QUARANTINE,
+        description="Motif",
+        decided_by=user,
+    )
+    assert result is None
+
+
+def test_set_quality_state_conforme_releases_hold(tenant) -> None:
+    user = User.objects.create_user(email="qs3@example.com", password="Str0ngPassw0rd!23")
+    lot = StkLotFactory(tenant=tenant, name="LOT-PUB-002")
+    set_quality_state(
+        tenant,
+        variant_id=lot.variant_id,
+        lot_name=lot.name,
+        state=QUALITY_STATE_QUARANTINE,
+        description="Blocage initial",
+        decided_by=user,
+    )
+    lot.refresh_from_db()
+    assert lot.is_held() is True
+
+    set_quality_state(
+        tenant,
+        variant_id=lot.variant_id,
+        lot_name=lot.name,
+        state=QUALITY_STATE_CONFORME,
+        description="Analyse refaite, conforme",
+        decided_by=user,
+    )
+    lot.refresh_from_db()
+    assert lot.is_held() is False

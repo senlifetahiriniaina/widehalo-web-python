@@ -6,16 +6,14 @@ from apps.core.module import ModuleSpec
 # qui justifie ce choix et ce qu'il laisse explicitement en suspens pour le
 # Bloc D).
 #
-# Squelette uniquement a ce stade (sprint P6 de la Vague 1) : aucun modele,
-# aucun service reel encore livre — dependance declaree : `core` uniquement,
-# pour l'instant. A completer au fil du Bloc D quand la vraie modelisation
-# HACCP (plan/point critique, certificat, non-conformite bloquante, rappel)
-# introduira de reelles consommations `services.public` d'autres apps
-# (`purchase`/`mrp`/`sales`... references generiques `content_type`/
-# `object_id`, jamais une FK directe — meme patron que `core.models.quality.
-# QltInspection`).
+# "stocks" ajoute par D1 (Bloc D) : premiere consommation cross-app reelle
+# de `quality` — `services/measurements.py::record_measurement` appelle
+# `stocks.services.public.set_quality_state` pour bloquer physiquement un
+# lot dont une mesure sort des limites critiques (QUA-1/2/3). `quality`
+# n'importe jamais `apps.stocks.models` — seulement sa surface
+# `services.public`, identite de lot opaque `(tenant, variant_id, name)`.
 MODULE = ModuleSpec(
     name="quality",
-    dependencies=("core",),
+    dependencies=("core", "stocks"),
     verbose_name="Qualite et HACCP",
 )
