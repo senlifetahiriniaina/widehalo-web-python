@@ -16,11 +16,14 @@ from apps.catalog.models import (
     ProductTemplate,
     ProductVariant,
     TextileSpec,
+    UnitConversion,
     UnitOfMeasure,
 )
 from apps.catalog.services.public import (
     convert_textile_measurement,
+    get_conversion_factor,
     get_supplier_lead_time_days,
+    get_variant_base_uom_code,
     get_variant_template_id,
     search_sellable_variants,
     select_preferred_supplier,
@@ -57,6 +60,61 @@ def test_get_variant_template_id_returns_none_for_unknown_variant(variant_setup)
     tenant, _template, _variant = variant_setup
     with use_tenant(tenant.id):
         assert get_variant_template_id(uuid.uuid4()) is None
+
+
+# B1 (Phase 3 §12.2/§14, cahier ACH-3) : `get_variant_base_uom_code`/
+# `get_conversion_factor`, base de la conversion unité d'achat -> stock.
+def test_get_variant_base_uom_code_resolves_existing_variant(variant_setup) -> None:
+    tenant, template, variant = variant_setup
+    with use_tenant(tenant.id):
+        assert get_variant_base_uom_code(variant.id) == template.base_uom.code
+
+
+def test_get_variant_base_uom_code_returns_none_for_unknown_variant(variant_setup) -> None:
+    tenant, _template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        assert get_variant_base_uom_code(uuid.uuid4()) is None
+
+
+def test_get_conversion_factor_returns_one_without_query_for_identical_codes(
+    variant_setup,
+) -> None:
+    tenant, _template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        assert get_conversion_factor(from_uom_code="U", to_uom_code="U") == Decimal(1)
+
+
+def test_get_conversion_factor_resolves_declared_conversion(variant_setup) -> None:
+    tenant, template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        carton = UnitOfMeasure.objects.create(
+            tenant=tenant, code="CARTON", name="Carton", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        UnitConversion.objects.create(
+            tenant=tenant, from_unit=carton, to_unit=template.base_uom, factor=Decimal("12")
+        )
+        assert get_conversion_factor(from_uom_code="CARTON", to_uom_code="U") == Decimal("12")
+
+
+def test_get_conversion_factor_returns_none_when_undeclared(variant_setup) -> None:
+    tenant, _template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        assert get_conversion_factor(from_uom_code="CARTON", to_uom_code="U") is None
+
+
+def test_get_conversion_factor_is_directional_only(variant_setup) -> None:
+    """`UnitConversion` n'a pas d'inversion automatique — un facteur
+    déclaré dans un sens ne résout jamais l'autre sens (cf. sa
+    docstring)."""
+    tenant, template, _variant = variant_setup
+    with use_tenant(tenant.id):
+        carton = UnitOfMeasure.objects.create(
+            tenant=tenant, code="CARTON", name="Carton", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        UnitConversion.objects.create(
+            tenant=tenant, from_unit=carton, to_unit=template.base_uom, factor=Decimal("12")
+        )
+        assert get_conversion_factor(from_uom_code="U", to_uom_code="CARTON") is None
 
 
 def test_search_sellable_variants_filters_by_reference_or_name(variant_setup) -> None:

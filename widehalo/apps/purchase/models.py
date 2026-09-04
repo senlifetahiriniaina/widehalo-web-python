@@ -709,6 +709,18 @@ class PurCri(BaseModel, ReferenceMixin):
 
 
 class PurOrderLine(BaseModel):
+    """`qty`/`uom`/`qty_received`/`qty_invoiced` restent TOUJOURS exprimes
+    dans l'unite d'ACHAT saisie sur la ligne (`uom`, texte libre, jamais
+    contrainte a l'unite de stock du produit) — B1 (Phase 3 §12.2/§14,
+    cahier ACH-3) ne convertit QUE le `StkMove` cree par
+    `services/receiving.py::receive_order_line` (via `stocks.services.
+    public.receive_purchase_line`), jamais cette ligne elle-meme : `RG-
+    PUR-5` (l'ecart reception vs commande, `order_reception_variance`)
+    compare `qty_received` a `qty`, les DEUX dans l'unite d'achat — un
+    melange d'unites y introduirait un ecart faux. Le facteur de
+    conversion declare (`catalog.UnitConversion`) n'est resolu qu'au
+    moment de la reception, jamais persiste sur cette ligne."""
+
     order = models.ForeignKey(PurOrder, on_delete=models.CASCADE, related_name="lines")
     sequence = models.PositiveIntegerField(default=0)
     # Jamais de FK Django vers `apps.catalog.models.ProductVariant`.

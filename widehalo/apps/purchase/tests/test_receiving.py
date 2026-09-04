@@ -18,6 +18,7 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
+from apps.catalog.models import ProductTemplate, ProductVariant, UnitConversion, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
@@ -199,6 +200,117 @@ def test_receive_order_line_creates_a_real_stock_move(receiving_setup) -> None:
         )
         quant.refresh_from_db()
         assert quant.qty == Decimal(10)
+
+
+def test_receive_order_line_converts_purchase_uom_to_stock_uom(receiving_setup) -> None:
+    """B1 (Phase 3 §12.2/§14, cahier ACH-3) : une ligne saisie dans une
+    unite d'achat distincte de l'unite de stock du produit (ex. un carton
+    de 12 pieces) doit produire un `StkQuant` dans l'unite de STOCK, avec
+    la quantite CONVERTIE via le facteur declare — jamais la quantite
+    d'achat brute."""
+    tenant, user, warehouse, internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        stock_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        purchase_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="CARTON", name="Carton", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        UnitConversion.objects.create(
+            tenant=tenant, from_unit=purchase_uom, to_unit=stock_uom, factor=Decimal("12")
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Bouton", base_uom=stock_uom, reference="TPL-PUR-B1"
+        )
+        variant = ProductVariant.objects.create(
+            tenant=tenant, template=template, reference="VAR-PUR-B1"
+        )
+
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+        )
+        line = add_order_line(
+            order,
+            variant_id=variant.id,
+            description="Bouton (carton de 12)",
+            qty=Decimal(10),
+            unit_price_mga=Decimal(100),
+            uom="CARTON",
+        )
+        submit_order_for_validation(order, user)
+        validate_order(order, user)
+        send_order(order, user)
+        confirm_order(order, user)
+        mark_order_in_transit(order, user)
+
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(2),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+
+        quant = StkQuant.objects.get(
+            tenant=tenant, variant_id=variant.id, location=internal_location
+        )
+        # 2 cartons * facteur 12 = 24 pieces, dans l'unite de stock.
+        assert quant.qty == Decimal(24)
+
+        line.refresh_from_db()
+        # `PurOrderLine.qty_received` reste dans l'unite d'ACHAT (cartons),
+        # JAMAIS convertie — cf. sa docstring : RG-PUR-5 compare `qty` a
+        # `qty_received` dans la MEME unite, un melange fausserait l'ecart.
+        assert line.qty_received == Decimal(2)
+
+
+def test_receive_order_line_refuses_when_conversion_factor_undeclared(receiving_setup) -> None:
+    """Cahier ACH-3 : « le facteur de conversion est declare et verifie,
+    jamais devine » — une unite d'achat differente de l'unite de stock du
+    produit SANS `UnitConversion` declaree dans ce sens doit refuser la
+    reception plutot que de deviner un facteur ou de melanger les
+    unites."""
+    tenant, user, warehouse, _internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        stock_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC2", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Fermeture", base_uom=stock_uom, reference="TPL-PUR-B1-2"
+        )
+        variant = ProductVariant.objects.create(
+            tenant=tenant, template=template, reference="VAR-PUR-B1-2"
+        )
+
+        order = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), warehouse_id=warehouse.id
+        )
+        line = add_order_line(
+            order,
+            variant_id=variant.id,
+            description="Fermeture (sachet)",
+            qty=Decimal(10),
+            unit_price_mga=Decimal(100),
+            uom="SACHET",  # jamais declaree via UnitConversion
+        )
+        submit_order_for_validation(order, user)
+        validate_order(order, user)
+        send_order(order, user)
+        confirm_order(order, user)
+        mark_order_in_transit(order, user)
+
+        with pytest.raises(ValidationError):
+            receive_order_line(
+                line,
+                qty_received_now=Decimal(1),
+                quality_status=PurReceiptLine.QUALITY_CONFORME,
+                user=user,
+            )
+        # `@transaction.atomic` sur `receive_order_line` : rien n'est
+        # persiste cote achat non plus (meme discipline que
+        # `test_receive_order_line_refuses_without_a_configured_warehouse`).
+        assert PurReceiptLine.objects.filter(order_line=line).count() == 0
+        line.refresh_from_db()
+        assert line.qty_received == Decimal(0)
 
 
 def test_partial_receipt_updates_qty_received_and_order_state_across_two_receipts(

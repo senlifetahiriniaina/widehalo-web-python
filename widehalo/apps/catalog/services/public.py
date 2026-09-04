@@ -19,6 +19,7 @@ from apps.catalog.models import (
     ProductSupplierInfo,
     ProductVariant,
     TextileSpec,
+    UnitConversion,
 )
 from apps.catalog.services import defaults as _defaults
 from apps.catalog.services.pricing import get_price
@@ -161,6 +162,59 @@ def get_variant_template_id(variant_id: Any) -> UUID | None:
         return None
     template_id: UUID = variant.template_id
     return template_id
+
+
+def get_variant_base_uom_code(variant_id: Any) -> str | None:
+    """Gap B1 (Phase 3 §12.2/§14, cahier ACH-3) : code de l'unite de stock
+    (`ProductTemplate.base_uom.code`) d'une variante — necessaire a
+    `stocks.services.public.receive_purchase_line` pour savoir dans quelle
+    unite un `StkMove` de reception doit TOUJOURS etre enregistre, quelle
+    que soit l'unite d'achat saisie sur la ligne de commande
+    (`purchase.PurOrderLine.uom`, texte libre non contraint). Jamais de FK
+    Django vers `catalog` depuis `stocks` (regle de couplage n°1).
+
+    `ProductVariant.template` est une FK obligatoire (jamais nulle sur une
+    variante existante) — seule l'absence de la variante elle-meme peut
+    faire retourner `None`, jamais une exception (meme discipline que
+    `get_variant_template_id`)."""
+    variant = (
+        ProductVariant.objects.filter(id=variant_id)
+        .select_related("template", "template__base_uom")
+        .first()
+    )
+    if variant is None:
+        return None
+    code: str = variant.template.base_uom.code
+    return code
+
+
+def get_conversion_factor(*, from_uom_code: str, to_uom_code: str) -> Decimal | None:
+    """Gap B1 (Phase 3 §12.2/§14, cahier ACH-3 : « le facteur de conversion
+    [unite d'achat -> unite de stock] est declare et verifie, jamais
+    devine ; une conversion a facteur variable est interdite ») : resout
+    le facteur `UnitConversion` DECLARE de `from_uom_code` vers
+    `to_uom_code`, dans cette direction UNIQUEMENT — `UnitConversion` n'a
+    ni inversion automatique ni contrainte d'unicite/reciprocite en base
+    (cf. sa docstring), et aucune logique d'inversion n'existe ailleurs
+    dans ce depot ; une conversion inverse non declaree explicitement par
+    le tenant reste donc un gap de configuration assume, pas une deduction
+    silencieuse.
+
+    Retourne `Decimal(1)` sans requete si les deux codes sont identiques
+    (aucune conversion necessaire). Retourne `None`, jamais une exception,
+    si l'un des deux codes est inconnu ou si aucune `UnitConversion` n'est
+    declaree dans ce sens precis — meme discipline "gap de configuration a
+    la charge du tenant" que `receive_purchase_line` ci-dessous, a qui il
+    revient de refuser la reception plutot que de deviner un facteur."""
+    if from_uom_code == to_uom_code:
+        return Decimal(1)
+    conversion = UnitConversion.objects.filter(
+        from_unit__code=from_uom_code, to_unit__code=to_uom_code
+    ).first()
+    if conversion is None:
+        return None
+    factor: Decimal = conversion.factor
+    return factor
 
 
 def get_supplier_lead_time_days(variant_id: Any, *, partner_id: Any = None) -> int | None:

@@ -27,6 +27,7 @@ from django.db import models, transaction
 from django.db.models import F
 from django.utils.translation import gettext as _
 
+from apps.catalog.services.public import get_conversion_factor, get_variant_base_uom_code
 from apps.core.models.user import User
 from apps.stocks.models import (
     StkLocation,
@@ -505,17 +506,39 @@ def receive_purchase_line(
     `receive_pos_return` pour l'emplacement interne de destination — le
     PREMIER emplacement interne de l'entrepôt, faute d'un rangement
     précis choisi à la réception dans le périmètre actuel de `purchase`
-    (conversion d'unité d'achat -> stock, sélection fine de l'emplacement
-    et date d'effet distincte de la date de saisie restent hors périmètre
-    de ce chantier — cf. plan Phase 3, blocs A/B en Vague 2).
+    (sélection fine de l'emplacement et date d'effet distincte de la date
+    de saisie restent hors périmètre de ce chantier — cf. plan Phase 3,
+    blocs A/B en Vague 2).
+
+    B1 (Phase 3 §12.2/§14, cahier ACH-3) : `uom` (l'unité d'achat saisie
+    sur la ligne de commande, `PurOrderLine.uom`, texte libre) est
+    convertie vers l'unité de stock du produit (`catalog.services.public.
+    get_variant_base_uom_code`) AVANT la création du `StkMove` — le
+    mouvement de stock est ainsi TOUJOURS enregistré dans l'unité de
+    stock, jamais dans l'unité d'achat, conformément au CDC. Le facteur de
+    conversion est résolu via `catalog.services.public.
+    get_conversion_factor` (DÉCLARÉ par le tenant, `catalog.
+    UnitConversion` — jamais deviné, cf. sa docstring : « une conversion à
+    facteur variable est interdite »). Ne tente une conversion QUE si les
+    deux conditions suivantes sont réunies : `uom` est renseigné (une
+    unité d'achat vide n'a rien à convertir) ET diffère réellement de
+    l'unité de stock résolue. Si l'unité de stock du produit ne peut pas
+    être résolue (variante inconnue du catalogue — cas courant des
+    `variant_id` opaques non rattachés à un `catalog.ProductVariant` réel,
+    ex. fixtures de test), AUCUNE conversion n'est tentée : la quantité et
+    l'unité saisies sont utilisées telles quelles, même comportement
+    qu'avant B1 — cohérent avec la discipline "gap de configuration à la
+    charge du tenant" déjà établie ci-dessous pour l'entrepôt/emplacement.
 
     Retourne `None`, jamais une exception, si l'entrepôt de la commande
-    n'est pas renseigné ou n'a aucun emplacement interne — même
-    discipline "gap de configuration à la charge du tenant" que
-    `sell_from_stock`/`receive_pos_return` ci-dessus ; à charge de
-    l'appelant (`receive_order_line`) de refuser la réception plutôt que
-    de laisser la quantité d'achat diverger silencieusement du stock
-    physique."""
+    n'est pas renseigné ou n'a aucun emplacement interne, OU si `uom`
+    diffère de l'unité de stock résolue mais qu'AUCUNE `UnitConversion`
+    n'est déclarée dans ce sens précis — même discipline "gap de
+    configuration à la charge du tenant" que `sell_from_stock`/
+    `receive_pos_return` ci-dessus ; à charge de l'appelant
+    (`receive_order_line`) de refuser la réception plutôt que de laisser
+    la quantité d'achat diverger silencieusement du stock physique (dans
+    l'unité déclarée ou dans l'unité de stock réelle)."""
     if warehouse_id is None:
         return None
     warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
@@ -527,6 +550,14 @@ def receive_purchase_line(
     ).first()
     if internal_location is None:
         return None
+
+    stock_uom_code = get_variant_base_uom_code(variant_id)
+    if stock_uom_code is not None and uom and uom != stock_uom_code:
+        factor = get_conversion_factor(from_uom_code=uom, to_uom_code=stock_uom_code)
+        if factor is None:
+            return None
+        qty = qty * factor
+        uom = stock_uom_code
 
     supplier_location, _created = StkLocation.objects.get_or_create(
         tenant=tenant,
