@@ -25,7 +25,7 @@ from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import create_supplier_invoice_from_source
 from apps.core.models.user import User
-from apps.purchase.models import PurCri, PurOrder, PurOrderLine
+from apps.purchase.models import PurCri, PurOrder, PurOrderLine, PurReceiptLine
 from apps.purchase.services.cri import create_cri
 from apps.purchase.services.orders import mark_order_invoiced, open_order_dispute
 
@@ -43,15 +43,30 @@ def three_way_match(
 ) -> dict[str, Any]:
     """Compare, LIGNE PAR LIGNE, le montant COMMANDE (`order_line.qty *
     order_line.unit_price_mga`) au montant FACTURE (`qty_invoiced *
-    unit_price_mga` fournis par l'appelant dans `invoice_lines`) — ne
-    compare PAS le montant RECU separement : le CDC (§5.6.6) decrit un
-    controle "commande/reception/facture" ou la reception sert de
-    PREALABLE (une ligne non receptionnee ne devrait normalement pas etre
-    facturable, garde deja assuree en amont par le cycle de vie de
-    `PurOrder`/`receive_order_line`, PU5), pas un troisieme montant a
-    comparer numeriquement en plus du montant commande — le montant
-    RECU EN QUANTITE (`order_line.qty_received`) est neanmoins expose dans
-    le detail retourne, pour tracabilite complete des 3 informations.
+    unit_price_mga` fournis par l'appelant dans `invoice_lines`) —
+    `amount_variance_pct`.
+
+    B4 (Phase 3, ACH-8 : "rapprochement à trois voies RÉEL") : jusqu'ici
+    le montant RECU n'etait expose que pour tracabilite
+    (`order_line.qty_received`), jamais reellement compare — une facture
+    dont le MONTANT correspond exactement a la commande passait sans
+    encombre meme si la marchandise n'avait ete que PARTIELLEMENT
+    receptionnee (erreur/fraude classique que le controle a 3 voies est
+    precisement cense empecher). Desormais, une SECONDE jambe
+    (`qty_variance_pct`) compare la quantite facturee AU "pool"
+    reellement disponible a facturer : `qty_available_to_invoice =
+    order_line.qty_received - order_line.qty_invoiced` (ce qui a deja ete
+    receptionne, moins ce qui a deja ete facture lors d'un appel
+    precedent — jamais la quantite COMMANDEE, qui n'a aucune valeur
+    probante ici). Facturer MOINS que ce pool (invoice partielle) n'est
+    JAMAIS un ecart (`max(0, ...)`, seul un exces est suspect) ; facturer
+    PLUS declenche un ecart proportionnel, exactement 100% si le pool est
+    nul ou negatif (rien a facturer legitimement). `variance_pct` (cle
+    retournee, INCHANGEE par compatibilite) est desormais
+    `max(amount_variance_pct, qty_variance_pct)` — les DEUX jambes
+    partagent le MEME `threshold_pct` unique (le CDC ne decrit qu'UNE
+    tolerance parametree pour le controle a 3 voies, pas deux seuils
+    distincts).
 
     `invoice_lines` : `[{"order_line_id": UUID, "qty_invoiced": Decimal,
     "unit_price_mga": Decimal}, ...]` — primitives uniquement, jamais un
@@ -60,16 +75,20 @@ def three_way_match(
 
     **Cas limite documente (division par zero)** : si `ordered_amount ==
     0` (ligne commandee gratuitement ou jamais chiffree) ET que
-    `invoiced_amount != 0`, l'ecart est traite comme BLOQUANT a 100% —
-    jamais une division par zero silencieusement ignoree, et jamais un
-    ecart "infini" invraisemblable non plus : facturer un montant non nul
-    sur une ligne commandee a 0 est TOUJOURS un ecart maximal par
+    `invoiced_amount != 0`, l'ecart de MONTANT est traite comme BLOQUANT a
+    100% — jamais une division par zero silencieusement ignoree, et jamais
+    un ecart "infini" invraisemblable non plus : facturer un montant non
+    nul sur une ligne commandee a 0 est TOUJOURS un ecart maximal par
     construction. Si `ordered_amount == 0` ET `invoiced_amount == 0`,
-    l'ecart est 0% (rien facture sur rien commande, coherent).
+    l'ecart est 0% (rien facture sur rien commande, coherent). Meme
+    discipline pour la jambe QUANTITE : `qty_available_to_invoice <= 0`
+    ET `qty_invoiced != 0` -> 100% ; `qty_invoiced == 0` -> 0%.
 
-    Retourne `{"lines": [...detail par ligne...], "blocked": bool,
-    "max_variance_pct": Decimal}` — `blocked=True` des qu'UNE SEULE ligne
-    depasse `threshold_pct`."""
+    Retourne `{"lines": [...detail par ligne, incluant desormais
+    `qty_available_to_invoice`/`amount_variance_pct`/`qty_variance_pct`...],
+    "blocked": bool, "max_variance_pct": Decimal}` — `blocked=True` des
+    qu'UNE SEULE ligne depasse `threshold_pct` (sur l'une ou l'autre des
+    deux jambes)."""
     lines_by_id = {line.id: line for line in order.lines.all()}
 
     rows: list[dict[str, Any]] = []
@@ -84,9 +103,22 @@ def three_way_match(
         invoiced_amount = qty_invoiced * unit_price_invoiced
 
         if ordered_amount == 0:
-            variance_pct = Decimal(100) if invoiced_amount != 0 else Decimal(0)
+            amount_variance_pct = Decimal(100) if invoiced_amount != 0 else Decimal(0)
         else:
-            variance_pct = (abs(invoiced_amount - ordered_amount) / ordered_amount) * Decimal(100)
+            amount_variance_pct = (
+                abs(invoiced_amount - ordered_amount) / ordered_amount
+            ) * Decimal(100)
+
+        qty_available_to_invoice = order_line.qty_received - order_line.qty_invoiced
+        if qty_available_to_invoice <= 0:
+            qty_variance_pct = Decimal(100) if qty_invoiced != 0 else Decimal(0)
+        else:
+            qty_variance_pct = max(
+                Decimal(0),
+                (qty_invoiced - qty_available_to_invoice) / qty_available_to_invoice * Decimal(100),
+            )
+
+        variance_pct = max(amount_variance_pct, qty_variance_pct)
 
         line_blocked = variance_pct > threshold_pct
         blocked = blocked or line_blocked
@@ -98,11 +130,14 @@ def three_way_match(
                 "description": order_line.description,
                 "qty_ordered": order_line.qty,
                 "qty_received": order_line.qty_received,
+                "qty_available_to_invoice": qty_available_to_invoice,
                 "unit_price_ordered_mga": order_line.unit_price_mga,
                 "ordered_amount_mga": ordered_amount,
                 "qty_invoiced": qty_invoiced,
                 "unit_price_invoiced_mga": unit_price_invoiced,
                 "invoiced_amount_mga": invoiced_amount,
+                "amount_variance_pct": amount_variance_pct,
+                "qty_variance_pct": qty_variance_pct,
                 "variance_pct": variance_pct,
                 "blocked": line_blocked,
             }
@@ -158,7 +193,17 @@ def record_supplier_invoice(
     qty_invoiced` est incremente ligne par ligne et la commande transite
     vers `invoiced` via `mark_order_invoiced` (PU4, deja conforme
     `attempt_transition` — c'est le point de cablage annonce par sa
-    docstring)."""
+    docstring).
+
+    **B5 (Phase 3, ACH-9) : separation des taches reception/facture.**
+    Collecte les UUID de TOUS les utilisateurs ayant receptionne au moins
+    une ligne de cette commande (`PurReceiptLine.received_by`, distincts,
+    toutes lignes confondues) et les transmet, en primitives opaques
+    uniquement, a `create_supplier_invoice_from_source` — c'est
+    `accounting.services.invoices.validate_invoice` qui applique ensuite
+    la garde reelle (refus si le VALIDATEUR de la facture figure dans
+    cette liste), jamais cette fonction-ci (qui ne fait qu'ENREGISTRER la
+    facture en `draft`, une etape distincte de sa validation comptable)."""
     match = three_way_match(order, invoice_lines=invoice_lines, threshold_pct=threshold_pct)
 
     if match["blocked"]:
@@ -184,12 +229,18 @@ def record_supplier_invoice(
         {"account_id": None, "amount": row["invoiced_amount_mga"], "label": row["description"]}
         for row in match["lines"]
     ]
+    received_by_ids = list(
+        PurReceiptLine.objects.filter(order_line__order=order, received_by__isnull=False)
+        .values_list("received_by_id", flat=True)
+        .distinct()
+    )
     invoice_id = create_supplier_invoice_from_source(
         tenant=order.tenant,
         partner_id=order.partner_id,
         date=date,
         expense_lines=expense_lines,
         currency=order.currency,
+        received_by_ids=received_by_ids,
     )
     if invoice_id is None:
         return {"invoice_id": None, "match": match, "dispute_opened": False}

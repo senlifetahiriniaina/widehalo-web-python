@@ -273,6 +273,23 @@ class AccMove(BaseModel, ReferenceMixin):
     reverses = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.PROTECT, related_name="reversed_by_set"
     )
+    # B5 (Phase 3, ACH-9 : "l'utilisateur ayant validé une réception ne
+    # peut pas valider la facture fournisseur correspondante") : liste
+    # OPAQUE d'UUID `core.User` (JSONField, jamais une FK/M2M Django) —
+    # meme convention que `LogShipment.purchase_order_ids` ou
+    # `FinCredoc.purchase_order_id` : `accounting` ne declare PAS
+    # `purchase` comme dependance (le sens est l'inverse, `purchase ->
+    # accounting`), et ne doit donc JAMAIS savoir ce que represente cette
+    # liste ni pourquoi elle est peuplee — seulement la comparer a
+    # `user.id` au moment de `services.invoices.validate_invoice`.
+    # Peuplee UNIQUEMENT par `purchase.services.invoicing.
+    # record_supplier_invoice` (via `services.public.
+    # create_supplier_invoice_from_source` -> `services.invoices.
+    # create_supplier_invoice`) a partir des `PurReceiptLine.received_by`
+    # de la commande d'origine — reste vide `[]` pour toute AUTRE facture
+    # (client, ecriture diverse...), qui ne sont donc jamais concernees
+    # par la garde de separation des taches.
+    received_by_ids = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "acc_move"

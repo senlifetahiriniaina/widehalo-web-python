@@ -12,9 +12,11 @@ from apps.accounting.services.invoices import (
     ApprovalRequiredError,
     cancel_invoice,
     create_invoice,
+    create_supplier_invoice,
     ensure_default_approval_thresholds,
     validate_invoice,
 )
+from apps.core.models.audit import AuditLog
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest
@@ -274,6 +276,135 @@ def test_invoice_paid_partially_from_overdue_and_paid_from_overdue(ledger) -> No
         attempt_transition(invoice, "mark_paid", user)
         invoice.save(update_fields=["invoice_state"])
         assert invoice.invoice_state == AccMove.INVOICE_STATE_PAID
+
+
+# ---------------------------------------------------------------------------
+# B5 (Phase 3, ACH-9) : séparation des tâches réception/facture —
+# `validate_invoice` refuse (et journalise) une auto-validation par
+# l'utilisateur ayant réceptionné la marchandise (`AccMove.received_by_ids`,
+# peuplé par `purchase.services.invoicing.record_supplier_invoice`).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def supplier_ledger():
+    tenant = Tenant.objects.create(code="ACC-INV-SUP", name="Accounting Supplier Invoices Tenant")
+    with use_tenant(tenant.id):
+        fiscal_year = AccFiscalYear.objects.create(
+            tenant=tenant,
+            code="FY2026-SUP",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
+        )
+        period = AccPeriod.objects.create(
+            tenant=tenant,
+            fiscal_year=fiscal_year,
+            code="2026-01-SUP",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 1, 31),
+        )
+        journal = AccJournal.objects.create(
+            tenant=tenant,
+            code="ACH",
+            name="Achats",
+            type=AccJournal.TYPE_PURCHASE,
+            sequence_prefix="ACH",
+        )
+        payable = AccAccount.objects.create(
+            tenant=tenant,
+            code="401",
+            name="Fournisseurs",
+            account_class=4,
+            type=AccAccount.TYPE_PAYABLE,
+        )
+        expense = AccAccount.objects.create(
+            tenant=tenant, code="601", name="Achats", account_class=6, type=AccAccount.TYPE_EXPENSE
+        )
+        ensure_default_approval_thresholds(tenant)
+        return tenant, period, journal, payable, expense
+
+
+def _make_supplier_invoice(supplier_ledger, amount: Decimal, *, received_by_ids=None):
+    tenant, period, journal, payable, expense = supplier_ledger
+    return create_supplier_invoice(
+        tenant=tenant,
+        journal=journal,
+        period=period,
+        date=dt.date(2026, 1, 15),
+        partner_id=None,
+        payable_account=payable,
+        expense_lines=[{"account": expense, "amount": amount, "label": "Achat"}],
+        received_by_ids=received_by_ids,
+    )
+
+
+def test_validate_invoice_refuses_self_validation_after_receiving(supplier_ledger) -> None:
+    """B5 : l'utilisateur ayant réceptionné ne peut pas valider la facture
+    fournisseur correspondante — refusé ET journalisé (`AuditLog`), même
+    discipline que STK-7 (`stocks.services.inventory.validate_inventory`)."""
+    tenant, *_ = supplier_ledger
+    with use_tenant(tenant.id):
+        receiver = User.objects.create_user(
+            email="receveur@example.com", password="Str0ngPassw0rd!23"
+        )
+        _grant(receiver, "comptable", "validate_accmove")
+
+        invoice = _make_supplier_invoice(
+            supplier_ledger, Decimal("1000"), received_by_ids=[receiver.id]
+        )
+
+        with pytest.raises(ValidationError):
+            validate_invoice(invoice, receiver)
+
+        invoice.refresh_from_db()
+        assert invoice.invoice_state == AccMove.INVOICE_STATE_DRAFT
+        assert invoice.state == AccMove.STATE_DRAFT
+
+        entry = AuditLog.objects.filter(action="accounting.invoice.self_validate").get()
+        assert entry.actor_id == receiver.id
+        assert entry.object_id == str(invoice.id)
+
+
+def test_validate_invoice_allows_a_different_validator(supplier_ledger) -> None:
+    """Même dossier, mais validé par une personne DISTINCTE de celle qui a
+    réceptionné — aucun refus."""
+    tenant, *_ = supplier_ledger
+    with use_tenant(tenant.id):
+        receiver = User.objects.create_user(
+            email="receveur2@example.com", password="Str0ngPassw0rd!23"
+        )
+        validator = User.objects.create_user(
+            email="comptable-b5@example.com", password="Str0ngPassw0rd!23"
+        )
+        _grant(validator, "comptable", "validate_accmove")
+
+        invoice = _make_supplier_invoice(
+            supplier_ledger, Decimal("1000"), received_by_ids=[receiver.id]
+        )
+
+        posted = validate_invoice(invoice, validator)
+        assert posted.state == AccMove.STATE_POSTED
+
+
+def test_validate_invoice_never_blocked_for_invoices_without_received_by_ids(
+    supplier_ledger,
+) -> None:
+    """`received_by_ids` reste vide `[]` pour toute facture qui n'est pas
+    issue de `purchase.services.invoicing.record_supplier_invoice` (ex.
+    une facture client, ou une facture fournisseur créée directement sans
+    ce paramètre) — la garde B5 ne les concerne jamais."""
+    tenant, *_ = supplier_ledger
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(
+            email="comptable-b5-2@example.com", password="Str0ngPassw0rd!23"
+        )
+        _grant(user, "comptable", "validate_accmove")
+
+        invoice = _make_supplier_invoice(supplier_ledger, Decimal("1000"))
+        assert invoice.received_by_ids == []
+
+        posted = validate_invoice(invoice, user)
+        assert posted.state == AccMove.STATE_POSTED
 
 
 def test_invoice_forbidden_transition_from_draft_raises(ledger) -> None:

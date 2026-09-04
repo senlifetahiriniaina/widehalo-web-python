@@ -145,12 +145,23 @@ def create_supplier_invoice(
     payable_account: AccAccount,
     expense_lines: list[dict[str, Any]],
     currency: str = "MGA",
+    received_by_ids: list[Any] | None = None,
 ) -> AccMove:
     """Facture fournisseur (RG-PUR-6, PU6 de `purchase`, cf. plan) : pendant
     de `create_invoice` ci-dessus mais avec la polarite debit/credit
     INVERSEE — le compte fournisseur (`payable_account`) est CREDITE (une
     dette), chaque `expense_lines` est DEBITEE (une charge), alors que
     `create_invoice` credite les produits et debite le compte client.
+
+    `received_by_ids` (B5, ACH-9) : liste OPAQUE d'UUID `core.User`
+    fournie par l'appelant (`purchase.services.invoicing.
+    record_supplier_invoice`, via `services.public.create_supplier_
+    invoice_from_source`) — jamais interpretee ici, seulement persistee
+    sur `AccMove.received_by_ids` pour que `validate_invoice` ci-dessous
+    puisse refuser une auto-validation par la meme personne. Cf. docstring
+    du champ sur `AccMove` pour la justification complete de ce patron
+    "UUID opaque, jamais de FK" (regle de couplage n°1 : `accounting` ne
+    doit jamais savoir ce que represente cette liste).
 
     Fonction PARALLELE plutot qu'un parametre `move_type` ajoute a
     `create_invoice` (deviation documentee, cf. `apps.purchase.services.
@@ -186,6 +197,9 @@ def create_supplier_invoice(
         currency=currency,
         exchange_rate=rate,
     )
+    if received_by_ids:
+        move.received_by_ids = [str(uid) for uid in received_by_ids]
+        move.save(update_fields=["received_by_ids"])
     add_line(
         move,
         account=payable_account,
@@ -213,7 +227,38 @@ def validate_invoice(move: AccMove, user: User, *, comment: str = "") -> AccMove
     facture ; si toutes les decisions necessaires sont approuvees (ou
     qu'aucune n'est requise sous le seuil), transitionne `invoice_state`
     et publie l'ecriture sous-jacente. Sinon, cree la prochaine demande
-    d'approbation manquante et leve `ApprovalRequiredError`."""
+    d'approbation manquante et leve `ApprovalRequiredError`.
+
+    **B5 (Phase 3, ACH-9) : separation des taches reception/facture.**
+    Refuse (`ValidationError`, tentative JOURNALISEE via `core.services.
+    audit.log_action`, AVANT toute autre verification — fail-fast, aucun
+    effet de bord partiel) si `user.id` figure dans `move.received_by_ids`
+    — c'est-a-dire si CET utilisateur a lui-meme receptionne (au moins une
+    ligne de) la commande d'achat a l'origine de cette facture (cf.
+    `purchase.services.invoicing.record_supplier_invoice`, qui peuple ce
+    champ). AUCUNE exception au seuil ici (contrairement a STK-7/
+    `stocks.services.inventory.validate_inventory`, qui tolere une
+    auto-validation sous un seuil de materialite) : le CDC (ACH-9) decrit
+    une regle absolue, sans marge, pour CETTE combinaison precise.
+    `move.received_by_ids` reste vide `[]` pour toute facture qui n'est
+    pas issue de `record_supplier_invoice` (facture client, ecriture
+    diverse...) — la garde ne les concerne donc jamais."""
+    if str(user.id) in move.received_by_ids:
+        from apps.core.services.audit import log_action
+
+        log_action(
+            "accounting.invoice.self_validate",
+            actor=user,
+            obj=move,
+            metadata={"move_reference": move.reference or str(move.id)},
+        )
+        raise ValidationError(
+            _(
+                "Vous avez réceptionné la marchandise liée à cette facture : "
+                "vous ne pouvez pas aussi la valider (séparation des tâches, ACH-9)."
+            )
+        )
+
     content_type = ContentType.objects.get_for_model(AccMove)
     rules = _applicable_rules(move.tenant, move.total_debit or _invoice_amount(move))
 

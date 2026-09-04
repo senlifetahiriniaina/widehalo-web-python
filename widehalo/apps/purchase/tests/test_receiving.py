@@ -32,7 +32,11 @@ from apps.purchase.services.orders import (
     submit_order_for_validation,
     validate_order,
 )
-from apps.purchase.services.receiving import order_reception_variance, receive_order_line
+from apps.purchase.services.receiving import (
+    DEFAULT_OVER_RECEIPT_TOLERANCE_PCT,
+    order_reception_variance,
+    receive_order_line,
+)
 from apps.stocks.models import StkLocation, StkQuant, StkWarehouse
 
 pytestmark = pytest.mark.django_db
@@ -99,7 +103,9 @@ def test_receive_order_line_refuses_non_positive_qty(receiving_setup) -> None:
 
 def test_receive_order_line_refuses_over_receiving_beyond_qty(receiving_setup) -> None:
     """RG-PUR-5 : l'ecart se mesure toujours contre la quantite commandee —
-    jamais un sur-receptionnement silencieux (acceptance §5.6.7)."""
+    jamais un sur-receptionnement silencieux (acceptance §5.6.7). B4/ACH-2 :
+    ce refus reste VRAI meme avec la tolerance par defaut (2%) — 11 sur 10
+    (+10%) depasse largement la tolerance parametree."""
     tenant, user, warehouse, _internal_location = receiving_setup
     with use_tenant(tenant.id):
         _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
@@ -112,10 +118,64 @@ def test_receive_order_line_refuses_over_receiving_beyond_qty(receiving_setup) -
         with pytest.raises(ValidationError):
             receive_order_line(
                 line,
-                qty_received_now=Decimal(5),  # 6 + 5 = 11 > qty (10)
+                qty_received_now=Decimal(5),  # 6 + 5 = 11 > qty (10) + tolerance (2%)
                 quality_status=PurReceiptLine.QUALITY_CONFORME,
                 user=user,
             )
+
+
+def test_receive_order_line_allows_over_receiving_within_tolerance(receiving_setup) -> None:
+    """B4 (Phase 3, ACH-2 : "tolérance de surlivraison paramétrable... au
+    lieu d'un refus systématique") : un léger dépassement dans la
+    tolérance par défaut (2%) est désormais accepté plutôt que refusé."""
+    tenant, user, warehouse, _internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(6),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+        # 6 + 4.1 = 10.1, soit +1% par rapport a qty=10 — dans la
+        # tolerance par defaut (2%).
+        receive_order_line(
+            line,
+            qty_received_now=Decimal("4.1"),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+        line.refresh_from_db()
+        assert line.qty_received == Decimal("10.1")
+
+
+def test_receive_order_line_tolerance_is_configurable_per_call(receiving_setup) -> None:
+    """Le seuil de tolérance est paramétrable par appel — un appelant peut
+    le durcir (ex. à 0%, retrouvant le comportement historique) pour un
+    cas d'usage qui l'exige."""
+    tenant, user, warehouse, _internal_location = receiving_setup
+    with use_tenant(tenant.id):
+        _order, (line,) = _order_in_transit(tenant, user, warehouse_id=warehouse.id)
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(6),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+        # Meme depassement (+1%) que le test ci-dessus, accepte par le
+        # defaut (2%) mais refuse ici avec une tolerance durcie a 0%.
+        with pytest.raises(ValidationError):
+            receive_order_line(
+                line,
+                qty_received_now=Decimal("4.1"),
+                quality_status=PurReceiptLine.QUALITY_CONFORME,
+                user=user,
+                over_receipt_tolerance_pct=Decimal(0),
+            )
+
+
+def test_default_over_receipt_tolerance_pct_is_two() -> None:
+    assert Decimal("2") == DEFAULT_OVER_RECEIPT_TOLERANCE_PCT
 
 
 def test_receive_order_line_refuses_when_order_not_yet_in_transit(receiving_setup) -> None:

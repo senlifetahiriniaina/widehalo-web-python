@@ -164,12 +164,21 @@ def create_supplier_invoice_from_source(
     date: dt.date,
     expense_lines: list[dict[str, Any]],
     currency: str = "MGA",
+    received_by_ids: list[Any] | None = None,
 ) -> UUID | None:
     """Point d'integration appele par
     `purchase.services.invoicing.record_supplier_invoice` (RG-PUR-6,
     controle facture 3 voies) pour materialiser une facture fournisseur
     sous forme d'`AccMove` (`move_type=supplier_invoice`) une fois le
     controle 3 voies passe (pas de blocage).
+
+    `received_by_ids` (B5, ACH-9, cf. plan) : liste OPAQUE d'UUID
+    `core.User` — simplement relayee a `create_supplier_invoice`
+    (jamais interpretee ici), qui la persiste sur `AccMove.
+    received_by_ids` pour que `validate_invoice` puisse ensuite refuser
+    une auto-validation par la personne qui a receptionne (regle de
+    couplage n°1 : `accounting` ne sait jamais ce qu'est un
+    `PurReceiptLine`, seulement qu'il transporte une liste d'UUID).
 
     `expense_lines` : `{"account_id": UUID | None, "amount": Decimal,
     "label": str}` — memes conventions que `income_lines` de
@@ -236,6 +245,7 @@ def create_supplier_invoice_from_source(
         payable_account=payable_account,
         expense_lines=resolved_lines,
         currency=currency,
+        received_by_ids=received_by_ids,
     )
     move_id: UUID = move.id
     return move_id

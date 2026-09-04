@@ -52,6 +52,18 @@ _VALID_QUALITY_STATUSES = {choice[0] for choice in PurReceiptLine.QUALITY_CHOICE
 # partielles suivantes.
 _RECEIVABLE_STATES = (PurOrder.STATE_IN_TRANSIT, PurOrder.STATE_PARTIALLY_RECEIVED)
 
+# B4 (Phase 3, ACH-2 : "réception partielle... la somme des réceptions
+# successives ne peut pas dépasser la quantité commandée au-delà de la
+# tolérance paramétrée") : avant ce sprint, `receive_order_line` refusait
+# SYSTÉMATIQUEMENT tout dépassement de `line.qty`, aussi minime soit-il
+# (tolérance implicite de 0%). Le CDC ne fixe aucune valeur precise pour
+# cette tolerance ("parametree") — meme discipline que
+# `DEFAULT_VARIANCE_THRESHOLD_PCT` de `services/invoicing.py` (RG-PUR-6,
+# egalement 2% par defaut) : un defaut assume et disclose, modifiable par
+# l'appelant via `over_receipt_tolerance_pct`, jamais code en dur ailleurs
+# dans ce module.
+DEFAULT_OVER_RECEIPT_TOLERANCE_PCT = Decimal("2")
+
 
 @transaction.atomic
 def receive_order_line(
@@ -62,6 +74,7 @@ def receive_order_line(
     user: User,
     notes: str = "",
     photo_document_ids: list[UUID] | None = None,
+    over_receipt_tolerance_pct: Decimal = DEFAULT_OVER_RECEIPT_TOLERANCE_PCT,
 ) -> PurOrderLine:
     """Enregistre UNE reception (partielle ou totale) d'une ligne de
     commande. Refuse (`ValidationError` i18n) :
@@ -69,10 +82,13 @@ def receive_order_line(
     - une commande pas encore `in_transit`/`partially_received` (rien n'a
       pu etre livre avant) ;
     - un `quality_status` hors des 3 valeurs autorisees ;
-    - un depassement de `line.qty` (`line.qty_received + qty_received_now
-      > line.qty`) — RG-PUR-5 : l'ecart se mesure TOUJOURS contre la
-      quantite commandee, jamais un sur-receptionnement silencieux qui
-      fausserait `order_reception_variance` ci-dessous ;
+    - un depassement de `line.qty` AU-DELA de la tolerance de surlivraison
+      parametree (`line.qty_received + qty_received_now >
+      line.qty * (1 + over_receipt_tolerance_pct / 100)`) — B4/ACH-2 :
+      "tolerance de surlivraison parametrable... au lieu d'un refus
+      systematique". L'ecart (meme dans la tolerance) reste toujours
+      visible ligne par ligne via `order_reception_variance` ci-dessous,
+      jamais masque — seul le refus stricte devient conditionnel ;
     - l'absence d'un entrepot valide (avec au moins un emplacement
       interne) sur la commande — cf. docstring de module, decision P2 :
       une reception qui ne peut pas produire de mouvement de stock reel
@@ -99,13 +115,15 @@ def receive_order_line(
         raise ValidationError(_("Statut de contrôle qualité invalide."))
     if qty_received_now <= 0:
         raise ValidationError(_("La quantité reçue doit être strictement positive."))
-    if line.qty_received + qty_received_now > line.qty:
+    max_allowed_qty = line.qty * (Decimal(100) + over_receipt_tolerance_pct) / Decimal(100)
+    if line.qty_received + qty_received_now > max_allowed_qty:
         raise ValidationError(
             _(
-                "La quantité reçue (%(qty)s) dépasserait la quantité "
-                "commandee de la ligne (RG-PUR-5, ecart trace jamais silencieux)."
+                "La quantité reçue (%(qty)s) dépasserait la quantité commandée "
+                "de la ligne au-delà de la tolérance de surlivraison paramétrée "
+                "(%(tolerance)s%%, RG-PUR-5/ACH-2, écart tracé jamais silencieux)."
             )
-            % {"qty": line.qty}
+            % {"qty": line.qty, "tolerance": over_receipt_tolerance_pct}
         )
 
     move_id = receive_stock_move(

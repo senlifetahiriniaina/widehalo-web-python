@@ -19,7 +19,7 @@ from apps.accounting.tests.factories import (
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.purchase.models import PurOrder
+from apps.purchase.models import PurOrder, PurReceiptLine
 from apps.purchase.services.invoicing import (
     DEFAULT_VARIANCE_THRESHOLD_PCT,
     record_supplier_invoice,
@@ -30,11 +30,12 @@ from apps.purchase.services.orders import (
     confirm_order,
     create_order,
     mark_order_in_transit,
-    mark_order_received,
     send_order,
     submit_order_for_validation,
     validate_order,
 )
+from apps.purchase.services.receiving import receive_order_line
+from apps.stocks.models import StkLocation, StkWarehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -63,8 +64,31 @@ def _accounting_config(tenant: Tenant) -> tuple[AccJournal, AccPeriod, AccAccoun
 
 
 def _received_order(tenant, user) -> PurOrder:
-    order = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=timezone.now().date())
-    add_order_line(
+    """B4 (Phase 3, ACH-8) : réceptionne RÉELLEMENT la commande via
+    `receive_order_line` (entrepôt + emplacement interne configurés, même
+    patron que `apps.purchase.tests.test_receiving.receiving_setup`) —
+    plutôt que de sauter directement à `mark_order_received` (raccourci
+    qui, avant ce sprint, laissait `PurOrderLine.qty_received` à 0 pour
+    TOUTE la suite de tests ci-dessous, rendant invisible le nouveau
+    contrôle de quantité réellement reçue de `three_way_match`).
+    `receive_order_line` transitionne déjà automatiquement la commande
+    vers `received` (réception complète) — `mark_order_received` explicite
+    n'est plus nécessaire."""
+    warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-INV", name="Entrepôt")
+    StkLocation.objects.create(
+        tenant=tenant,
+        warehouse=warehouse,
+        code="WH-INV-A1",
+        name="Rayon A1",
+        type=StkLocation.TYPE_INTERNE,
+    )
+    order = create_order(
+        tenant=tenant,
+        partner_id=uuid.uuid4(),
+        date=timezone.now().date(),
+        warehouse_id=warehouse.id,
+    )
+    line = add_order_line(
         order,
         variant_id=uuid.uuid4(),
         description="Fil",
@@ -76,7 +100,13 @@ def _received_order(tenant, user) -> PurOrder:
     send_order(order, user)
     confirm_order(order, user)
     mark_order_in_transit(order, user)
-    mark_order_received(order, user)
+    receive_order_line(
+        line,
+        qty_received_now=Decimal(10),
+        quality_status=PurReceiptLine.QUALITY_CONFORME,
+        user=user,
+    )
+    order.refresh_from_db()
     return order
 
 
@@ -170,6 +200,125 @@ def test_three_way_match_zero_ordered_amount_is_a_blocking_edge_case(invoicing_s
         assert match_nonzero["lines"][0]["variance_pct"] == Decimal(100)
 
 
+def test_three_way_match_flags_qty_variance_when_invoicing_beyond_actual_receipt(
+    invoicing_setup,
+) -> None:
+    """B4 (Phase 3, ACH-8 : "rapprochement à trois voies RÉEL") : avant ce
+    sprint, `three_way_match` ne comparait QUE le montant commandé au
+    montant facturé — une facture dont le MONTANT correspond exactement à
+    la commande passait sans encombre même si la marchandise n'avait été
+    que PARTIELLEMENT réceptionnée (erreur/fraude classique que le
+    contrôle à 3 voies est précisément censé empêcher)."""
+    tenant, user = invoicing_setup
+    with use_tenant(tenant.id):
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-INV-2", name="Entrepôt")
+        StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="WH-INV-2-A1",
+            name="Rayon A1",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        order = create_order(
+            tenant=tenant,
+            partner_id=uuid.uuid4(),
+            date=timezone.now().date(),
+            warehouse_id=warehouse.id,
+        )
+        line = add_order_line(
+            order,
+            variant_id=uuid.uuid4(),
+            description="Fil",
+            qty=Decimal(10),
+            unit_price_mga=Decimal(1000),
+        )
+        submit_order_for_validation(order, user)
+        validate_order(order, user)
+        send_order(order, user)
+        confirm_order(order, user)
+        mark_order_in_transit(order, user)
+        # Réception PARTIELLE seulement (6 sur 10).
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(6),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+
+        # La facture correspond EXACTEMENT à la commande (0% d'écart de
+        # montant) mais facture les 10 unités alors que seules 6 ont été
+        # reçues.
+        match = three_way_match(
+            order,
+            invoice_lines=[
+                {
+                    "order_line_id": line.id,
+                    "qty_invoiced": Decimal(10),
+                    "unit_price_mga": Decimal(1000),
+                }
+            ],
+        )
+
+        row = match["lines"][0]
+        assert row["amount_variance_pct"] == Decimal(0)
+        assert row["qty_available_to_invoice"] == Decimal(6)
+        assert row["qty_variance_pct"] > Decimal(0)
+        assert match["blocked"] is True
+
+
+def test_three_way_match_qty_leg_is_not_triggered_within_actual_receipt(invoicing_setup) -> None:
+    """Facturer seulement ce qui a été réellement reçu ne doit jamais
+    déclencher la jambe QUANTITÉ, même si la jambe MONTANT (comparée à la
+    commande COMPLÈTE — comportement préexistant, hors périmètre de ce
+    sprint) reste élevée pour une facture partielle."""
+    tenant, user = invoicing_setup
+    with use_tenant(tenant.id):
+        warehouse = StkWarehouse.objects.create(tenant=tenant, code="WH-INV-3", name="Entrepôt")
+        StkLocation.objects.create(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="WH-INV-3-A1",
+            name="Rayon A1",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        order = create_order(
+            tenant=tenant,
+            partner_id=uuid.uuid4(),
+            date=timezone.now().date(),
+            warehouse_id=warehouse.id,
+        )
+        line = add_order_line(
+            order,
+            variant_id=uuid.uuid4(),
+            description="Fil",
+            qty=Decimal(10),
+            unit_price_mga=Decimal(1000),
+        )
+        submit_order_for_validation(order, user)
+        validate_order(order, user)
+        send_order(order, user)
+        confirm_order(order, user)
+        mark_order_in_transit(order, user)
+        receive_order_line(
+            line,
+            qty_received_now=Decimal(6),
+            quality_status=PurReceiptLine.QUALITY_CONFORME,
+            user=user,
+        )
+
+        match = three_way_match(
+            order,
+            invoice_lines=[
+                {
+                    "order_line_id": line.id,
+                    "qty_invoiced": Decimal(6),
+                    "unit_price_mga": Decimal(1000),
+                }
+            ],
+        )
+        assert match["lines"][0]["qty_variance_pct"] == Decimal(0)
+
+
 def test_record_supplier_invoice_happy_path_creates_invoice_and_transitions(
     invoicing_setup,
 ) -> None:
@@ -202,6 +351,36 @@ def test_record_supplier_invoice_happy_path_creates_invoice_and_transitions(
 
         order.refresh_from_db()
         assert order.state == PurOrder.STATE_INVOICED
+
+
+def test_record_supplier_invoice_populates_received_by_ids_from_receipt_lines(
+    invoicing_setup,
+) -> None:
+    """B5 (Phase 3, ACH-9) : `record_supplier_invoice` doit transmettre les
+    UUID de TOUS les utilisateurs ayant réceptionné une ligne de la
+    commande à `accounting`, pour que `validate_invoice` puisse ensuite
+    appliquer la séparation des tâches."""
+    tenant, user = invoicing_setup
+    with use_tenant(tenant.id):
+        _accounting_config(tenant)
+        order = _received_order(tenant, user)
+        order_line = order.lines.first()
+
+        result = record_supplier_invoice(
+            order,
+            invoice_lines=[
+                {
+                    "order_line_id": order_line.id,
+                    "qty_invoiced": Decimal(10),
+                    "unit_price_mga": Decimal(1000),
+                }
+            ],
+            date=dt.date(2026, 1, 20),
+            user=user,
+        )
+
+        move = AccMove.objects.get(id=result["invoice_id"])
+        assert move.received_by_ids == [str(user.id)]
 
 
 def test_record_supplier_invoice_blocked_opens_dispute_and_creates_no_invoice(
