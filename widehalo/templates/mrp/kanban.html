@@ -1,6 +1,37 @@
 {% extends "base.html" %}
-{% load i18n core_extras %}
+{% load i18n core_extras static %}
 {% block title %}{% trans "Atelier (kanban)" %} — WideHalo{% endblock %}
+{% block extra_head %}
+  {# Bibliotheque de tri/glisser-deposer VENDORISEE localement (jamais un #}
+  {# CDN, meme discipline que Drawflow/htmx/Alpine.js) — SortableJS #}
+  {# 1.15.7, licence MIT, zero dependance runtime, fichier JS unique, #}
+  {# aucune chaine de build. Licence complete : #}
+  {# static/vendor/sortablejs/LICENSE. #}
+  <script src="{% static 'vendor/sortablejs/Sortable.min.js' %}" defer></script>
+  <style>
+    .kanban-column { min-height: 4rem; }
+    .kanban-column.kanban-legal-target {
+      outline: 3px dashed var(--accent-brand, #6366f1);
+      outline-offset: 2px;
+      background: var(--success-bg, #f0fdf4);
+      border-radius: 6px;
+    }
+    .kanban-handle {
+      min-height: 44px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: .5rem;
+      border-radius: 4px;
+      background: var(--surface-muted, #f0f0f0);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .kanban-column .card.sortable-ghost { opacity: .4; }
+  </style>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{% trans "Atelier (kanban)" %}</h1>
@@ -8,47 +39,116 @@
   <p><a href="{% url 'mrp:list' %}">{% trans "Ordres de fabrication" %}</a></p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   <p class="hint">
-    {% trans "Terminer une étape démarre automatiquement la suivante (si elle est en attente) et journalise la transition dans le fil de l'ordre." %}
+    {% trans "Glissez une carte par sa poignée vers la colonne suivante pour terminer l'étape (elle démarre automatiquement la suivante si elle est en attente et journalise la transition dans le fil de l'ordre) — ou utilisez le bouton, toujours disponible." %}
   </p>
 
   <div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
     {% for code, label, cards in columns %}
       <div style="flex:1; min-width:220px;">
         <h2>{{ label }} ({{ cards|length }})</h2>
-        {% for wo in cards %}
-          <div class="card panel-body" style="margin-bottom:.75rem;">
-            <p>
-              <strong>
-                {% if wo.order.reference %}
-                  <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{{ wo.order.reference }}</a>
-                {% else %}
-                  <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{% trans "(brouillon)" %}</a>
-                {% endif %}
-              </strong>
-            </p>
-            <p>{% trans "Qté planifiée" %} : {{ wo.qty_planned }}</p>
-            <p><span class="badge {{ wo.state|state_badge_class }}">{{ wo.get_state_display }}</span></p>
-            {% if wo.fpy is not None %}<p>{% trans "FPY" %} : {{ wo.fpy|floatformat:1 }} %</p>{% endif %}
-            <form method="post">
-              {% csrf_token %}
-              <input type="hidden" name="work_order_id" value="{{ wo.id }}">
-              <label class="sr-only" for="qty-done-{{ wo.id }}">{% trans "Quantité bonne" %}</label>
-              <input id="qty-done-{{ wo.id }}" type="number" name="qty_done" step="0.0001"
-                     placeholder="{% trans 'Qté bonne' %}" value="{{ wo.qty_planned }}"
-                     style="min-height:44px;width:100%;margin-bottom:.35rem;">
-              <label class="sr-only" for="qty-rejected-{{ wo.id }}">{% trans "Quantité rejetée" %}</label>
-              <input id="qty-rejected-{{ wo.id }}" type="number" name="qty_rejected" step="0.0001"
-                     placeholder="{% trans 'Qté rejetée' %}" value="0"
-                     style="min-height:44px;width:100%;margin-bottom:.35rem;">
-              <c-button variant="primary" type="submit" style="min-height:44px;width:100%;">
-                {% trans "Terminer l'étape →" %}
-              </c-button>
-            </form>
-          </div>
-        {% empty %}
-          <p class="hint">{% trans "Aucune carte." %}</p>
-        {% endfor %}
+        <div class="kanban-column" data-col-index="{{ forloop.counter0 }}">
+          {% for wo in cards %}
+            <div class="card panel-body" data-wo-id="{{ wo.id }}" style="margin-bottom:.75rem;">
+              <div class="kanban-handle" aria-hidden="true">⠿ {% trans "Glisser" %}</div>
+              <p>
+                <strong>
+                  {% if wo.order.reference %}
+                    <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{{ wo.order.reference }}</a>
+                  {% else %}
+                    <a href="{% url 'mrp:detail' order_id=wo.order_id %}">{% trans "(brouillon)" %}</a>
+                  {% endif %}
+                </strong>
+              </p>
+              <p>{% trans "Qté planifiée" %} : {{ wo.qty_planned }}</p>
+              <p><span class="badge {{ wo.state|state_badge_class }}">{{ wo.get_state_display }}</span></p>
+              {% if wo.fpy is not None %}<p>{% trans "FPY" %} : {{ wo.fpy|floatformat:1 }} %</p>{% endif %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="work_order_id" value="{{ wo.id }}">
+                <label class="sr-only" for="qty-done-{{ wo.id }}">{% trans "Quantité bonne" %}</label>
+                <input id="qty-done-{{ wo.id }}" type="number" name="qty_done" step="0.0001"
+                       placeholder="{% trans 'Qté bonne' %}" value="{{ wo.qty_planned }}"
+                       style="min-height:44px;width:100%;margin-bottom:.35rem;">
+                <label class="sr-only" for="qty-rejected-{{ wo.id }}">{% trans "Quantité rejetée" %}</label>
+                <input id="qty-rejected-{{ wo.id }}" type="number" name="qty_rejected" step="0.0001"
+                       placeholder="{% trans 'Qté rejetée' %}" value="0"
+                       style="min-height:44px;width:100%;margin-bottom:.35rem;">
+                <c-button variant="primary" type="submit" style="min-height:44px;width:100%;">
+                  {% trans "Terminer l'étape →" %}
+                </c-button>
+              </form>
+            </div>
+          {% empty %}
+            <p class="hint">{% trans "Aucune carte." %}</p>
+          {% endfor %}
+        </div>
       </div>
     {% endfor %}
   </div>
+
+  <script>
+    // Bloc C, C6 : le glisser-deposer est une AMELIORATION cosmetique
+    // posee par-dessus le bouton "Terminer l'etape" existant, jamais un
+    // remplacement — SortableJS n'a aucun support clavier natif, le
+    // bouton reste donc le seul chemin accessible au clavier/lecteur
+    // d'ecran. Le backend (work_order_kanban/advance_work_order) est
+    // strictement lineaire (aucune notion de "colonne cible" dans le
+    // POST) : la colonne de depot n'est qu'un signal visuel cote client,
+    // un depot legal soumet EXACTEMENT le meme formulaire qu'un clic sur
+    // le bouton (form.requestSubmit(), jamais form.submit(), pour rester
+    // intercepte par offline_queue.js en mode degrade — PRD-5).
+    document.addEventListener("DOMContentLoaded", function () {
+      if (typeof Sortable === "undefined") {
+        return;
+      }
+      var columns = document.querySelectorAll(".kanban-column");
+      var clearLegalTarget = function () {
+        document.querySelectorAll(".kanban-legal-target").forEach(function (el) {
+          el.classList.remove("kanban-legal-target");
+        });
+      };
+      columns.forEach(function (column) {
+        // eslint-disable-next-line no-new
+        new Sortable(column, {
+          group: "mrp-kanban",
+          handle: ".kanban-handle",
+          animation: 150,
+          ghostClass: "sortable-ghost",
+          onStart: function (evt) {
+            var fromIndex = parseInt(evt.from.getAttribute("data-col-index"), 10);
+            var nextColumn = document.querySelector(
+              '.kanban-column[data-col-index="' + (fromIndex + 1) + '"]'
+            );
+            if (nextColumn) {
+              nextColumn.classList.add("kanban-legal-target");
+            }
+          },
+          onEnd: function (evt) {
+            clearLegalTarget();
+            var fromIndex = parseInt(evt.from.getAttribute("data-col-index"), 10);
+            var toIndex = parseInt(evt.to.getAttribute("data-col-index"), 10);
+            var isLegalDrop = toIndex === fromIndex + 1;
+            if (!isLegalDrop) {
+              // Depot illegal (mauvaise colonne, ou simple reordonnancement
+              // dans la meme colonne — sans signification cote serveur) :
+              // Sortable a deja deplace le DOM, on le remet a sa position
+              // d'origine sans jamais soumettre de formulaire.
+              var originalColumn = document.querySelector(
+                '.kanban-column[data-col-index="' + fromIndex + '"]'
+              );
+              if (originalColumn) {
+                var refNode = originalColumn.children[evt.oldIndex] || null;
+                originalColumn.insertBefore(evt.item, refNode);
+              }
+              return;
+            }
+            var form = evt.item.querySelector("form");
+            if (form) {
+              form.requestSubmit();
+            }
+          },
+        });
+      });
+    });
+  </script>
 {% endblock %}
