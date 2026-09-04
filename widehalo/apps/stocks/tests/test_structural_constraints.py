@@ -237,3 +237,53 @@ def test_quant_unique_constraint_treats_null_lot_as_equal_across_rows() -> None:
 
         with pytest.raises(IntegrityError), transaction.atomic():
             StkQuantFactory(tenant=tenant, variant_id=variant_id, location=location, lot=None)
+
+
+# --------------------------------------------------------------------------
+# client_uuid (STK-9, Phase 3 sprint A6) : stocks.0016/0017
+# --------------------------------------------------------------------------
+
+
+def test_two_moves_with_null_client_uuid_never_conflict() -> None:
+    """`uniq_stk_move_client_uuid_per_tenant` est une contrainte PARTIELLE
+    (`condition=Q(client_uuid__isnull=False)`) — la quasi-totalite des
+    `StkMove` n'a pas de `client_uuid` (seul le scan en pose un), deux NULL
+    ne doivent donc jamais entrer en conflit (a la difference de
+    `PosOrder.client_uuid`, jamais nul)."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        StkMoveFactory(tenant=tenant, client_uuid=None)
+        StkMoveFactory(tenant=tenant, client_uuid=None)  # ne doit pas lever
+
+
+def test_two_moves_with_the_same_client_uuid_conflict() -> None:
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        client_uuid = uuid.uuid4()
+        StkMoveFactory(tenant=tenant, client_uuid=client_uuid)
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            StkMoveFactory(tenant=tenant, client_uuid=client_uuid)
+
+
+def test_done_move_client_uuid_is_immutable_even_via_raw_sql() -> None:
+    """stocks.0017 : le trigger d'immuabilite (A5, stocks.0015) est etendu
+    pour proteger aussi `client_uuid` une fois le mouvement `done` — meme
+    patron exact que les tests A5 ci-dessus."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        move = StkMoveFactory(tenant=tenant, state=StkMove.STATE_DONE, client_uuid=uuid.uuid4())
+        other_uuid = uuid.uuid4()
+
+        with (
+            pytest.raises(Exception, match="immuable"),
+            transaction.atomic(),
+            connection.cursor() as cursor,
+        ):
+            cursor.execute(
+                "UPDATE stk_move SET client_uuid = %s WHERE id = %s",
+                [str(other_uuid), str(move.id)],
+            )
+
+        move.refresh_from_db()
+        assert move.client_uuid != other_uuid

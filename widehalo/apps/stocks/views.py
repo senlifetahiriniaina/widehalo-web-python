@@ -41,6 +41,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.catalog.services.public import convert_textile_measurement
+from apps.core.models.audit import AuditLog
+from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.views.tenant_web import resolve_tenant
 from apps.stocks.models import (
@@ -55,8 +57,11 @@ from apps.stocks.models import (
     StkRecall,
     StkReservation,
     StkReturn,
+    StkWarehouse,
 )
+from apps.stocks.services import scan
 from apps.stocks.services.abc_classification import compute_abc_classification
+from apps.stocks.services.barcodes import lookup_by_barcode
 from apps.stocks.services.inventory import (
     add_inventory_line,
     cancel_inventory,
@@ -781,3 +786,135 @@ def abc_view(request: HttpRequest) -> HttpResponse:
 
     classifications = StkAbcClassification.objects.filter(is_active=True).order_by("abc_class")
     return _render(request, "abc", {"classifications": classifications, "error": error})
+
+
+# ---------------------------------------------------------------------------
+# Ecran magasinier scan-first (STK-9/STK-10, sprint A6, mode degrade)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_scanned_location(tenant: Tenant, raw: str) -> StkLocation | None:
+    """Un lecteur de codes-barres est vu comme un clavier — une valeur
+    scannee et une saisie manuelle du CODE produisent la meme chaine en
+    entree (cahier §9.1), donc la meme resolution ici : code-barres
+    (`services.barcodes.lookup_by_barcode`) d'abord, code d'emplacement
+    en repli — restreint aux emplacements INTERNES (un magasinier ne
+    receptionne jamais directement sur un emplacement virtuel)."""
+    if not raw:
+        return None
+    location = lookup_by_barcode(tenant, raw)
+    if location is not None:
+        return location
+    return StkLocation.objects.filter(
+        tenant=tenant, code=raw, type=StkLocation.TYPE_INTERNE, is_active=True
+    ).first()
+
+
+@login_required
+def scan_screen(request: HttpRequest) -> HttpResponse:
+    """STK-9/STK-10 (Phase 3 §7.3/§13.1, sprint A6) : ecran magasinier
+    mobile-first, scan-first — gabarit `stocks/tw-scan.html`, patron `tw-*`
+    autonome (`<c-shell>`, PAS `stocks/index.html`/`active_tab`, deviation
+    assumee du reste de ce fichier, cf. plan de session). Seule l'action
+    « Recevoir » est cablee de bout en bout dans ce sprint — les 3 autres
+    tuiles du cahier (ranger/prelever/compter) restent visibles mais
+    desactivees dans le gabarit, ecart de perimetre documente
+    explicitement plutot que silencieux."""
+    tenant = resolve_tenant(request)
+    warehouse_id = request.GET.get("warehouse_id", "")
+    location_scan = request.GET.get("location_scan", "")
+    warehouse_uuid = _uuid_or_none(warehouse_id)
+
+    warehouses = StkWarehouse.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    location_to = _resolve_scanned_location(tenant, location_scan)
+    suppliers = (
+        StkLocation.objects.filter(
+            tenant=tenant, warehouse_id=warehouse_uuid, type=StkLocation.TYPE_FOURNISSEUR
+        ).order_by("code")
+        if warehouse_uuid is not None
+        else StkLocation.objects.none()
+    )
+    recent_moves = (
+        StkMove.objects.filter(
+            tenant=tenant, location_to=location_to, move_type=StkMove.TYPE_RECEPTION
+        ).order_by("-created_at")[:10]
+        if location_to is not None
+        else StkMove.objects.none()
+    )
+    # Panneau "a traiter" (rejeu explicite, cahier §7.3) — les lignes
+    # rejetees recentes du tenant, quel que soit l'emplacement, pour que
+    # rien ne se perde meme si le magasinier a change de destination
+    # entre-temps. Journalisees dans `AuditLog` (pas un modele stocks
+    # dedie, cf. docstring `services.scan`) : `tenant_id` y est un UUID
+    # simple (pas de FK Django), filtre donc sur `tenant.id`.
+    pending_arbitration = AuditLog.objects.filter(
+        tenant_id=tenant.id, action=scan.ACTION_REJECTED
+    ).order_by("-created_at")[:10]
+
+    return render(
+        request,
+        "stocks/tw-scan.html",
+        {
+            "warehouses": warehouses,
+            "warehouse_id": warehouse_id,
+            "location_scan": location_scan,
+            "location_to": location_to,
+            "suppliers": suppliers,
+            "recent_moves": recent_moves,
+            "pending_arbitration": pending_arbitration,
+            "today": timezone.now().date().isoformat(),
+        },
+    )
+
+
+@login_required
+def scan_receive_submit(request: HttpRequest) -> HttpResponse:
+    """POST ordinaire (jamais `fetch`) — condition necessaire pour que
+    `static/js/offline_queue.js` (deja global, cf. `base.html`) intercepte
+    la soumission hors ligne sans code JS specifique a cet ecran (cahier
+    §7.3, protocole POS reutilise, H19). Meme garde de permission EXACTE
+    que `apps.pos.views.sale_submit` (aucun decorateur de permission dedie
+    n'existe pour les vues HTML de ce depot, seulement pour l'API) :
+    verification manuelle plutot qu'un nouveau decorateur.
+
+    Redirige TOUJOURS vers l'ecran de scan (succes ou echec) — jamais de
+    `?error=` volatil perdu au rechargement suivant comme
+    `apps.pos.views.sale_submit` : un rejet est deja journalise
+    (`AuditLog` "rejected", cf. `services.scan`) et reste visible dans le panneau
+    "a traiter" tant qu'il n'a pas ete corrige par un nouveau scan reussi
+    — c'est precisement l'amelioration "reconciliation explicite" que le
+    cahier §7.3 demande par rapport au protocole POS existant."""
+    if request.method != "POST" or not request.user.has_perm("stocks.add_stkmove"):
+        return HttpResponse(status=403)
+
+    tenant = resolve_tenant(request)
+    user = cast(User, request.user)
+    warehouse_id = request.POST.get("warehouse_id", "")
+    location_scan = request.POST.get("location_scan", "")
+    redirect_url = f"/stocks/scan/?warehouse_id={warehouse_id}&location_scan={location_scan}"
+
+    try:
+        client_uuid = uuid.UUID(request.POST.get("client_uuid", ""))
+        location_from = get_object_or_404(StkLocation, id=request.POST.get("location_from_id"))
+        location_to = get_object_or_404(StkLocation, id=request.POST.get("location_to_id"))
+        scan.sync_scan_reception_line(
+            tenant,
+            client_uuid=client_uuid,
+            location_from=location_from,
+            location_to=location_to,
+            ean13=request.POST.get("ean13", ""),
+            qty=Decimal(request.POST.get("qty") or "1"),
+            uom=request.POST.get("uom", "pc"),
+            date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
+            operator=user,
+        )
+    except _EXC:
+        # Deja journalise (`AuditLog` "rejected") par
+        # `sync_scan_reception_line` pour toute erreur de validation —
+        # seule une entree de formulaire malformee (client_uuid/qty
+        # illisible) echappe au journal, cas limite non atteignable par
+        # l'ecran normal (champs generes cote serveur/JS, jamais saisis
+        # a la main).
+        pass
+
+    return redirect(redirect_url)

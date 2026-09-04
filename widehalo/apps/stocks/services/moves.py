@@ -71,6 +71,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -154,6 +155,7 @@ def create_move(
     unit_cost_mga: Decimal = Decimal(0),
     lot: StkLot | None = None,
     operator: User | None = None,
+    client_uuid: UUID | None = None,
 ) -> StkMove:
     """Cree un mouvement en `draft`. Refuse (garde de service, doublee par
     le CHECK DB `stk_move_from_ne_to` sur `location_from`/`location_to`
@@ -174,7 +176,12 @@ def create_move(
     tort bloque ce second cas). Avant A3, AUCUNE garde n'empechait de
     continuer a expedier/consommer un lot pourtant place en quarantaine
     (cf. docstring de `services.quality`, "en_quarantaine ne declenche
-    aucun StkMove") — ce gap est celui que A3 comble."""
+    aucun StkMove") — ce gap est celui que A3 comble.
+
+    `client_uuid` (STK-9, sprint A6) : `None` pour tout appelant qui n'est
+    pas `services.scan.sync_scan_reception_line` — transmis tel quel a
+    `StkMove.client_uuid` (contrainte d'unicite partielle en base, cf.
+    docstring du modele)."""
     if qty <= 0:
         raise ValidationError(
             _("La quantité d'un mouvement de stock doit être strictement positive.")
@@ -209,6 +216,7 @@ def create_move(
         unit_cost_mga=unit_cost_mga,
         value_mga=_quantize_mga(qty * unit_cost_mga),
         operator=operator,
+        client_uuid=client_uuid,
     )
 
 

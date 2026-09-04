@@ -1,0 +1,205 @@
+{% load i18n static %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}" data-theme="{{ resolved_theme|default:'widehalo' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% trans "Scan magasinier" %} — WideHalo</title>
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <script src="{% static 'django_htmx/htmx-2.min.js' %}" defer></script>
+  <script src="{% static 'js/offline_queue.js' %}" defer></script>
+  <script src="{% static 'unfold/js/alpine/alpine.js' %}" defer></script>
+  {% if theme_is_system %}
+  <script>
+    (function () {
+      try {
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.setAttribute("data-theme", "widehalo-dark");
+        }
+      } catch (e) { /* prefers-color-scheme indisponible : rendu serveur conserve */ }
+    })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% static 'js/sw.js' %}").catch(function () {});
+      });
+    }
+  </script>
+</head>
+<body class="{{ density_class|default:'density-comfortable' }}">
+<c-shell>
+  <div class="max-w-3xl mx-auto flex flex-col gap-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-base-content">{% trans "Écran magasinier" %}</h1>
+      <p class="text-base-content/60">{% trans "Scan-first, mode dégradé — fonctionne aussi hors connexion." %}</p>
+    </div>
+
+    {# STK-9/cahier §7.3 : file "persistante et visible" — jamais masquee. #}
+    <div x-data="stockScan({ today: '{{ today }}' })" x-init="init()" class="flex flex-col gap-6">
+      <div x-show="pendingCount > 0" class="alert alert-warning py-2 px-4 text-sm" role="status">
+        <span x-text="pendingCount + ' '"></span>{% trans "ligne(s) en attente de synchronisation." %}
+      </div>
+
+      {# Quatre actions au maximum (cahier §13.1) — seule "Recevoir" est cablee dans ce sprint. #}
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="rounded-box bg-primary text-primary-content p-4 text-center font-semibold min-h-[64px] flex items-center justify-center">
+          {% trans "Recevoir" %}
+        </div>
+        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
+          <span>{% trans "Ranger" %}</span>
+          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
+        </div>
+        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
+          <span>{% trans "Prélever" %}</span>
+          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
+        </div>
+        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
+          <span>{% trans "Compter" %}</span>
+          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
+        </div>
+      </div>
+
+      {# Configuration (une fois par session terrain — pas une action repetee au scan,
+         donc pas besoin de fonctionner hors ligne : simples selects/texte). #}
+      <form method="get" action="{% url 'stocks:scan' %}" class="flex flex-col gap-3 rounded-box border border-base-300 p-4">
+        <h2 class="font-semibold">{% trans "1. Entrepôt et destination" %}</h2>
+        <select name="warehouse_id" class="select select-bordered w-full" required>
+          <option value="">{% trans "Choisir un entrepôt…" %}</option>
+          {% for warehouse in warehouses %}
+            <option value="{{ warehouse.id }}" {% if warehouse.id|stringformat:"s" == warehouse_id %}selected{% endif %}>{{ warehouse.code }} — {{ warehouse.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="location_scan" value="{{ location_scan }}" placeholder="{% trans 'Scanner ou saisir le code de l’emplacement destination…' %}" class="input input-bordered w-full text-lg" autofocus>
+        <c-button variant="primary" type="submit">{% trans "Valider" %}</c-button>
+        {% if location_scan and not location_to %}
+          <p class="text-error text-sm">{% trans "Emplacement introuvable — vérifiez le code ou le code-barres." %}</p>
+        {% endif %}
+      </form>
+
+      {% if location_to %}
+      <div class="rounded-box border border-base-300 p-4 flex flex-col gap-3">
+        <h2 class="font-semibold">
+          {% trans "2. Réception" %} — <span class="text-success">{{ location_to.code }} — {{ location_to.name }}</span>
+        </h2>
+
+        {% if not suppliers %}
+          <p class="text-warning text-sm">{% trans "Aucun emplacement fournisseur configuré pour cet entrepôt." %}</p>
+        {% endif %}
+
+        <form method="post" action="{% url 'stocks:scan_receive_submit' %}" @submit="onScanSubmit($event)" class="flex flex-col gap-3">
+          {% csrf_token %}
+          <input type="hidden" name="warehouse_id" value="{{ warehouse_id }}">
+          <input type="hidden" name="location_scan" value="{{ location_scan }}">
+          <input type="hidden" name="location_to_id" value="{{ location_to.id }}">
+          <input type="hidden" name="client_uuid" x-ref="clientUuid">
+
+          <label class="text-sm font-medium">{% trans "Fournisseur (origine)" %}</label>
+          <select name="location_from_id" class="select select-bordered w-full" required>
+            {% for supplier in suppliers %}
+              <option value="{{ supplier.id }}">{{ supplier.code }} — {{ supplier.name }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="text-sm font-medium">{% trans "Code-barres article (EAN13)" %}</label>
+          <input type="text" name="ean13" x-model="scanValue" placeholder="{% trans 'Scanner l’article…' %}" class="input input-bordered w-full text-2xl" autofocus inputmode="numeric">
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium">{% trans "Quantité" %}</label>
+              <input type="number" name="qty" x-model="qty" min="0.0001" step="0.0001" class="input input-bordered w-full">
+            </div>
+            <div>
+              <label class="text-sm font-medium">{% trans "Date d’effet" %}</label>
+              <input type="date" name="date" x-model="date" class="input input-bordered w-full">
+            </div>
+          </div>
+          <input type="hidden" name="uom" value="pc">
+
+          <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le scan" %}</c-button>
+          <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
+        </form>
+
+        {% if recent_moves %}
+        <div>
+          <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide">{% trans "Reçu à l’instant" %}</h3>
+          <ul class="text-sm">
+            {% for move in recent_moves %}
+              <li>{{ move.reference }} — {{ move.qty }} {{ move.uom }} — {{ move.date }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# Reconciliation explicite (cahier §7.3) : les lignes rejetees restent
+         visibles jusqu'a ce qu'un nouveau scan corrige reussisse — pas
+         d'edition en ligne dans ce sprint, l'utilisateur rescanne. #}
+      {% if pending_arbitration %}
+      <div class="rounded-box border border-error/40 bg-error/5 p-4">
+        <h2 class="font-semibold text-error">{% trans "À traiter" %}</h2>
+        <ul class="text-sm flex flex-col gap-1 mt-2">
+          {% for entry in pending_arbitration %}
+            <li>{{ entry.created_at }} — {{ entry.metadata.detail }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</c-shell>
+
+<script>
+function stockScan(config) {
+  return {
+    scanValue: "",
+    qty: "1",
+    date: config.today,
+    pendingCount: 0,
+    justScanned: false,
+
+    init() {
+      this.refreshPendingCount();
+      var self = this;
+      window.setInterval(function () { self.refreshPendingCount(); }, 5000);
+    },
+
+    refreshPendingCount() {
+      try {
+        var raw = window.localStorage.getItem("wh-offline-queue");
+        var queue = raw ? JSON.parse(raw) : [];
+        this.pendingCount = queue.filter(function (entry) {
+          return entry.action && entry.action.indexOf("/stocks/scan/receive/") !== -1;
+        }).length;
+      } catch (e) { this.pendingCount = 0; }
+    },
+
+    onScanSubmit(event) {
+      if (!this.scanValue) { event.preventDefault(); return; }
+      this.$refs.clientUuid.value = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      }));
+      // STK-10 : retour visuel immediat, independant de l'etat du reseau —
+      // ne dépend jamais du round-trip serveur (qui peut suivre ou etre
+      // mis en file par offline_queue.js si hors ligne).
+      this.justScanned = true;
+      var self = this;
+      window.setTimeout(function () { self.justScanned = false; }, 600);
+      if (!navigator.onLine) {
+        window.setTimeout(function () {
+          self.scanValue = "";
+          self.qty = "1";
+          self.refreshPendingCount();
+        }, 50);
+      }
+    },
+  };
+}
+</script>
+</body>
+</html>

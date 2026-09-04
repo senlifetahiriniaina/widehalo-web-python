@@ -473,7 +473,23 @@ class StkMove(BaseModel, ReferenceMixin):
     exactement comme `AccMove` ne les protege pas non plus). DELETE
     egalement bloque une fois `done` — correction uniquement par
     `reverse_move` (nouveau mouvement, jamais de modification du mouvement
-    original)."""
+    original).
+
+    **STK-9 (Phase 3 §7.3, sprint A6) : mode degrade terrain.**
+    `client_uuid` (cf. champ ci-dessous) est la clef d'idempotence qui
+    permet a `services.scan.sync_scan_reception_line` de rejouer sans
+    risque une ligne scannee hors ligne, exactement comme
+    `apps.pos.services.orders.sync_order` le fait deja pour `PosOrder` —
+    protocole reutilise, pas reinvente (cahier, « H19 »). Chaque tentative
+    de synchronisation (acceptee/doublon/rejetee) est journalisee via
+    `apps.core.services.audit.log_action` (`AuditLog`, deja existant,
+    immuable en base) plutot que par un nouveau modele dedie a la
+    `PosSyncLog` : `stocks` etait deja a 290/290 modeles au moment de ce
+    sprint (`tests/architecture/test_budget.py::
+    test_model_budget_not_exceeded`), et ce plafond ne se releve pas sans
+    decision explicite du commanditaire — reutiliser le journal d'audit
+    transversal existant est le choix qui respecte ce garde-fou plutot que
+    de le contourner."""
 
     STATE_DRAFT = "draft"
     STATE_DONE = "done"
@@ -615,9 +631,26 @@ class StkMove(BaseModel, ReferenceMixin):
     picking = models.ForeignKey(
         "StkPicking", null=True, blank=True, on_delete=models.SET_NULL, related_name="moves"
     )
+    # STK-9 (Phase 3 §7.3, sprint A6, mode degrade) : clef d'idempotence de
+    # la synchronisation hors ligne — generee COTE CLIENT (JS) au moment du
+    # scan, jamais recalculee serveur, meme discipline que
+    # `PosOrder.client_uuid`/`services.orders.sync_order` (POS). NULL pour
+    # la quasi-totalite des mouvements existants (tout mouvement qui ne
+    # transite pas par `services.scan.sync_scan_reception_line`) — seul un
+    # mouvement REELLEMENT issu du scan en porte un, d'ou la contrainte
+    # d'unicite PARTIELLE ci-dessous (pas de contrainte a la `PosOrder`,
+    # qui l'exige sur 100% des lignes).
+    client_uuid = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "stk_move"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "client_uuid"],
+                condition=models.Q(client_uuid__isnull=False),
+                name="uniq_stk_move_client_uuid_per_tenant",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.reference or self.id} [{self.move_type}]"

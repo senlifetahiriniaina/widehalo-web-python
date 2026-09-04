@@ -51,6 +51,23 @@ def get_variant_id_by_reference(reference: str) -> UUID | None:
     return variant_id
 
 
+def get_variant_id_by_ean13(ean13: str) -> UUID | None:
+    """Meme forme que `get_variant_id_by_reference` ci-dessus, sur le
+    champ EAN13 (`ProductVariant.ean13`, assigne par
+    `services.barcodes.assign_ean13`) plutot que la reference interne —
+    necessaire a STK-10 (Phase 3 §7.3, sprint A6, `stocks.services.scan`) :
+    l'ecran magasinier scan-first resout un code-barres PRODUIT scanne en
+    reception vers un `variant_id`, jamais de FK Django vers `catalog`
+    (regle de couplage n°1). Retourne `None`, jamais une exception, pour un
+    EAN13 inconnu ou une variante inactive — meme discipline que
+    `get_variant_id_by_reference`."""
+    variant = ProductVariant.objects.filter(ean13=ean13, is_active=True).first()
+    if variant is None:
+        return None
+    variant_id: UUID = variant.id
+    return variant_id
+
+
 def is_variant_sellable(variant_id: Any) -> bool:
     """Le catalogue est organise en parent (`ProductTemplate`, porteur de
     `is_sellable`) / fils (`ProductVariant`) — un module metier qui

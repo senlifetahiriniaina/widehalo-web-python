@@ -5,15 +5,25 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from apps.catalog.tests.factories import ProductVariantFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkInventory, StkLocation, StkMove, StkPicking
 from apps.stocks.services.moves import create_move, validate_move
 from apps.stocks.services.warehouses import create_location, create_warehouse
+from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
+
+
+def _grant(user: User, *, app_label: str, codename: str) -> None:
+    group, _ = Group.objects.get_or_create(name=f"stk-ui-test-{app_label}-{codename}")
+    group.permissions.add(
+        *Permission.objects.filter(content_type__app_label=app_label, codename=codename)
+    )
+    user.groups.add(group)
 
 
 @pytest.fixture
@@ -264,3 +274,47 @@ def test_report_state_download_returns_json(stocks_screens_setup) -> None:
     response = client.get("/stocks/reports/state/?format=json")
     assert response.status_code == 200
     assert response["Content-Type"] == "application/json"
+
+
+def test_scan_screen_renders(stocks_screens_setup) -> None:
+    client, *_ = stocks_screens_setup
+    response = client.get("/stocks/scan/")
+    assert response.status_code == 200
+    assert "Écran magasinier".encode() in response.content
+
+
+def test_scan_receive_submit_round_trip_is_idempotent_on_client_uuid(
+    stocks_screens_setup,
+) -> None:
+    """STK-9 (Phase 3 §7.3, sprint A6) : preuve au niveau HTTP, pas
+    seulement service (même discipline que
+    `test_inventory_hides_theoretical_qty_until_validated` ci-dessus) —
+    soumettre deux fois le même `client_uuid` via l'écran de scan ne crée
+    jamais un second `StkMove`."""
+    client, tenant, user, warehouse, supplier, internal = stocks_screens_setup
+    with use_tenant(tenant.id):
+        _grant(user, app_label="stocks", codename="add_stkmove")
+        variant = ProductVariantFactory(tenant=tenant, ean13="1234567890128")
+
+    client_uuid = str(uuid.uuid4())
+    payload = {
+        "warehouse_id": str(warehouse.id),
+        "location_scan": internal.code,
+        "location_to_id": str(internal.id),
+        "location_from_id": str(supplier.id),
+        "client_uuid": client_uuid,
+        "ean13": "1234567890128",
+        "qty": "1",
+        "uom": "pc",
+        "date": "2026-03-01",
+    }
+
+    client.post("/stocks/scan/receive/", payload, follow=True)
+    client.post("/stocks/scan/receive/", payload, follow=True)
+
+    with use_tenant(tenant.id):
+        moves = StkMove.objects.filter(client_uuid=uuid.UUID(client_uuid))
+        assert moves.count() == 1
+        move = moves.get()
+        assert move.variant_id == variant.id
+        assert move.state == StkMove.STATE_DONE
