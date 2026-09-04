@@ -327,6 +327,13 @@ class MrpOrderComponent(BaseModel):
     # RG-MRP-11 : motif obligatoire quand l'ecart planifie/reel depasse le
     # seuil parametrable (defaut 5%).
     variance_reason = models.TextField(blank=True)
+    # Bloc C, C1 : UUID de la StkReservation active pour ce composant
+    # (jamais une FK Django, regle de couplage n1) — resolue via
+    # `stocks.services.public.release_stock_reservation` a la
+    # cloture/annulation de l'ordre. None tant qu'aucune reservation
+    # reelle n'existe (variant_id manquant, ou stock insuffisant a la
+    # reservation).
+    reservation_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "mrp_order_component"

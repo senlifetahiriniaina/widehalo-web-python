@@ -29,6 +29,8 @@ from apps.mrp.services.orders import (
     start_work_order,
     suspend_order,
 )
+from apps.stocks.models import StkReservation
+from apps.stocks.tests.factories import StkLocationFactory, StkQuantFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -151,3 +153,93 @@ def test_subcontracting_round_trip(order_setup) -> None:
         received = receive_from_subcontractor(subcontract, qty_received=Decimal(10))
         assert received.state == "received"
         assert received.date_received is not None
+
+
+@pytest.fixture
+def reservation_setup():
+    """Bloc C, C1 : dérive `order_setup` en donnant au composant un
+    `variant_id` réel couvert par un quant interne suffisant — nécessaire
+    pour exercer une réservation `stocks` réelle (`order_setup` seul
+    produit un composant à `variant_id=None`, cas couvert séparément)."""
+    tenant = Tenant.objects.create(code="MRP-RES", name="MRP Reservation Tenant")
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="res@example.com", password="Str0ngPassw0rd!23")
+        workshop = MrpWorkshop.objects.create(tenant=tenant, code="ATL-1", name="Atelier")
+        product_id = uuid.uuid4()
+        component_variant_id = uuid.uuid4()
+        bom = create_bom(tenant=tenant, code="BOM-RES", product_template_id=product_id)
+        add_bom_line(
+            bom,
+            component_template_id=uuid.uuid4(),
+            component_variant_id=component_variant_id,
+            qty=Decimal(2),
+        )
+        activate_bom(bom)
+        order = create_order(tenant=tenant, bom=bom, workshop=workshop, qty=Decimal(10))
+        location = StkLocationFactory(tenant=tenant)
+        quant = StkQuantFactory(
+            tenant=tenant, variant_id=component_variant_id, location=location, qty=Decimal(50)
+        )
+        return tenant, user, order, component_variant_id, quant
+
+
+def test_reserve_order_reserves_real_stock(reservation_setup) -> None:
+    tenant, user, order, _variant_id, quant = reservation_setup
+    with use_tenant(tenant.id):
+        confirm_order(order, user)
+        reserve_order(order, user)
+        component = order.components.first()
+        assert component.state == "reserved"
+        assert component.reservation_id is not None
+        quant.refresh_from_db()
+        assert quant.qty_reserved == Decimal(20)  # qty_planned = 2 * qty(10)
+
+
+def test_reserve_order_flags_insufficient_stock(reservation_setup) -> None:
+    tenant, user, order, _variant_id, quant = reservation_setup
+    quant.qty = Decimal(5)  # < qty_planned (20) apres explode()
+    quant.save(update_fields=["qty"])
+    with use_tenant(tenant.id):
+        confirm_order(order, user)
+        reserved_order = reserve_order(order, user)
+        # La transition FSM n'est jamais bloquee par un echec de reservation.
+        assert reserved_order.state == MrpOrder.STATE_RESERVED
+        component = order.components.first()
+        assert component.state == "insufficient_stock"
+        assert component.reservation_id is None
+
+
+def test_reserve_order_without_variant_stays_planned(order_setup) -> None:
+    """Regression : `order_setup` produit un composant sans `variant_id`
+    (gap de configuration BOM/catalogue) — `reserve_order` ne doit jamais
+    lever d'exception dans ce cas, ni tenter de réserver."""
+    tenant, user, _workshop, _workcenter, order = order_setup
+    with use_tenant(tenant.id):
+        confirm_order(order, user)
+        reserve_order(order, user)
+        component = order.components.first()
+        assert component.variant_id is None
+        assert component.state == "planned"
+        assert component.reservation_id is None
+
+
+def test_close_order_releases_component_reservation(reservation_setup) -> None:
+    tenant, user, order, _variant_id, quant = reservation_setup
+    with use_tenant(tenant.id):
+        confirm_order(order, user)
+        reserve_order(order, user)
+        component = order.components.first()
+        assert component.reservation_id is not None
+        reservation_id = component.reservation_id
+
+        start_order(order, user)
+        send_to_quality_control(order, user)
+        finish_order(order, user, qty_produced=Decimal(10))
+        close_order(order, user)
+
+        component.refresh_from_db()
+        assert component.reservation_id is None
+        reservation = StkReservation.objects.get(id=reservation_id)
+        assert reservation.state == StkReservation.STATE_RELEASED
+        quant.refresh_from_db()
+        assert quant.qty_reserved == Decimal(0)

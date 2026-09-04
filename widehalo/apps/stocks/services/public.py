@@ -133,6 +133,29 @@ def check_and_reserve_stock(
     return reservation.id
 
 
+def release_stock_reservation(
+    tenant: Tenant, *, reservation_id: UUID, reason: str = ""
+) -> bool:
+    """Bloc C, C1 : enveloppe fine pour libérer une réservation depuis un
+    autre module (`mrp`, à la clôture/annulation d'un `MrpOrder`) sans
+    jamais importer `apps.stocks.models.StkReservation` (règle de
+    couplage n°1) — `services.reservations.release_reservation` prend
+    une INSTANCE, pas un UUID, et aucune fonction `services.public`
+    n'existait jusqu'ici pour ce besoin cross-app.
+
+    Retourne `False`, jamais une exception, si la réservation n'existe
+    pas ou n'est plus active — idempotent, sûr à appeler plusieurs fois
+    (même discipline que les autres gaps `services.public` de ce
+    fichier : jamais une erreur pour un état déjà atteint)."""
+    reservation = StkReservation.objects.filter(
+        tenant=tenant, id=reservation_id, state=StkReservation.STATE_ACTIVE
+    ).first()
+    if reservation is None:
+        return False
+    release_reservation(reservation, reason=reason)
+    return True
+
+
 @transaction.atomic
 def deliver_reserved_stock(
     tenant: Tenant,

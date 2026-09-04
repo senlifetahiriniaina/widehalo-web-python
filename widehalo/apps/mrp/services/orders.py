@@ -74,12 +74,79 @@ def confirm_order(order: MrpOrder, user: User) -> MrpOrder:
 
 
 def reserve_order(order: MrpOrder, user: User) -> MrpOrder:
+    """Bloc C, C1 : réservation RÉELLE (`stocks.services.public.
+    check_and_reserve_stock`), plus le simple marquage `state="reserved"`
+    d'avant ce chantier. Trois états distincts, jamais confondus :
+    `"reserved"` (réservation réelle obtenue), `"insufficient_stock"`
+    (variant résolu mais aucun quant unique ne couvre `qty_planned` — un
+    vrai gap physique que l'utilisateur qui réserve POUR PRODUIRE doit
+    voir), `"planned"` inchangé (aucun `variant_id` — gap de
+    configuration BOM/catalogue, structurellement différent d'un gap de
+    stock — la fixture `order_setup` existante produit ce cas après
+    `confirm_order`, jamais une exception ici).
+
+    La transition FSM vers `STATE_RESERVED` n'est JAMAIS bloquée par
+    l'échec de réservation d'un seul composant — même discipline "jamais
+    un blocage silencieux qui masque le problème" que le reste du dépôt
+    (ex. `validate_inventory`). Le gap reste visible via
+    `component.state` sur le tableau des composants déjà affiché par
+    `detail.html`."""
+    # Import local (pas au niveau module) : `apps.mrp.apps.ready()`
+    # importe `services.public` -> `services.orders` au demarrage de
+    # Django (`ai_context_registration`), AVANT que le registre
+    # d'applications soit completement peuple — un import de niveau
+    # module de `stocks.services.public` a ce stade declenche une
+    # dependance circulaire reelle et preexistante
+    # (stocks.public -> stocks.pickings -> stocks.moves ->
+    # accounting.public -> accounting.landed_costs -> stocks.public,
+    # `ImportError: cannot import name ... from partially initialized
+    # module`) qui ne se manifeste que via CE chemin d'import precoce.
+    # Reporter l'import a l'appel (bien apres que toutes les apps soient
+    # `ready()`) contourne le probleme sans toucher au graphe existant.
+    from apps.stocks.services.public import check_and_reserve_stock
+
     attempt_transition(order, "reserve", user)
     order.save(update_fields=["state"])
+    today = timezone.now().date()
     for component in order.components.all():
-        component.state = "reserved"
-        component.save(update_fields=["state"])
+        if component.variant_id is None:
+            continue
+        reservation_id = check_and_reserve_stock(
+            order.tenant,
+            variant_id=component.variant_id,
+            qty=component.qty_planned,
+            date=today,
+            source_object=component,
+        )
+        if reservation_id is not None:
+            component.state = "reserved"
+            component.reservation_id = reservation_id
+            component.save(update_fields=["state", "reservation_id"])
+        else:
+            component.state = "insufficient_stock"
+            component.save(update_fields=["state"])
     return order
+
+
+def _release_component_reservations(order: MrpOrder) -> None:
+    """Bloc C, C1 : libère toute réservation de composant encore active à
+    la clôture/annulation de l'ordre — évite de laisser une réservation
+    "dangling" indéfiniment une fois la ressource réelle introduite par
+    ce chantier. `release_stock_reservation` est idempotente (jamais une
+    exception), donc sûre même sur un composant déjà libéré."""
+    from apps.stocks.services.public import release_stock_reservation
+
+    for component in order.components.exclude(reservation_id=None):
+        if component.reservation_id is None:
+            continue
+        released = release_stock_reservation(
+            order.tenant,
+            reservation_id=component.reservation_id,
+            reason=_("Clôture/annulation de l'ordre de fabrication."),
+        )
+        if released:
+            component.reservation_id = None
+            component.save(update_fields=["reservation_id"])
 
 
 def start_order(order: MrpOrder, user: User) -> MrpOrder:
@@ -124,6 +191,7 @@ def finish_order(
 def close_order(order: MrpOrder, user: User) -> MrpOrder:
     attempt_transition(order, "close", user)
     order.save(update_fields=["state"])
+    _release_component_reservations(order)
     return order
 
 
@@ -133,6 +201,13 @@ def cancel_order(order: MrpOrder, user: User, *, reason: str) -> MrpOrder:
     attempt_transition(order, "cancel", user, comment=reason)
     order.cancel_reason = reason
     order.save(update_fields=["state", "cancel_reason"])
+    # Bloc C, C1 : par cohérence/futur-proofing — `cancel` n'est
+    # aujourd'hui atteignable qu'avant `reserve` (source=[DRAFT,
+    # CONFIRMED]), donc jamais un chemin réellement vivant pour une
+    # réservation active, mais gardé cohérent avec `close_order` : c'est
+    # ce chantier qui introduit la ressource réelle, donc c'est lui qui
+    # doit éviter de la laisser "dangling".
+    _release_component_reservations(order)
     return order
 
 
