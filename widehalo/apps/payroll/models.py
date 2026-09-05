@@ -357,7 +357,14 @@ class PayPeriod(BaseModel):
 class PayPayslip(BaseModel, ReferenceMixin):
     """RG-PAY-10 : une fois `period.state="validee"`, plus aucune
     modification en place — une correction cree un NOUVEAU bulletin
-    `rectifies=<original>`, jamais un `save()` sur l'original."""
+    `rectifies=<original>`, jamais un `save()` sur l'original.
+
+    Bloc E, E9 (PAY-8) : "publie" = `state in (approved, paid)` — au-dela
+    de ce point, l'immuabilite est desormais garantie par un trigger
+    Postgres (`payroll.0005_payslip_immutability`), pas seulement par
+    l'absence d'endpoint de modification. Seule exception : la
+    transition `approved -> paid` (`state` uniquement). `PayPayslipLine`
+    est protegee symetriquement (etat du bulletin parent)."""
 
     STATE_DRAFT = "draft"
     STATE_COMPUTED = "computed"

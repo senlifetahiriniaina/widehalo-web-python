@@ -100,12 +100,33 @@ def test_create_regularization_refuses_when_original_period_not_validated() -> N
 
 
 def test_create_regularization_refuses_when_original_is_cancelled() -> None:
+    """`cancel()` n'a pour source que draft/computed/to_approve, jamais
+    approved (et depuis E9/PAY-8, un trigger DB l'empêcherait de toute
+    façon une fois publié) — un bulletin annulé coexiste avec une
+    période verrouillée en étant annulé AVANT publication, exclu du lot
+    (`batch.payslips.exclude(state=CANCELLED)`, E6/E7) pendant que les
+    AUTRES bulletins font passer la période à `validee`."""
     tenant = Tenant.objects.create(code="PAY-E7-3", name="E7 cancelled")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="rh-e7-3@example.com", password="Str0ngPassw0rd!23")
-        original = _validated_original(tenant)
+        setup_payroll_reference_data(tenant)
+        contract = make_active_contract(
+            tenant, employee_id=uuid.uuid4(), wage_base=Decimal("1200000")
+        )
+        period = make_period(tenant)
+        original = PayPayslip.objects.create(
+            tenant=tenant,
+            employee_id=contract.employee_id,
+            contract=contract,
+            period=period,
+            date_from=period.date_from,
+            date_to=period.date_to,
+        )
+        compute_payslip(original)
         original.state = PayPayslip.STATE_CANCELLED
         original.save(update_fields=["state"])
+        period.state = PayPeriod.STATE_VALIDATED
+        period.save(update_fields=["state"])
         target_period = _open_target_period(tenant)
 
         with pytest.raises(ValidationError):
