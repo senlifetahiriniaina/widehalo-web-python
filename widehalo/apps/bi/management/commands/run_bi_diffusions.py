@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand
 
 from apps.bi.services.diffusion import run_due_diffusions
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 
 
 class Command(BaseCommand):
@@ -19,7 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         total = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 sent = run_due_diffusions(tenant)
             total += sent
             if sent:

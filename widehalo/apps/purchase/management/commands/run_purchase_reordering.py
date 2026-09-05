@@ -22,7 +22,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.purchase.services.reordering import run_reordering
 
 
@@ -35,7 +35,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         total_created = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 created = run_reordering(tenant)
             total_created += len(created)
             if created:

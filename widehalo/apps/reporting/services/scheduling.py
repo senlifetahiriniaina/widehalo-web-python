@@ -7,6 +7,7 @@ envoi e-mail aux destinataires. Executee par la commande de management
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
 from django.core.mail import EmailMessage
 from django.utils import timezone
@@ -18,6 +19,8 @@ from apps.core.services.reports_registry import get_registered_report
 from apps.core.tenant_context import activate_tenant
 from apps.reporting.models import RptSchedule
 from apps.reporting.services.engine import generate_report
+
+logger = logging.getLogger(__name__)
 
 _CONTENT_TYPES = {
     "pdf": "application/pdf",
@@ -114,9 +117,12 @@ def run_due_schedules() -> int:
     now = timezone.now()
     count = 0
     for tenant_id in Tenant.objects.values_list("id", flat=True):
-        with activate_tenant(tenant_id):
-            due = list(RptSchedule.objects.filter(enabled=True, next_run_at__lte=now))
-            for schedule in due:
-                run_schedule(schedule)
-                count += 1
+        try:
+            with activate_tenant(tenant_id):
+                due = list(RptSchedule.objects.filter(enabled=True, next_run_at__lte=now))
+                for schedule in due:
+                    run_schedule(schedule)
+                    count += 1
+        except Exception:  # noqa: BLE001 — L0-2 : un tenant en echec ne prive plus les suivants de leur traitement. L'exception est journalisee puis absorbee — meme decision que `apps.core.services.scheduled_commands.tenant_step`, applique ici au niveau du service parce que c'est lui, et non la commande, qui porte la boucle.
+            logger.exception("Diffusion planifiee en echec pour le tenant %s", tenant_id)
     return count

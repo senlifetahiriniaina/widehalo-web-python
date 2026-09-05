@@ -20,7 +20,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.stocks.services.expiry_alerts import check_expiring_lots
 
 
@@ -34,7 +34,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         total_flagged = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 results = check_expiring_lots(tenant)
             total_flagged += len(results)
             if results:

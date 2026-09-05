@@ -21,7 +21,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.purchase.services.price_watch import run_price_watch_checks
 
 
@@ -34,7 +34,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         total_checked = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 results = run_price_watch_checks(tenant)
             total_checked += len(results)
             if results:

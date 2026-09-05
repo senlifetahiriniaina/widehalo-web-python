@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.presence.models import PrsAbsenceType
 from apps.presence.services.absences import (
     mark_unjustified_if_overdue,
@@ -45,7 +45,7 @@ class Command(BaseCommand):
         total_unjustified = 0
         total_alerts = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 unjustified_type = PrsAbsenceType.objects.filter(
                     tenant=tenant, category=PrsAbsenceType.CATEGORY_UNJUSTIFIED
                 ).first()

@@ -14,7 +14,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.stocks.services.consistency import DEFAULT_WINDOW_DAYS, production_consistency_report
 
 
@@ -40,7 +40,7 @@ class Command(BaseCommand):
 
         total_anomalies = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 rows = production_consistency_report(tenant, since=since)
             anomalies = [row for row in rows if row["anomaly"]]
             total_anomalies += len(anomalies)

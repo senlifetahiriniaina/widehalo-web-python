@@ -9,6 +9,7 @@ silencieusement perdu)."""
 from __future__ import annotations
 
 import json
+import logging
 import zipfile
 from io import BytesIO
 
@@ -22,6 +23,8 @@ from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.services.tenant_export import export_tenant_archive, import_tenant_archive
 from apps.core.services.tenant_reset import reset_tenant_data
+
+logger = logging.getLogger(__name__)
 
 
 def confirm_tenant_code(tenant: Tenant, confirmation: str) -> bool:
@@ -211,16 +214,24 @@ def run_due_tenant_backups() -> list[TenantDataOperation]:
     now = timezone.now()
     operations: list[TenantDataOperation] = []
     for tenant in Tenant.objects.all():
-        with activate_tenant(tenant.id):
-            schedule = TenantBackupSchedule.objects.filter(
-                is_active=True, next_run_at__lte=now
-            ).first()
-            if schedule is None:
-                continue
-            operation = create_tenant_backup(tenant, trigger=TenantDataOperation.TRIGGER_SCHEDULED)
-            operations.append(operation)
-            schedule.last_run_at = now
-            schedule.next_run_at = now + step_by_frequency[schedule.frequency]
-            schedule.save(update_fields=["last_run_at", "next_run_at"])
+        # L0-2 : une sauvegarde en echec ne prive plus les tenants suivants de
+        # la leur. C'est le cas ou l'isolation compte le plus : une nuit sans
+        # sauvegarde passe inapercue jusqu'au jour ou l'on en a besoin.
+        try:
+            with activate_tenant(tenant.id):
+                schedule = TenantBackupSchedule.objects.filter(
+                    is_active=True, next_run_at__lte=now
+                ).first()
+                if schedule is None:
+                    continue
+                operation = create_tenant_backup(
+                    tenant, trigger=TenantDataOperation.TRIGGER_SCHEDULED
+                )
+                operations.append(operation)
+                schedule.last_run_at = now
+                schedule.next_run_at = now + step_by_frequency[schedule.frequency]
+                schedule.save(update_fields=["last_run_at", "next_run_at"])
+        except Exception:  # noqa: BLE001 — un tenant en echec ne bloque jamais les suivants
+            logger.exception("Sauvegarde planifiee en echec pour le tenant %s", tenant.code)
 
     return operations

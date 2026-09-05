@@ -25,7 +25,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.helpdesk.services import escalation, sla
 
 
@@ -39,7 +39,7 @@ class Command(BaseCommand):
         total_breaches = 0
         total_escalations = 0
         for tenant in Tenant.objects.all():
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 breaches = sla.check_breaches(tenant)
                 events = escalation.run_escalation_checks(tenant)
             total_breaches += len(breaches)

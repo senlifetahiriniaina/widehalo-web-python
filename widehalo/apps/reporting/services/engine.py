@@ -29,6 +29,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 from typing import Any
 
 from django.conf import settings
@@ -39,6 +40,8 @@ from django.utils.translation import gettext as _
 from apps.core.models.user import User
 from apps.core.services.reports_registry import RegisteredReport, get_registered_report
 from apps.reporting.models import RptDefinition, RptJob
+
+logger = logging.getLogger(__name__)
 
 # Debit de reference (lignes/seconde) utilise UNIQUEMENT pour estimer si un
 # rapport doit partir en asynchrone — approximation grossiere assumee (pas
@@ -244,10 +247,13 @@ def purge_expired_jobs() -> int:
     now = timezone.now()
     count = 0
     for tenant_id in Tenant.objects.values_list("id", flat=True):
-        with activate_tenant(tenant_id):
-            expired = RptJob.objects.filter(expires_at__lte=now)
-            count += expired.count()
-            for job in expired:
-                job.file.delete(save=False)
-            expired.delete()
+        try:
+            with activate_tenant(tenant_id):
+                expired = RptJob.objects.filter(expires_at__lte=now)
+                count += expired.count()
+                for job in expired:
+                    job.file.delete(save=False)
+                expired.delete()
+        except Exception:  # noqa: BLE001 — L0-2 : un tenant en echec ne prive plus les suivants de leur traitement. L'exception est journalisee puis absorbee — meme decision que `apps.core.services.scheduled_commands.tenant_step`, applique ici au niveau du service parce que c'est lui, et non la commande, qui porte la boucle.
+            logger.exception("Purge des rapports en echec pour le tenant %s", tenant_id)
     return count

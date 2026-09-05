@@ -22,7 +22,7 @@ from django.core.management.base import BaseCommand
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tenant_context import activate_tenant
+from apps.core.services.scheduled_commands import tenant_step
 from apps.sales.services.recurrence import run_due_recurrences
 
 
@@ -43,7 +43,7 @@ class Command(BaseCommand):
                     )
                 )
                 continue
-            with activate_tenant(tenant.id):
+            with tenant_step(self, tenant):
                 generated = run_due_recurrences(tenant, fallback_user)
             total_generated += len(generated)
             if generated:
