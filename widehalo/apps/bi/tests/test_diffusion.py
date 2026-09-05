@@ -34,6 +34,9 @@ def test_send_report_to_recipient_logs_success(diffusion_tenant: Tenant) -> None
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             axes_autorises=["temps"],
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
@@ -59,6 +62,9 @@ def test_run_due_diffusions_advances_watermark_and_logs_each_recipient(
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             axes_autorises=["temps"],
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )

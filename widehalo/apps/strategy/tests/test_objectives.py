@@ -189,6 +189,7 @@ def test_add_key_result_rejects_unpublished_or_unknown_metric_code() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_BROUILLON,
         )
         with pytest.raises(ValidationError):
@@ -208,6 +209,7 @@ def test_add_key_result_accepts_published_metric_code() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         objective = create_objective(
@@ -260,6 +262,7 @@ def test_activate_objective_succeeds_once_measurable_key_result_exists() -> None
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         objective = create_objective(
@@ -360,6 +363,7 @@ def test_refresh_key_result_from_dictionary_pulls_governed_value() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         AnFactVenteFactory(tenant=tenant, montant_ht_mga=Decimal("750"))

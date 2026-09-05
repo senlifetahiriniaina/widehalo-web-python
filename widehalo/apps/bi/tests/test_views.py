@@ -76,6 +76,9 @@ def test_report_detail_renders_computed_result(web_bi) -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             axes_autorises=["temps"],
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
@@ -100,6 +103,9 @@ def test_report_drill_down_endpoint_returns_json(web_bi) -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             axes_autorises=["temps"],
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )

@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from apps.analytics.services.public import aggregate_fact, detail_fact, get_metric_definition
-from apps.bi.services.metric_computers import METRIC_FACTS
 
 if TYPE_CHECKING:
     from apps.bi.models import BiReport
@@ -47,9 +46,14 @@ def _is_metric_authorized(metric: dict[str, Any], user_roles: set[str]) -> bool:
 def run_report(tenant: Tenant, report: BiReport, user: User) -> dict[str, Any]:
     """Exécute `report.definition` pour `user` — retourne
     ``{"metrics": {code: {"libelle", "unite", "rows"}}, "scope_notes": [str, ...]}``.
-    Un indicateur inconnu, non publié, non autorisé pour le rôle de `user`
-    ou sans fait BI raccordé (`METRIC_FACTS`) est silencieusement exclu du
-    résultat plutôt que de lever une exception."""
+    **Plus rien n'est écarté en silence (L8).** Un indicateur inconnu, non
+    calculable (aucun `fait_source`) ou dont le fait ne renvoie rien est
+    désormais annoncé dans `scope_notes`, comme l'étaient déjà les
+    restrictions de rôle et de maille. L'asymétrie d'avant L8 était le
+    défaut : `drill_down` ci-dessous répondait « Indicateur non calculable »
+    quand `run_report`, sur la même condition, faisait disparaître la ligne
+    du rapport. Un tableau de bord auquel il manque un indicateur sans
+    qu'un mot l'explique se lit comme un tableau de bord complet."""
     definition = report.definition or {}
     requested_dimensions: list[str] = definition.get("dimensions", [])
     requested_filters: list[dict[str, Any]] = definition.get("filters", [])
@@ -61,12 +65,22 @@ def run_report(tenant: Tenant, report: BiReport, user: User) -> dict[str, Any]:
     for code in definition.get("metric_codes", []):
         metric = get_metric_definition(tenant, code)
         if metric is None:
+            scope_notes.append(
+                f"« {code} » introuvable au dictionnaire d'indicateurs — rien à afficher."
+            )
             continue
         if not _is_metric_authorized(metric, user_roles):
             scope_notes.append(f"« {metric['libelle']} » masqué : non autorisé pour votre rôle.")
             continue
-        fact = METRIC_FACTS.get(code)
-        if fact is None:
+        # L8 : le fait vient du dictionnaire lui-meme, plus d'une table de
+        # correspondance figee dans le code — un indicateur cree a
+        # l'execution est desormais calculable sans deploiement.
+        fact = metric.get("fait_source") or ""
+        if not fact:
+            scope_notes.append(
+                f"« {metric['libelle']} » non calculable : aucun fait de l'entrepôt ne lui "
+                "est rattaché."
+            )
             continue
 
         allowed_axes = set(metric["axes_autorises"])
@@ -86,6 +100,10 @@ def run_report(tenant: Tenant, report: BiReport, user: User) -> dict[str, Any]:
 
         rows = aggregate_fact(tenant, fact=fact, dimensions=dims, filters=requested_filters)
         if rows is None:
+            scope_notes.append(
+                f"« {metric['libelle']} » : le fait « {fact} » n'a pas pu être agrégé "
+                "(fait inconnu de l'entrepôt ou filtre invalide)."
+            )
             continue
         metrics_out[code] = {"libelle": metric["libelle"], "unite": metric["unite"], "rows": rows}
 
@@ -110,8 +128,8 @@ def drill_down(
     metric = get_metric_definition(tenant, metric_code)
     if metric is None or not _is_metric_authorized(metric, _user_role_codes(user)):
         return {"blocked": True, "reason": "Indicateur non autorisé pour votre rôle."}
-    fact = METRIC_FACTS.get(metric_code)
-    if fact is None:
+    fact = metric.get("fait_source") or ""
+    if not fact:
         return {"blocked": True, "reason": "Indicateur non calculable."}
     if metric.get("maille_minimale"):
         return {

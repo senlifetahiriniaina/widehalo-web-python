@@ -134,6 +134,9 @@ def test_activate_objective_via_api_requires_measurable_key_result(api_strategy)
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
 

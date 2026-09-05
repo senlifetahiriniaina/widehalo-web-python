@@ -48,14 +48,15 @@ def get_metric_current_value(tenant: Tenant, code: str, user: User) -> Decimal |
     rôle de `user`, ou non raccordé à un fait calculable (mêmes
     garde-fous que `services/query.py::run_report`, jamais dupliqués)."""
     from apps.analytics.services.public import aggregate_fact, get_metric_definition
-    from apps.bi.services.metric_computers import METRIC_FACTS
     from apps.bi.services.query import _is_metric_authorized, _user_role_codes
 
     metric = get_metric_definition(tenant, code)
     if metric is None or not _is_metric_authorized(metric, _user_role_codes(user)):
         return None
-    fact = METRIC_FACTS.get(code)
-    if fact is None:
+    # L8 : meme source que `services/query.py` — le dictionnaire, jamais une
+    # table de correspondance figee dans le code.
+    fact = metric.get("fait_source") or ""
+    if not fact:
         return None
     rows = aggregate_fact(tenant, fact=fact, dimensions=[], filters=[])
     if not rows:

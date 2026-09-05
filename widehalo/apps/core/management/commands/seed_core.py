@@ -80,6 +80,8 @@ class Command(BaseCommand):
         # resout `default_account` (BQ/CAI) par prefixe de code parmi les
         # comptes deja crees, donc l'ordre importe.
         call_command("load_chart_of_accounts", tenant=tenant_code)
+        # L8 : cf. `services/tenant_reset.py`.
+        call_command("load_metric_dictionary", tenant=tenant_code)
         call_command("load_default_journals", tenant=tenant_code)
 
         call_command("load_roles")

@@ -24,12 +24,16 @@ def query_tenant() -> Tenant:
     return Tenant.objects.create(code="BI-QRY", name="BI Query Tenant")
 
 
-def _publish_metric(tenant, *, code, roles_autorises=None, maille_minimale="", axes=None):
+def _publish_metric(
+    tenant, *, code, roles_autorises=None, maille_minimale="", axes=None, fait_source="vente"
+):
     return register_metric(
         tenant,
         code=code,
         libelle=f"Indicateur {code}",
         module_source="sales",
+        # L8 : declare avec l'indicateur, plus lu dans `METRIC_FACTS`.
+        fait_source=fait_source,
         axes_autorises=axes if axes is not None else ["temps", "tiers"],
         roles_autorises=roles_autorises or [],
         maille_minimale=maille_minimale,

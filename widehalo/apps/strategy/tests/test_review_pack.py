@@ -43,6 +43,7 @@ def test_generate_review_pack_blocked_by_uncommented_significant_variance() -> N
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         AnFactVenteFactory(tenant=tenant, montant_ht_mga=Decimal("5000"))
@@ -73,6 +74,7 @@ def test_generate_review_pack_succeeds_once_variance_commented() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         AnFactVenteFactory(tenant=tenant, montant_ht_mga=Decimal("5000"))
@@ -123,6 +125,7 @@ def test_generate_review_pack_freezes_objective_and_risk_snapshot() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         objective = create_objective(

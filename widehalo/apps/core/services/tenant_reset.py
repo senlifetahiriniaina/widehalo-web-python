@@ -129,6 +129,10 @@ def reset_tenant_data(
             apply_country_defaults(tenant, tenant.country_code)
             call_command("load_ticket_type_catalog", tenant=tenant.code)
             call_command("load_chart_of_accounts", tenant=tenant.code)
+            # L8 : sans ce chargement, le dictionnaire d'indicateurs
+            # gouverne reste vide — donc l'ecran du dictionnaire, les
+            # rapports BI et les resultats cles de `strategy` aussi.
+            call_command("load_metric_dictionary", tenant=tenant.code)
             call_command("load_default_journals", tenant=tenant.code)
             call_command("load_default_pipeline", tenant=tenant.code)
             call_command("load_default_lost_reasons", tenant=tenant.code)

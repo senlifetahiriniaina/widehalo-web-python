@@ -25,6 +25,7 @@ from apps.analytics.models import (
     AnFactEncaissement,
     AnFactMouvementStock,
     AnFactOrdreFabrication,
+    AnFactPaie,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -105,6 +106,27 @@ FACT_SPECS: dict[str, FactSpec] = {
             "cout_debarque_unitaire_mga",
             "quality_status",
         ),
+    ),
+    # L8 : `AnFactPaie` etait alimente par `services/refresh.py` depuis le
+    # Bloc Transverse T4, mais absent d'ici — donc jamais interrogeable,
+    # jamais agregeable, jamais rattachable a un indicateur. Un fait
+    # rafraichi que rien ne peut lire est du travail perdu a chaque
+    # execution.
+    #
+    # **Aucun axe `employe`, et c'est deliberé.** Le modele exclut deja
+    # `net_to_pay` du fait pour cloisonner la paie individuelle (P5,
+    # RG-PAY-9) ; ouvrir une ventilation par employe restituerait le COUT
+    # EMPLOYEUR nominatif, ce qui reintroduirait exactement la fuite que
+    # cette exclusion evite. Les axes s'arretent donc au temps et a la
+    # periode de paie. `detail_extra_fields` reste vide pour la meme
+    # raison : le detail d'un fait de paie est nominatif par construction.
+    "paie": FactSpec(
+        queryset_factory=lambda tenant: AnFactPaie.objects.filter(tenant=tenant),
+        value_field="gross_mga",
+        dimension_fields={
+            "temps": "dim_temps__date",
+            "periode": "period_code",
+        },
     ),
     "ordre_fabrication": FactSpec(
         queryset_factory=lambda tenant: AnFactOrdreFabrication.objects.filter(tenant=tenant),

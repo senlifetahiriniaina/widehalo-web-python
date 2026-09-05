@@ -22,7 +22,11 @@ from apps.analytics.models import (
     AnRefreshRun,
     AnWarehouseState,
 )
-from apps.analytics.services.dictionary import list_metric_history, list_metrics_for_user
+from apps.analytics.services.dictionary import (
+    available_facts,
+    list_metric_history,
+    list_metrics_for_user,
+)
 from apps.analytics.services.fact_specs import FACT_SPECS
 
 if TYPE_CHECKING:
@@ -62,6 +66,15 @@ def list_published_metrics(tenant: Tenant, user: User) -> list[dict[str, Any]]:
     ]
 
 
+def list_available_facts() -> list[dict[str, Any]]:
+    """Faits de l'entrepot interrogeables et leurs axes (L8) — primitives.
+
+    Expose `services/dictionary.py::available_facts` a l'exterieur du
+    module : un ecran de creation d'indicateur doit proposer exactement ce
+    que l'entrepot sait calculer, sans jamais recopier la liste."""
+    return available_facts()
+
+
 def get_metric_definition(tenant: Tenant, code: str) -> dict[str, Any] | None:
     """Détail d'un indicateur du dictionnaire (`None` si absent) — AUCUN
     filtrage par rôle ici (contrairement à `list_published_metrics`) :
@@ -83,6 +96,11 @@ def get_metric_definition(tenant: Tenant, code: str) -> dict[str, Any] | None:
         "maille_minimale": metric.maille_minimale,
         "statut": metric.statut,
         "version": metric.version,
+        # L8 : le fait sur lequel l'indicateur se calcule. C'est ce que
+        # `bi` lisait auparavant dans son propre dictionnaire Python fige
+        # (`metric_computers.METRIC_FACTS`), ce qui rendait tout indicateur
+        # cree a l'execution non calculable sans deploiement.
+        "fait_source": metric.fait_source,
     }
 
 

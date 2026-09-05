@@ -620,6 +620,22 @@ class AnMetricDefinition(BaseModel):
     formule = models.TextField(blank=True)
     unite = models.CharField(max_length=16, blank=True)
     module_source = models.CharField(max_length=32, blank=True)
+    # L8 — le fait de l'entrepot sur lequel cet indicateur se calcule.
+    #
+    # Cette correspondance vivait dans `apps.bi.services.metric_computers.
+    # METRIC_FACTS`, un dictionnaire Python fige : un indicateur cree a
+    # l'execution par un client, par l'ecran ou l'API, n'etait donc JAMAIS
+    # calculable sans une modification de code et un deploiement. Le
+    # dictionnaire etait « gouverne » en apparence et ferme en pratique.
+    #
+    # Le champ est valide a l'enregistrement (`services/dictionary.py::
+    # register_metric`) contre les faits reellement exposes par
+    # `services/fact_specs.py`, et `axes_autorises` contre les axes de ce
+    # fait : un indicateur ne peut pas declarer une ventilation que son
+    # fait ne sait pas produire. Vide = indicateur descriptif, non
+    # calculable — etat legitime, mais desormais SIGNALE a l'appelant au
+    # lieu d'etre silencieusement ignore (cf. `bi.services.query`).
+    fait_source = models.CharField(max_length=32, blank=True)
     axes_autorises = models.JSONField(default=list, blank=True)
     roles_autorises = models.JSONField(default=list, blank=True)
     # Grain le plus fin auquel cet indicateur peut être restitué à un rôle

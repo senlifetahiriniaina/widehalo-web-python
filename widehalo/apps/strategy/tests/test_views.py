@@ -265,6 +265,7 @@ def test_objective_activate_screen_accepts_measurable_objective(web_pilotage) ->
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         # Niveau individuel : n'importe quel role peut gerer son propre

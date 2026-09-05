@@ -36,6 +36,9 @@ def test_render_bi_report_rows_activates_tenant_and_returns_rows() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            # L8 : le fait vient desormais du dictionnaire lui-meme, plus
+            # d'une table de correspondance figee dans `bi`.
+            fait_source="vente",
             axes_autorises=["temps"],
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )

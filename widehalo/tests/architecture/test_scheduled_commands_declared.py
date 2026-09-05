@@ -68,6 +68,7 @@ _ONE_SHOT_COMMANDS: dict[str, str] = {
     ),
     # --- Referentiels ---
     "load_chart_of_accounts": _MOTIF_REFERENTIEL,
+    "load_metric_dictionary": _MOTIF_REFERENTIEL,
     "load_customization_options": _MOTIF_REFERENTIEL,
     "load_default_journals": _MOTIF_REFERENTIEL,
     "load_default_lost_reasons": _MOTIF_REFERENTIEL,

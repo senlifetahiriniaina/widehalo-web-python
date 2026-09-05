@@ -177,6 +177,7 @@ def test_compute_variance_uses_bi_governed_metric_value() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         AnFactVenteFactory(tenant=tenant, montant_ht_mga=Decimal("1200"))
@@ -226,6 +227,7 @@ def test_can_close_review_blocked_by_uncommented_significant_variance() -> None:
             code="sales.ca_ht",
             libelle="CA HT",
             module_source="sales",
+            fait_source="vente",
             statut=AnMetricDefinition.STATUT_PUBLIE,
         )
         AnFactVenteFactory(tenant=tenant, montant_ht_mga=Decimal("5000"))
