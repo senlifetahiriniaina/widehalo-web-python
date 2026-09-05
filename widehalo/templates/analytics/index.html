@@ -96,6 +96,75 @@
     </tbody>
   </table>
 
+  {% if can_edit_metrics %}
+    {# L8 : le dictionnaire cesse d'etre en lecture seule. `register_metric`
+       existait deja, aucun ecran ne l'appelait — un client ne pouvait donc
+       pas alimenter « la SEULE voie declaree d'acces aux donnees
+       decisionnelles ». Les faits et leurs axes viennent de la vue, qui les
+       lit dans `fact_specs` : jamais recopies ici. #}
+    <h2>{% trans "Ajouter ou faire evoluer un indicateur" %}</h2>
+    {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    <form method="post" action="{% url 'analytics:metric_save' %}" class="wh-panel flex flex-col gap-3">
+      {% csrf_token %}
+      <div class="grid grid-cols-2 gap-3">
+        <label>{% trans "Code" %}
+          <input type="text" name="code" required placeholder="sales.marge_brute">
+        </label>
+        <label>{% trans "Libellé" %}
+          <input type="text" name="libelle" required>
+        </label>
+        <label>{% trans "Module source" %}
+          <input type="text" name="module_source" placeholder="sales">
+        </label>
+        <label>{% trans "Unité" %}
+          <input type="text" name="unite" placeholder="MGA">
+        </label>
+      </div>
+
+      <label>{% trans "Fait de l'entrepôt (laisser vide pour un indicateur descriptif, non calculable)" %}
+        <select name="fait_source">
+          <option value="">{% trans "— aucun (descriptif) —" %}</option>
+          {% for fact in facts %}
+            <option value="{{ fact.code }}">{{ fact.code }} — {% trans "axes" %} : {{ fact.axes|join:", " }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      {# Liste complete des axes, pas seulement ceux du fait choisi : un
+         selecteur dependant exigerait du JS, et le coeur applicatif de ce
+         depot fonctionne sans. Une combinaison impossible est refusee par
+         `register_metric` avec le detail des axes disponibles. #}
+      <label>{% trans "Axes autorisés" %}
+        <select name="axes_autorises" multiple size="6">
+          {% for axis in all_axes %}<option value="{{ axis }}">{{ axis }}</option>{% endfor %}
+        </select>
+      </label>
+
+      <label>{% trans "Rôles autorisés (aucun sélectionné = visible de tous)" %}
+        <select name="roles_autorises" multiple size="6">
+          {% for role in role_codes %}<option value="{{ role }}">{{ role }}</option>{% endfor %}
+        </select>
+      </label>
+
+      <div class="grid grid-cols-2 gap-3">
+        <label>{% trans "Maille minimale (bloque la ventilation et le détail à ce grain)" %}
+          <input type="text" name="maille_minimale" placeholder="employe">
+        </label>
+        <label>{% trans "Statut" %}
+          <select name="statut">
+            {% for value, label in statut_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <label>{% trans "Formule (description humaine, jamais du code exécutable)" %}
+        <textarea name="formule" rows="2"></textarea>
+      </label>
+
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
+
   {% if all_metrics %}
     <h2>{% trans "Tous les indicateurs (y compris brouillons)" %}</h2>
     <table class="smart-table">
@@ -104,6 +173,7 @@
           <th>{% trans "Code" %}</th>
           <th>{% trans "Libellé" %}</th>
           <th>{% trans "Statut" %}</th>
+          <th>{% trans "Fait" %}</th>
           <th>{% trans "Version" %}</th>
         </tr>
       </thead>
@@ -113,6 +183,10 @@
             <td>{{ metric.code }}</td>
             <td>{{ metric.libelle }}</td>
             <td>{{ metric.get_statut_display }}</td>
+            {# Un indicateur sans fait est descriptif : il ne sera pas
+               calcule, et l'ecran doit le dire plutot que de laisser croire
+               le contraire. #}
+            <td>{% if metric.fait_source %}{{ metric.fait_source }}{% else %}<span class="badge b-warning">{% trans "non calculable" %}</span>{% endif %}</td>
             <td>{{ metric.version }}</td>
           </tr>
         {% endfor %}

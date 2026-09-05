@@ -110,6 +110,11 @@ Trois défauts réels découverts en chemin, corrigés hors chiffrage :
   défaut à `True`, et la case de l'écran est inversée (« afficher la quantité
   théorique » est désormais l'action explicite). Là encore, `tests/ui` n'avait pas été
   rejoué après L13 : le test qui l'aurait vu existait déjà.
+- **Aucun objectif stratégique ne pouvait être activé.** `activate_objective` exige un
+  résultat clé adossé à un indicateur publié du dictionnaire (STR-1) ; rien ne peuplant
+  le dictionnaire, aucun code n'existait sur aucune instance réelle. La garde était
+  verte en test — les tests enregistrant eux-mêmes l'indicateur dont ils avaient besoin
+  — et insatisfiable en production. Corrigé par **L8**.
 - **Le rebut de production n'atteignait jamais le stock.** `declare_scrap` annonçait
   depuis l'origine que le mouvement « sera branché […] une fois ces modules
   disponibles » — ils l'étaient depuis A2. Corrigé par **L12-4**.
@@ -157,7 +162,9 @@ Les deux moitiés doivent donc être traitées ensemble. Réserve écrite dans
 
 | **L12** — les égalités affirmées mais jamais prouvées | ✅ livré, 5 sprints | **≈ 24 JT au lieu de 12.** Le plan annonçait « cinq critères » là où il en listait six, et confondait STK-10 (retour visuel de scan) avec STK-12 (valeur de stock). Surtout, il supposait six tests à écrire : **quatre des six critères cachaient un défaut de production**. STK-12 : le compte de stock était débité à l'entrée ET à la sortie, l'égalité ne pouvait pas tenir. PRD-9 : le coût de clôture était pris au CUMP courant, pas à la date d'effet — laquelle n'était enregistrée nulle part. ACH-10 : le rapprochement littéral du critère est une tautologie, le périmètre a dû être corrigé. PRD-6 : le rebut n'atteignait jamais le stock, le recalcul était infaisable. PAY-10 et STK-10 n'étaient « que » des tests manquants — et STK-10 a quand même révélé un `window.alert()` bloquant sur l'écran magasinier hors ligne. |
 
-Reste donc de la Vague 1 : **L4, L5, L7, L8, L9, L10, L14, L16**.
+| **L8** — amorçage du dictionnaire d'indicateurs | ✅ livré, 4 sprints | Conforme au chiffrage (≈ 12 JT). Le plan visait juste, et l'exploration a trouvé un cran de plus : le dictionnaire n'était pas seulement vide sur une instance neuve, il était **impossible à remplir utilement** — la correspondance indicateur → fait vivait dans un dictionnaire Python de quatre entrées, donc tout indicateur créé à l'exécution était non calculable sans déploiement. Conséquence en chaîne, invisible jusqu'ici : `strategy` ne pouvait activer **aucun** objectif, sa garde STR-1 exigeant un code du dictionnaire. |
+
+Reste donc de la Vague 1 : **L4, L5, L7, L9, L10, L14, L16**.
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
