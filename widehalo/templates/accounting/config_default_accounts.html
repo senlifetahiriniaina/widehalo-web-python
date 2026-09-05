@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Comptes par défaut" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Comptes par défaut" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Comptes par défaut du tenant" %}</h1>
+  </div>
+  <p class="help-text">
+    {% blocktrans trimmed %}
+      Les automatismes — facture client, facture fournisseur, mouvement de stock,
+      clôture de caisse, écriture de paie — utilisent ces comptes. Tant qu'un rôle
+      n'est pas configuré, le compte de repli indiqué est utilisé : il est choisi
+      par type, dans l'ordre des codes.
+    {% endblocktrans %}
+  </p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <table class="smart-table">
+    <thead>
+      <tr>
+        <th>{% trans "Rôle" %}</th>
+        <th>{% trans "Compte configuré" %}</th>
+        <th>{% trans "Sinon, repli sur" %}</th>
+        <th>{% trans "Modifier" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td>
+            {% if row.account %}{{ row.account.code }} — {{ row.account.name }}
+            {% else %}<span class="text-muted">{% trans "non configuré" %}</span>{% endif %}
+          </td>
+          <td>
+            {% if row.fallback %}{{ row.fallback.code }} — {{ row.fallback.name }}
+            {% elif row.account %}—
+            {% else %}<span class="form-error">{% trans "aucun compte disponible" %}</span>{% endif %}
+          </td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="role" value="{{ row.role }}">
+              <select name="account_id">
+                <option value="">{% trans "— aucun —" %}</option>
+                {% for account in accounts %}
+                  <option value="{{ account.id }}"
+                          {% if row.account and row.account.id == account.id %}selected{% endif %}>
+                    {{ account.code }} — {{ account.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <button type="submit">{% trans "Enregistrer" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

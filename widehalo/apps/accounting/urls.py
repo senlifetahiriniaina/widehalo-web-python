@@ -28,6 +28,11 @@ urlpatterns = [
     path("config/periods/", views_config.config_periods, name="config_periods"),
     path("config/journals/", views_config.config_journals, name="config_journals"),
     path("config/accounts/", views_config.config_accounts, name="config_accounts"),
+    path(
+        "config/default-accounts/",
+        views_config.config_default_accounts,
+        name="config_default_accounts",
+    ),
     path("config/taxes/", views_config.config_taxes, name="config_taxes"),
     path(
         "config/payment-terms/",

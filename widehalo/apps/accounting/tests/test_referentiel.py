@@ -21,6 +21,10 @@ from apps.accounting.models import (
     AccFramework,
     AccTenantDefaultAccount,
 )
+from apps.accounting.services.default_accounts import (
+    ROLE_FALLBACK_TYPE,
+    resolve_default_account,
+)
 from apps.accounting.tests.factories import AccAccountFactory
 from apps.core.tests.factories import TenantFactory
 from apps.core.tests.utils import use_tenant
@@ -127,3 +131,45 @@ def test_account_mapping_is_delivered_empty() -> None:
     """Le cahier §12.2 la veut livree sans usage immediat : « son cout est
     faible maintenant et elle sera la piece centrale du deploiement OHADA »."""
     assert AccAccountMapping.objects.count() == 0
+
+
+def test_configured_default_account_wins_over_the_type_fallback() -> None:
+    """Le registre l'emporte : c'est tout l'objet de D10-2."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        fallback = AccAccountFactory(tenant=tenant, code="701", type=AccAccount.TYPE_INCOME)
+        chosen = AccAccountFactory(tenant=tenant, code="707", type=AccAccount.TYPE_INCOME)
+        assert resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_SALE_INCOME) == fallback
+        AccTenantDefaultAccount.objects.create(
+            tenant=tenant, role=AccTenantDefaultAccount.ROLE_SALE_INCOME, account=chosen
+        )
+        assert resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_SALE_INCOME) == chosen
+
+
+def test_the_type_fallback_is_deterministic() -> None:
+    """Le defaut corrige : `.first()` sans `order_by` renvoyait le compte que
+    Postgres decidait de rendre. Le repli est desormais ordonne par code."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        AccAccountFactory(tenant=tenant, code="708", type=AccAccount.TYPE_INCOME)
+        AccAccountFactory(tenant=tenant, code="701", type=AccAccount.TYPE_INCOME)
+        AccAccountFactory(tenant=tenant, code="707", type=AccAccount.TYPE_INCOME)
+        for _ in range(3):
+            resolved = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_SALE_INCOME)
+            assert resolved is not None
+            assert resolved.code == "701"
+
+
+def test_resolution_returns_none_rather_than_raising() -> None:
+    """Discipline de toute cette surface : un tenant mal configure n'est pas
+    un bug du module appelant."""
+    tenant = TenantFactory()
+    with use_tenant(tenant.id):
+        assert resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_SALE_INCOME) is None
+
+
+def test_every_role_has_a_fallback_type() -> None:
+    """Aucun role ne peut rester sans repli : un role ajoute sans entree dans
+    ROLE_FALLBACK_TYPE resoudrait silencieusement `None`."""
+    roles = {role for role, _ in AccTenantDefaultAccount.ROLE_CHOICES}
+    assert roles == set(ROLE_FALLBACK_TYPE)

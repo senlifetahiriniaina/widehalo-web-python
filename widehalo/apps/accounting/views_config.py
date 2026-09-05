@@ -24,7 +24,9 @@ from apps.accounting.models import (
     AccPaymentTermLine,
     AccPeriod,
     AccTax,
+    AccTenantDefaultAccount,
 )
+from apps.accounting.services.default_accounts import resolve_default_account
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -164,6 +166,62 @@ def config_accounts(request: HttpRequest) -> HttpResponse:
             "type_choices": AccAccount.TYPE_CHOICES,
             "error": error,
         },
+    )
+
+
+@login_required
+def config_default_accounts(request: HttpRequest) -> HttpResponse:
+    """D10-2 — comptes par defaut du tenant (cahier §13.3, ecran « Plan de
+    comptes » : « Comptes par defaut du tenant (vente, achat, TVA, client,
+    fournisseur, banque, caisse) »).
+
+    Sans cet ecran, le registre `AccTenantDefaultAccount` serait une table que
+    rien ne peut remplir — le meme defaut que le dictionnaire d'indicateurs de
+    la Phase 2, peuple nulle part hors des tests. L'ecran affiche donc aussi,
+    pour chaque role non configure, le compte sur lequel le repli par type
+    tomberait, afin que le choix implicite soit visible avant d'etre fige."""
+    tenant = resolve_tenant(request)
+    accounts = AccAccount.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    error = None
+
+    if request.method == "POST":
+        role = request.POST.get("role", "")
+        account_id = request.POST.get("account_id") or None
+        try:
+            if account_id is None:
+                AccTenantDefaultAccount.objects.filter(tenant=tenant, role=role).delete()
+            else:
+                account = accounts.get(id=account_id)
+                AccTenantDefaultAccount.objects.update_or_create(
+                    tenant=tenant, role=role, defaults={"account": account}
+                )
+        except AccAccount.DoesNotExist:
+            error = _("Compte introuvable.")
+        except (ValidationError, ValueError, IntegrityError) as exc:
+            error = str(exc)
+
+    configured = {
+        entry.role: entry.account
+        for entry in AccTenantDefaultAccount.objects.filter(tenant=tenant).select_related("account")
+    }
+    rows = []
+    for role, label in AccTenantDefaultAccount.ROLE_CHOICES:
+        account = configured.get(role)
+        rows.append(
+            {
+                "role": role,
+                "label": label,
+                "account": account,
+                # Ce que la resolution ferait aujourd'hui a defaut de
+                # configuration : le repli par type, ordonne par code.
+                "fallback": None if account is not None else resolve_default_account(tenant, role),
+            }
+        )
+
+    return render(
+        request,
+        "accounting/config_default_accounts.html",
+        {"rows": rows, "accounts": accounts, "error": error},
     )
 
 

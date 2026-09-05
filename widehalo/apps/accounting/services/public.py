@@ -52,8 +52,10 @@ from apps.accounting.models import (
     AccPaymentTerm,
     AccPeriod,
     AccTax,
+    AccTenantDefaultAccount,
 )
 from apps.accounting.services.budgets import _actual_amount
+from apps.accounting.services.default_accounts import resolve_default_account
 from apps.accounting.services.invoices import create_invoice, create_supplier_invoice
 from apps.accounting.services.landed_costs import (
     add_cost_component,
@@ -118,9 +120,7 @@ def create_customer_invoice_from_source(
     if period is None:
         return None
 
-    receivable_account = AccAccount.objects.filter(
-        tenant=tenant, type=AccAccount.TYPE_RECEIVABLE
-    ).first()
+    receivable_account = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CUSTOMER)
     if receivable_account is None:
         return None
 
@@ -133,9 +133,9 @@ def create_customer_invoice_from_source(
             account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
         if account is None:
             if default_income_account is None:
-                default_income_account = AccAccount.objects.filter(
-                    tenant=tenant, type=AccAccount.TYPE_INCOME
-                ).first()
+                default_income_account = resolve_default_account(
+                    tenant, AccTenantDefaultAccount.ROLE_SALE_INCOME
+                )
             if default_income_account is None:
                 return None
             account = default_income_account
@@ -213,7 +213,7 @@ def create_supplier_invoice_from_source(
     if period is None:
         return None
 
-    payable_account = AccAccount.objects.filter(tenant=tenant, type=AccAccount.TYPE_PAYABLE).first()
+    payable_account = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_SUPPLIER)
     if payable_account is None:
         return None
 
@@ -226,9 +226,9 @@ def create_supplier_invoice_from_source(
             account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
         if account is None:
             if default_expense_account is None:
-                default_expense_account = AccAccount.objects.filter(
-                    tenant=tenant, type=AccAccount.TYPE_EXPENSE
-                ).first()
+                default_expense_account = resolve_default_account(
+                    tenant, AccTenantDefaultAccount.ROLE_PURCHASE_EXPENSE
+                )
             if default_expense_account is None:
                 return None
             account = default_expense_account
@@ -491,15 +491,15 @@ def create_stock_movement_entry_from_source(
         if account is None:
             if amount >= 0:
                 if default_stock_account is None:
-                    default_stock_account = AccAccount.objects.filter(
-                        tenant=tenant, type=AccAccount.TYPE_STOCK
-                    ).first()
+                    default_stock_account = resolve_default_account(
+                        tenant, AccTenantDefaultAccount.ROLE_STOCK
+                    )
                 account = default_stock_account
             else:
                 if default_variance_account is None:
-                    default_variance_account = AccAccount.objects.filter(
-                        tenant=tenant, type=AccAccount.TYPE_EXPENSE
-                    ).first()
+                    default_variance_account = resolve_default_account(
+                        tenant, AccTenantDefaultAccount.ROLE_STOCK_VARIATION
+                    )
                 account = default_variance_account
         if account is None:
             return None
@@ -656,12 +656,12 @@ def create_pos_session_closing_entry_from_source(
 
     default_accounts_by_type: dict[str, AccAccount | None] = {}
 
-    def _default_account(account_type: str) -> AccAccount | None:
-        if account_type not in default_accounts_by_type:
-            default_accounts_by_type[account_type] = AccAccount.objects.filter(
-                tenant=tenant, type=account_type
-            ).first()
-        return default_accounts_by_type[account_type]
+    def _default_account(role: str, *, fallback_type: str | None = None) -> AccAccount | None:
+        if role not in default_accounts_by_type:
+            default_accounts_by_type[role] = resolve_default_account(
+                tenant, role, fallback_type=fallback_type
+            )
+        return default_accounts_by_type[role]
 
     resolved_lines: list[dict[str, Any]] = []
 
@@ -671,18 +671,18 @@ def create_pos_session_closing_entry_from_source(
         if account_id is not None:
             account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
         if account is None:
-            account_type = (
-                AccAccount.TYPE_CASH
+            role = (
+                AccTenantDefaultAccount.ROLE_CASH
                 if entry.get("default_account_type") == "cash"
-                else AccAccount.TYPE_BANK
+                else AccTenantDefaultAccount.ROLE_BANK
             )
-            account = _default_account(account_type)
+            account = _default_account(role)
         if account is None:
             return None
         resolved_lines.append({"account": account, "amount": entry["amount"], "label": label})
 
     if income_amount_mga:
-        income_account = _default_account(AccAccount.TYPE_INCOME)
+        income_account = _default_account(AccTenantDefaultAccount.ROLE_SALE_INCOME)
         if income_account is None:
             return None
         resolved_lines.append(
@@ -690,14 +690,17 @@ def create_pos_session_closing_entry_from_source(
         )
 
     if tax_amount_mga:
-        tax_account = _default_account(AccAccount.TYPE_TAX)
+        tax_account = _default_account(AccTenantDefaultAccount.ROLE_VAT)
         if tax_account is None:
             return None
         resolved_lines.append({"account": tax_account, "amount": -tax_amount_mga, "label": label})
 
     if cash_variance_mga:
         variance_account = _default_account(
-            AccAccount.TYPE_EXPENSE if cash_variance_mga < 0 else AccAccount.TYPE_INCOME
+            AccTenantDefaultAccount.ROLE_CASH_DIFFERENCE,
+            fallback_type=(
+                AccAccount.TYPE_EXPENSE if cash_variance_mga < 0 else AccAccount.TYPE_INCOME
+            ),
         )
         if variance_account is None:
             return None
@@ -817,15 +820,15 @@ def post_payroll_batch_entry_from_source(
         if account is None:
             if amount >= 0:
                 if default_expense_account is None:
-                    default_expense_account = AccAccount.objects.filter(
-                        tenant=tenant, type=AccAccount.TYPE_EXPENSE
-                    ).first()
+                    default_expense_account = resolve_default_account(
+                        tenant, AccTenantDefaultAccount.ROLE_PAYROLL_EXPENSE
+                    )
                 account = default_expense_account
             else:
                 if default_payable_account is None:
-                    default_payable_account = AccAccount.objects.filter(
-                        tenant=tenant, type=AccAccount.TYPE_PAYABLE
-                    ).first()
+                    default_payable_account = resolve_default_account(
+                        tenant, AccTenantDefaultAccount.ROLE_PAYROLL_PAYABLE
+                    )
                 account = default_payable_account
         if account is None:
             return None
