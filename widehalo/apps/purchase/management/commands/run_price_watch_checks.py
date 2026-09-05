@@ -1,14 +1,10 @@
 """Commande ops (PRC3, chantier « veille prix fournisseurs Chine/Europe »
 — cf. plan) : declenche la verification de veille prix pour tous les
-tenants. Mirroir exact de
-`apps.purchase.management.commands.run_purchase_reordering` (PU5,
-RG-PUR-3) : meme structure (boucle `Tenant.objects.all()` +
-`activate_tenant`), meme absence deliberee de cablage automatique dans un
-`Schedule`/cron — aucun mecanisme de cron n'est cable ailleurs dans le
-projet pour ce type de tache, donc aucun n'est invente ici : cette
-commande est destinee a etre invoquee par un processus ops/humain (cron
-systeme mensuel/trimestriel ou, plus tard, une entree de planification
-Django-Q2), jamais auto-enregistree.
+tenants. Meme structure que `run_purchase_reordering` (PU5, RG-PUR-3) : boucle
+`Tenant.objects.all()` + `tenant_step`. Planifiee depuis L0-3 : la cadence
+(mensuelle, 05h) est declaree dans
+`apps.purchase.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`.
 
 **Rappel de la reserve de securite** (cf. `apps.purchase.services.
 price_watch` pour le detail complet) : tant qu'aucun connecteur reel n'est

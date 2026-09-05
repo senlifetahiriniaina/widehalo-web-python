@@ -2,13 +2,11 @@
 declenche `apps.core.services.tenant_backup.run_due_tenant_backups` pour
 toutes les planifications actives echues, tous tenants confondus.
 
-**Sans cron auto-enregistre** (decision actee avec l'utilisateur) — meme
-convention exacte que tous les jobs planifies deja existants de ce depot
-(`run_sales_recurrences`, `run_purchase_reordering`,
-`run_presence_maintenance`, `run_helpdesk_sla_checks`,
-`run_report_schedules`...) : aucun mecanisme de cron n'est cable ailleurs
-dans le projet, donc aucun n'est invente ici — c'est a l'operateur
-(cron systeme/Docker) d'invoquer cette commande periodiquement.
+Planifiee depuis L0-3 : la cadence (quotidienne, 03h) est declaree dans
+`apps.core.services.scheduling_registration` et appliquee a l'ordonnanceur
+par `manage.py sync_scheduled_commands`, comme pour toutes les commandes
+periodiques du depot. C'est la planification dont l'absence ne se decouvre
+que le jour ou l'on en a besoin — d'ou son rang dans le lot L0.
 
 **Pas de boucle `Tenant.objects.all()` explicite ici** (contrairement aux
 commandes soeurs citees ci-dessus) : `run_due_tenant_backups()` itere deja

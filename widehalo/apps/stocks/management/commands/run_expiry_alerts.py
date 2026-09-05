@@ -1,14 +1,12 @@
 """Commande ops (FOR-15, cf. plan) : notifie le magasinier des lots dont
 la date limite de péremption est atteinte ou approche, pour tous les
-tenants. Mirroir exact de `apps.quality.management.commands.
-run_quality_control_checks`/`apps.purchase.management.commands.
-run_price_watch_checks` : même structure (boucle `Tenant.objects.all()`
-+ `activate_tenant`), même absence délibérée de câblage automatique dans
-un cron/Django-Q2 — aucun mécanisme de ce type n'est encore câblé
-ailleurs dans le projet pour ce genre de tâche, donc aucun n'est inventé
-ici : cette commande est destinée à être invoquée par un processus
-ops/humain (cron système, ou plus tard une entrée de planification
-Django-Q2), jamais auto-enregistrée.
+tenants. Même structure que ses commandes sœurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiée depuis L0-3 : la cadence (quotidienne, 06h) est
+déclarée dans `apps.stocks.services.scheduling_registration` et appliquée à
+l'ordonnanceur par `manage.py sync_scheduled_commands`.
+
+La déduplication de L0-1 est le préalable de cette planification : sans elle,
+le même lot périmant était renotifié à chaque passage.
 
 Nommée `run_expiry_alerts` (pas `expire_...`) pour ne pas être confondue
 avec `expire_stock_reservations.py`, déjà existante dans ce même module

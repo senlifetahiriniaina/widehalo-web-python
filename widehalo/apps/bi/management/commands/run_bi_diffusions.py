@@ -1,8 +1,9 @@
 """Commande ops (BI-7) : diffuse les rapports BI planifiés arrivés à
-échéance, pour tous les tenants. Destinée à être invoquée périodiquement
-par une tâche externe (cron système) — même discipline que
-`run_analytics_refresh`/`run_sales_recurrences` (aucune planification
-récurrente Django-Q2 n'est câblée ailleurs dans le projet)."""
+échéance, pour tous les tenants.
+
+Planifiée depuis L0-3 : la cadence (quotidienne, 06h) est déclarée dans
+`apps.bi.services.scheduling_registration` et appliquée à l'ordonnanceur par
+`manage.py sync_scheduled_commands`. Reste appelable à la main."""
 
 from __future__ import annotations
 

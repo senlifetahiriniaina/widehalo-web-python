@@ -1,8 +1,14 @@
 """Commande ops (cahier Phase 2 §12) : rafraîchit l'entrepôt en étoile pour
-tous les tenants. Destinée à être invoquée périodiquement par une tâche
-externe (cron système) — aucun mécanisme de planification récurrente
-Django-Q2 n'est câblé ailleurs dans le projet (cf. `apps.core.tasks`),
-même discipline que `run_sales_recurrences`/`run_purchase_reordering`."""
+tous les tenants.
+
+Planifiée depuis L0-3 : la cadence (quotidienne, 01h) est déclarée dans
+`apps.analytics.services.scheduling_registration` et appliquée à
+l'ordonnanceur par `manage.py sync_scheduled_commands`. Reste appelable à la
+main.
+
+C'est la commande dont l'absence de planification coûtait le plus cher : sans
+rafraîchissement, les modules BI, Forecast et Strategy restituaient des
+tableaux vides en exploitation alors que chacun passait ses tests."""
 
 from __future__ import annotations
 

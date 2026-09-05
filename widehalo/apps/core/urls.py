@@ -1,6 +1,15 @@
 from django.urls import path
 
-from apps.core.views import backup_admin, chatter, dashboard, pages, quality, risk, smart_table
+from apps.core.views import (
+    backup_admin,
+    chatter,
+    dashboard,
+    pages,
+    quality,
+    risk,
+    scheduling,
+    smart_table,
+)
 
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
@@ -45,6 +54,11 @@ urlpatterns = [
     ),
     path("backups/schedule/", backup_admin.backup_schedule_view, name="backup_schedule"),
     path("backups/reset/", backup_admin.reset_company_data, name="reset_company_data"),
+    path(
+        "settings/scheduled-commands/",
+        scheduling.scheduled_commands_view,
+        name="scheduled_commands",
+    ),
     path("risks/", risk.risk_list, name="risk_list"),
     path("risks/new/", risk.risk_create, name="risk_create"),
     path("risks/<uuid:risk_id>/", risk.risk_detail, name="risk_detail"),

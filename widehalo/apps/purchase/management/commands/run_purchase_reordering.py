@@ -1,13 +1,16 @@
 """Commande ops (§5.6.2, PU5, RG-PUR-3) : declenche le reapprovisionnement
-automatique pour tous les tenants. Mirroir exact de
-`apps.sales.management.commands.run_sales_recurrences` (S5, RG-SAL-6) :
-meme structure (boucle `Tenant.objects.all()` + `activate_tenant`), meme
-absence deliberee de cablage automatique dans `core.tasks.enqueue`/un
-`Schedule` de cron — aucun mecanisme de cron n'est encore cable ailleurs
-dans le projet pour ce type de tache (meme constat que S5), donc aucun
-n'est invente ici : cette commande est destinee a etre invoquee par un
-processus ops/humain (cron systeme ou, plus tard, une entree de
-planification Django-Q2), jamais auto-enregistree.
+automatique pour tous les tenants.
+
+Meme structure que `run_sales_recurrences` (S5, RG-SAL-6) : boucle
+`Tenant.objects.all()` + `tenant_step`. Planifiee depuis L0-3 : la cadence
+(quotidienne, 05h) est declaree dans
+`apps.purchase.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`.
+
+La deduplication de L0-1 est le prealable de cette planification : sans elle,
+chaque passage recreait une proposition et une demande d'approbation tant que
+la couverture restait sous le seuil, donc jusqu'a reception reelle des
+marchandises.
 
 Bloc F, F2 (FOR-12/FOR-13) : depuis ce sprint, `run_reordering` ne genere
 plus directement de demande d'achat — elle genere une

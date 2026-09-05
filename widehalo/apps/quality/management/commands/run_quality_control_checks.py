@@ -1,12 +1,13 @@
 """Commande ops (Bloc D, D3, QUA-9) : declenche la verification de
-controle du/en retard pour tous les tenants. Mirroir exact de
-`apps.purchase.management.commands.run_price_watch_checks` : meme
-structure (boucle `Tenant.objects.all()` + `activate_tenant`), meme
-absence deliberee de cablage automatique dans un `Schedule`/cron — aucun
-mecanisme de cron n'est cable ailleurs dans le projet pour ce type de
-tache, donc aucun n'est invente ici : cette commande est destinee a etre
-invoquee par un processus ops/humain (cron systeme, ou plus tard une
-entree de planification Django-Q2), jamais auto-enregistree."""
+controle du/en retard pour tous les tenants.
+
+Meme structure que ses commandes soeurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiee depuis L0-3 : la cadence (quotidienne, 06h) est
+declaree dans `apps.quality.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`.
+
+La deduplication de L0-1 est le prealable de cette planification : sans elle,
+le meme controle en retard etait renotifie a chaque passage."""
 
 from __future__ import annotations
 

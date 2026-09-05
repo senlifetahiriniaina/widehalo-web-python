@@ -280,38 +280,114 @@ automatiquement au redémarrage de `web`/`worker` (`docker/entrypoint.sh`) ;
 aucune étape manuelle supplémentaire n'est nécessaire pour une mise à jour de
 code standard.
 
-## 9 bis. Verrou de mise en production et tâches planifiées
+## 9 bis. Verrou de mise en production et traitements périodiques
 
-Correctifs de l'audit `docs/audit/2026-09-cahier-des-charges-v3-audit.md`
-(§9, ACC-9 et canal e-mail des notifications) :
+### 9 bis.1. Verrou de mise en production (ACC-9)
 
-- **Verrou de mise en production (cahier des charges Phase 1 §13.3,
-  ACC-9)** : avant toute mise en production commerciale, ou après toute
-  modification d'un paramètre réglementaire (`core_regulatory_parameter`),
-  exécuter :
+Correctif de l'audit `docs/audit/2026-09-cahier-des-charges-v3-audit.md`
+(§9, ACC-9) : avant toute mise en production commerciale, ou après toute
+modification d'un paramètre réglementaire (`core_regulatory_parameter`),
+exécuter :
 
-  ```bash
-  docker compose -f docker-compose.prod.yml exec web python manage.py check_regulatory_validation
-  ```
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_regulatory_validation
+```
 
-  Sort en erreur (code de retour non nul) si un paramètre actuellement
-  effectif, utilisé par un calcul actif
-  (`apps.core.services.regulatory_governance.ACTIVE_CALCULATION_PARAMETER_CODES`),
-  n'a pas encore le statut « Validé OECFM » — validation à effectuer via
-  l'admin Django (action « Valider (expert-comptable OECFM) » sur l'écran
-  `RegulatoryParameter`) avant de relancer le déploiement. Ne jamais
-  contourner cette commande au motif que le déploiement doit avancer (cf.
-  cahier §4, « Aucune hypothèse réglementaire ne peut être levée par
-  défaut »).
+Sort en erreur (code de retour non nul) si un paramètre actuellement
+effectif, utilisé par un calcul actif
+(`apps.core.services.regulatory_governance.ACTIVE_CALCULATION_PARAMETER_CODES`),
+n'a pas encore le statut « Validé OECFM » — validation à effectuer via
+l'admin Django (action « Valider (expert-comptable OECFM) » sur l'écran
+`RegulatoryParameter`) avant de relancer le déploiement. Ne jamais
+contourner cette commande au motif que le déploiement doit avancer (cf.
+cahier §4, « Aucune hypothèse réglementaire ne peut être levée par
+défaut »).
 
-- **Résumé horaire des notifications par e-mail** : comme
-  `run_tenant_backups`/`run_sales_recurrences`, **aucun cron n'est
-  enregistré automatiquement** — à planifier toutes les heures via
-  l'ordonnanceur externe du VM :
+**Cette commande ne doit jamais être planifiée** : elle échoue par
+conception, c'est un verrou d'exploitation et non un contrôle de routine.
+Un passage nocturne récurrent produirait une alerte volontaire chaque nuit
+et noierait les alertes réelles. Le garde-fou
+`tests/architecture/test_scheduled_commands_declared.py` l'inscrit
+explicitement, avec son motif, parmi les commandes non planifiables — au
+même titre que `replay_events`, qui remet `attempts = 0` avant de
+redispatcher et boucherait indéfiniment sur un évènement définitivement
+cassé.
 
-  ```bash
-  docker compose -f docker-compose.prod.yml exec web python manage.py send_grouped_notification_emails
-  ```
+### 9 bis.2. Traitements périodiques
+
+**Il n'y a plus rien à planifier à la main.** Jusqu'au lot L0, dix-neuf
+commandes se déclaraient périodiques dans leur propre docstring et aucune
+n'était appelée : ni crontab, ni unité systemd, ni service Compose, ni objet
+`Schedule` django-q2. La conséquence était invisible module par module —
+l'entrepôt analytique n'étant jamais rafraîchi, les modules BI, Forecast et
+Strategy restituaient des tableaux vides en exploitation alors que chacun
+passait ses tests.
+
+Depuis L0-3, la cadence est **déclarée par chaque module** dans son
+`services/scheduling_registration.py`, et appliquée à l'ordonnanceur par
+`sync_scheduled_commands` — invoquée automatiquement au démarrage du service
+`web` (cf. `docker-compose.prod.yml`, même emplacement et même raison que
+`bootstrap_admin` : jamais dans `docker/entrypoint.sh`, que `worker` exécute
+aussi, sous peine de planifications dupliquées). C'est le conteneur `worker`
+(`python manage.py qcluster`) qui les exécute ensuite aux heures dites.
+
+Contrôler ce qui est réellement planifié, sans rien écrire :
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py sync_scheduled_commands --list
+```
+
+Et le rejouer explicitement après une livraison qui ajoute une commande, si
+le service `web` n'a pas été recréé :
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py sync_scheduled_commands
+```
+
+La commande est idempotente : deux exécutions consécutives laissent la même
+planification. Elle supprime les planifications devenues orphelines (commande
+retirée du registre) et ne touche jamais à une planification créée à la main
+par l'exploitant — seules celles préfixées `widehalo:` lui appartiennent.
+
+**Écran de contrôle** : Paramètres → « Traitements périodiques »
+(superadministrateur uniquement) affiche, pour chaque traitement, sa dernière
+exécution, sa durée, son issue et sa prochaine échéance — et signale en rouge
+toute commande déclarée mais **non planifiée**, c'est-à-dire livrée sans que
+`sync_scheduled_commands` ait été rejouée.
+
+Les dix-neuf traitements et leur cadence :
+
+| Commande | Module | Cadence | Objet |
+|---|---|---|---|
+| `send_grouped_notification_emails` | core | chaque heure | Résumé horaire des notifications |
+| `run_helpdesk_sla_checks` | helpdesk | chaque heure | Contrôle des SLA |
+| `run_analytics_refresh` | analytics | quotidien 01h | Rafraîchissement de l'entrepôt |
+| `check_quant_consistency` | stocks | quotidien 01h | Contrôle de cohérence des quants |
+| `run_presence_maintenance` | presence | quotidien 02h | Maintenance présence |
+| `expire_stock_reservations` | stocks | quotidien 02h | Expiration des réservations |
+| `run_tenant_backups` | core | quotidien 03h | Sauvegardes de tenant |
+| `run_ai_anomaly_checks` | ai | quotidien 04h | Détection d'anomalies |
+| `purge_expired_sandboxes` | core | quotidien 05h | Purge des bacs à sable expirés |
+| `run_purchase_reordering` | purchase | quotidien 05h | Propositions de réapprovisionnement |
+| `purge_expired_report_jobs` | reporting | quotidien 05h | Purge des travaux de rapport |
+| `run_sales_recurrences` | sales | quotidien 05h | Commandes récurrentes |
+| `run_bi_diffusions` | bi | quotidien 06h | Diffusions BI planifiées |
+| `run_quality_control_checks` | quality | quotidien 06h | Contrôles qualité en retard |
+| `run_report_schedules` | reporting | quotidien 06h | Rapports planifiés |
+| `run_expiry_alerts` | stocks | quotidien 06h | Alertes de péremption |
+| `check_production_consistency` | stocks | hebdomadaire 01h | Cohérence de production |
+| `generate_ai_insights` | ai | hebdomadaire 04h | Insights proactifs |
+| `run_price_watch_checks` | purchase | mensuel 05h | Veille prix fournisseurs |
+
+Deux points de cadence qui ne sont pas des préférences :
+
+- `send_grouped_notification_emails` calcule sa fenêtre comme
+  `now − 1 h − GROUPING_WINDOW`. **Planifiée moins souvent qu'à l'heure, elle
+  laisse des notifications hors fenêtre, jamais envoyées.** L'horaire est
+  imposé par le calcul, pas choisi.
+- Les traitements lourds (entrepôt analytique, sauvegardes, contrôles de
+  cohérence) sont poussés entre 01h et 06h pour ne pas concurrencer l'usage
+  interactif.
 
 ## 10. Sauvegarde
 
@@ -338,12 +414,12 @@ jamais aux rôles `admin`/`direction` :
   `POST /api/v1/core/reset`, `GET/PUT /api/v1/core/backup-schedule`.
 - **Planification** : `manage.py run_tenant_backups` déclenche les
   sauvegardes planifiées (fréquence/rétention configurées par société,
-  écran « Planification des sauvegardes ») arrivées à échéance. **Aucun
-  cron n'est enregistré automatiquement par l'application** (même
-  convention que tous les autres jobs planifiés de ce dépôt, ex.
-  `run_sales_recurrences`) — c'est à l'opérateur d'invoquer cette commande
-  périodiquement via un ordonnanceur externe (cron système du VM, ou une
-  entrée de service planifiée côté Docker) :
+  écran « Planification des sauvegardes ») arrivées à échéance. Elle est
+  déclarée au registre des traitements périodiques (section 9 bis.2) et
+  exécutée **chaque nuit à 03h** par l'ordonnanceur — aucune entrée de cron
+  système à créer. Vérifier son état d'exécution sur l'écran Paramètres →
+  « Traitements périodiques ». Pour un déclenchement immédiat hors
+  planification :
 
   ```bash
   docker compose -f docker-compose.prod.yml exec web python manage.py run_tenant_backups

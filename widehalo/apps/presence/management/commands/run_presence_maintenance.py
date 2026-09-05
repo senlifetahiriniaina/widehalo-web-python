@@ -1,9 +1,8 @@
-"""Commande ops (PR6) : regroupe 3 taches de maintenance `presence`,
-destinee a etre invoquee periodiquement par une tache externe (cron
-systeme) — meme discipline que `apps.sales.management.commands.
-run_sales_recurrences`/`apps.purchase.management.commands.
-run_purchase_reordering` : aucun cron n'est auto-enregistre par ce lot,
-seule cette commande appelable existe.
+"""Commande ops (PR6) : regroupe 3 taches de maintenance `presence`.
+
+Planifiee depuis L0-3 : la cadence (quotidienne, 02h) est declaree dans
+`apps.presence.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`.
 
 1. RG-PRS-2 : purge la geolocalisation precise des pointages de plus de
    30 jours (`purge_expired_geolocation`), tous tenants confondus (pas de

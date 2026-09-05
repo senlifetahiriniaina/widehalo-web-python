@@ -1,13 +1,10 @@
 """Commande ops (§5.8, ST5, RG-STK-8) : expire les reservations de stock
-perimees pour tous les tenants. Mirroir exact de
-`apps.purchase.management.commands.run_purchase_reordering`/
-`apps.sales.management.commands.run_sales_recurrences` : meme structure
-(boucle `Tenant.objects.all()` + `activate_tenant`), meme absence
-deliberee de cablage automatique dans un `Schedule` de cron — aucun
-mecanisme de cron n'est encore cable ailleurs dans le projet pour ce type
-de tache, donc aucun n'est invente ici : cette commande est destinee a
-etre invoquee par un processus ops/humain (cron systeme ou, plus tard,
-une entree de planification Django-Q2), jamais auto-enregistree."""
+perimees pour tous les tenants.
+
+Meme structure que ses commandes soeurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiee depuis L0-3 : la cadence (quotidienne, 02h) est
+declaree dans `apps.stocks.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`."""
 
 from __future__ import annotations
 

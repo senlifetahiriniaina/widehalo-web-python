@@ -13,10 +13,11 @@ from apps.core.services.notifications import GROUPING_WINDOW, send_grouped_email
 class Command(BaseCommand):
     help = (
         "Envoie le resume horaire groupe des notifications par e-mail "
-        "(cahier des charges Phase 1 §9) — a planifier toutes les heures "
-        "(cron / tache planifiee, meme cadence que GROUPING_WINDOW) via "
-        "l'ordonnanceur de deploiement (cf. docs/DEPLOYMENT_HETZNER.md), "
-        "jamais depuis le cycle de requete HTTP qui cree une notification."
+        "(cahier des charges Phase 1 §9) — planifiee TOUTES LES HEURES par "
+        "le registre des traitements periodiques : la fenetre est calculee "
+        "comme `now - 1 h - GROUPING_WINDOW`, une cadence plus lache "
+        "laisserait des notifications hors fenetre, jamais envoyees. Jamais "
+        "depuis le cycle de requete HTTP qui cree une notification."
     )
 
     def handle(self, *args: object, **options: object) -> None:

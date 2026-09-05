@@ -8,8 +8,8 @@ from apps.reporting.services.scheduling import run_due_schedules
 class Command(BaseCommand):
     help = (
         "Execute les RptSchedule dont next_run_at est echue (RPT-7). "
-        "Pas de cron auto-enregistre — a invoquer periodiquement par "
-        "l'ordonnanceur systeme (ex. cron externe)."
+        "Planifiee quotidiennement (06h) par le registre des traitements "
+        "periodiques ; reste appelable a la main."
     )
 
     def handle(self, *args, **options) -> None:

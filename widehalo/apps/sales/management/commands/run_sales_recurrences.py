@@ -1,11 +1,9 @@
 """Commande ops (§5.5.3, S5, RG-SAL-6) : declenche la generation des
-commandes recurrentes arrivees a echeance, pour tous les tenants. Destinee
-a etre invoquee quotidiennement par une tache externe (cron systeme ou,
-plus tard, une entree de planification Django-Q2 — cf. docstring
-`apps.sales.services.recurrence` pour la justification du choix retenu
-dans ce lot : aucun mecanisme de cron n'est encore cable ailleurs dans le
-projet, donc aucun n'est invente ici, seule cette commande appelable
-existe).
+commandes recurrentes arrivees a echeance, pour tous les tenants.
+
+Planifiee depuis L0-3 : la cadence (quotidienne, 05h) est declaree dans
+`apps.sales.services.scheduling_registration` et appliquee a l'ordonnanceur
+par `manage.py sync_scheduled_commands`.
 
 Utilisateur "commercial" a notifier (RG-SAL-6, "notifie le commercial pour
 validation") : `generate_due_order` privilegie toujours le

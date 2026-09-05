@@ -114,3 +114,51 @@ def sync_schedules() -> dict[str, int]:
         .delete()
     )
     return {"created": created, "updated": updated, "deleted": deleted}
+
+
+def scheduled_command_status() -> list[dict[str, Any]]:
+    """Etat d'exploitation de chaque commande periodique, pour l'ecran L0-4.
+
+    Lecture seule, et **seul autre endroit** ou le contenu de la file de
+    taches est consulte : garder cette lecture ici evite qu'une vue importe
+    `django_q` et fasse echouer
+    `tests/architecture/test_no_direct_task_queue_usage.py`.
+
+    Le registre est la source de la liste, jamais la table des planifications :
+    une commande declaree mais jamais synchronisee doit apparaitre — c'est
+    precisement l'oubli que L0 corrige, et le masquer reproduirait le defaut
+    d'origine sous une autre forme."""
+    from django_q.models import Schedule, Task
+
+    from apps.core.services.scheduled_commands import list_scheduled_commands
+
+    entries = list_scheduled_commands()
+    schedules = {
+        schedule.name: schedule
+        for schedule in Schedule.objects.filter(name__startswith=_SCHEDULE_NAME_PREFIX)
+    }
+    last_task_ids = [s.task for s in schedules.values() if s.task]
+    tasks = {task.id: task for task in Task.objects.filter(id__in=last_task_ids)}
+
+    rows: list[dict[str, Any]] = []
+    for entry in entries:
+        schedule = schedules.get(f"{_SCHEDULE_NAME_PREFIX}{entry.code}")
+        task = tasks.get(schedule.task) if schedule is not None and schedule.task else None
+        duration = None
+        if task is not None and task.started and task.stopped:
+            duration = (task.stopped - task.started).total_seconds()
+        rows.append(
+            {
+                "entry": entry,
+                # `is_scheduled` a False = declaree mais jamais synchronisee :
+                # la commande ne tournera pas tant que
+                # `sync_scheduled_commands` n'a pas ete rejouee.
+                "is_scheduled": schedule is not None,
+                "next_run": schedule.next_run if schedule is not None else None,
+                "last_run": task.started if task is not None else None,
+                "duration_seconds": duration,
+                "success": task.success if task is not None else None,
+                "result": str(task.result)[:500] if task is not None else None,
+            }
+        )
+    return rows

@@ -47,9 +47,17 @@ services:
     # bootstrap_admin (idempotent) : cree admin@admin.local/admin UNE SEULE
     # FOIS sur une instance fraiche — jamais dans docker/entrypoint.sh
     # (execute aussi par `worker`), pour eviter deux executions paralleles.
+    # sync_scheduled_commands (idempotent) : aligne l'ordonnanceur sur le
+    # registre des traitements periodiques (L0-3). Ici et pas dans
+    # l'entrypoint pour la MEME raison que bootstrap_admin — deux
+    # executions concurrentes (web + worker) dupliqueraient les
+    # planifications, `django_q.Schedule.name` n'etant pas unique en base.
+    # Ici et pas dans `AppConfig.ready()` non plus : ecrire en base au
+    # chargement des applications casserait `migrate` sur une base neuve.
     command: >
       sh -c "python manage.py collectstatic --noinput &&
              python manage.py bootstrap_admin &&
+             python manage.py sync_scheduled_commands &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     volumes:
       - static_data:/app/staticfiles

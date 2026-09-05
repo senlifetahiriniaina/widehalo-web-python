@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Traitements périodiques" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'settings' %}">{% trans "Paramètres" %}</a>
+  <span>/</span> {% trans "Traitements périodiques" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Traitements périodiques" %}</h1>
+</div>
+
+{% if unscheduled_count %}
+  <p class="form-error" role="alert">
+    {% blocktrans count counter=unscheduled_count %}{{ counter }} commande déclarée n'est pas planifiée : elle ne tournera pas tant que <code>manage.py sync_scheduled_commands</code> n'aura pas été rejouée.{% plural %}{{ counter }} commandes déclarées ne sont pas planifiées : elles ne tourneront pas tant que <code>manage.py sync_scheduled_commands</code> n'aura pas été rejouée.{% endblocktrans %}
+  </p>
+{% endif %}
+{% if failed_count %}
+  <p class="form-error" role="alert">
+    {% blocktrans count counter=failed_count %}{{ counter }} traitement a échoué à sa dernière exécution.{% plural %}{{ counter }} traitements ont échoué à leur dernière exécution.{% endblocktrans %}
+  </p>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Traitement" %}</th>
+      <th scope="col">{% trans "Module" %}</th>
+      <th scope="col">{% trans "Cadence" %}</th>
+      <th scope="col">{% trans "Dernière exécution" %}</th>
+      <th scope="col">{% trans "Durée" %}</th>
+      <th scope="col">{% trans "Issue" %}</th>
+      <th scope="col">{% trans "Prochaine échéance" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <th scope="row">
+        {{ row.entry.label }}
+        <br><code>{{ row.entry.command }}</code>
+        {% if row.entry.description %}<br><small>{{ row.entry.description }}</small>{% endif %}
+      </th>
+      <td>{{ row.entry.module }}</td>
+      <td>{{ row.entry.frequency }}{% if row.entry.frequency != "hourly" %} — {{ row.entry.hour }}h{% endif %}</td>
+      <td>{% if row.last_run %}{{ row.last_run }}{% else %}{% trans "Jamais" %}{% endif %}</td>
+      <td>{% if row.duration_seconds is not None %}{{ row.duration_seconds|floatformat:1 }} s{% else %}—{% endif %}</td>
+      <td>
+        {% if row.success is None %}—
+        {% elif row.success %}{% trans "Succès" %}
+        {% else %}<span class="form-error">{% trans "Échec" %}</span>{% if row.result %}<br><small>{{ row.result }}</small>{% endif %}
+        {% endif %}
+      </td>
+      <td>
+        {% if not row.is_scheduled %}
+          <span class="form-error">{% trans "Non planifiée" %}</span>
+        {% elif row.next_run %}{{ row.next_run }}{% else %}—{% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">{% trans "Aucun traitement périodique déclaré." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p>{% blocktrans %}La cadence est déclarée par chaque module dans son <code>services/scheduling_registration.py</code> ; <code>manage.py sync_scheduled_commands</code> l'applique à l'ordonnanceur au déploiement.{% endblocktrans %}</p>
+{% endblock %}

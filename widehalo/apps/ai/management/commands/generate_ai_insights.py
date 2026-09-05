@@ -1,8 +1,8 @@
-"""Commande ops (AI5) : declenche `generate` pour tous les tenants. Meme
-discipline exacte que `apps.ai.management.commands.run_ai_anomaly_checks`
-(AI3) : AUCUN mecanisme de cron n'est cable ici ni ailleurs pour cette
-commande — seule cette commande appelable existe, un ops humain ou un
-cron externe la declenche."""
+"""Commande ops (AI5) : declenche `generate` pour tous les tenants.
+
+Planifiee depuis L0-3 : la cadence (hebdomadaire, 04h) est declaree dans
+`apps.ai.services.scheduling_registration` et appliquee a l'ordonnanceur par
+`manage.py sync_scheduled_commands`. Reste appelable a la main."""
 
 from __future__ import annotations
 

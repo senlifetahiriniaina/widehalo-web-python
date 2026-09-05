@@ -1,14 +1,11 @@
 """Commande ops (HD2, cf. plan section « SLA et escalade ») : declenche
 `sla.check_breaches`/`escalation.run_escalation_checks` pour tous les
-tenants. Mirroir exact de `apps.purchase.management.commands.
-run_purchase_reordering`/`apps.presence.management.commands.
-run_presence_maintenance` : meme structure (boucle `Tenant.objects.all()`
-+ `activate_tenant`), meme absence deliberee de cablage automatique dans
-un `Schedule`/cron — aucun mecanisme de cron n'est cable ailleurs dans le
-projet pour ce type de tache, donc aucun n'est invente ici : cette
-commande est destinee a etre invoquee par un processus ops/humain (cron
-systeme, ou plus tard une entree de planification Django-Q2), jamais
-auto-enregistree.
+tenants. Meme structure que ses commandes soeurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiee depuis L0-3 : la cadence (horaire) est declaree
+dans `apps.helpdesk.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`. La cadence horaire
+n'est pas un confort — un SLA controle une fois par jour se depasse
+silencieusement pendant vingt-trois heures.
 
 **Pas de "fallback superuser" necessaire ici** (contrairement a `apps.
 sales.management.commands.run_sales_recurrences`) : ni `check_breaches`

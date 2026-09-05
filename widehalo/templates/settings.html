@@ -71,6 +71,15 @@
       <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-download"></use></svg>
       <h3>{% trans "Sauvegarde et restauration" %}</h3>
     </a>
+    {% comment %}
+    Etat d'exploitation de l'ordonnanceur (L0-4) : meme garde stricte que
+    ci-dessus, les planifications sont globales a l'instance et non
+    rattachees a un tenant.
+    {% endcomment %}
+    <a class="card panel-body" style="flex:1; min-width:220px; display:block; text-decoration:none;" href="{% url 'scheduled_commands' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-clock"></use></svg>
+      <h3>{% trans "Traitements périodiques" %}</h3>
+    </a>
     {% endif %}
   </div>
 {% endblock %}

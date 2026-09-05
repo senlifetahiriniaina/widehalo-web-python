@@ -35,5 +35,5 @@
     <a href="{% url 'backup_list' %}">{% trans "Annuler" %}</a>
   </form>
 
-  <p>{% blocktrans %}Cette planification n'est appliquée que lorsque la commande <code>manage.py run_tenant_backups</code> est invoquée périodiquement (cron système/Docker) — aucune tâche automatique n'est enregistrée par l'application elle-même.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Cette planification est appliquée par la commande <code>manage.py run_tenant_backups</code>, déclarée au registre des traitements périodiques et exécutée chaque nuit par l'ordonnanceur.{% endblocktrans %} <a href="{% url 'scheduled_commands' %}">{% trans "Vérifier son état d'exécution" %}</a>.</p>
 {% endblock %}

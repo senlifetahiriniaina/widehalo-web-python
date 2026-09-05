@@ -1,11 +1,9 @@
 """Commande ops (§5.8, STK-2, sprint A1) : controle de coherence entre
 `StkQuant` (materialise) et l'agregat des `StkMove` (source de verite) pour
-tous les tenants. Mirroir exact de
-`apps.stocks.management.commands.check_production_consistency` (elle-meme
-mirroir de `run_purchase_reordering`/`expire_stock_reservations`) : meme
-structure (boucle `Tenant.objects.all()` + `activate_tenant`), meme absence
-deliberee de cablage automatique dans un `Schedule` de cron — un humain/ops
-declenche cette commande, jamais un mecanisme auto-enregistre."""
+tous les tenants. Meme structure que ses commandes soeurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiee depuis L0-3 : la cadence (quotidienne, 01h) est
+declaree dans `apps.stocks.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`."""
 
 from __future__ import annotations
 

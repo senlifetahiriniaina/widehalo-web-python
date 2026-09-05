@@ -1,10 +1,9 @@
 """Commande ops (§5.8, ST6, RG-STK-6) : controle de coherence
 production/stock pour tous les tenants et affiche les anomalies detectees.
-Mirroir exact de `apps.stocks.management.commands.expire_stock_reservations`
-(elle-meme mirroir de `run_purchase_reordering`/`run_sales_recurrences`) :
-meme structure (boucle `Tenant.objects.all()` + `activate_tenant`), meme
-absence deliberee de cablage automatique dans un `Schedule` de cron — un
-humain/ops declenche cette commande, jamais un mecanisme auto-enregistre."""
+Meme structure que ses commandes soeurs (boucle `Tenant.objects.all()` +
+`tenant_step`). Planifiee depuis L0-3 : la cadence (hebdomadaire, 01h) est
+declaree dans `apps.stocks.services.scheduling_registration` et appliquee a
+l'ordonnanceur par `manage.py sync_scheduled_commands`."""
 
 from __future__ import annotations
 
