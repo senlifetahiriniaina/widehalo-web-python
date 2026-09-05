@@ -36,14 +36,32 @@ discussion générique du nouveau bulletin
 par une garde RBAC dédiée réservant sa lecture au staff RH
 (`apps.payroll.services.chatter_registration.register_chatter_guards`).
 
-Portée assumée et disclosée : ce service recopie et RECALCULE les
-valeurs de l'original (reflétant par ex. une correction de présence
-saisie après coup pour les mêmes dates) plutôt que de ne calculer qu'un
-DELTA entre l'ancien et le nouveau montant — le rapprochement du delta
-avec ce qui a déjà été effectivement payé reste à la charge du
-gestionnaire de paie (hors périmètre de ce sprint, 4 JT)."""
+**Réserve levée par L14, et elle cachait un défaut d'argent.** Ce module
+annonçait comme une commodité manquante que le rectificatif « recopie et
+RECALCULE les valeurs de l'original plutôt que de ne calculer qu'un
+DELTA », le rapprochement restant « à la charge du gestionnaire de paie ».
+La conséquence réelle était autrement plus grave : le bulletin
+rectificatif est un `PayPayslip` ordinaire à l'état `computed`, donc
+`services.batches.create_batch` le ramasse dans le lot de la période
+cible, et RIEN nulle part ne lisait `rectifies`. Le lot comptabilisait
+donc un SECOND SALAIRE COMPLET, et les fichiers de paiement
+(`services/mobile_money.py`) ordonnaient un SECOND VIREMENT COMPLET — là
+où le salarié n'avait droit qu'à la différence.
+
+`regularization_movement` ci-dessous donne le montant à BOUGER : la
+différence face à l'original pour un rectificatif, la valeur pleine
+sinon. Les trois chemins d'argent (totaux du lot, écriture comptable,
+fichiers de paiement) passent par lui.
+
+Le bulletin lui-même garde ses valeurs PLEINES, et c'est voulu : un
+bulletin remis à un salarié doit porter son salaire réel, jamais un écart
+de 50 000 Ar présenté comme un brut. Le document dit ce qui est dû ;
+l'écriture et le virement disent ce qui bouge. C'est aussi la pratique
+réelle d'une régularisation de paie."""
 
 from __future__ import annotations
+
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -90,6 +108,66 @@ def _mark_regularization_computed(payslip: PayPayslip, user: User) -> None:
     jamais une simple variable locale."""
     attempt_transition(payslip, "mark_computed", user)
     payslip.save(update_fields=["state"])
+
+
+# Rubriques de retenue portant une realite comptable (les autres lignes du
+# moteur de regles sont des etapes de calcul intermediaires, cf.
+# `services/batches.py`). Declarees ICI et importees par `batches.py`
+# plutot que recopiees : la regle du delta doit s'appliquer exactement aux
+# memes rubriques que la comptabilisation, sans quoi les deux divergeraient
+# au premier ajout de rubrique.
+WITHHOLDING_CODES = ("RETENUE_ABSENCE", "RETENUE_AVANCE")
+
+# Champs monetaires d'un bulletin qui ont un sens de MOUVEMENT : ce sont
+# eux qui alimentent l'ecriture comptable (`services/batches.py`) et les
+# fichiers de paiement (`services/mobile_money.py`). `taxable_base` en est
+# volontairement absent : c'est une base de calcul, jamais un montant
+# verse ou comptabilise.
+MOVEMENT_FIELDS = (
+    "gross",
+    "social_employee",
+    "social_employer",
+    "irsa",
+    "net_to_pay",
+)
+
+
+def regularization_movement(payslip: PayPayslip, field: str) -> Decimal:
+    """Montant a BOUGER pour ce bulletin sur ce champ (PAY-9, L14).
+
+    Pour un bulletin ordinaire : la valeur pleine. Pour un RECTIFICATIF
+    (`rectifies` renseigne) : la difference face au bulletin d'origine —
+    l'original a deja ete comptabilise et paye, seul l'ecart reste du.
+
+    Une difference NEGATIVE est un cas normal et attendu (correction a la
+    baisse : trop-percu a reprendre), jamais ramenee a zero — la masquer
+    ferait disparaitre une dette du salarie envers l'employeur.
+
+    Le bulletin conserve ses valeurs pleines : cf. docstring de module
+    pour pourquoi le document et le mouvement disent deux choses
+    differentes."""
+    if field not in MOVEMENT_FIELDS:
+        raise ValueError(f"Champ non monetaire : {field!r}. Attendu parmi {MOVEMENT_FIELDS}.")
+    value: Decimal = getattr(payslip, field)
+    original = payslip.rectifies
+    if original is None:
+        return value
+    previous: Decimal = getattr(original, field)
+    return value - previous
+
+
+def regularization_withholdings(payslip: PayPayslip, *, current: Decimal) -> Decimal:
+    """Meme regle du delta, pour les retenues — qui ne sont pas
+    denormalisees sur `PayPayslip` mais sommees depuis les
+    `PayPayslipLine` par l'appelant, d'ou le parametre `current`."""
+    original = payslip.rectifies
+    if original is None:
+        return current
+    previous = sum(
+        original.lines.filter(code__in=WITHHOLDING_CODES).values_list("amount", flat=True),
+        Decimal(0),
+    )
+    return current - previous
 
 
 @transaction.atomic

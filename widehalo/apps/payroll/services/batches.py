@@ -20,6 +20,11 @@ from apps.core.services.workflow import attempt_transition
 from apps.payroll.models import PayBatch, PayPayslip, PayPeriod
 from apps.payroll.services.anomalies import Anomaly, detect_batch_anomalies
 from apps.payroll.services.periods import validate_period
+from apps.payroll.services.regularization import (
+    WITHHOLDING_CODES,
+    regularization_movement,
+    regularization_withholdings,
+)
 
 
 def create_batch(period: PayPeriod) -> PayBatch:
@@ -43,11 +48,19 @@ def create_batch(period: PayPeriod) -> PayBatch:
 
 
 def _recompute_totals(batch: PayBatch) -> dict[str, Decimal]:
+    """Totaux du lot en MOUVEMENTS (L14/PAY-9), jamais en valeurs pleines.
+
+    Un bulletin rectificatif ne compte que pour son ecart face a
+    l'original : l'original a deja ete comptabilise et paye. Sommer les
+    valeurs pleines faisait apparaitre un second salaire complet dans les
+    totaux du lot — et dans tout ce qui en decoule."""
     gross = social = net = Decimal(0)
     for payslip in batch.payslips.exclude(state=PayPayslip.STATE_CANCELLED):
-        gross += payslip.gross
-        social += payslip.social_employee + payslip.social_employer
-        net += payslip.net_to_pay
+        gross += regularization_movement(payslip, "gross")
+        social += regularization_movement(payslip, "social_employee") + regularization_movement(
+            payslip, "social_employer"
+        )
+        net += regularization_movement(payslip, "net_to_pay")
     return {"gross": gross, "social": social, "net": net}
 
 
@@ -196,19 +209,31 @@ def validate_and_post_batch(batch: PayBatch, user: User) -> PayBatch:
         # construction : `net_to_pay = gross - social_employee - irsa -
         # retenues`, donc `gross + social_employer` (debit) == `net_to_pay
         # + social_employee + irsa + social_employer + retenues` (credit).
-        retenues = sum(
-            payslip.lines.filter(code__in=["RETENUE_ABSENCE", "RETENUE_AVANCE"]).values_list(
-                "amount", flat=True
+        # L14/PAY-9 : chaque montant est un MOUVEMENT, pas une valeur
+        # pleine. Un rectificatif ne porte que son ecart face a l'original,
+        # deja comptabilise — sans quoi le lot postait un second salaire
+        # complet. L'identite algebrique reste vraie sur les ecarts (elle
+        # est lineaire), donc l'ecriture reste equilibree : verifie par
+        # `test_pay10_journal_equality.py` et par le test de delta.
+        retenues = regularization_withholdings(
+            payslip,
+            current=sum(
+                payslip.lines.filter(code__in=WITHHOLDING_CODES).values_list("amount", flat=True),
+                Decimal(0),
             ),
-            Decimal(0),
         )
+        gross = regularization_movement(payslip, "gross")
+        social_employee = regularization_movement(payslip, "social_employee")
+        social_employer = regularization_movement(payslip, "social_employer")
+        irsa = regularization_movement(payslip, "irsa")
+        net_to_pay = regularization_movement(payslip, "net_to_pay")
         entries = [
-            (payslip.gross, "Salaire brut"),
-            (payslip.social_employer, "Charges patronales (CNaPS+OSTIE)"),
-            (-payslip.net_to_pay, "Net a payer"),
-            (-payslip.social_employee, "Cotisations salariales (CNaPS+OSTIE)"),
-            (-payslip.irsa, "IRSA"),
-            (-payslip.social_employer, "Charges patronales a reverser"),
+            (gross, "Salaire brut"),
+            (social_employer, "Charges patronales (CNaPS+OSTIE)"),
+            (-net_to_pay, "Net a payer"),
+            (-social_employee, "Cotisations salariales (CNaPS+OSTIE)"),
+            (-irsa, "IRSA"),
+            (-social_employer, "Charges patronales a reverser"),
             (-retenues, "Retenues (absences/avances)"),
         ]
         for amount, label in entries:

@@ -11,6 +11,7 @@ import csv
 import io
 
 from apps.payroll.models import PayBatch, PayPayslip
+from apps.payroll.services.regularization import regularization_movement
 
 MOBILE_MONEY_FIELDNAMES = ["employee_id", "reference", "phone", "amount_mga", "label"]
 
@@ -34,7 +35,10 @@ def generate_mobile_money_transfer_file(
                 "employee_id": str(payslip.employee_id),
                 "reference": payslip.reference,
                 "phone": phone_by_employee.get(str(payslip.employee_id), ""),
-                "amount_mga": str(payslip.net_to_pay),
+                # L14/PAY-9 : le MOUVEMENT, jamais la valeur pleine. Un
+                # rectificatif ordonnait sinon un second virement complet
+                # au salarie, alors que seul l'ecart lui est du.
+                "amount_mga": str(regularization_movement(payslip, "net_to_pay")),
                 "label": f"Salaire {batch.period.code}",
             }
         )
@@ -58,7 +62,8 @@ def generate_bank_transfer_file(batch: PayBatch, *, iban_by_employee: dict[str, 
                 "employee_id": str(payslip.employee_id),
                 "reference": payslip.reference,
                 "iban": iban_by_employee.get(str(payslip.employee_id), ""),
-                "amount_mga": str(payslip.net_to_pay),
+                # L14/PAY-9 : cf. `generate_mobile_money_file` ci-dessus.
+                "amount_mga": str(regularization_movement(payslip, "net_to_pay")),
                 "label": f"Salaire {batch.period.code}",
             }
         )
