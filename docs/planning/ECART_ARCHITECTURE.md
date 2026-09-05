@@ -5,6 +5,22 @@ en réponse à l'« Action requise de Claude Code en préambule » du cahier des
 WideHalo v3 (refonte UX) : ce document remplace les hypothèses du cahier des charges
 par l'état réel, mesuré, du dépôt `widehalo-web-python`.
 
+> **Mise à jour 2026-09-05 — mesure officielle ré-exécutée, et relèvement des trois
+> plafonds.** Le compteur de `widehalo/tests/architecture/test_budget.py` a été
+> ré-exécuté ce jour, méthode inchangée du §1 : **300 modèles / 576 endpoints /
+> 240 écrans**. Le plafond d'écrans était donc atteint **exactement** (240/240, marge
+> nulle), pour la troisième saturation exacte de l'histoire du dépôt. Trois chantiers
+> engagés en avaient chacun besoin — D10 (abstraction du référentiel comptable), L0
+> (ordonnanceur) et la Vague 1 du plan de rattrapage — et le prochain gabarit ajouté
+> aurait fait échouer la construction. **Décision explicite actée avec l'utilisateur** :
+> relèvement des **trois** plafonds de **+33 %**, d'un seul mouvement — `BUDGET_MAX_MODELS`
+> 310 → **415**, `BUDGET_MAX_ENDPOINTS` 600 → **800**, `BUDGET_MAX_SCREENS` 240 → **320**
+> (`widehalo/config/settings/base.py`, commentaire justificatif sur place).
+> **Réserve** : ce relèvement ne couvre pas la Phase 4, qui projette 430 / 1 210 / 278
+> (`docs/cdc-complet/phase-4-connectivite-et-integrations.md` §11.1) — les écrans sont
+> couverts, les modèles et surtout les endpoints exigeront un second relèvement.
+> Les chiffres du §2 restent la mesure historique du 2026-09-02.
+
 > **Mise à jour 2026-09-04.** Les chiffres du §2 (254/515/218, mesurés le 2026-09-02)
 > sont **obsolètes** : depuis cette date, le dépôt a livré les modules manquants de la
 > Phase 1 officielle (POS, Simulation financière) et l'intégralité de la Phase 2

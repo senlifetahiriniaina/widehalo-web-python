@@ -409,9 +409,41 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # l'utilisateur** (meme precedent que chaque relevement precedent) :
 # relever BUDGET_MAX_MODELS a 310, marge de 20 pour l'integralite du
 # Bloc D sans avoir a re-relever a chaque sprint D1-D5.
-BUDGET_MAX_MODELS = 310
-BUDGET_MAX_ENDPOINTS = 600
-BUDGET_MAX_SCREENS = 240
+# Le plafond d'ecrans est atteint EXACTEMENT (240/240, zero marge) — mesure
+# officielle du 2026-09-05 par le compteur de `tests/architecture/
+# test_budget.py` : 300 modeles / 576 endpoints / 240 ecrans. C'est le
+# troisieme plafond a saturer exactement, apres les modeles a deux reprises.
+# Trois chantiers immediatement engages en ont chacun besoin, et le premier
+# gabarit ajoute ferait echouer la construction : D10 (abstraction du
+# referentiel comptable PCG 2005/SYSCOHADA, critere ACC-2 — ~4 modeles et
+# un ecran de parametrage des comptes par defaut du tenant), L0
+# (ordonnanceur — un ecran d'exploitation listant derniere execution, duree
+# et issue des 19 commandes periodiques) et la Vague 1 du plan de
+# rattrapage, dont quatre lots livrent au moins un gabarit (POS impression
+# de ticket, qualite liste des controles, CRM kanban et etat vide, BI
+# composition de tableau de bord). Aucune economie n'est possible ici sans
+# refaire ce que les relevements precedents ont deja refuse : fusionner des
+# ecrans distincts derriere des onglets degrade le patron "un fichier par
+# ecran" applique partout ailleurs, et fusionner des modeles de conformite
+# dans un JSONField supprime l'auditabilite ligne a ligne, precisement ce
+# que le Bloc D avait ecarte. **Decision explicite actee avec
+# l'utilisateur** (meme precedent que chaque relevement precedent, cf.
+# docstring de `tests/architecture/test_budget.py`) : relever les TROIS
+# plafonds de +33 %, d'un seul mouvement couvrant D10, L0 et l'integralite
+# de la Vague 1, plutot qu'un relevement par lot — 310 -> 415 modeles
+# (+33,9 %), 600 -> 800 endpoints (+33,3 %), 240 -> 320 ecrans (+33,3 %).
+# RESERVE A CONNAITRE AVANT LA PHASE 4 : ce relevement ne la couvre pas.
+# Le cahier des charges Phase 4 (§11.1, `docs/cdc-complet/phase-4-
+# connectivite-et-integrations.md`) projette 430 modeles / 1 210 endpoints
+# / 278 ecrans, plus deux budgets nouveaux (12 adaptateurs, 80 operations
+# publiques). Les ecrans sont donc couverts (320 > 278), mais les modeles
+# (415 < 430) et surtout les endpoints (800 < 1 210, l'ecart venant presque
+# entierement de la surface d'API publique du bloc B) exigeront un SECOND
+# relevement au demarrage de la Phase 4. Ce n'est pas un oubli : le
+# perimetre assume de celui-ci est D10 + L0 + Vague 1.
+BUDGET_MAX_MODELS = 415
+BUDGET_MAX_ENDPOINTS = 800
+BUDGET_MAX_SCREENS = 320
 
 # Chantier `projects` : configuration du connecteur IA generique
 # (`apps.core.services.ai_assistant`). Dictionnaire VIDE par defaut — le

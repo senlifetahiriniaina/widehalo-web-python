@@ -17,9 +17,9 @@ Ce dépôt suit [Conventional Commits](https://www.conventionalcommits.org/) :
   contourner un blocage ponctuel.
 - `widehalo/tests/architecture/test_budget.py` fait échouer la CI si le
   nombre de modèles/endpoints/écrans dépasse les plafonds déclarés dans
-  `widehalo/config/settings/base.py` — **310 / 600 / 240** à ce jour. Un plafond
+  `widehalo/config/settings/base.py` — **415 / 800 / 320** à ce jour. Un plafond
   ne se relève jamais sans décision explicite actée avec l'utilisateur et
-  commentée sur place (six relèvements successifs y sont documentés).
+  commentée sur place (sept relèvements successifs y sont documentés).
 
 ## Style de code
 
