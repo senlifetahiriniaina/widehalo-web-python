@@ -62,6 +62,7 @@ from apps.stocks.models import (
 from apps.stocks.services import scan
 from apps.stocks.services.abc_classification import compute_abc_classification
 from apps.stocks.services.barcodes import lookup_by_barcode
+from apps.stocks.services.expiry_alerts import list_expiring_lots
 from apps.stocks.services.inventory import (
     add_inventory_line,
     cancel_inventory,
@@ -764,7 +765,14 @@ def redistribution_view(request: HttpRequest) -> HttpResponse:
 def obsolescence_view(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     rows = dormant_stock_report(tenant)
-    return _render(request, "obsolescence", {"rows": rows})
+    # Bloc F, F4 (FOR-15) : greffe en lecture seule dans cet onglet
+    # existant plutot qu'un nouvel ecran — budget d'ecrans a 240/240,
+    # zero marge. Jamais `check_expiring_lots` (la variante notifiante,
+    # reservee a la commande planifiee `run_expiry_alerts`) : un simple
+    # affichage ne doit jamais renvoyer une notification a chaque
+    # chargement de page.
+    expiring_lots = list_expiring_lots(tenant)
+    return _render(request, "obsolescence", {"rows": rows, "expiring_lots": expiring_lots})
 
 
 # ---------------------------------------------------------------------------

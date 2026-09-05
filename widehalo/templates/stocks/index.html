@@ -650,6 +650,22 @@
         {% empty %}<tr><td colspan="5">{% trans "Aucun stock." %}</td></tr>{% endfor %}
       </tbody>
     </table>
+
+    <h2>{% trans "Lots proches de la péremption (FOR-15)" %}</h2>
+    <table class="smart-table">
+      <thead><tr><th>{% trans "Lot" %}</th><th>{% trans "Produit" %}</th><th>{% trans "Date limite" %}</th><th>{% trans "Jours restants" %}</th><th>{% trans "Quantité restante" %}</th></tr></thead>
+      <tbody>
+        {% for lot in expiring_lots %}
+          <tr>
+            <td>{{ lot.lot_name }}</td>
+            <td>{{ lot.variant_id }}</td>
+            <td>{{ lot.date_expiry|date:"d/m/Y" }}</td>
+            <td>{% if lot.days_until_expiry < 0 %}{% trans "Périmé" %}{% else %}{{ lot.days_until_expiry }} {% trans "jour(s)" %}{% endif %}</td>
+            <td>{{ lot.remaining_qty }}</td>
+          </tr>
+        {% empty %}<tr><td colspan="5">{% trans "Aucun lot proche de la péremption." %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
   {% endif %}
 
   {# --------------------------------------------------------------- #}

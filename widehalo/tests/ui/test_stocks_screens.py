@@ -286,6 +286,15 @@ def test_config_warehouses_screen_renders_and_creates(stocks_screens_setup) -> N
     assert b"WH-NEW" in response.content
 
 
+def test_obsolescence_screen_renders_expiring_lots_section(stocks_screens_setup) -> None:
+    """Bloc F, F4 (FOR-15) : greffe en lecture seule dans cet onglet
+    existant — budget d'ecrans a 240/240, zero marge."""
+    client, *_ = stocks_screens_setup
+    response = client.get("/stocks/obsolescence/")
+    assert response.status_code == 200
+    assert "péremption".encode() in response.content
+
+
 def test_reports_index_screen_renders(stocks_screens_setup) -> None:
     client, *_ = stocks_screens_setup
     response = client.get("/stocks/reports/")
