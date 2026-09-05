@@ -17,19 +17,23 @@ import pytest
 from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder, MrpSupplierEvaluation
 from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
+from apps.mrp.services.cra import create_cra, submit_cra, validate_cra
 from apps.mrp.services.public import (
     create_manufacturing_order,
     explode_material_needs,
     get_order_produced_qty,
     get_supplier_score,
     get_total_workshop_capacity,
+    get_workshop_realized_hours_series,
     list_closed_orders,
     list_closed_orders_for_warehouse,
     list_planned_orders_workload,
     list_supplier_evaluations,
+    list_workshops,
     record_supplier_evaluation,
 )
 from apps.mrp.tests.factories import (
@@ -485,3 +489,96 @@ def test_list_supplier_evaluations_returns_empty_list_without_evaluation(public_
     tenant = public_setup
     with use_tenant(tenant.id):
         assert list_supplier_evaluations(uuid.uuid4()) == []
+
+
+def test_list_workshops_excludes_subcontractors(public_setup) -> None:
+    """Bloc F, F3 (FOR-14) : meme filtre "non sous-traitant" que
+    `get_total_workshop_capacity`."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        MrpWorkshopFactory(
+            tenant=tenant, code="W1", name="Atelier 1", capacity_hours_day=Decimal("8.00")
+        )
+        MrpWorkshopFactory(
+            tenant=tenant,
+            code="W2",
+            name="Atelier Sous-traitant",
+            capacity_hours_day=Decimal("40.00"),
+            is_subcontractor=True,
+        )
+
+        workshops = list_workshops(tenant)
+
+        assert len(workshops) == 1
+        assert workshops[0]["code"] == "W1"
+        assert workshops[0]["capacity_hours_day"] == Decimal("8.00")
+
+
+def test_list_workshops_returns_empty_list_without_workshop(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert list_workshops(tenant) == []
+
+
+def test_get_workshop_realized_hours_series_sums_only_validated_cra(public_setup) -> None:
+    """Bloc F, F3 (FOR-14) : meme discipline "seul un CRA valide compte"
+    que `get_employee_cra_hours` — un CRA en brouillon n'alimente jamais
+    la serie realisee."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(
+            email="cra-realise@example.com", password="Str0ngPassw0rd!23"
+        )
+        workshop = MrpWorkshopFactory(tenant=tenant)
+        today = dt.date.today()
+
+        validated = create_cra(
+            tenant=tenant, employee=user, workshop=workshop, date=today, hours=Decimal("5")
+        )
+        submit_cra(validated, user)
+        validate_cra(validated, user)
+
+        create_cra(
+            tenant=tenant, employee=user, workshop=workshop, date=today, hours=Decimal("3")
+        )  # reste en brouillon — ne doit jamais compter.
+
+        series = get_workshop_realized_hours_series(tenant, workshop.id, periods=3)
+
+        assert len(series) == 3
+        assert series[-1]["period"] == today.replace(day=1)
+        assert series[-1]["value"] == Decimal("5")
+
+
+def test_get_workshop_realized_hours_series_includes_zero_months_without_gap(
+    public_setup,
+) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        workshop = MrpWorkshopFactory(tenant=tenant)
+
+        series = get_workshop_realized_hours_series(tenant, workshop.id, periods=6)
+
+        assert len(series) == 6
+        assert all(row["value"] == Decimal(0) for row in series)
+        assert series == sorted(series, key=lambda row: row["period"])  # plus ancien en premier
+
+
+def test_get_workshop_realized_hours_series_never_mixes_workshops(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(
+            email="cra-realise-2@example.com", password="Str0ngPassw0rd!23"
+        )
+        workshop_a = MrpWorkshopFactory(tenant=tenant)
+        workshop_b = MrpWorkshopFactory(tenant=tenant)
+        today = dt.date.today()
+
+        cra_a = create_cra(
+            tenant=tenant, employee=user, workshop=workshop_a, date=today, hours=Decimal("6")
+        )
+        submit_cra(cra_a, user)
+        validate_cra(cra_a, user)
+
+        series_b = get_workshop_realized_hours_series(tenant, workshop_b.id, periods=1)
+
+        assert series_b[0]["value"] == Decimal(0)

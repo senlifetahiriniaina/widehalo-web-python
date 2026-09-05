@@ -549,3 +549,68 @@ def get_employee_cra_hours(
         state=MrpCra.STATE_VALIDATED,
     ).aggregate(total=models.Sum("hours"))["total"]
     return total if total is not None else Decimal(0)
+
+
+def list_workshops(tenant: Tenant) -> list[dict[str, Any]]:
+    """Bloc F, F3 (FOR-14, "charge d'atelier projetée vs. réalisé") :
+    brique manquante identifiée par la recherche préalable —
+    `get_total_workshop_capacity` ci-dessus ne renvoie qu'un total
+    agrégé tous ateliers confondus ; `forecast` a besoin de la liste des
+    ateliers INDIVIDUELS (avec leur propre capacité) pour projeter une
+    charge par atelier, sans jamais importer `apps.mrp.models` (règle de
+    couplage n°1). Même filtre "non sous-traitant" que
+    `get_total_workshop_capacity` (un atelier sous-traitant n'est pas une
+    capacité de production propre au tenant).
+
+    Primitives uniquement (dicts), jamais un objet `MrpWorkshop` — même
+    discipline que `list_planned_orders_workload`."""
+    return [
+        {
+            "id": workshop.id,
+            "code": workshop.code,
+            "name": workshop.name,
+            "capacity_hours_day": workshop.capacity_hours_day,
+        }
+        for workshop in MrpWorkshop.objects.filter(tenant=tenant, is_subcontractor=False).order_by(
+            "code"
+        )
+    ]
+
+
+def get_workshop_realized_hours_series(
+    tenant: Tenant, workshop_id: Any, *, periods: int = 36
+) -> list[dict[str, Any]]:
+    """Bloc F, F3 (FOR-14) : historique mensuel des heures RÉELLEMENT
+    réalisées (`MrpCra`, `state=VALIDATED` uniquement — même discipline
+    que `get_employee_cra_hours` ci-dessus) pour UN atelier, jamais
+    groupé par employé (à la différence de
+    `apps.mrp.services.reports.cra_summary`).
+
+    Même forme de retour que `apps.analytics.services.public.
+    get_sales_value_series` (que `forecast` consomme déjà pour la série
+    de ventes) : `[{"period": date, "value": Decimal}, ...]`, les
+    `periods` derniers mois, du plus ancien au plus récent, mois sans
+    CRA validé inclus avec `value=Decimal(0)` (jamais un trou
+    silencieux) — pour que `forecast.services.engine.select_model` (déjà
+    construit pour la prévision de ventes, série-agnostique) puisse s'en
+    servir sans adaptation."""
+    current_month = dt.date.today().replace(day=1)
+    month_starts: list[dt.date] = []
+    cursor = current_month
+    for _step in range(periods):
+        month_starts.append(cursor)
+        cursor = (cursor - dt.timedelta(days=1)).replace(day=1)
+    month_starts.reverse()
+
+    results: list[dict[str, Any]] = []
+    for month_start in month_starts:
+        month_end = (month_start + dt.timedelta(days=32)).replace(day=1) - dt.timedelta(days=1)
+        total = MrpCra.objects.filter(
+            tenant=tenant,
+            workshop_id=workshop_id,
+            date__gte=month_start,
+            date__lte=month_end,
+            state=MrpCra.STATE_VALIDATED,
+        ).aggregate(total=models.Sum("hours"))["total"]
+        results.append({"period": month_start, "value": total if total is not None else Decimal(0)})
+    return results

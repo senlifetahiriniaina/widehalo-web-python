@@ -19,6 +19,7 @@ from apps.forecast.services.compute import compute_and_store_forecast
 from apps.forecast.services.history import load_series_history
 from apps.forecast.services.publication import publish
 from apps.forecast.services.treasury import project_twelve_month_cash_inflows
+from apps.forecast.services.workload_forecast import compute_workshop_workload_forecast
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
@@ -43,6 +44,11 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         context["holidays"] = ForHoliday.objects.filter(tenant=tenant).order_by("date")
     elif tab == "publications":
         context["publications"] = ForPublication.objects.filter(tenant=tenant).order_by("-version")
+    elif tab == "charge_atelier":
+        # Bloc F, F3 (FOR-14) : greffé comme onglet supplémentaire de cet
+        # écran existant plutôt qu'un nouveau gabarit — budget écrans à
+        # 240/240, zéro marge.
+        context["workload_forecast"] = compute_workshop_workload_forecast(tenant)
     else:
         context["forecasts"] = ForSeriesForecast.objects.filter(tenant=tenant).order_by(
             "dimension_type", "dimension_value", "period"

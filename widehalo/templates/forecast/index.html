@@ -15,6 +15,7 @@
   <a role="tab" class="tab {% if tab == 'tresorerie' %}tab-active{% endif %}" href="?tab=tresorerie">{% trans "Trésorerie à 12 mois" %}</a>
   <a role="tab" class="tab {% if tab == 'calendrier' %}tab-active{% endif %}" href="?tab=calendrier">{% trans "Calendrier" %}</a>
   <a role="tab" class="tab {% if tab == 'publications' %}tab-active{% endif %}" href="?tab=publications">{% trans "Publications" %}</a>
+  <a role="tab" class="tab {% if tab == 'charge_atelier' %}tab-active{% endif %}" href="?tab=charge_atelier">{% trans "Charge d'atelier" %}</a>
 </nav>
 
 {% if tab == "qualite" %}
@@ -79,6 +80,53 @@
       {% endfor %}
     </tbody>
   </table>
+
+{% elif tab == "charge_atelier" %}
+  <p>{% blocktrans %}Charge horaire d'atelier (FOR-14) : les périodes déjà échues comparent ce que le modèle retenu aurait projeté à ce qui a été réellement réalisé (CRA validés) ; les périodes à venir comparent la charge projetée à la capacité déclarée.{% endblocktrans %}</p>
+  {% for w in workload_forecast %}
+    <details>
+      <summary>
+        {{ w.workshop_code }} — {{ w.workshop_name }}
+        {% if w.selected_model %}({% trans "modèle" %} : {{ w.selected_model }}, {% trans "erreur" %} {{ w.error_mae_pct|floatformat:1 }} %){% endif %}
+      </summary>
+
+      <h3>{% trans "Historique : projeté vs. réalisé" %}</h3>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Période" %}</th><th>{% trans "Projeté (h)" %}</th><th>{% trans "Réalisé (h)" %}</th><th>{% trans "Écart" %}</th></tr></thead>
+        <tbody>
+          {% for row in w.history %}
+            <tr>
+              <td>{{ row.period|date:"m/Y" }}</td>
+              <td>{{ row.projected_hours }}</td>
+              <td>{{ row.realized_hours }}</td>
+              <td>{% if row.realized_error_pct != None %}{{ row.realized_error_pct|floatformat:1 }} %{% else %}—{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">{% trans "Historique insuffisant pour un rétrotest." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3>{% trans "Projection à venir" %}</h3>
+      <table class="smart-table">
+        <thead><tr><th>{% trans "Période" %}</th><th>{% trans "Charge projetée (h)" %}</th><th>{% trans "Capacité (h)" %}</th><th>{% trans "Charge / capacité" %}</th></tr></thead>
+        <tbody>
+          {% for row in w.forward %}
+            <tr>
+              <td>{{ row.period|date:"m/Y" }}</td>
+              <td>{{ row.projected_hours }}</td>
+              <td>{{ row.capacity_hours }}</td>
+              <td>{% if row.workload_pct != None %}{{ row.workload_pct|floatformat:1 }} %{% else %}—{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">{% trans "Aucune projection disponible." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% empty %}
+    <p>{% trans "Aucun atelier actif, ou aucun compte-rendu d'activité validé disponible pour projeter une charge." %}</p>
+  {% endfor %}
 
 {% else %}
   <table class="smart-table">

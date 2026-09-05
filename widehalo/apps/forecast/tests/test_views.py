@@ -63,6 +63,19 @@ def test_dashboard_renders_consolidated_tab(web_forecast) -> None:
     assert b"pos" in response.content
 
 
+def test_dashboard_renders_charge_atelier_tab(web_forecast) -> None:
+    """Bloc F, F3 (FOR-14) : greffe d'un nouvel onglet sur cet ecran
+    existant (budget d'ecrans a 240/240, zero marge) — verifie qu'il
+    rend bien sans erreur, y compris a vide (aucun atelier)."""
+    tenant, user = web_forecast
+    client = _client_for(tenant, user)
+
+    response = client.get("/forecast/?tab=charge_atelier", HTTP_X_TENANT_ID=str(tenant.id))
+
+    assert response.status_code == 200
+    assert b"Aucun atelier actif" in response.content
+
+
 def test_workbench_renders_history_and_forecasts(web_forecast) -> None:
     tenant, user = web_forecast
     with use_tenant(tenant.id):
