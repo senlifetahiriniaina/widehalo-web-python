@@ -29,15 +29,19 @@ def subcontracting_setup():
     tenant = Tenant.objects.create(code="STK-SUB-T", name="Stocks Subcontracting Tenant")
     with use_tenant(tenant.id):
         warehouse = create_warehouse(tenant=tenant, code="WH-SUB", name="Entrepot")
-        internal = create_location(
-            tenant=tenant, warehouse=warehouse, code="A1", name="Rayon A1"
-        )
+        internal = create_location(tenant=tenant, warehouse=warehouse, code="A1", name="Rayon A1")
         rebut = create_location(
-            tenant=tenant, warehouse=warehouse, code="REB", name="Rebut",
+            tenant=tenant,
+            warehouse=warehouse,
+            code="REB",
+            name="Rebut",
             type=StkLocation.TYPE_REBUT,
         )
         supplier = create_location(
-            tenant=tenant, warehouse=warehouse, code="FRS", name="Fournisseur",
+            tenant=tenant,
+            warehouse=warehouse,
+            code="FRS",
+            name="Fournisseur",
             type=StkLocation.TYPE_FOURNISSEUR,
         )
         variant_id = uuid.uuid4()

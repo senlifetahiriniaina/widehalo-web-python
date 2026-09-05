@@ -324,8 +324,11 @@ def test_close_order_folds_in_subcontracting_cost(real_cost_close_setup) -> None
         StkQuantFactory(tenant=tenant, variant_id=sub_variant_id, location=location, qty=Decimal(5))
 
         subcontract = send_to_subcontractor(
-            order, partner_id=uuid.uuid4(), variant_id=sub_variant_id,
-            qty=Decimal(5), price_unit=Decimal(2000),
+            order,
+            partner_id=uuid.uuid4(),
+            variant_id=sub_variant_id,
+            qty=Decimal(5),
+            price_unit=Decimal(2000),
         )
         receive_from_subcontractor(subcontract, qty_received=Decimal(5))
 
@@ -348,7 +351,9 @@ def process_bom_setup():
         workshop = MrpWorkshop.objects.create(tenant=tenant, code="ATL-PR", name="Atelier")
         component_id = uuid.uuid4()
         bom = create_bom(
-            tenant=tenant, code="BOM-PROC", product_template_id=uuid.uuid4(),
+            tenant=tenant,
+            code="BOM-PROC",
+            product_template_id=uuid.uuid4(),
             type=MrpBom.TYPE_PROCESS,
         )
         add_bom_line(bom, component_template_id=component_id, qty=Decimal(1))

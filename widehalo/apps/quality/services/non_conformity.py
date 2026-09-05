@@ -34,9 +34,7 @@ def create_non_conformity(
     `stocks.services.quality.set_quality_state` — c'est précisément le
     manque que QUA-3 demande de fermer côté `quality`."""
     if not description:
-        raise ValidationError(
-            _("Un motif est obligatoire pour ouvrir une non-conformité.")
-        )
+        raise ValidationError(_("Un motif est obligatoire pour ouvrir une non-conformité."))
     reference = next_reference(tenant, "QLT-NC", timezone.now().year)
     return QltNonConformity.objects.create(
         tenant=tenant,
@@ -54,18 +52,14 @@ def close_non_conformity(
     non_conformity: QltNonConformity, *, closed_by: User, closing_reason: str
 ) -> QltNonConformity:
     if not closing_reason:
-        raise ValidationError(
-            _("Un motif est obligatoire pour clôturer une non-conformité.")
-        )
+        raise ValidationError(_("Un motif est obligatoire pour clôturer une non-conformité."))
     if non_conformity.state == QltNonConformity.STATE_CLOSED:
         raise ValidationError(_("Cette non-conformité est déjà clôturée."))
     non_conformity.state = QltNonConformity.STATE_CLOSED
     non_conformity.closed_by = closed_by
     non_conformity.closed_at = timezone.now()
     non_conformity.closing_reason = closing_reason
-    non_conformity.save(
-        update_fields=["state", "closed_by", "closed_at", "closing_reason"]
-    )
+    non_conformity.save(update_fields=["state", "closed_by", "closed_at", "closing_reason"])
     return non_conformity
 
 

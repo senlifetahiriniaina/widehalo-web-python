@@ -60,8 +60,7 @@ def record_measurement(
 
     if not is_within:
         description = _(
-            "Mesure hors limites sur « %(point)s » : %(value)s (attendu entre "
-            "%(min)s et %(max)s)."
+            "Mesure hors limites sur « %(point)s » : %(value)s (attendu entre %(min)s et %(max)s)."
         ) % {
             "point": critical_point.name,
             "value": value,

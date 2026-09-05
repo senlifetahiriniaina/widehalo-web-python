@@ -77,9 +77,10 @@ def test_has_open_non_conformity(nc_setup) -> None:
     tenant, user = nc_setup
     with use_tenant(tenant.id):
         variant_id = uuid.uuid4()
-        assert has_open_non_conformity(
-            tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X"
-        ) is False
+        assert (
+            has_open_non_conformity(tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X")
+            is False
+        )
 
         nc = create_non_conformity(
             tenant=tenant,
@@ -88,11 +89,13 @@ def test_has_open_non_conformity(nc_setup) -> None:
             lot_variant_id=variant_id,
             lot_name="LOT-X",
         )
-        assert has_open_non_conformity(
-            tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X"
-        ) is True
+        assert (
+            has_open_non_conformity(tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X")
+            is True
+        )
 
         close_non_conformity(nc, closed_by=user, closing_reason="Corrigé")
-        assert has_open_non_conformity(
-            tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X"
-        ) is False
+        assert (
+            has_open_non_conformity(tenant=tenant, lot_variant_id=variant_id, lot_name="LOT-X")
+            is False
+        )

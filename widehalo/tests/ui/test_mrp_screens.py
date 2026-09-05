@@ -262,7 +262,9 @@ def test_output_lot_name_required_for_agroalimentaire_order() -> None:
             attributes={},
         )
         bom = create_bom(
-            tenant=tenant, code="BOM-AGRO", product_template_id=uuid.uuid4(),
+            tenant=tenant,
+            code="BOM-AGRO",
+            product_template_id=uuid.uuid4(),
             variant_id=variant.id,
         )
         add_bom_line(bom, component_template_id=uuid.uuid4(), qty=Decimal(1))

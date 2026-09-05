@@ -20,7 +20,9 @@ def test_get_variant_sector_code_returns_sector_when_spec_exists() -> None:
     with use_tenant(tenant.id):
         variant = ProductVariantFactory(tenant=tenant)
         CatalogSectorSpecFactory(
-            tenant=tenant, variant=variant, sector_code=CatalogSectorSpec.SECTOR_AGROALIMENTAIRE,
+            tenant=tenant,
+            variant=variant,
+            sector_code=CatalogSectorSpec.SECTOR_AGROALIMENTAIRE,
             attributes={},
         )
         assert get_variant_sector_code(variant.id) == "agroalimentaire"

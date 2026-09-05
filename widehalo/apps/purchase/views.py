@@ -451,7 +451,9 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
                 certificate_file = request.FILES.get("certificate_file")
                 if certificate_file is not None:
                     certificate_document = store_document(
-                        tenant=order.tenant, uploaded_file=certificate_file, uploaded_by=user,
+                        tenant=order.tenant,
+                        uploaded_file=certificate_file,
+                        uploaded_by=user,
                     )
                     certificate_document_id = certificate_document.id
                 receive_order_line(

@@ -170,9 +170,7 @@ def test_add_by_product_requires_process_type(bom_setup) -> None:
         product_id = uuid.uuid4()
         bom = create_bom(tenant=tenant, code="BOM-MFG", product_template_id=product_id)
         with pytest.raises(ValidationError):
-            add_by_product(
-                bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10")
-            )
+            add_by_product(bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10"))
 
 
 def test_add_by_product_refuses_on_active_bom(bom_setup) -> None:
@@ -184,9 +182,7 @@ def test_add_by_product_refuses_on_active_bom(bom_setup) -> None:
         )
         activate_bom(bom)
         with pytest.raises(ValidationError):
-            add_by_product(
-                bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10")
-            )
+            add_by_product(bom, component_template_id=uuid.uuid4(), expected_qty_pct=Decimal("10"))
 
 
 def test_add_by_product_declares_yield_and_coproduct_data(bom_setup) -> None:

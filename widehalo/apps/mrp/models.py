@@ -165,9 +165,7 @@ class MrpBom(BaseModel):
     # la matiere engagee — pertinent uniquement pour type=TYPE_PROCESS,
     # valide en service (`services/bom.py::add_by_product`). Consomme par
     # la reconciliation matiere de C3.
-    expected_yield_pct = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True
-    )
+    expected_yield_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     # Sous-produits/coproduits declaratifs :
     # [{"component_template_id": "<uuid>", "label": "...",
     #   "expected_qty_pct": "12.50", "is_coproduct": true}, ...].
