@@ -1,0 +1,51 @@
+{% extends "reports/_base.html" %}
+{% load i18n %}
+{# ACC-FAC — facture client (SAL-8). Ce gabarit n'existait pas : `invoice_pdf`
+   concatenait une f-string de douze lignes, sans identite du vendeur, sans
+   identite du client, sans ventilation HT/TVA/TTC — et sans echappement, donc
+   un libelle de ligne contenant du HTML se retrouvait interprete dans un
+   document declare `is_legal_document=True`. #}
+{% block title %}Facture / Invoice {{ invoice.reference }}{% endblock %}
+{% block document_title %}Facture / Invoice{% endblock %}
+{% block header_meta %}
+  <p>{{ invoice.reference }}</p>
+  <p>{% trans "Date" %} : {{ invoice.date }}</p>
+  {% if invoice.date_due %}<p>{% trans "Échéance / Due date" %} : {{ invoice.date_due }}</p>{% endif %}
+{% endblock %}
+{% block content %}
+  <p>
+    <strong>{% trans "Client / Customer" %}</strong> :
+    {% if partner_name %}{{ partner_name }}{% else %}<em>{% trans "non renseigné / not set" %}</em>{% endif %}
+  </p>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>{% trans "Libellé / Label" %}</th>
+        <th>{% trans "Montant / Amount" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in invoice_lines %}
+        <tr><td>{{ line.label }}</td><td>{{ line.amount }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2"><em>{% trans "Aucune ligne / No line" %}</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="report-table">
+    <tbody>
+      <tr><td>{% trans "Total HT / Subtotal excl. tax" %}</td><td>{{ total_untaxed }}</td></tr>
+      <tr><td>{% trans "TVA / VAT" %}</td><td>{{ total_tax }}</td></tr>
+      <tr><td><strong>{% trans "Total TTC / Total incl. tax" %}</strong></td><td><strong>{{ total_incl_tax }}</strong></td></tr>
+    </tbody>
+  </table>
+
+  {# Mentions obligatoires du tenant (SAL-8). L'en-tete de `_base.html` porte
+     deja raison sociale, adresse et NIF ; ce bloc rend les mentions libres
+     que le tenant a parametrees, sans en inventer aucune. #}
+  {% if tenant.legal_mentions %}
+    <p style="font-size:9pt;white-space:pre-line;">{{ tenant.legal_mentions }}</p>
+  {% endif %}
+{% endblock %}

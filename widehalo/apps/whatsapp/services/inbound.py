@@ -30,6 +30,24 @@ _INTENT_CHOICE_ORDER = "2"
 _INTENT_CHOICE_HUMAN = "3"
 _KNOWN_CHOICES = {_INTENT_CHOICE_SUPPORT, _INTENT_CHOICE_ORDER, _INTENT_CHOICE_HUMAN}
 
+# WA-2 (L10) : mots-cles de DESABONNEMENT. Le consentement etait revocable
+# depuis l'ecran interne uniquement : un client qui repondait « STOP » voyait
+# son message classe en reponse inconnue, son consentement restait actif, et
+# les campagnes continuaient de lui parvenir. Pire, l'operateur ne voyait
+# meme pas le « STOP » — les messages entrants etaient enregistres sans
+# tenant, donc invisibles de tous les ecrans (corrige au meme lot).
+#
+# Liste BORNEE et explicite, jamais une comprehension de langage naturel :
+# meme discipline que le menu d'intentions ci-dessus. Les variantes retenues
+# sont celles qu'un client francophone ou anglophone ecrit reellement.
+# La comparaison est insensible a la casse et aux espaces, jamais a
+# l'orthographe : « STOPPEZ » ou « je veux stopper » ne desabonnent PAS —
+# un desabonnement decide sur une approximation serait aussi grave qu'un
+# desabonnement manque.
+UNSUBSCRIBE_KEYWORDS = frozenset(
+    {"stop", "arret", "arrêt", "desabonnement", "désabonnement", "unsubscribe"}
+)
+
 
 def _open_chatter_channel(tenant: Tenant, conversation: WaConversation) -> None:
     """WA-6 : ouvre (ou reutilise) le canal chatter generique de la
@@ -84,14 +102,32 @@ def _apply_intent_choice(conversation: WaConversation, body: str) -> None:
     conversation.save(update_fields=["intent_state", "updated_at"])
 
 
+def _is_unsubscribe(body: str) -> bool:
+    return body.strip().casefold() in UNSUBSCRIBE_KEYWORDS
+
+
 def handle_inbound_message(tenant: Tenant, *, phone_number: str, body: str) -> WaConversation:
     """Point d'entree gouverne pour un message entrant DEJA journalise
     (cf. docstring de module) — met a jour la conversation (WA-7 « etat
-    visible »), ouvre le canal chatter (WA-6), et fait progresser le menu
-    d'intentions borne (WA-8)."""
+    visible »), traite un DESABONNEMENT (WA-2), ouvre le canal chatter
+    (WA-6), et fait progresser le menu d'intentions borne (WA-8).
+
+    **Le desabonnement passe avant tout le reste, et coupe court.** Un
+    client qui ecrit « STOP » ne doit pas recevoir en retour un menu
+    d'intentions : ce serait exactement le message qu'il vient de refuser.
+    On revoque, on enregistre, et on s'arrete la — ni menu, ni relance."""
     conversation = get_or_create_conversation(tenant, phone_number)
     conversation.last_inbound_at = timezone.now()
     conversation.save(update_fields=["last_inbound_at", "updated_at"])
+
+    if _is_unsubscribe(body):
+        from apps.whatsapp.services.consent import revoke_consent
+
+        conversation = revoke_consent(tenant, phone_number=phone_number)
+        # Le canal chatter reste ouvert : un desabonnement est une
+        # information que l'equipe doit voir, pas un effacement.
+        _open_chatter_channel(tenant, conversation)
+        return conversation
 
     _open_chatter_channel(tenant, conversation)
     _apply_intent_choice(conversation, body)

@@ -23,6 +23,13 @@ class Tenant(models.Model):
     code = models.CharField(max_length=32, unique=True)
     name = models.CharField(_("raison sociale"), max_length=255)
     nif = models.CharField(_("NIF"), max_length=32, blank=True)
+    # SAL-8 (L5) : mentions legales obligatoires portees par les documents
+    # legaux du tenant (facture en tete). Champ LIBRE et non pre-rempli : les
+    # mentions varient par pays, par regime fiscal et par activite, et en
+    # inventer un jeu par defaut ferait porter au produit une affirmation
+    # juridique qu'il n'est pas en position de tenir. Le gabarit ne rend ce
+    # bloc que s'il est renseigne.
+    legal_mentions = models.TextField(_("mentions légales"), blank=True)
     country_code = models.CharField(max_length=2, default="MG")
     base_currency = models.CharField(max_length=3, default="MGA")
     default_language = models.CharField(max_length=5, default="fr")

@@ -150,13 +150,35 @@ def send_whatsapp_notification(
 
 
 def record_inbound_whatsapp_message(
-    phone_number: str, body: str, provider_message_id: str
+    phone_number: str,
+    body: str,
+    provider_message_id: str,
+    *,
+    tenant_id: Any = None,
 ) -> WhatsAppMessage:
-    """Enregistre un message entrant recu via le webhook WhatsApp — le
-    rattachement a un utilisateur/tenant precis (via le numero de
-    telephone) relevera des futurs modules metier qui stockent des
-    coordonnees telephoniques (Partenaires, RH...)."""
+    """Enregistre un message entrant recu via le webhook WhatsApp.
+
+    **`tenant_id` ajoute par L10, et il corrige une fuite d'invisibilite.**
+    Cette fonction n'acceptait aucun tenant et laissait donc `tenant_id` a
+    NULL. Or l'ecran de conversation filtre
+    `WhatsAppMessage.objects.filter(tenant_id=tenant.id, ...)` : AUCUN
+    message entrant ne pouvait jamais correspondre. Ce que le client avait
+    ecrit — son choix de menu, une reclamation, une demande de
+    desabonnement — etait enregistre en base et invisible de tous les
+    ecrans, pour tous les tenants.
+
+    Le webhook gouverne resolvait pourtant le tenant douze lignes plus haut
+    avant d'appeler cette fonction sans le lui passer. La docstring
+    d'origine renvoyait le rattachement a « de futurs modules metier »
+    alors que l'appelant l'avait deja sous la main.
+
+    `tenant_id` reste optionnel : le webhook NON gouverne (aucun
+    `WHATSAPP_DEFAULT_TENANT_ID` configure) n'a effectivement aucun tenant
+    a fournir, et perdre le message serait pire que l'enregistrer
+    orphelin — mais c'est desormais un cas degrade explicite, plus le
+    comportement normal."""
     return WhatsAppMessage.objects.create(
+        tenant_id=tenant_id,
         direction=WhatsAppMessage.DIRECTION_INBOUND,
         phone_number=phone_number,
         body=body,

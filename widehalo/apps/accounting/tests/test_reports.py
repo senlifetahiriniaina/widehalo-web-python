@@ -181,9 +181,14 @@ def test_invoice_pdf_contains_reference_lines_and_total(ledger) -> None:
             text = "\n".join(page.extract_text() or "" for page in pdf.pages).replace("\n", " ")
         assert invoice.reference in text
         assert "Vente" in text
+        # « Client » vient desormais du LIBELLE du destinataire rendu par le
+        # gabarit legal, plus d'une ligne d'ecriture : la ligne de creance
+        # porte le TTC, deja rendu par le total, et l'afficher aussi en ligne
+        # le compterait deux fois aux yeux du lecteur (L5).
         assert "Client" in text
-        assert "1000.0000" in text
-        assert invoice.currency in text
+        # Regle unique de presentation de l'Ariary (`format_mga`) : « 1 000 Ar »,
+        # plus le `str(Decimal)` brut « 1000.0000 » de l'ancienne f-string.
+        assert "1 000 Ar" in text.replace("\u202f", " ").replace("\xa0", " ")
 
 
 # ---------------------------------------------------------------------------

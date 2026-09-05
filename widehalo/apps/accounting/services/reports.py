@@ -1273,24 +1273,80 @@ def analytical_income_statement(
 
 
 def invoice_pdf(invoice: AccMove) -> bytes:
-    """ACC-FAC — facture client, document PDF bilingue (FR/EN) minimal."""
+    """ACC-FAC — facture client (SAL-8), rendue par le gabarit legal partage.
+
+    **Ce que ce rendu corrige.** `invoice_pdf` concatenait une f-string de
+    douze lignes. Le document, pourtant declare `is_legal_document=True`
+    (`services/reports_registration.py`) et atteignable en deux clics depuis
+    l'ecran des rapports comme par `GET /api/accounting/invoices/{id}/pdf`,
+    ne portait NI raison sociale, NI adresse, NI NIF de l'emetteur, NI
+    identite du client (`partner_id` n'etait meme pas lu), NI ventilation
+    HT/TVA/TTC. Ce n'etait pas une facture au sens ou l'administration
+    fiscale l'entend — c'etait un releve de lignes.
+
+    Et le libelle de chaque ligne etait interpole SANS ECHAPPEMENT dans le
+    HTML : un libelle contenant du balisage se retrouvait interprete par
+    WeasyPrint, dans un document archive et immuable. Le gabarit Django
+    echappe par defaut, ce qui ferme ce chemin par construction plutot que
+    par vigilance.
+
+    **La ventilation vient des comptes, jamais d'un champ de totaux.** Un
+    `AccMove` ne porte pas de `amount_untaxed`/`amount_tax` : le HT est la
+    somme des lignes de compte de PRODUIT, la TVA celle des lignes de compte
+    de TAXE, et le TTC le total au debit (la creance client). Lire les
+    comptes plutot qu'un total denormalise garantit que le document dit ce
+    que les livres disent."""
+    from django.template.loader import render_to_string
     from weasyprint import HTML
 
-    lines_html = "".join(
-        f"<tr><td>{line.label}</td><td>{line.debit or line.credit}</td></tr>"
-        for line in invoice.lines.all()
+    from apps.core.services.branding import get_tenant_logo_data_uri
+    from apps.core.utils.formatting import format_mga
+    from apps.partners.services.public import get_partner_display_name
+
+    def money(amount: Decimal | int) -> str:
+        """Regle UNIQUE de presentation de l'Ariary (`format_mga`), appliquee
+        ici parce qu'un document legal est precisement l'endroit ou elle
+        compte. Une facture libellee dans une AUTRE devise ne passe pas par
+        cette regle — `format_mga` suffixe « Ar » en dur, l'appliquer a des
+        euros afficherait un montant faux."""
+        # `Decimal(str(...))` : un total denormalise vaut `0` (entier) tant
+        # qu'aucune ligne n'a ete ajoutee, et `format_mga` attend un Decimal.
+        # Meme coercition que le filtre `|mga` du depot.
+        value = Decimal(str(amount))
+        if invoice.currency == "MGA":
+            return format_mga(value)
+        return f"{value} {invoice.currency}"
+
+    invoice_lines = []
+    total_untaxed = Decimal(0)
+    total_tax = Decimal(0)
+    for line in invoice.lines.select_related("account").all():
+        if line.account.type == AccAccount.TYPE_INCOME:
+            total_untaxed += line.credit - line.debit
+        elif line.account.type == AccAccount.TYPE_TAX:
+            total_tax += line.credit - line.debit
+        else:
+            # Ligne de creance/contrepartie : elle porte le TTC, deja rendu
+            # par le total ci-dessous — l'afficher en ligne le compterait
+            # deux fois aux yeux du lecteur.
+            continue
+        invoice_lines.append({"label": line.label, "amount": money(line.credit or line.debit)})
+
+    html = render_to_string(
+        "reports/legal/invoice.html",
+        {
+            "invoice": invoice,
+            "invoice_lines": invoice_lines,
+            "total_untaxed": money(total_untaxed),
+            "total_tax": money(total_tax),
+            "total_incl_tax": money(invoice.total_debit),
+            "partner_name": (
+                get_partner_display_name(invoice.partner_id) if invoice.partner_id else ""
+            ),
+            "tenant": invoice.tenant,
+            "tenant_logo_data_uri": get_tenant_logo_data_uri(invoice.tenant),
+        },
     )
-    html = f"""
-    <html><head><meta charset="utf-8"></head><body>
-      <h1>Facture / Invoice {invoice.reference}</h1>
-      <p>Date : {invoice.date}</p>
-      <table border="1" cellspacing="0" cellpadding="4">
-        <thead><tr><th>Libelle / Label</th><th>Montant / Amount</th></tr></thead>
-        <tbody>{lines_html}</tbody>
-      </table>
-      <p>Total : {invoice.total_debit} {invoice.currency}</p>
-    </body></html>
-    """
     result: bytes = HTML(string=html).write_pdf()
     return result
 

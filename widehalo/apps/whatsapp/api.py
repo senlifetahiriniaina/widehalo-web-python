@@ -250,10 +250,14 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
             for message in change.get("value", {}).get("messages", []):
                 phone_number = message.get("from", "")
                 text = message.get("text", {}).get("body", "")
+                # L10 : le tenant est resolu quelques lignes plus haut — le
+                # passer ici est ce qui rend le message entrant VISIBLE sur
+                # l'ecran de conversation, qui filtre par tenant.
                 record_inbound_whatsapp_message(
                     phone_number=phone_number,
                     body=text,
                     provider_message_id=message.get("id", ""),
+                    tenant_id=tenant.id if tenant is not None else None,
                 )
                 if tenant is not None:
                     with activate_tenant(tenant.id):

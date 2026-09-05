@@ -176,6 +176,15 @@ par défaut de `.env.example`, à ajuster selon vos besoins réels (WhatsApp
 notamment, nécessite des identifiants Meta Cloud API — cf. `README.md`/le
 plan du projet).
 
+> **Si vous activez WhatsApp, renseignez aussi `WHATSAPP_DEFAULT_TENANT_ID`**
+> (L10). Sans lui, le webhook gouverné répond `{"governed": false}` pour
+> chaque message reçu : aucune conversation n'est créée, aucun canal de
+> discussion ouvert, aucun menu d'intentions envoyé, aucun consentement mis à
+> jour — y compris un « STOP ». Le module serait installé, monté, et inerte.
+> Le numéro WhatsApp étant global à l'instance, une seule instance ne dessert
+> qu'un tenant en entrée : c'est une limite connue du routage entrant, que
+> cette variable rend explicite plutôt que silencieuse.
+
 ## 7. Démarrer le déploiement
 
 ```bash
