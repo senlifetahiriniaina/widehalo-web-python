@@ -25,7 +25,7 @@ from apps.accounting.services.default_accounts import (
     ROLE_FALLBACK_TYPE,
     resolve_default_account,
 )
-from apps.accounting.tests.factories import AccAccountFactory
+from apps.accounting.tests.factories import AccAccountFactory, AccFiscalYearFactory
 from apps.core.tests.factories import TenantFactory
 from apps.core.tests.utils import use_tenant
 
@@ -173,3 +173,76 @@ def test_every_role_has_a_fallback_type() -> None:
     ROLE_FALLBACK_TYPE resoudrait silencieusement `None`."""
     roles = {role for role, _ in AccTenantDefaultAccount.ROLE_CHOICES}
     assert roles == set(ROLE_FALLBACK_TYPE)
+
+
+def test_income_statement_structure_lives_in_the_framework() -> None:
+    """D10-3 : la structure du compte de resultat est une donnee.
+
+    Les 12 postes et les 9 soldes intermediaires I a IX etaient ecrits en
+    Python (`_CR_NATURE_MAPPING` et la cascade de `income_statement`)."""
+    framework = AccFramework.objects.get(code=AccFramework.CODE_PCG2005)
+    lines = framework.statement_structure["lines"]
+    assert len([line for line in lines if line["kind"] == "poste"]) == 12
+    romans = [line["roman"] for line in lines if line.get("roman")]
+    assert romans == ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
+    # Le chiffre d'affaires reste bien agrege depuis les comptes 70x.
+    revenue = next(line for line in lines if line["key"] == "chiffre_affaires")
+    assert revenue["natural"] == "credit"
+    assert "701" in revenue["additive"]
+
+
+def test_balance_sheet_presentation_order_lives_in_the_framework() -> None:
+    """`_ASSET_TYPE_ORDER`/`_LIABILITY_TYPE_ORDER` etaient deux dictionnaires
+    de module ; ils sont desormais portes par le referentiel."""
+    framework = AccFramework.objects.get(code=AccFramework.CODE_PCG2005)
+    order = framework.statement_structure["balance_sheet_order"]
+    assert order["asset"]["asset"] == 0
+    assert order["liability"]["equity"] == 0
+
+
+def test_a_second_framework_produces_its_own_statement_without_touching_python() -> None:
+    """La preuve qui compte pour ACC-2 : changer de referentiel change l'etat
+    financier, sans qu'une ligne de Python ne bouge.
+
+    Le referentiel de demonstration ci-dessous n'est evidemment pas un plan
+    SYSCOHADA reel — l'ADR le dit — mais il suffit a prouver que la structure
+    n'est plus dans le code."""
+    from apps.accounting.services.reports import income_statement
+
+    tenant = TenantFactory(country_code="XX")
+    framework = AccFramework.objects.create(
+        code=AccFramework.CODE_SYSCOHADA_REVISE,
+        name="Referentiel de demonstration",
+        default_country_code="XX",
+        statement_structure={
+            "lines": [
+                {
+                    "kind": "poste",
+                    "key": "ventes",
+                    "label": "Ventes de marchandises",
+                    "roman": "",
+                    "natural": "credit",
+                    "additive": ["601"],
+                    "subtractive": [],
+                },
+                {
+                    "kind": "total",
+                    "key": "resultat",
+                    "label": "RESULTAT",
+                    "roman": "A",
+                    "add": ["ventes"],
+                    "sub": [],
+                },
+            ]
+        },
+    )
+    chart = AccChartOfAccounts.objects.create(
+        framework=framework, country_code="XX", name="Plan de demonstration"
+    )
+    with use_tenant(tenant.id):
+        AccAccountFactory(tenant=tenant, code="601", chart=chart)
+        fiscal_year = AccFiscalYearFactory(tenant=tenant)
+        rows = income_statement(fiscal_year)
+
+    assert [row["label"] for row in rows] == ["Ventes de marchandises", "RESULTAT"]
+    assert [row["poste"] for row in rows] == ["", "A"]

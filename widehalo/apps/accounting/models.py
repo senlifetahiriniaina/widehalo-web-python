@@ -119,6 +119,17 @@ class AccFramework(models.Model):
     bank_account_prefix = models.CharField(max_length=20, blank=True)
     cash_account_prefix = models.CharField(max_length=20, blank=True)
 
+    # Structure des etats financiers (D10-3, critere ACC-2 : « les etats
+    # financiers sont produits selon la structure du referentiel actif du
+    # tenant, jamais selon une structure codee en dur »). Deux clefs :
+    # `lines` (compte de resultat par nature — postes calcules depuis des
+    # prefixes de compte, soldes intermediaires calcules depuis les postes
+    # deja resolus, constantes) et `balance_sheet_order` (ordre de
+    # presentation actif/passif par type de compte). Remplace
+    # `reports.py::_CR_NATURE_MAPPING`, la cascade I-IX ecrite en Python, et
+    # `_ASSET_TYPE_ORDER`/`_LIABILITY_TYPE_ORDER`.
+    statement_structure = models.JSONField(default=dict, blank=True)
+
     # Classes utilisees par les classifications de `services/reports.py` :
     # compte de resultat par fonction (charges/produits) et flux de tresorerie
     # (investissement).

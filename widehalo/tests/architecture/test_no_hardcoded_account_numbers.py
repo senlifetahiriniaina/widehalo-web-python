@@ -4,21 +4,27 @@ financier n'est écrit en dur dans le code applicatif. » Ecart confirme par
 l'audit (docs/audit/2026-09-cahier-des-charges-v3-audit.md, ACC-2) : ce
 test n'existait pas.
 
-**Etat reel du depot au moment de ce correctif** (a ne pas travestir) :
-la resolution des comptes par defaut utilises par les automatismes
-(client, vente, TVA, stock...) se fait deja proprement, via
-`AccAccount.type` (`apps.accounting.services.public.
-create_customer_invoice_from_source` et consorts, `AccAccount.objects.
-filter(tenant=..., type=AccAccount.TYPE_RECEIVABLE/...)`) — AUCUN numero
-de compte litteral dans ce chemin. Les deux seuls foyers reels de numeros
-PCG 2005 codes en dur sont documentes et confines a `ACCOUNTING_FILES_
-ALLOWED_TO_HARDCODE_PCG_CODES` ci-dessous ; l'abstraction complete
-(table de comptes par defaut versionnee, a la maniere de
-`core_regulatory_parameter`) reste un chantier plus large que cette
-correction ponctuelle (cf. §11 recommandation de l'audit) — ce test ne
-pretend PAS le resoudre, il EMPECHE la dispersion de nouveaux numeros
-codes en dur ailleurs dans le module pendant que ce chantier plus large
-n'est pas encore engage."""
+**Etat du depot depuis le sprint D10-3** : la structure des etats
+financiers a quitte le code. `services/reports.py` portait la table de
+passage `_CR_NATURE_MAPPING` (12 postes, 61 prefixes de compte
+« retranscrits verbatim de l'Annexe II du PCG 2005 ») et la cascade des
+neuf soldes intermediaires ; l'une et l'autre sont desormais des donnees
+du referentiel (`AccFramework.statement_structure`), lues par
+`income_statement`. **Son exemption est donc retiree de la liste
+ci-dessous** — c'est precisement ce que le test d'obsolescence a signale
+des que la table a disparu.
+
+La resolution des comptes par defaut, elle, passe depuis D10-2 par le
+registre `AccTenantDefaultAccount` puis, a defaut, par `AccAccount.type` :
+aucun numero litteral dans ce chemin non plus.
+
+Ce test ne pretend toujours pas couvrir tout ACC-2 a lui seul — il
+n'inspecte que les litteraux CHAINE de 3 a 6 chiffres de `apps/accounting`,
+hors `migrations/`, `tests/`, `fixtures/` et `management/`. Trois angles
+morts subsistent et sont traites au sprint D10-6 : les codes a 1-2
+chiffres (les prefixes « 76 »/« 77 » de `services/ircm.py`), les litteraux
+ENTIERS (`account_class=6`), et le repertoire `management/`, ou
+`seed_accounting.py` cree encore des comptes par leur numero."""
 
 from __future__ import annotations
 
@@ -32,16 +38,18 @@ _PCG_ACCOUNT_CODE_PATTERN = re.compile(r"^\d{3,6}$")
 
 # Chaque entree DOIT rester documentee dans le fichier lui-meme (pas
 # seulement ici) — cf. `SUSPENSE_ACCOUNT_CODE`/table `_DEFAULT_JOURNALS` de
-# `chart_of_accounts.py`, la table de classification de
-# `reports.py::income_statement_by_function`, et l'exemple illustratif de
+# `chart_of_accounts.py` (dont le sprint D10-4 fera des attributs du
+# referentiel), et l'exemple illustratif de
 # `views_imports.py::download_chart_of_accounts_template`/
 # `download_cash_journal_template` (une valeur d'EXEMPLE affichee dans un
 # modele XLSX telechargeable pour guider l'utilisateur qui le remplit —
-# jamais lue ni utilisee par un automatisme, contrairement aux deux autres
-# entrees de ce registre).
+# jamais lue ni utilisee par un automatisme, contrairement a l'autre
+# entree de ce registre).
+#
+# `services/reports.py` a quitte cette liste au sprint D10-3, la structure
+# des etats financiers etant desormais portee par `AccFramework`.
 ACCOUNTING_FILES_ALLOWED_TO_HARDCODE_PCG_CODES = {
     "services/chart_of_accounts.py",
-    "services/reports.py",
     "views_imports.py",
 }
 

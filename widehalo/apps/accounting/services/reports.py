@@ -36,6 +36,7 @@ from apps.accounting.models import (
     AccMoveLine,
     AccProvision,
 )
+from apps.accounting.services.framework import framework_for_tenant
 from apps.core.models.tenant import Tenant
 
 
@@ -144,6 +145,7 @@ def journal_report(journal: AccJournal, fiscal_year: AccFiscalYear) -> list[dict
 # `sales.services.invoicing._FULLY_INVOICED_TOLERANCE_MGA`.
 _BALANCE_TOLERANCE_MGA = Decimal("0.01")
 
+
 # ACC-BIL (§1.10.1 du document annexe) : ordre de presentation a l'actif et
 # au passif, par type de compte, a l'interieur de chaque bloc courant/non
 # courant. Approximation assumee : le CDC ne distingue les types de compte
@@ -152,20 +154,17 @@ _BALANCE_TOLERANCE_MGA = Decimal("0.01")
 # fournisseurs/autres-dettes — la sous-distinction fine du §1.10.1 n'est
 # donc pas reconstructible sans un champ supplementaire ; on ordonne au
 # niveau de granularite disponible.
-_ASSET_TYPE_ORDER = {
-    AccAccount.TYPE_ASSET: 0,  # immobilisations incorporelles/corporelles/financieres
-    AccAccount.TYPE_TAX: 1,  # actifs d'impot (lignes tax a solde debiteur)
-    AccAccount.TYPE_STOCK: 2,  # stocks
-    AccAccount.TYPE_RECEIVABLE: 3,  # clients et comptes rattaches
-    AccAccount.TYPE_BANK: 4,  # tresorerie et equivalents
-    AccAccount.TYPE_CASH: 4,
-}
-_LIABILITY_TYPE_ORDER = {
-    AccAccount.TYPE_EQUITY: 0,  # capitaux propres
-    AccAccount.TYPE_LIABILITY: 1,  # passifs financiers / provisions
-    AccAccount.TYPE_PAYABLE: 2,  # fournisseurs et comptes rattaches / autres dettes
-    AccAccount.TYPE_TAX: 3,  # passifs d'impot (lignes tax a solde crediteur)
-}
+def _statement_order(framework: Any, side: str) -> dict[str, int]:
+    """Ordre de presentation d'un cote du bilan, par type de compte.
+
+    D10-3 : lu dans le referentiel (`statement_structure["balance_sheet_order"]`)
+    plutot que fige dans deux dictionnaires de module. Un referentiel sans
+    ordre declare produit un regroupement stable mais non ordonne — c'est un
+    cas de configuration incomplete, pas une structure PCG de repli."""
+    if framework is None:
+        return {}
+    order: dict[str, dict[str, int]] = framework.statement_structure.get("balance_sheet_order", {})
+    return order.get(side, {})
 
 
 def balance_sheet(fiscal_year: AccFiscalYear, *, as_of_date: Any = None) -> dict[str, Any]:
@@ -254,11 +253,14 @@ def balance_sheet(fiscal_year: AccFiscalYear, *, as_of_date: Any = None) -> dict
             # — ils ne sont donc jamais presentes directement au bilan ici.
             continue
 
+    framework = framework_for_tenant(fiscal_year.tenant)
+    asset_order = _statement_order(framework, "asset")
+    liability_order = _statement_order(framework, "liability")
     for bucket, order_map in (
-        (actif_courant, _ASSET_TYPE_ORDER),
-        (actif_non_courant, _ASSET_TYPE_ORDER),
-        (passif_courant, _LIABILITY_TYPE_ORDER),
-        (passif_non_courant, _LIABILITY_TYPE_ORDER),
+        (actif_courant, asset_order),
+        (actif_non_courant, asset_order),
+        (passif_courant, liability_order),
+        (passif_non_courant, liability_order),
     ):
         bucket.sort(key=lambda r: (order_map.get(r["_type"], 99), r["code"]))
         for row in bucket:
@@ -276,124 +278,6 @@ def balance_sheet(fiscal_year: AccFiscalYear, *, as_of_date: Any = None) -> dict
         },
         "balanced": balanced,
     }
-
-
-# ACC-CR (§1.10.2 du document annexe, Art. 132-1 a 132-5, presentation Titre
-# XII.32) — table de passage comptes -> postes retranscrite VERBATIM depuis
-# la table du document annexe (Annexe II du PCG 2005). Chaque entree porte
-# les comptes sources ("additive") et les elements soustractifs
-# ("subtractive") de la colonne correspondante du document ; `natural`
-# indique le sens naturel du poste (`"credit"` pour un poste de produit,
-# `"debit"` pour un poste de charge) — les comptes `subtractive` sont
-# toujours evalues dans le sens OPPOSE de `natural` (ce sont par construction
-# des comptes contraires : rabais/ristournes obtenus sur achats, etc.).
-_CR_NATURE_MAPPING: list[dict[str, Any]] = [
-    # Ligne "Chiffre d'affaires" : comptes 701 a 708, 7091 a 7098 (additifs).
-    {
-        "label": "Chiffre d'affaires",
-        "natural": "credit",
-        "additive": (
-            "701",
-            "702",
-            "703",
-            "704",
-            "705",
-            "706",
-            "707",
-            "708",
-            "7091",
-            "7092",
-            "7093",
-            "7094",
-            "7095",
-            "7096",
-            "7097",
-            "7098",
-        ),
-        "subtractive": (),
-    },
-    # Ligne "Production stockee" : 713 (credit), 714 additifs ; 713 (debit)
-    # soustractif — nette automatiquement par le solde credit-debit de 713.
-    {
-        "label": "Production stockee",
-        "natural": "credit",
-        "additive": ("713", "714"),
-        "subtractive": (),
-    },
-    # Ligne "Production immobilisee" : 721, 722 additifs.
-    {
-        "label": "Production immobilisee",
-        "natural": "credit",
-        "additive": ("721", "722"),
-        "subtractive": (),
-    },
-    # Ligne "Achats consommes" : 601 a 608 (dont 603 debit) additifs ; 603
-    # (credit, netted dans le solde 601-608) et 6091-6098 soustractifs.
-    {
-        "label": "Achats consommes",
-        "natural": "debit",
-        "additive": ("601", "602", "603", "604", "605", "606", "607", "608"),
-        "subtractive": ("6091", "6092", "6093", "6094", "6095", "6096", "6097", "6098"),
-    },
-    # Ligne "Subvention d'exploitation" : 741, 748 additifs.
-    {
-        "label": "Subvention d'exploitation",
-        "natural": "credit",
-        "additive": ("741", "748"),
-        "subtractive": (),
-    },
-    # Ligne "Charges de personnel" : 641, 644-648 additifs.
-    {
-        "label": "Charges de personnel",
-        "natural": "debit",
-        "additive": ("641", "644", "645", "646", "647", "648"),
-        "subtractive": (),
-    },
-    # Ligne "Impots, taxes et versements assimiles" : 631, 635, 638 additifs.
-    {
-        "label": "Impots, taxes et versements assimiles",
-        "natural": "debit",
-        "additive": ("631", "635", "638"),
-        "subtractive": (),
-    },
-    # Ligne "Autres produits operationnels" : 751-758 additifs.
-    {
-        "label": "Autres produits operationnels",
-        "natural": "credit",
-        "additive": ("751", "752", "753", "754", "755", "756", "757", "758"),
-        "subtractive": (),
-    },
-    # Ligne "(Autres charges operationnelles, dotations aux amortissements
-    # et provisions)" : soustractif 68x uniquement (poste entierement une
-    # charge, sources vides dans le document).
-    {
-        "label": "Dotations aux amortissements et provisions",
-        "natural": "debit",
-        "additive": ("68",),
-        "subtractive": (),
-    },
-    # Ligne "Produits financiers" : 76x, 77x additifs.
-    {
-        "label": "Produits financiers",
-        "natural": "credit",
-        "additive": ("76", "77"),
-        "subtractive": (),
-    },
-    # Ligne "Charges financieres" : soustractif 66x, 67x.
-    {
-        "label": "Charges financieres",
-        "natural": "debit",
-        "additive": ("66", "67"),
-        "subtractive": (),
-    },
-    # Ligne "Impot sur les resultats" : soustractif 69x.
-    {
-        "label": "Impot sur les resultats",
-        "natural": "debit",
-        "additive": ("69",),
-        "subtractive": (),
-    },
-]
 
 
 def _account_balances(fiscal_year: AccFiscalYear) -> dict[str, tuple[Decimal, Decimal]]:
@@ -429,93 +313,60 @@ def _sum_natural(
 def _poste_amount(balances: dict[str, tuple[Decimal, Decimal]], entry: dict[str, Any]) -> Decimal:
     natural = entry["natural"]
     opposite = "debit" if natural == "credit" else "credit"
-    return _sum_natural(balances, entry["additive"], natural) - _sum_natural(
-        balances, entry["subtractive"], opposite
+    # `tuple(...)` obligatoire : depuis D10-3 les prefixes viennent du JSON du
+    # referentiel, donc sous forme de liste, et `str.startswith` n'accepte
+    # qu'une chaine ou un tuple de chaines.
+    return _sum_natural(balances, tuple(entry.get("additive", ())), natural) - _sum_natural(
+        balances, tuple(entry.get("subtractive", ())), opposite
     )
 
 
 def income_statement(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:
-    """ACC-CR — compte de resultat par nature (§1.10.2 du document annexe),
-    presentation "en liste" avec soldes intermediaires en cascade (I a IX),
-    calculee directement depuis `_CR_NATURE_MAPPING` (table de passage
-    comptes -> postes transcrite du document annexe)."""
+    """ACC-CR — compte de resultat par nature, presentation « en liste » avec
+    soldes intermediaires en cascade.
+
+    D10-3 : la structure n'est plus ecrite en Python. Elle est lue dans
+    `AccFramework.statement_structure["lines"]` du referentiel actif du tenant
+    (cahier §13.3 : « les etats financiers sont produits selon la structure du
+    referentiel actif du tenant, jamais selon une structure codee en dur »).
+
+    Trois natures de ligne, evaluees dans l'ordre de la liste :
+
+    - `poste` : montant agrege depuis des prefixes de compte (`additive`
+      moins `subtractive`, ce dernier evalue dans le sens oppose de
+      `natural`) — c'est l'ancien `_CR_NATURE_MAPPING` ;
+    - `total` : solde intermediaire, somme des lignes `add` moins les lignes
+      `sub`, toutes deja resolues plus haut — c'est l'ancienne cascade I a IX ;
+    - `constant` : valeur fixe, pour une ligne que le referentiel affiche sans
+      lui rattacher de comptes (les elements extraordinaires du PCG 2005, dont
+      l'Annexe II ne fournit aucune plage).
+
+    Retourne une liste vide si le tenant n'a pas de referentiel resolu : meme
+    discipline que le reste de cette surface, aucune exception pour une
+    configuration absente."""
+    framework = framework_for_tenant(fiscal_year.tenant)
+    lines: list[dict[str, Any]] = []
+    if framework is not None:
+        lines = framework.statement_structure.get("lines", [])
+    if not lines:
+        return []
+
     balances = _account_balances(fiscal_year)
-    postes = {entry["label"]: _poste_amount(balances, entry) for entry in _CR_NATURE_MAPPING}
-
-    chiffre_affaires = postes["Chiffre d'affaires"]
-    production_stockee = postes["Production stockee"]
-    production_immobilisee = postes["Production immobilisee"]
-    production_exercice = chiffre_affaires + production_stockee + production_immobilisee
-
-    achats_consommes = postes["Achats consommes"]
-    consommation_exercice = achats_consommes
-
-    valeur_ajoutee = production_exercice - consommation_exercice
-
-    subvention_exploitation = postes["Subvention d'exploitation"]
-    charges_personnel = postes["Charges de personnel"]
-    impots_taxes = postes["Impots, taxes et versements assimiles"]
-    excedent_brut = valeur_ajoutee + subvention_exploitation - charges_personnel - impots_taxes
-
-    autres_produits_operationnels = postes["Autres produits operationnels"]
-    dotations_amortissements = postes["Dotations aux amortissements et provisions"]
-    resultat_operationnel = excedent_brut + autres_produits_operationnels - dotations_amortissements
-
-    produits_financiers = postes["Produits financiers"]
-    charges_financieres = postes["Charges financieres"]
-    resultat_financier = produits_financiers - charges_financieres
-
-    resultat_activites_ordinaires = resultat_operationnel + resultat_financier
-
-    # Elements extraordinaires : le document annexe ne fournit aucune plage
-    # de comptes pour cette ligne (§1.10.2, "—"/"—") — toujours 0 en V1,
-    # documente explicitement plutot que devine.
-    elements_extraordinaires = Decimal(0)
-    resultat_avant_impot = resultat_activites_ordinaires + elements_extraordinaires
-
-    impot_resultats = postes["Impot sur les resultats"]
-    resultat_net = resultat_avant_impot - impot_resultats
-
-    return [
-        {"poste": "", "label": "Chiffre d'affaires", "amount": chiffre_affaires},
-        {"poste": "", "label": "Production stockee", "amount": production_stockee},
-        {"poste": "", "label": "Production immobilisee", "amount": production_immobilisee},
-        {"poste": "I", "label": "Production de l'exercice", "amount": production_exercice},
-        {"poste": "", "label": "Achats consommes", "amount": achats_consommes},
-        {"poste": "II", "label": "Consommation de l'exercice", "amount": consommation_exercice},
-        {"poste": "III", "label": "VALEUR AJOUTEE D'EXPLOITATION", "amount": valeur_ajoutee},
-        {"poste": "", "label": "Subvention d'exploitation", "amount": subvention_exploitation},
-        {"poste": "", "label": "Charges de personnel", "amount": charges_personnel},
-        {
-            "poste": "",
-            "label": "Impots, taxes et versements assimiles",
-            "amount": impots_taxes,
-        },
-        {"poste": "IV", "label": "EXCEDENT BRUT D'EXPLOITATION", "amount": excedent_brut},
-        {
-            "poste": "",
-            "label": "Autres produits operationnels",
-            "amount": autres_produits_operationnels,
-        },
-        {
-            "poste": "",
-            "label": "Dotations aux amortissements et provisions",
-            "amount": dotations_amortissements,
-        },
-        {"poste": "V", "label": "RESULTAT OPERATIONNEL", "amount": resultat_operationnel},
-        {"poste": "", "label": "Produits financiers", "amount": produits_financiers},
-        {"poste": "", "label": "Charges financieres", "amount": charges_financieres},
-        {"poste": "VI", "label": "RESULTAT FINANCIER", "amount": resultat_financier},
-        {
-            "poste": "VII",
-            "label": "RESULTAT DES ACTIVITES ORDINAIRES",
-            "amount": resultat_activites_ordinaires,
-        },
-        {"poste": "", "label": "Elements extraordinaires", "amount": elements_extraordinaires},
-        {"poste": "VIII", "label": "RESULTAT AVANT IMPOT", "amount": resultat_avant_impot},
-        {"poste": "", "label": "Impot sur les resultats", "amount": impot_resultats},
-        {"poste": "IX", "label": "RESULTAT NET DE L'EXERCICE", "amount": resultat_net},
-    ]
+    computed: dict[str, Decimal] = {}
+    rows: list[dict[str, Any]] = []
+    for line in lines:
+        kind = line.get("kind")
+        if kind == "poste":
+            amount = _poste_amount(balances, line)
+        elif kind == "total":
+            amount = sum(
+                (computed.get(key, Decimal(0)) for key in line.get("add", [])), Decimal(0)
+            ) - sum((computed.get(key, Decimal(0)) for key in line.get("sub", [])), Decimal(0))
+        else:
+            amount = Decimal(str(line.get("value", "0")))
+        computed[line["key"]] = amount
+        rows.append({"poste": line.get("roman", ""), "label": line["label"], "amount": amount})
+    return rows
 
 
 def income_statement_by_function(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:

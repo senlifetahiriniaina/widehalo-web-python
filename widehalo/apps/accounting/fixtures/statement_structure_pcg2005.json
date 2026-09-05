@@ -1,0 +1,317 @@
+{
+  "lines": [
+    {
+      "kind": "poste",
+      "key": "chiffre_affaires",
+      "label": "Chiffre d'affaires",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "701",
+        "702",
+        "703",
+        "704",
+        "705",
+        "706",
+        "707",
+        "708",
+        "7091",
+        "7092",
+        "7093",
+        "7094",
+        "7095",
+        "7096",
+        "7097",
+        "7098"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "production_stockee",
+      "label": "Production stockee",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "713",
+        "714"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "production_immobilisee",
+      "label": "Production immobilisee",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "721",
+        "722"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "production_exercice",
+      "label": "Production de l'exercice",
+      "roman": "I",
+      "add": [
+        "chiffre_affaires",
+        "production_stockee",
+        "production_immobilisee"
+      ],
+      "sub": []
+    },
+    {
+      "kind": "poste",
+      "key": "achats_consommes",
+      "label": "Achats consommes",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "601",
+        "602",
+        "603",
+        "604",
+        "605",
+        "606",
+        "607",
+        "608"
+      ],
+      "subtractive": [
+        "6091",
+        "6092",
+        "6093",
+        "6094",
+        "6095",
+        "6096",
+        "6097",
+        "6098"
+      ]
+    },
+    {
+      "kind": "total",
+      "key": "consommation_exercice",
+      "label": "Consommation de l'exercice",
+      "roman": "II",
+      "add": [
+        "achats_consommes"
+      ],
+      "sub": []
+    },
+    {
+      "kind": "total",
+      "key": "valeur_ajoutee",
+      "label": "VALEUR AJOUTEE D'EXPLOITATION",
+      "roman": "III",
+      "add": [
+        "production_exercice"
+      ],
+      "sub": [
+        "consommation_exercice"
+      ]
+    },
+    {
+      "kind": "poste",
+      "key": "subvention_exploitation",
+      "label": "Subvention d'exploitation",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "741",
+        "748"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "charges_personnel",
+      "label": "Charges de personnel",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "641",
+        "644",
+        "645",
+        "646",
+        "647",
+        "648"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "impots_taxes",
+      "label": "Impots, taxes et versements assimiles",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "631",
+        "635",
+        "638"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "excedent_brut",
+      "label": "EXCEDENT BRUT D'EXPLOITATION",
+      "roman": "IV",
+      "add": [
+        "valeur_ajoutee",
+        "subvention_exploitation"
+      ],
+      "sub": [
+        "charges_personnel",
+        "impots_taxes"
+      ]
+    },
+    {
+      "kind": "poste",
+      "key": "autres_produits_operationnels",
+      "label": "Autres produits operationnels",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "751",
+        "752",
+        "753",
+        "754",
+        "755",
+        "756",
+        "757",
+        "758"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "dotations_amortissements",
+      "label": "Dotations aux amortissements et provisions",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "68"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "resultat_operationnel",
+      "label": "RESULTAT OPERATIONNEL",
+      "roman": "V",
+      "add": [
+        "excedent_brut",
+        "autres_produits_operationnels"
+      ],
+      "sub": [
+        "dotations_amortissements"
+      ]
+    },
+    {
+      "kind": "poste",
+      "key": "produits_financiers",
+      "label": "Produits financiers",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "76",
+        "77"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "charges_financieres",
+      "label": "Charges financieres",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "66",
+        "67"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "resultat_financier",
+      "label": "RESULTAT FINANCIER",
+      "roman": "VI",
+      "add": [
+        "produits_financiers"
+      ],
+      "sub": [
+        "charges_financieres"
+      ]
+    },
+    {
+      "kind": "total",
+      "key": "resultat_activites_ordinaires",
+      "label": "RESULTAT DES ACTIVITES ORDINAIRES",
+      "roman": "VII",
+      "add": [
+        "resultat_operationnel",
+        "resultat_financier"
+      ],
+      "sub": []
+    },
+    {
+      "kind": "constant",
+      "key": "elements_extraordinaires",
+      "label": "Elements extraordinaires",
+      "roman": "",
+      "value": "0"
+    },
+    {
+      "kind": "total",
+      "key": "resultat_avant_impot",
+      "label": "RESULTAT AVANT IMPOT",
+      "roman": "VIII",
+      "add": [
+        "resultat_activites_ordinaires",
+        "elements_extraordinaires"
+      ],
+      "sub": []
+    },
+    {
+      "kind": "poste",
+      "key": "impot_resultats",
+      "label": "Impot sur les resultats",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "69"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "resultat_net",
+      "label": "RESULTAT NET DE L'EXERCICE",
+      "roman": "IX",
+      "add": [
+        "resultat_avant_impot"
+      ],
+      "sub": [
+        "impot_resultats"
+      ]
+    }
+  ],
+  "_note": "Structure du compte de resultat par nature du PCG 2005 (Annexe II), extraite telle quelle de reports.py::_CR_NATURE_MAPPING et de la cascade I-IX au sprint D10-3 — deplacee, jamais corrigee. Meme reserve OECFM que le reste du referentiel : non validee par un expert-comptable.",
+  "balance_sheet_order": {
+    "asset": {
+      "asset": 0,
+      "tax": 1,
+      "stock": 2,
+      "receivable": 3,
+      "bank": 4,
+      "cash": 4
+    },
+    "liability": {
+      "equity": 0,
+      "liability": 1,
+      "payable": 2,
+      "tax": 3
+    }
+  }
+}
