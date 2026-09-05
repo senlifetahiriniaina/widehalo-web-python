@@ -9,6 +9,7 @@ from decimal import Decimal
 from django.db import models
 from django_fsm import FSMField, transition
 
+from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel, ReferenceMixin
 from apps.partners.services.public import list_role_choices
 
@@ -54,6 +55,119 @@ class AccPeriod(BaseModel):
 
     def __str__(self) -> str:
         return self.code
+
+
+class AccFramework(models.Model):
+    """Referentiel comptable (D10, cahier Phase 1 §12.2) — PCG 2005 malgache
+    ou SYSCOHADA revise. **N'herite PAS de `BaseModel`** : un referentiel est
+    une donnee de reference universelle, partagee par tous les tenants, pas
+    une entite metier d'un tenant — meme raisonnement exact que
+    `core.CountryDefaultsProfile` et `core.RegulatoryParameter` (dont le
+    `tenant` doit rester nullable, ce que `BaseModel` interdit).
+
+    Le cahier nomme cette table `core_accounting_framework` ; elle vit dans
+    `apps.accounting` — ecart assume et justifie par
+    `docs/planning/2026-09-adr-referentiel-comptable.md` (decision D10).
+
+    Porte tout ce qui, jusqu'ici, etait une hypothese PCG figee dans le code
+    applicatif : les classes de compte valides, le compte d'attente, les
+    prefixes de resolution des journaux de tresorerie, les classes servant
+    aux classifications (compte de resultat par fonction, flux de tresorerie,
+    declaration DCOM) et les prefixes de produits financiers. Les consommateurs
+    sont recables sprint par sprint (D10-3 et D10-4) ; les colonnes sont
+    creees d'un seul mouvement ici pour n'avoir qu'une migration sur cette
+    table.
+
+    **Reserve de validation** : `validation_reserve` porte, en clair et a
+    l'ecran, l'avertissement que le jeu de donnees rattache n'est pas valide
+    par un expert-comptable. Cette reserve existait deja pour le PCG 2005,
+    enfouie dans la docstring de `services/chart_of_accounts.py` — la sortir
+    du code est le point 5 des consequences de l'ADR."""
+
+    CODE_PCG2005 = "PCG2005"
+    CODE_SYSCOHADA_REVISE = "SYSCOHADA_REVISE"
+    CODE_CHOICES = [
+        (CODE_PCG2005, "PCG 2005 (Madagascar)"),
+        (CODE_SYSCOHADA_REVISE, "SYSCOHADA revise (zone OHADA)"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    code = models.CharField(max_length=32, choices=CODE_CHOICES, unique=True)
+    name = models.CharField(max_length=200)
+    default_country_code = models.CharField(max_length=2)
+    norm_version = models.CharField(max_length=32, blank=True)
+    is_active = models.BooleanField(default=True)
+    validation_reserve = models.TextField(blank=True)
+
+    # Classes de compte valides : {"1": "Comptes de capitaux", ...}. Remplace
+    # le `help_text="Classe PCG, 1 a 7"` de `AccAccount.account_class`, qui
+    # etait la seule expression de cette contrainte.
+    account_classes = models.JSONField(default=dict, blank=True)
+    # Correspondance classe -> famille, pour la declaration DCOM (remplace
+    # `services/dcom.py::_CLASSIFICATION_BY_PCG_CLASS`).
+    class_classification = models.JSONField(default=dict, blank=True)
+    # Prefixes des comptes de produits financiers (remplace
+    # `services/ircm.py::_FINANCIAL_INCOME_PREFIXES`).
+    financial_income_prefixes = models.JSONField(default=list, blank=True)
+
+    # Compte d'attente et sa classe (remplacent SUSPENSE_ACCOUNT_CODE = "471"
+    # et `account_class=4` de `services/chart_of_accounts.py`).
+    suspense_account_code = models.CharField(max_length=20, blank=True)
+    suspense_account_class = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Prefixes de resolution du compte par defaut des journaux banque/caisse
+    # (remplacent "512"/"530" de `_DEFAULT_JOURNALS`).
+    bank_account_prefix = models.CharField(max_length=20, blank=True)
+    cash_account_prefix = models.CharField(max_length=20, blank=True)
+
+    # Classes utilisees par les classifications de `services/reports.py` :
+    # compte de resultat par fonction (charges/produits) et flux de tresorerie
+    # (investissement).
+    expense_class = models.PositiveSmallIntegerField(null=True, blank=True)
+    income_class = models.PositiveSmallIntegerField(null=True, blank=True)
+    investing_class = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "acc_framework"
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class AccChartOfAccounts(models.Model):
+    """Plan de comptes — un par referentiel et par pays (cahier §12.2).
+    Global comme `AccFramework` : c'est la definition du plan, pas les
+    comptes d'un tenant, qui restent portes par `AccAccount` (tenant-scope).
+
+    `is_default_for_country` designe le plan charge automatiquement a la
+    creation d'un tenant du pays (critere ACC-1) : la resolution se fait
+    `Tenant.country_code` -> `core.CountryDefaultsProfile.chart_of_accounts_code`
+    -> `AccFramework.code` -> ce plan. C'est ce chemin qui remplace, au sprint
+    D10-5, l'appel inconditionnel a `load_pcg2005` present aujourd'hui dans
+    les quatre chemins de creation de tenant."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    framework = models.ForeignKey(AccFramework, on_delete=models.PROTECT, related_name="charts")
+    country_code = models.CharField(max_length=2)
+    name = models.CharField(max_length=200)
+    effective_date = models.DateField(null=True, blank=True)
+    is_default_for_country = models.BooleanField(default=False)
+    # Nom du fichier de fixture charge par `services/chart_of_accounts.py`
+    # (ex. "pcg2005_mg.json") — jamais un chemin absolu, jamais un nom de
+    # commande de gestion en dur cote appelant.
+    fixture_name = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        db_table = "acc_chart_of_accounts"
+        ordering = ["framework__code", "country_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["framework", "country_code"], name="acc_chart_unique_framework_country"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.framework_id} / {self.country_code}"
 
 
 class AccAccount(BaseModel):
@@ -113,7 +227,26 @@ class AccAccount(BaseModel):
 
     code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
-    account_class = models.PositiveSmallIntegerField(help_text="Classe PCG, 1 a 7")
+    # D10 : les classes valides et leur libelle viennent desormais du
+    # referentiel (`AccFramework.account_classes`), plus d'un help_text qui
+    # figeait la forme PCG. Le champ reste un entier libre en base — c'est le
+    # referentiel qui dit lesquels sont valides, pas une contrainte de colonne
+    # (un plan SYSCOHADA n'a pas les memes classes qu'un plan PCG 2005).
+    account_class = models.PositiveSmallIntegerField()
+    # D10 : rattachement du compte au plan dont il est issu (cahier §12.2,
+    # « tenant -> pays -> framework actif -> plan de comptes -> comptes
+    # autorises »). Nullable en V1 : la migration de reprise rattache tous les
+    # comptes existants au plan PCG 2005, mais un compte cree par un import
+    # utilisateur avant D10-5 peut encore ne pas en porter. Le passage en
+    # non-nullable est explicitement reporte au sprint D10-5, quand les quatre
+    # chemins de creation de tenant resolvent tous le plan par le pays.
+    chart = models.ForeignKey(
+        "accounting.AccChartOfAccounts",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="accounts",
+    )
     parent = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
     )
@@ -163,9 +296,122 @@ class AccAccount(BaseModel):
     class Meta:
         db_table = "acc_account"
         indexes = [models.Index(fields=["code"])]
+        # D10 : l'unicite du code par tenant n'existait qu'en discipline
+        # applicative (`load_pcg2005` saute un code deja present,
+        # `ensure_suspense_account` fait un get_or_create). Rien n'empechait
+        # un import de creer un doublon, et la resolution des comptes par
+        # defaut faisait un `.first()` sans `order_by` : deux comptes de meme
+        # code rendaient le resultat non deterministe. La contrainte est
+        # portee par la base, comme l'equilibre des ecritures et
+        # l'immuabilite des mouvements.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "code"], name="acc_account_unique_tenant_code"
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.code} {self.name}"
+
+
+class AccTenantDefaultAccount(BaseModel):
+    """Comptes par defaut du tenant (cahier §13.3 : « les automatismes passent
+    par les comptes par defaut du tenant, eux-memes rattaches au plan du
+    referentiel actif »).
+
+    Remplace, au sprint D10-2, la resolution `AccAccount.objects.filter(
+    type=...).first()` des six automatismes de `services/public.py`. Cette
+    resolution n'etait pas seulement implicite : elle etait **non
+    deterministe**, `.first()` sans `order_by` renvoyant le premier compte que
+    Postgres decide de rendre. Un tenant ayant deux comptes de produit
+    n'avait aucun moyen de dire lequel etait le bon.
+
+    Les sept premiers roles sont ceux que le cahier nomme explicitement a
+    l'ecran « Plan de comptes » ; les suivants sont ceux qu'exigent les
+    automatismes reels (produit, charge, stock, ecart de caisse, paie)."""
+
+    ROLE_SALE_INCOME = "vente"
+    ROLE_PURCHASE_EXPENSE = "achat"
+    ROLE_VAT = "tva"
+    ROLE_CUSTOMER = "client"
+    ROLE_SUPPLIER = "fournisseur"
+    ROLE_BANK = "banque"
+    ROLE_CASH = "caisse"
+    ROLE_STOCK = "stock"
+    ROLE_STOCK_VARIATION = "variation_stock"
+    ROLE_CASH_DIFFERENCE = "ecart_caisse"
+    ROLE_PAYROLL_EXPENSE = "charge_personnel"
+    ROLE_PAYROLL_PAYABLE = "dette_personnel"
+    ROLE_CHOICES = [
+        (ROLE_SALE_INCOME, "Produit des ventes"),
+        (ROLE_PURCHASE_EXPENSE, "Charge des achats"),
+        (ROLE_VAT, "TVA"),
+        (ROLE_CUSTOMER, "Client"),
+        (ROLE_SUPPLIER, "Fournisseur"),
+        (ROLE_BANK, "Banque"),
+        (ROLE_CASH, "Caisse"),
+        (ROLE_STOCK, "Stock"),
+        (ROLE_STOCK_VARIATION, "Variation de stock"),
+        (ROLE_CASH_DIFFERENCE, "Ecart de caisse"),
+        (ROLE_PAYROLL_EXPENSE, "Charge de personnel"),
+        (ROLE_PAYROLL_PAYABLE, "Dette envers le personnel"),
+    ]
+
+    role = models.CharField(max_length=32, choices=ROLE_CHOICES)
+    account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "acc_tenant_default_account"
+        ordering = ["role"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "role"], name="acc_default_account_unique_tenant_role"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.role} -> {self.account_id}"
+
+
+class AccAccountMapping(models.Model):
+    """Transposition d'un compte d'un referentiel vers un autre (cahier §12.2,
+    `core_account_mapping`). Globale, comme les deux entites de referentiel.
+
+    **Livree vide, et c'est voulu.** Le cahier l'ecrit lui-meme : « La table de
+    transposition n'a aucune utilite immediate en Phase 1, ou un seul
+    referentiel est actif. Elle est livree malgre tout parce que son cout est
+    faible maintenant et qu'elle sera la piece centrale du deploiement OHADA :
+    sans elle, l'ajout de la Cote d'Ivoire imposerait de reprendre le modele
+    d'ecritures. »
+
+    Ecart assume au schema du cahier, qui parle de `compte_source`/
+    `compte_cible` : la transposition porte sur des **codes de plan**, pas sur
+    des `AccAccount`, ceux-ci etant tenant-scope. Une correspondance entre
+    referentiels est une propriete des referentiels, pas d'un client."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    source_framework = models.ForeignKey(
+        AccFramework, on_delete=models.PROTECT, related_name="mappings_as_source"
+    )
+    source_code = models.CharField(max_length=20)
+    target_framework = models.ForeignKey(
+        AccFramework, on_delete=models.PROTECT, related_name="mappings_as_target"
+    )
+    target_code = models.CharField(max_length=20)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "acc_account_mapping"
+        ordering = ["source_framework__code", "source_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_framework", "source_code", "target_framework"],
+                name="acc_account_mapping_unique_source_target",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source_code} -> {self.target_code}"
 
 
 class AccJournal(BaseModel):
