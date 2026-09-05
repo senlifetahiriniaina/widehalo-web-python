@@ -20,6 +20,7 @@ from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.events import publish_event
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
@@ -96,7 +97,7 @@ def declare_recall(
         )
 
     reference = next_reference(tenant, "QLT-RECALL", timezone.now().year)
-    return QltRecallDossier.objects.create(
+    dossier = QltRecallDossier.objects.create(
         tenant=tenant,
         reference=reference,
         lot_variant_id=lot_variant_id,
@@ -107,6 +108,23 @@ def declare_recall(
         initiated_by=initiated_by,
         **resolve_generic_reference(content_object),
     )
+    # L11 : la charge utile porte le NOMBRE de lots impactes, jamais la
+    # liste complete — un rappel de grande ampleur produirait sinon un
+    # evenement de plusieurs milliers d'entrees, et le perimetre exact vit
+    # deja, fige, dans `impacted_lots` du dossier.
+    publish_event(
+        "quality.recall_declared",
+        {
+            "recall_dossier_id": str(dossier.id),
+            "reference": dossier.reference,
+            "lot_variant_id": str(lot_variant_id) if lot_variant_id else None,
+            "lot_name": lot_name,
+            "reason": reason,
+            "impacted_lot_count": len(impacted_lots),
+        },
+        tenant_id=str(tenant.id),
+    )
+    return dossier
 
 
 def close_recall(
@@ -124,4 +142,17 @@ def close_recall(
     dossier.closed_at = timezone.now()
     dossier.closing_reason = closing_reason
     dossier.save(update_fields=["state", "closed_by", "closed_at", "closing_reason"])
+    publish_event(
+        "quality.recall_closed",
+        {
+            "recall_dossier_id": str(dossier.id),
+            "reference": dossier.reference,
+            "lot_name": dossier.lot_name,
+            "closing_reason": closing_reason,
+            # Rappel explicite dans la charge utile : la cloture est
+            # ADMINISTRATIVE, les lots impactes restent en quarantaine.
+            "lots_remain_quarantined": True,
+        },
+        tenant_id=str(dossier.tenant_id),
+    )
     return dossier

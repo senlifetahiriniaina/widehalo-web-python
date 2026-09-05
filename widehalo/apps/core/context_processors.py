@@ -65,6 +65,12 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     "feasibility",
     "projects",
     "helpdesk",
+    # L11 : `quality` (HACCP, Phase 3 Bloc D) etait absent de cette liste
+    # parce qu'il n'avait aucune URL a pointer. Le module est monte, il
+    # entre donc dans le calcul de visibilite comme les autres — sans quoi
+    # sa tuile de launchpad resterait invisible pour tout le monde sauf un
+    # superutilisateur.
+    "quality",
     "strategy",
     "financing",
     "automation",
@@ -83,7 +89,12 @@ _MENU_GROUPS: dict[str, tuple[str, ...]] = {
     "pour-tous": ("reporting", "strategy", "helpdesk", "bi"),
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
-    "production": ("mrp", "patronage"),
+    # L11 : `quality` (HACCP) rejoint le groupe production plutot que
+    # « achats-logistique » — les roles qui le portent sont
+    # `resp_production`/`chef_atelier`, et un controle HACCP se prend en
+    # atelier. `acheteur` y accede aussi (controle a reception), le groupe
+    # apparait donc pour lui grace au calcul par app, pas par groupe.
+    "production": ("mrp", "patronage", "quality"),
     "finance-pilotage": (
         "accounting",
         "financing",

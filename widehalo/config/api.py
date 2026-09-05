@@ -44,6 +44,7 @@ from apps.pos.api import router as pos_router  # noqa: E402
 from apps.presence.api import router as presence_router  # noqa: E402
 from apps.projects.api import router as projects_router  # noqa: E402
 from apps.purchase.api import router as purchase_router  # noqa: E402
+from apps.quality.api import router as haccp_router  # noqa: E402
 from apps.reporting.api import router as reporting_router  # noqa: E402
 from apps.sales.api import router as sales_router  # noqa: E402
 from apps.simulation.api import router as simulation_router  # noqa: E402
@@ -86,7 +87,13 @@ api.add_router("", tenants_router)
 api.add_router("", search_router)
 api.add_router("", notifications_router)
 api.add_router("", risk_router)
+# `quality_router` = inspections generiques de `core` (QLT1-2) ;
+# `haccp_router` = module `apps.quality` (Phase 3 Bloc D), monte par L11
+# apres avoir ete livre complet et jamais expose (audit §3.4). Deux
+# registres qualite distincts qui coexistent volontairement, cf.
+# `docs/planning/2026-09-adr-qualite-haccp-app-dediee.md`.
 api.add_router("", quality_router)
+api.add_router("", haccp_router)
 api.add_router("", export_import_router)
 api.add_router("", workflow_router)
 

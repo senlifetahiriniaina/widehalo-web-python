@@ -67,6 +67,8 @@
         {% if "reporting" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Rapports' %}" href="/reporting/">R</c-launchpad-tile>{% endif %}
         {% if "strategy" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Stratégie et pilotage' %}" href="/strategy/">S</c-launchpad-tile>{% endif %}
         {% if "helpdesk" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Support et suivi opérationnel' %}" href="/helpdesk/">S</c-launchpad-tile>{% endif %}
+        {# L11 : le module HACCP existait depuis la Phase 3 et n'apparaissait nulle part — pas d'URL, donc pas de tuile. #}
+        {% if "quality" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Qualité et HACCP' %}" href="/quality/">Q</c-launchpad-tile>{% endif %}
         {% if "projects" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Gestion de projets' %}" href="/projects/">P</c-launchpad-tile>{% endif %}
         {% if "risks" in visible_app_labels %}<c-launchpad-tile label="{% trans 'Registre des risques' %}" href="/risks/">R</c-launchpad-tile>{% endif %}
         <c-launchpad-tile label="{% trans 'Partenaires' %}" href="/partners/">P</c-launchpad-tile>

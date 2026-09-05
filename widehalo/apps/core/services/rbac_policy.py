@@ -51,6 +51,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "stocks": {"view", "add", "change"},
         "logistics": {"view", "add", "change"},
         "presence": {"view", "add", "change"},
+        # `quality` (L11) : le module HACCP dedie (`apps.quality`, Phase 3
+        # Bloc D) etait livre sans vue, sans URL et sans API — donc sans
+        # entree ici, omission documentee comme volontaire « a reviser le
+        # jour ou le module sera monte ». C'est ce jour. Roles retenus :
+        # exactement `_QLT_FULL_ROLES` (chantier qualite generique QLT1-2
+        # ci-dessous), meme raisonnement et meme perimetre metier —
+        # `resp_production`/`chef_atelier` pilotent la qualite en atelier,
+        # `acheteur` controle a reception fournisseur, `admin`/`direction`
+        # pilotent transversalement. Deux registres qualite coexistent
+        # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
+        # leur donner des roles differents aurait ete un piege.
+        "quality": {"view", "add", "change"},
         # `strategy` : **limite assumee et disclosee** — le chantier
         # budget/revue/risques (cahier Phase 2 §13.3) classe budget non
         # publie/objectifs/cartographie des risques en donnee "Sensible"
@@ -158,6 +170,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "sales": {"view", "change"},
         "purchase": {"view", "change"},
         "stocks": {"view", "change"},
+        # `quality` (L11) : le module HACCP dedie (`apps.quality`, Phase 3
+        # Bloc D) etait livre sans vue, sans URL et sans API — donc sans
+        # entree ici, omission documentee comme volontaire « a reviser le
+        # jour ou le module sera monte ». C'est ce jour. Roles retenus :
+        # exactement `_QLT_FULL_ROLES` (chantier qualite generique QLT1-2
+        # ci-dessous), meme raisonnement et meme perimetre metier —
+        # `resp_production`/`chef_atelier` pilotent la qualite en atelier,
+        # `acheteur` controle a reception fournisseur, `admin`/`direction`
+        # pilotent transversalement. Deux registres qualite coexistent
+        # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
+        # leur donner des roles differents aurait ete un piege.
+        "quality": {"view", "change"},
         "logistics": {"view", "change"},
         "presence": {"view", "change"},
         "strategy": {"view", "add", "change"},
@@ -347,6 +371,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
+        # `quality` (L11) : le module HACCP dedie (`apps.quality`, Phase 3
+        # Bloc D) etait livre sans vue, sans URL et sans API — donc sans
+        # entree ici, omission documentee comme volontaire « a reviser le
+        # jour ou le module sera monte ». C'est ce jour. Roles retenus :
+        # exactement `_QLT_FULL_ROLES` (chantier qualite generique QLT1-2
+        # ci-dessous), meme raisonnement et meme perimetre metier —
+        # `resp_production`/`chef_atelier` pilotent la qualite en atelier,
+        # `acheteur` controle a reception fournisseur, `admin`/`direction`
+        # pilotent transversalement. Deux registres qualite coexistent
+        # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
+        # leur donner des roles differents aurait ete un piege.
+        "quality": {"view", "add", "change"},
     },
     "resp_production": {
         "mrp": {"view", "add", "change"},
@@ -367,6 +403,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "projects": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
+        # `quality` (L11) : le module HACCP dedie (`apps.quality`, Phase 3
+        # Bloc D) etait livre sans vue, sans URL et sans API — donc sans
+        # entree ici, omission documentee comme volontaire « a reviser le
+        # jour ou le module sera monte ». C'est ce jour. Roles retenus :
+        # exactement `_QLT_FULL_ROLES` (chantier qualite generique QLT1-2
+        # ci-dessous), meme raisonnement et meme perimetre metier —
+        # `resp_production`/`chef_atelier` pilotent la qualite en atelier,
+        # `acheteur` controle a reception fournisseur, `admin`/`direction`
+        # pilotent transversalement. Deux registres qualite coexistent
+        # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
+        # leur donner des roles differents aurait ete un piege.
+        "quality": {"view", "add", "change"},
     },
     "chef_atelier": {
         # Supervision d'atelier : execute/actualise la production, ne cree
@@ -381,6 +429,18 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         "strategy": {"view", "add", "change"},
         # `helpdesk` (HD1) : meme raisonnement que `comptable` ci-dessus.
         "helpdesk": {"view", "add"},
+        # `quality` (L11) : le module HACCP dedie (`apps.quality`, Phase 3
+        # Bloc D) etait livre sans vue, sans URL et sans API — donc sans
+        # entree ici, omission documentee comme volontaire « a reviser le
+        # jour ou le module sera monte ». C'est ce jour. Roles retenus :
+        # exactement `_QLT_FULL_ROLES` (chantier qualite generique QLT1-2
+        # ci-dessous), meme raisonnement et meme perimetre metier —
+        # `resp_production`/`chef_atelier` pilotent la qualite en atelier,
+        # `acheteur` controle a reception fournisseur, `admin`/`direction`
+        # pilotent transversalement. Deux registres qualite coexistent
+        # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
+        # leur donner des roles differents aurait ete un piege.
+        "quality": {"view", "add", "change"},
     },
     "magasinier": {
         # Domaine cible = `stocks` (construit a partir de ST1, cf. plan) —

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Plans de contrôle HACCP" %} — WideHalo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% trans "Plans de contrôle HACCP" %}</h1>
+  <nav>
+    <a href="{% url 'quality:non_conformity_list' %}">{% trans "Non-conformités" %}</a>
+    <a href="{% url 'quality:recall_list' %}">{% trans "Dossiers de rappel" %}</a>
+  </nav>
+</div>
+
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+<h2>{% trans "Contrôles en retard" %}</h2>
+{% if overdue %}
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">{% trans "Plan" %}</th>
+        <th scope="col">{% trans "Lot" %}</th>
+        <th scope="col">{% trans "Dernier contrôle" %}</th>
+        <th scope="col">{% trans "Retard (jours)" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in overdue %}
+      <tr>
+        <td>{{ row.control_plan_name }}</td>
+        <td>{{ row.lot_name }}</td>
+        <td>{{ row.last_measured_at }}</td>
+        <td><span class="form-error">{{ row.days_overdue }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>{% trans "Aucun contrôle en retard." %}</p>
+{% endif %}
+<p><small>{% blocktrans %}Seuls les lots ayant déjà reçu au moins une mesure sous un plan peuvent apparaître ici : un lot jamais contrôlé n'est rattaché à aucun plan par le modèle de données.{% endblocktrans %}</small></p>
+
+<h2>{% trans "Plans de contrôle" %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Nom" %}</th>
+      <th scope="col">{% trans "Fréquence (jours)" %}</th>
+      <th scope="col">{% trans "Points critiques" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for plan in plans %}
+    <tr>
+      <th scope="row"><a href="{% url 'quality:control_plan_detail' plan.id %}">{{ plan.name }}</a></th>
+      <td>{% if plan.frequency_days %}{{ plan.frequency_days }}{% else %}{% trans "Aucune alerte" %}{% endif %}</td>
+      <td>{{ plan.critical_points.count }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3">{% trans "Aucun plan de contrôle. Créez-en un ci-dessous." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Nouveau plan de contrôle" %}</h2>
+<form method="post">
+  {% csrf_token %}
+  <div class="form-field">
+    <label for="name">{% trans "Nom" %}</label>
+    <input id="name" type="text" name="name" required>
+  </div>
+  <div class="form-field">
+    <label for="frequency_days">{% trans "Fréquence attendue entre deux contrôles, en jours (0 = aucune alerte)" %}</label>
+    <input id="frequency_days" type="number" min="0" name="frequency_days" value="0">
+  </div>
+  <div class="form-field">
+    <label for="notes">{% trans "Notes" %}</label>
+    <textarea id="notes" name="notes" rows="3"></textarea>
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Créer le plan" %}</c-button>
+</form>
+{% endblock %}

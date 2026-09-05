@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Non-conformités" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'quality:control_plan_list' %}">{% trans "Plans de contrôle HACCP" %}</a>
+  <span>/</span> {% trans "Non-conformités" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Non-conformités" %}</h1>
+</div>
+
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Référence" %}</th>
+      <th scope="col">{% trans "État" %}</th>
+      <th scope="col">{% trans "Lot" %}</th>
+      <th scope="col">{% trans "Description" %}</th>
+      <th scope="col">{% trans "Ouverte le" %}</th>
+      <th scope="col">{% trans "Clôture" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for nc in non_conformities %}
+    <tr>
+      <th scope="row">{{ nc.reference|default:nc.id }}</th>
+      <td>{% if nc.state == open_state %}<span class="form-error">{{ nc.get_state_display }}</span>{% else %}{{ nc.get_state_display }}{% endif %}</td>
+      <td>{{ nc.lot_name }}</td>
+      <td>{{ nc.description }}</td>
+      <td>{{ nc.opened_at }}</td>
+      <td>
+        {% if nc.state == open_state %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="close">
+          <input type="hidden" name="non_conformity_id" value="{{ nc.id }}">
+          <label for="closing_reason_{{ nc.id }}">{% trans "Motif de clôture" %}</label>
+          <input id="closing_reason_{{ nc.id }}" type="text" name="closing_reason" required>
+          <c-button type="submit">{% trans "Clôturer" %}</c-button>
+        </form>
+        {% else %}{{ nc.closing_reason }}{% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">{% trans "Aucune non-conformité." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Ouvrir une non-conformité" %}</h2>
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="open">
+  <div class="form-field">
+    <label for="description">{% trans "Description" %}</label>
+    <textarea id="description" name="description" rows="3" required></textarea>
+  </div>
+  <div class="form-field">
+    <label for="nc_lot_name">{% trans "Lot" %}</label>
+    <input id="nc_lot_name" type="text" name="lot_name">
+  </div>
+  <div class="form-field">
+    <label for="nc_lot_variant_id">{% trans "Identifiant de variante du lot" %}</label>
+    <input id="nc_lot_variant_id" type="text" name="lot_variant_id">
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Ouvrir" %}</c-button>
+</form>
+
+<h2>{% trans "Libérer un lot" %}</h2>
+<p><small>{% blocktrans %}Refusé tant qu'une non-conformité reste ouverte sur ce lot. Un motif est exigé dans tous les cas.{% endblocktrans %}</small></p>
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="release_lot">
+  <div class="form-field">
+    <label for="rel_lot_name">{% trans "Lot" %}</label>
+    <input id="rel_lot_name" type="text" name="lot_name" required>
+  </div>
+  <div class="form-field">
+    <label for="rel_lot_variant_id">{% trans "Identifiant de variante du lot" %}</label>
+    <input id="rel_lot_variant_id" type="text" name="lot_variant_id" required>
+  </div>
+  <div class="form-field">
+    <label for="reason">{% trans "Motif de libération" %}</label>
+    <input id="reason" type="text" name="reason" required>
+  </div>
+  <c-button type="submit">{% trans "Libérer le lot" %}</c-button>
+</form>
+{% endblock %}

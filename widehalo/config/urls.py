@@ -60,6 +60,13 @@ urlpatterns = [
     path("projects/", include("apps.projects.urls")),
     path("ai/", include("apps.ai.urls")),
     path("helpdesk/", include("apps.helpdesk.urls")),
+    # L11 : `apps.quality` (HACCP, Phase 3 Bloc D) etait livre complet et
+    # teste, sans jamais etre monte ici — donc inatteignable depuis le
+    # produit (audit §3.4). Prefixe `quality/` et non `stocks/quality/` :
+    # c'est un module a part entiere, avec sa propre app et son propre ADR
+    # (`2026-09-adr-qualite-haccp-app-dediee.md`), pas une extension de
+    # `stocks`.
+    path("quality/", include("apps.quality.urls")),
     path("pos/", include("apps.pos.urls")),
     path("simulation/", include("apps.simulation.urls")),
     path("analytics/", include("apps.analytics.urls")),

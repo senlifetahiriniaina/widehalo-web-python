@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ plan.name }} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'quality:control_plan_list' %}">{% trans "Plans de contrôle HACCP" %}</a>
+  <span>/</span> {{ plan.name }}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{{ plan.name }}</h1>
+</div>
+
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+<h2>{% trans "Points critiques" %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Nom" %}</th>
+      <th scope="col">{% trans "Unité" %}</th>
+      <th scope="col">{% trans "Limite basse" %}</th>
+      <th scope="col">{% trans "Limite haute" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for point in critical_points %}
+    <tr>
+      <th scope="row">{{ point.name }}</th>
+      <td>{{ point.unit }}</td>
+      <td>{% if point.limit_min is not None %}{{ point.limit_min }}{% else %}—{% endif %}</td>
+      <td>{% if point.limit_max is not None %}{{ point.limit_max }}{% else %}—{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">{% trans "Aucun point critique. Ajoutez-en un pour pouvoir enregistrer des mesures." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Ajouter un point critique" %}</h2>
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="add_point">
+  <div class="form-field">
+    <label for="point_name">{% trans "Nom" %}</label>
+    <input id="point_name" type="text" name="name" required>
+  </div>
+  <div class="form-field">
+    <label for="unit">{% trans "Unité" %}</label>
+    <input id="unit" type="text" name="unit">
+  </div>
+  <div class="form-field">
+    <label for="limit_min">{% trans "Limite basse (vide = aucune)" %}</label>
+    <input id="limit_min" type="text" inputmode="decimal" name="limit_min">
+  </div>
+  <div class="form-field">
+    <label for="limit_max">{% trans "Limite haute (vide = aucune)" %}</label>
+    <input id="limit_max" type="text" inputmode="decimal" name="limit_max">
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Ajouter le point critique" %}</c-button>
+</form>
+
+<h2>{% trans "Enregistrer une mesure" %}</h2>
+{% if critical_points %}
+<p><small>{% blocktrans %}Une mesure hors limites ouvre automatiquement une non-conformité et bloque le lot concerné, dans la même opération.{% endblocktrans %}</small></p>
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="record_measurement">
+  <div class="form-field">
+    <label for="critical_point_id">{% trans "Point critique" %}</label>
+    <select id="critical_point_id" name="critical_point_id" required>
+      {% for point in critical_points %}
+        <option value="{{ point.id }}">{{ point.name }}{% if point.unit %} ({{ point.unit }}){% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="value">{% trans "Valeur mesurée" %}</label>
+    <input id="value" type="text" inputmode="decimal" name="value" required>
+  </div>
+  <div class="form-field">
+    <label for="lot_name">{% trans "Lot" %}</label>
+    <input id="lot_name" type="text" name="lot_name">
+  </div>
+  <div class="form-field">
+    <label for="lot_variant_id">{% trans "Identifiant de variante du lot" %}</label>
+    <input id="lot_variant_id" type="text" name="lot_variant_id">
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Enregistrer la mesure" %}</c-button>
+</form>
+{% else %}
+<p>{% trans "Ajoutez d'abord un point critique : une mesure se prend toujours contre un point critique et ses limites." %}</p>
+{% endif %}
+
+<h2>{% trans "Dernières mesures" %}</h2>
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Date" %}</th>
+      <th scope="col">{% trans "Point critique" %}</th>
+      <th scope="col">{% trans "Lot" %}</th>
+      <th scope="col">{% trans "Valeur" %}</th>
+      <th scope="col">{% trans "Dans les limites" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for measurement in measurements %}
+    <tr>
+      <td>{{ measurement.measured_at }}</td>
+      <td>{{ measurement.critical_point.name }}</td>
+      <td>{{ measurement.lot_name }}</td>
+      <td>{{ measurement.value }}</td>
+      <td>{% if measurement.is_within_limits %}{% trans "Oui" %}{% else %}<span class="form-error">{% trans "Non" %}</span>{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">{% trans "Aucune mesure enregistrée." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

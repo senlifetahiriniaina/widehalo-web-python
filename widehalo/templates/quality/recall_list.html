@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Dossiers de rappel" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'quality:control_plan_list' %}">{% trans "Plans de contrôle HACCP" %}</a>
+  <span>/</span> {% trans "Dossiers de rappel" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Dossiers de rappel" %}</h1>
+</div>
+
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">{% trans "Référence" %}</th>
+      <th scope="col">{% trans "État" %}</th>
+      <th scope="col">{% trans "Lot d'origine" %}</th>
+      <th scope="col">{% trans "Lots impactés" %}</th>
+      <th scope="col">{% trans "Motif" %}</th>
+      <th scope="col">{% trans "Déclaré le" %}</th>
+      <th scope="col">{% trans "Clôture" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for dossier in dossiers %}
+    <tr>
+      <th scope="row">{{ dossier.reference|default:dossier.id }}</th>
+      <td>{% if dossier.state == open_state %}<span class="form-error">{{ dossier.get_state_display }}</span>{% else %}{{ dossier.get_state_display }}{% endif %}</td>
+      <td>{{ dossier.lot_name }}</td>
+      <td>{{ dossier.impacted_lots|length }}</td>
+      <td>{{ dossier.reason }}</td>
+      <td>{{ dossier.initiated_at }}</td>
+      <td>
+        {% if dossier.state == open_state %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="close">
+          <input type="hidden" name="dossier_id" value="{{ dossier.id }}">
+          <label for="recall_reason_{{ dossier.id }}">{% trans "Motif de clôture" %}</label>
+          <input id="recall_reason_{{ dossier.id }}" type="text" name="closing_reason" required>
+          <c-button type="submit">{% trans "Clôturer" %}</c-button>
+        </form>
+        {% else %}{{ dossier.closing_reason }}{% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">{% trans "Aucun dossier de rappel." %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>{% trans "Déclarer un rappel" %}</h2>
+<p><small>{% blocktrans %}La déclaration met en quarantaine le lot ET tous ses descendants, et fige la généalogie à cet instant. Le périmètre déclaré ne sera jamais recalculé.{% endblocktrans %}</small></p>
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="declare">
+  <div class="form-field">
+    <label for="recall_lot_name">{% trans "Lot" %}</label>
+    <input id="recall_lot_name" type="text" name="lot_name" required>
+  </div>
+  <div class="form-field">
+    <label for="recall_lot_variant_id">{% trans "Identifiant de variante du lot" %}</label>
+    <input id="recall_lot_variant_id" type="text" name="lot_variant_id" required>
+  </div>
+  <div class="form-field">
+    <label for="declare_reason">{% trans "Motif du rappel" %}</label>
+    <textarea id="declare_reason" name="reason" rows="3" required></textarea>
+  </div>
+  <c-button variant="primary" type="submit">{% trans "Déclarer le rappel" %}</c-button>
+</form>
+{% endblock %}

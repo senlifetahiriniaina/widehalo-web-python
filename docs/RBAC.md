@@ -153,6 +153,7 @@ jamais (§1).
 | `financing` | v,a,c | v,c | v,a,c | — | — | — | — | — | — | — | — | — | — |
 | `feasibility` | v,a,c | v,a,c | — | — | v,a,c | — | v,a,c | — | — | — | — | — | — |
 | `helpdesk` | v,a,c | v,a,c | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a | v,a |
+| `quality` | v,a,c | v,c | — | — | — | v,a,c | v,a,c | v,a,c | — | — | — | — | — |
 
 Légende : v = view, a = add, c = change.
 
@@ -303,13 +304,33 @@ documenté explicitement (décision de conserver `core.QltChecklistTemplate`/
 `StkQualityState`/`StkRecall` (`apps.stocks`) restent gouvernés par la seule
 entrée app-level `ROLE_APP_PERMISSIONS["stocks"]` (§3.1), sans entrée
 dédiée — inchangé, ces deux modèles restent également tels quels (décision
-D5). Les 5 modèles de `apps.quality` (D1-D4 : `QltControlPlan`/
-`QltCriticalPoint`/`QltMeasurement`/`QltNonConformity`/`QltRecallDossier`)
-n'ont AUCUNE entrée RBAC à ce jour, ni ici ni dans `ROLE_APP_PERMISSIONS` —
-pas un oubli : `apps.quality` n'a encore aucun `views.py`/`api.py`/`urls.py`
-propre (pure couche de service, consommée par les écrans d'autres apps via
-`services.public`), donc aucune surface HTTP à gater. À réviser le jour où
-`apps.quality` gagnera son propre écran/API.
+D5).
+
+**Mise à jour L11 — `apps.quality` a désormais ses entrées.** Le paragraphe
+précédent disait que les 5 modèles de `apps.quality` (D1-D4 :
+`QltControlPlan`/`QltCriticalPoint`/`QltMeasurement`/`QltNonConformity`/
+`QltRecallDossier`) n'avaient aucune entrée RBAC, et que ce n'était pas un
+oubli mais l'absence de surface HTTP à garder — « à réviser le jour où
+`apps.quality` gagnera son propre écran/API ». C'est ce jour : le lot L11 lui
+donne `views.py`, `urls.py` et `api.py`, et le monte dans `config/urls.py` et
+`config/api.py`. Le module était livré complet et testé depuis la Phase 3, et
+restait inatteignable depuis le produit — un responsable qualité ne pouvait
+déclarer aucun rappel de lot (écart §3.4 de l'audit
+`2026-09-audit-complet-phases-1-4.md`).
+
+`ROLE_APP_PERMISSIONS` reçoit donc une entrée app-large `"quality"` pour
+**exactement les mêmes rôles que `_QLT_FULL_ROLES`** ci-dessus — admin,
+direction, `resp_production`, `chef_atelier`, `acheteur` — et pour la même
+raison métier : la qualité en atelier relève de la production, le contrôle à
+réception relève des achats. Donner des rôles différents aux deux registres
+qualité qui coexistent (inspections génériques dans `core`, HACCP dans
+`apps.quality`) aurait été un piège pour l'exploitant. `direction` reçoit
+`{view, change}` et non `{view, add, change}`, alignée sur le reste de son
+profil dans ce registre.
+
+Aucun autre rôle ne reçoit d'accès, `magasinier` compris : refuser de libérer
+un lot sous non-conformité ouverte est une décision **qualité**, et la mettre
+à portée de qui gère le stock reviendrait à la contourner sans le vouloir.
 
 ### 4.2 Rappel : la restriction « managers ne voient aucun montant » (RG-PAY-9)
 

@@ -75,6 +75,19 @@ PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
         "payroll.period_validated",  # apps/payroll/services/periods.py::validate_period
         "logistics.shipment_blocked",  # apps/logistics/services/shipments.py::block_shipment
         "reporting.job_failed",  # apps/reporting/services/engine.py::_run_job_sync (branche echec)
+        # L11 (`apps.quality`, HACCP Phase 3 Bloc D) : le module ne publiait
+        # AUCUN evenement — il etait livre complet et jamais monte, donc
+        # jamais rendu automatisable. Les quatre ci-dessous ferment cet
+        # ecart : une non-conformite ouverte par une mesure hors limites, ou
+        # un rappel de lot, sont exactement les faits qu'un flux
+        # d'automatisation doit pouvoir ecouter (arreter une ligne, prevenir
+        # un client, bloquer une expedition).
+        # `non_conformity_opened` est publie depuis `create_non_conformity`,
+        # donc sur les DEUX chemins d'ouverture — manuel et automatique.
+        "quality.non_conformity_opened",  # apps/quality/services/non_conformity.py
+        "quality.non_conformity_closed",  # apps/quality/services/non_conformity.py
+        "quality.recall_declared",  # apps/quality/services/recall.py::declare_recall
+        "quality.recall_closed",  # apps/quality/services/recall.py::close_recall
     }
 )
 

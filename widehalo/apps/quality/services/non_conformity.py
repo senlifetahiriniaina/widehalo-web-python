@@ -12,6 +12,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.events import publish_event
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
@@ -36,7 +37,7 @@ def create_non_conformity(
     if not description:
         raise ValidationError(_("Un motif est obligatoire pour ouvrir une non-conformité."))
     reference = next_reference(tenant, "QLT-NC", timezone.now().year)
-    return QltNonConformity.objects.create(
+    non_conformity = QltNonConformity.objects.create(
         tenant=tenant,
         reference=reference,
         measurement=measurement,
@@ -46,6 +47,27 @@ def create_non_conformity(
         opened_by=opened_by,
         **resolve_generic_reference(content_object),
     )
+    # L11 : publie ici et non dans les appelants, pour que les DEUX chemins
+    # d'ouverture — manuel, et automatique depuis une mesure hors limites —
+    # produisent le meme evenement. Publier cote appelant aurait laisse le
+    # chemin automatique muet, c'est-a-dire justement celui qu'on veut
+    # automatiser. `publish_event` programme la distribution APRES commit :
+    # un rollback n'emet rien.
+    publish_event(
+        "quality.non_conformity_opened",
+        {
+            "non_conformity_id": str(non_conformity.id),
+            "reference": non_conformity.reference,
+            "lot_variant_id": str(lot_variant_id) if lot_variant_id else None,
+            "lot_name": lot_name,
+            "description": description,
+            # Distingue le chemin automatique du chemin manuel sans que
+            # l'abonne ait a interroger la base.
+            "from_measurement": measurement is not None,
+        },
+        tenant_id=str(tenant.id),
+    )
+    return non_conformity
 
 
 def close_non_conformity(
@@ -60,6 +82,19 @@ def close_non_conformity(
     non_conformity.closed_at = timezone.now()
     non_conformity.closing_reason = closing_reason
     non_conformity.save(update_fields=["state", "closed_by", "closed_at", "closing_reason"])
+    publish_event(
+        "quality.non_conformity_closed",
+        {
+            "non_conformity_id": str(non_conformity.id),
+            "reference": non_conformity.reference,
+            "lot_variant_id": (
+                str(non_conformity.lot_variant_id) if non_conformity.lot_variant_id else None
+            ),
+            "lot_name": non_conformity.lot_name,
+            "closing_reason": closing_reason,
+        },
+        tenant_id=str(non_conformity.tenant_id),
+    )
     return non_conformity
 
 
