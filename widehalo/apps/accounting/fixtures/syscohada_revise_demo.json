@@ -1,0 +1,15 @@
+[
+  {"code": "101", "name": "Capital social", "account_class": 1, "type": "equity", "is_current": false},
+  {"code": "241", "name": "Materiel et outillage", "account_class": 2, "type": "asset", "is_current": false},
+  {"code": "311", "name": "Marchandises", "account_class": 3, "type": "stock", "is_current": true},
+  {"code": "401", "name": "Fournisseurs", "account_class": 4, "type": "payable", "is_current": true},
+  {"code": "411", "name": "Clients", "account_class": 4, "type": "receivable", "is_current": true},
+  {"code": "443", "name": "Etat, TVA facturee", "account_class": 4, "type": "tax", "is_current": true},
+  {"code": "521", "name": "Banques locales", "account_class": 5, "type": "bank", "is_current": true},
+  {"code": "571", "name": "Caisse", "account_class": 5, "type": "cash", "is_current": true},
+  {"code": "601", "name": "Achats de marchandises", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution"},
+  {"code": "661", "name": "Remunerations directes versees au personnel", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
+  {"code": "701", "name": "Ventes de marchandises", "account_class": 7, "type": "income", "is_current": true},
+  {"code": "771", "name": "Interets de prets", "account_class": 7, "type": "income", "is_current": true},
+  {"code": "871", "name": "Produits HAO constates", "account_class": 8, "type": "income", "is_current": true}
+]

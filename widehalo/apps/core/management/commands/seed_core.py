@@ -79,7 +79,7 @@ class Command(BaseCommand):
         # comptables. PCG charge AVANT les journaux : `load_default_journals`
         # resout `default_account` (BQ/CAI) par prefixe de code parmi les
         # comptes deja crees, donc l'ordre importe.
-        call_command("load_pcg2005", tenant=tenant_code)
+        call_command("load_chart_of_accounts", tenant=tenant_code)
         call_command("load_default_journals", tenant=tenant_code)
 
         call_command("load_roles")

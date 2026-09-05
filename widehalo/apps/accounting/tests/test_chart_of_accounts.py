@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
+from pathlib import Path
 
 import pytest
 
@@ -82,10 +84,19 @@ def test_journal_creation(tenant: Tenant) -> None:
         assert journal.default_account_id == account.id
 
 
+def _fixture_codes() -> set[str]:
+    """Codes reellement presents dans la fixture du plan PCG 2005."""
+    path = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg.json"
+    return {entry["code"] for entry in json.loads(path.read_text(encoding="utf-8"))}
+
+
 def test_load_pcg2005_creates_accounts_from_fixture(tenant: Tenant) -> None:
     with use_tenant(tenant.id):
         created = load_pcg2005(tenant)
-        assert created == 54
+        # Compte reel de la fixture plutot qu'un nombre fige : le plan gagne
+        # des comptes au fil des chantiers (666/766 en D10-5) et un magique
+        # « 54 » transforme chaque ajout en echec sans rapport.
+        assert created == len(_fixture_codes())
         assert AccAccount.objects.filter(tenant=tenant, code="411").exists()
         assert AccAccount.objects.filter(tenant=tenant, code="4457").exists()
 
@@ -94,7 +105,7 @@ def test_load_pcg2005_is_idempotent(tenant: Tenant) -> None:
     with use_tenant(tenant.id):
         first_run = load_pcg2005(tenant)
         second_run = load_pcg2005(tenant)
-        assert first_run == 54
+        assert first_run == len(_fixture_codes())
         assert second_run == 0
 
 

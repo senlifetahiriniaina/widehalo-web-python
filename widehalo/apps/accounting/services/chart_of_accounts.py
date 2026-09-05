@@ -49,8 +49,6 @@ from apps.accounting.models import AccAccount, AccJournal
 from apps.accounting.services.framework import chart_for_country, framework_for_tenant
 from apps.core.models.tenant import Tenant
 
-FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg.json"
-
 # Compte d'attente ("suspense") du chantier RG-QUALIF — cree a la demande,
 # jamais dans le chargement initial du plan comptable, pour ne pas polluer un
 # plan comptable qui n'a jamais eu besoin d'un import "degrade" avec
@@ -62,14 +60,37 @@ FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg
 # d'attente"), et un plan SYSCOHADA n'aurait aucune raison de les partager.
 
 
-def _read_fixture() -> list[dict[str, Any]]:
-    data: list[dict[str, Any]] = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
+
+
+def _read_fixture(fixture_name: str) -> list[dict[str, Any]]:
+    path = FIXTURES_DIR / fixture_name
+    if not path.exists():
+        return []
+    data: list[dict[str, Any]] = json.loads(path.read_text(encoding="utf-8"))
     return data
 
 
-def load_pcg2005(tenant: Tenant) -> int:
-    """Cree les comptes du plan PCG 2005 pour ce tenant. Idempotent : un
-    compte dont le code existe deja pour ce tenant n'est pas recree.
+def load_chart_of_accounts(tenant: Tenant) -> int:
+    """Cree les comptes du plan de comptes du referentiel actif du tenant.
+
+    D10-5 : applique la regle du cahier §12.2 — **tenant -> pays -> framework
+    actif -> plan de comptes -> comptes autorises**. Le plan est resolu par le
+    pays du tenant (`core.CountryDefaultsProfile.chart_of_accounts_code`),
+    jamais par un nom de commande de gestion ecrit en dur cote appelant.
+
+    Corrige un defaut reel : les quatre chemins de creation/reinitialisation
+    de tenant appelaient `call_command("load_pcg2005", ...)` de facon
+    INCONDITIONNELLE. Un tenant cree avec `--country=SN` recevait le plan
+    comptable malgache, et `chart_of_accounts_code`, seme pour Madagascar par
+    la migration `core/0011`, n'etait lu par personne.
+
+    Retourne 0 si le pays du tenant ne resout aucun plan — un pays sans
+    referentiel n'est pas une erreur de programmation, c'est une
+    configuration a completer.
+
+    Idempotent : un compte dont le code existe deja pour ce tenant n'est pas
+    recree.
 
     Charge **tous** les comptes de la fixture, generiques ET sectoriels
     (`sector_code` renseigne), sans aucun filtrage par secteur — decision
@@ -81,14 +102,19 @@ def load_pcg2005(tenant: Tenant) -> int:
     un tenant qui ne les utilisera jamais est sans risque (comptes inactifs
     de fait, desactivables manuellement) ; filtrer a tort en excluant un
     compte dont un tenant aurait eu besoin serait pire."""
+    chart = chart_for_country(tenant.country_code)
+    if chart is None or not chart.fixture_name:
+        return 0
+
     existing_codes = set(AccAccount.objects.filter(tenant=tenant).values_list("code", flat=True))
 
     created = 0
-    for entry in _read_fixture():
+    for entry in _read_fixture(chart.fixture_name):
         if entry["code"] in existing_codes:
             continue
         AccAccount.objects.create(
             tenant=tenant,
+            chart=chart,
             code=entry["code"],
             name=entry["name"],
             account_class=entry["account_class"],
@@ -100,6 +126,15 @@ def load_pcg2005(tenant: Tenant) -> int:
         created += 1
 
     return created
+
+
+def load_pcg2005(tenant: Tenant) -> int:
+    """Alias historique conserve pour la commande de gestion du meme nom.
+
+    Depuis D10-5, le plan charge depend du pays du tenant : appeler cette
+    fonction sur un tenant non malgache ne charge PAS le PCG 2005, elle
+    delegue simplement a `load_chart_of_accounts`."""
+    return load_chart_of_accounts(tenant)
 
 
 def ensure_suspense_account(tenant: Tenant) -> AccAccount:

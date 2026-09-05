@@ -1,67 +1,486 @@
 [
-  {"code": "101", "name": "Capital social", "name_en": "Share capital", "account_class": 1, "type": "equity", "is_current": false},
-  {"code": "106", "name": "Réserves", "name_en": "Reserves", "account_class": 1, "type": "equity", "is_current": false},
-  {"code": "110", "name": "Report a nouveau", "name_en": "Retained earnings", "account_class": 1, "type": "equity", "is_current": false},
-  {"code": "120", "name": "Résultat de l'exercice", "name_en": "Net income for the year", "account_class": 1, "type": "equity", "is_current": false},
-  {"code": "164", "name": "Emprunts auprès des établissements de crédit", "name_en": "Bank loans", "account_class": 1, "type": "liability", "is_current": false},
-
-  {"code": "211", "name": "Terrains", "name_en": "Land", "account_class": 2, "type": "asset", "is_current": false},
-  {"code": "213", "name": "Constructions", "name_en": "Buildings", "account_class": 2, "type": "asset", "is_current": false},
-  {"code": "215", "name": "Installations techniques, matériel et outillage", "name_en": "Plant and equipment", "account_class": 2, "type": "asset", "is_current": false},
-  {"code": "218", "name": "Autres immobilisations corporelles", "name_en": "Other tangible fixed assets", "account_class": 2, "type": "asset", "is_current": false},
-  {"code": "281", "name": "Amortissements des immobilisations corporelles", "name_en": "Accumulated depreciation", "account_class": 2, "type": "asset", "is_current": false},
-
-  {"code": "311", "name": "Matières premières", "name_en": "Raw materials", "account_class": 3, "type": "stock", "is_current": true},
-  {"code": "355", "name": "Produits finis", "name_en": "Finished goods", "account_class": 3, "type": "stock", "is_current": true},
-  {"code": "371", "name": "Marchandises", "name_en": "Goods for resale", "account_class": 3, "type": "stock", "is_current": true},
-
-  {"code": "401", "name": "Fournisseurs", "name_en": "Trade payables", "account_class": 4, "type": "payable", "is_current": true},
-  {"code": "409", "name": "Fournisseurs débiteurs, avances et acomptes verses", "name_en": "Supplier advances", "account_class": 4, "type": "payable", "is_current": true},
-  {"code": "411", "name": "Clients", "name_en": "Trade receivables", "account_class": 4, "type": "receivable", "is_current": true},
-  {"code": "419", "name": "Clients créditeurs, avances et acomptes reçus", "name_en": "Customer advances", "account_class": 4, "type": "receivable", "is_current": true},
-  {"code": "421", "name": "Personnel, rémunérations dues", "name_en": "Payroll payable", "account_class": 4, "type": "payable", "is_current": true},
-  {"code": "431", "name": "CNaPS", "name_en": "Social security payable", "account_class": 4, "type": "payable", "is_current": true},
-  {"code": "432", "name": "OSTIE", "name_en": "Health insurance payable", "account_class": 4, "type": "payable", "is_current": true},
-  {"code": "441", "name": "État, IRSA", "name_en": "State, income tax withheld", "account_class": 4, "type": "tax", "is_current": true},
-  {"code": "4451", "name": "État, TVA collectée", "name_en": "VAT collected", "account_class": 4, "type": "tax", "is_current": true},
-  {"code": "4452", "name": "État, TVA déductible", "name_en": "VAT deductible", "account_class": 4, "type": "tax", "is_current": true},
-  {"code": "4457", "name": "État, TVA a décaisser", "name_en": "VAT payable", "account_class": 4, "type": "tax", "is_current": true},
-
-  {"code": "512", "name": "Banques", "name_en": "Banks", "account_class": 5, "type": "bank", "is_current": true},
-  {"code": "530", "name": "Caisse", "name_en": "Cash", "account_class": 5, "type": "cash", "is_current": true},
-  {"code": "585", "name": "Virements internes", "name_en": "Internal transfers", "account_class": 5, "type": "bank", "is_current": true},
-
-  {"code": "601", "name": "Achats de matières premières", "name_en": "Purchases of raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production"},
-  {"code": "607", "name": "Achats de marchandises", "name_en": "Purchases of goods", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution"},
-  {"code": "613", "name": "Locations", "name_en": "Rent expense", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-  {"code": "624", "name": "Transports", "name_en": "Freight and transport", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution"},
-  {"code": "627", "name": "Frais bancaires", "name_en": "Bank charges", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-  {"code": "635", "name": "Impôts et taxes", "name_en": "Taxes and duties", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-  {"code": "641", "name": "Rémunérations du personnel", "name_en": "Salaries expense", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-  {"code": "645", "name": "Charges sociales", "name_en": "Social contributions expense", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-  {"code": "681", "name": "Dotations aux amortissements", "name_en": "Depreciation expense", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "administration"},
-
-  {"code": "701", "name": "Ventes de produits finis", "name_en": "Sales of finished goods", "account_class": 7, "type": "income", "is_current": true},
-  {"code": "707", "name": "Ventes de marchandises", "name_en": "Sales of goods", "account_class": 7, "type": "income", "is_current": true},
-  {"code": "708", "name": "Produits des activités annexes", "name_en": "Other operating income", "account_class": 7, "type": "income", "is_current": true},
-
-  {"code": "3111", "name": "Matières premières textiles", "name_en": "Textile raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "textile"},
-  {"code": "6011", "name": "Achats de matières premières textiles", "name_en": "Purchases of textile raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "textile"},
-  {"code": "6111", "name": "Sous-traitance façon textile", "name_en": "Textile subcontracted manufacturing", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "textile"},
-
-  {"code": "3112", "name": "Peaux et cuirs bruts", "name_en": "Raw hides and leather", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "cuir"},
-  {"code": "6012", "name": "Achats de cuirs et peaux", "name_en": "Purchases of leather and hides", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "cuir"},
-  {"code": "6112", "name": "Sous-traitance tannage", "name_en": "Subcontracted tanning", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "cuir"},
-
-  {"code": "3113", "name": "Matières premières agroalimentaires", "name_en": "Agrifood raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "agroalimentaire"},
-  {"code": "6013", "name": "Achats de matières premières agroalimentaires", "name_en": "Purchases of agrifood raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "agroalimentaire"},
-  {"code": "6023", "name": "Emballages alimentaires", "name_en": "Food packaging", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "agroalimentaire"},
-
-  {"code": "6081", "name": "Droits et taxes à l'importation", "name_en": "Import duties and taxes", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
-  {"code": "6241", "name": "Frais de transit et douane", "name_en": "Customs clearance and transit fees", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
-  {"code": "6221", "name": "Commissions d'importation", "name_en": "Import commissions", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "distribution", "sector_code": "import_export"},
-
-  {"code": "3114", "name": "Matières premières artisanales", "name_en": "Craft raw materials", "account_class": 3, "type": "stock", "is_current": true, "sector_code": "artisanat"},
-  {"code": "6014", "name": "Achats de matières premières artisanales", "name_en": "Purchases of craft raw materials", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "artisanat"},
-  {"code": "6113", "name": "Main d'œuvre artisanale sous-traitée", "name_en": "Subcontracted craft labor", "account_class": 6, "type": "expense", "is_current": true, "functional_destination": "production", "sector_code": "artisanat"}
+  {
+    "code": "101",
+    "name": "Capital social",
+    "name_en": "Share capital",
+    "account_class": 1,
+    "type": "equity",
+    "is_current": false
+  },
+  {
+    "code": "106",
+    "name": "Réserves",
+    "name_en": "Reserves",
+    "account_class": 1,
+    "type": "equity",
+    "is_current": false
+  },
+  {
+    "code": "110",
+    "name": "Report a nouveau",
+    "name_en": "Retained earnings",
+    "account_class": 1,
+    "type": "equity",
+    "is_current": false
+  },
+  {
+    "code": "120",
+    "name": "Résultat de l'exercice",
+    "name_en": "Net income for the year",
+    "account_class": 1,
+    "type": "equity",
+    "is_current": false
+  },
+  {
+    "code": "164",
+    "name": "Emprunts auprès des établissements de crédit",
+    "name_en": "Bank loans",
+    "account_class": 1,
+    "type": "liability",
+    "is_current": false
+  },
+  {
+    "code": "211",
+    "name": "Terrains",
+    "name_en": "Land",
+    "account_class": 2,
+    "type": "asset",
+    "is_current": false
+  },
+  {
+    "code": "213",
+    "name": "Constructions",
+    "name_en": "Buildings",
+    "account_class": 2,
+    "type": "asset",
+    "is_current": false
+  },
+  {
+    "code": "215",
+    "name": "Installations techniques, matériel et outillage",
+    "name_en": "Plant and equipment",
+    "account_class": 2,
+    "type": "asset",
+    "is_current": false
+  },
+  {
+    "code": "218",
+    "name": "Autres immobilisations corporelles",
+    "name_en": "Other tangible fixed assets",
+    "account_class": 2,
+    "type": "asset",
+    "is_current": false
+  },
+  {
+    "code": "281",
+    "name": "Amortissements des immobilisations corporelles",
+    "name_en": "Accumulated depreciation",
+    "account_class": 2,
+    "type": "asset",
+    "is_current": false
+  },
+  {
+    "code": "311",
+    "name": "Matières premières",
+    "name_en": "Raw materials",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true
+  },
+  {
+    "code": "355",
+    "name": "Produits finis",
+    "name_en": "Finished goods",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true
+  },
+  {
+    "code": "371",
+    "name": "Marchandises",
+    "name_en": "Goods for resale",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true
+  },
+  {
+    "code": "401",
+    "name": "Fournisseurs",
+    "name_en": "Trade payables",
+    "account_class": 4,
+    "type": "payable",
+    "is_current": true
+  },
+  {
+    "code": "409",
+    "name": "Fournisseurs débiteurs, avances et acomptes verses",
+    "name_en": "Supplier advances",
+    "account_class": 4,
+    "type": "payable",
+    "is_current": true
+  },
+  {
+    "code": "411",
+    "name": "Clients",
+    "name_en": "Trade receivables",
+    "account_class": 4,
+    "type": "receivable",
+    "is_current": true
+  },
+  {
+    "code": "419",
+    "name": "Clients créditeurs, avances et acomptes reçus",
+    "name_en": "Customer advances",
+    "account_class": 4,
+    "type": "receivable",
+    "is_current": true
+  },
+  {
+    "code": "421",
+    "name": "Personnel, rémunérations dues",
+    "name_en": "Payroll payable",
+    "account_class": 4,
+    "type": "payable",
+    "is_current": true
+  },
+  {
+    "code": "431",
+    "name": "CNaPS",
+    "name_en": "Social security payable",
+    "account_class": 4,
+    "type": "payable",
+    "is_current": true
+  },
+  {
+    "code": "432",
+    "name": "OSTIE",
+    "name_en": "Health insurance payable",
+    "account_class": 4,
+    "type": "payable",
+    "is_current": true
+  },
+  {
+    "code": "441",
+    "name": "État, IRSA",
+    "name_en": "State, income tax withheld",
+    "account_class": 4,
+    "type": "tax",
+    "is_current": true
+  },
+  {
+    "code": "4451",
+    "name": "État, TVA collectée",
+    "name_en": "VAT collected",
+    "account_class": 4,
+    "type": "tax",
+    "is_current": true
+  },
+  {
+    "code": "4452",
+    "name": "État, TVA déductible",
+    "name_en": "VAT deductible",
+    "account_class": 4,
+    "type": "tax",
+    "is_current": true
+  },
+  {
+    "code": "4457",
+    "name": "État, TVA a décaisser",
+    "name_en": "VAT payable",
+    "account_class": 4,
+    "type": "tax",
+    "is_current": true
+  },
+  {
+    "code": "512",
+    "name": "Banques",
+    "name_en": "Banks",
+    "account_class": 5,
+    "type": "bank",
+    "is_current": true
+  },
+  {
+    "code": "530",
+    "name": "Caisse",
+    "name_en": "Cash",
+    "account_class": 5,
+    "type": "cash",
+    "is_current": true
+  },
+  {
+    "code": "585",
+    "name": "Virements internes",
+    "name_en": "Internal transfers",
+    "account_class": 5,
+    "type": "bank",
+    "is_current": true
+  },
+  {
+    "code": "601",
+    "name": "Achats de matières premières",
+    "name_en": "Purchases of raw materials",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production"
+  },
+  {
+    "code": "607",
+    "name": "Achats de marchandises",
+    "name_en": "Purchases of goods",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "distribution"
+  },
+  {
+    "code": "613",
+    "name": "Locations",
+    "name_en": "Rent expense",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "624",
+    "name": "Transports",
+    "name_en": "Freight and transport",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "distribution"
+  },
+  {
+    "code": "627",
+    "name": "Frais bancaires",
+    "name_en": "Bank charges",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "635",
+    "name": "Impôts et taxes",
+    "name_en": "Taxes and duties",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "641",
+    "name": "Rémunérations du personnel",
+    "name_en": "Salaries expense",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "645",
+    "name": "Charges sociales",
+    "name_en": "Social contributions expense",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "681",
+    "name": "Dotations aux amortissements",
+    "name_en": "Depreciation expense",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "701",
+    "name": "Ventes de produits finis",
+    "name_en": "Sales of finished goods",
+    "account_class": 7,
+    "type": "income",
+    "is_current": true
+  },
+  {
+    "code": "707",
+    "name": "Ventes de marchandises",
+    "name_en": "Sales of goods",
+    "account_class": 7,
+    "type": "income",
+    "is_current": true
+  },
+  {
+    "code": "708",
+    "name": "Produits des activités annexes",
+    "name_en": "Other operating income",
+    "account_class": 7,
+    "type": "income",
+    "is_current": true
+  },
+  {
+    "code": "3111",
+    "name": "Matières premières textiles",
+    "name_en": "Textile raw materials",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true,
+    "sector_code": "textile"
+  },
+  {
+    "code": "6011",
+    "name": "Achats de matières premières textiles",
+    "name_en": "Purchases of textile raw materials",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "textile"
+  },
+  {
+    "code": "6111",
+    "name": "Sous-traitance façon textile",
+    "name_en": "Textile subcontracted manufacturing",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "textile"
+  },
+  {
+    "code": "3112",
+    "name": "Peaux et cuirs bruts",
+    "name_en": "Raw hides and leather",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true,
+    "sector_code": "cuir"
+  },
+  {
+    "code": "6012",
+    "name": "Achats de cuirs et peaux",
+    "name_en": "Purchases of leather and hides",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "cuir"
+  },
+  {
+    "code": "6112",
+    "name": "Sous-traitance tannage",
+    "name_en": "Subcontracted tanning",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "cuir"
+  },
+  {
+    "code": "3113",
+    "name": "Matières premières agroalimentaires",
+    "name_en": "Agrifood raw materials",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true,
+    "sector_code": "agroalimentaire"
+  },
+  {
+    "code": "6013",
+    "name": "Achats de matières premières agroalimentaires",
+    "name_en": "Purchases of agrifood raw materials",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "agroalimentaire"
+  },
+  {
+    "code": "6023",
+    "name": "Emballages alimentaires",
+    "name_en": "Food packaging",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "agroalimentaire"
+  },
+  {
+    "code": "6081",
+    "name": "Droits et taxes à l'importation",
+    "name_en": "Import duties and taxes",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "distribution",
+    "sector_code": "import_export"
+  },
+  {
+    "code": "6241",
+    "name": "Frais de transit et douane",
+    "name_en": "Customs clearance and transit fees",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "distribution",
+    "sector_code": "import_export"
+  },
+  {
+    "code": "6221",
+    "name": "Commissions d'importation",
+    "name_en": "Import commissions",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "distribution",
+    "sector_code": "import_export"
+  },
+  {
+    "code": "3114",
+    "name": "Matières premières artisanales",
+    "name_en": "Craft raw materials",
+    "account_class": 3,
+    "type": "stock",
+    "is_current": true,
+    "sector_code": "artisanat"
+  },
+  {
+    "code": "6014",
+    "name": "Achats de matières premières artisanales",
+    "name_en": "Purchases of craft raw materials",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "artisanat"
+  },
+  {
+    "code": "6113",
+    "name": "Main d'œuvre artisanale sous-traitée",
+    "name_en": "Subcontracted craft labor",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "production",
+    "sector_code": "artisanat"
+  },
+  {
+    "code": "666",
+    "name": "Pertes de change",
+    "name_en": "Foreign exchange losses",
+    "account_class": 6,
+    "type": "expense",
+    "is_current": true,
+    "functional_destination": "administration"
+  },
+  {
+    "code": "766",
+    "name": "Gains de change",
+    "name_en": "Foreign exchange gains",
+    "account_class": 7,
+    "type": "income",
+    "is_current": true
+  }
 ]

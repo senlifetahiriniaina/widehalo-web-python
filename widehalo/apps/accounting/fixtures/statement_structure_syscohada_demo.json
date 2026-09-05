@@ -1,0 +1,112 @@
+{
+  "_note": "Structure de DEMONSTRATION, construite au sprint D10-6 pour prouver que la structure des etats financiers n'est plus codee en dur. Ce n'est PAS le modele officiel du SYSCOHADA revise et elle n'est validee par aucun expert-comptable.",
+  "lines": [
+    {
+      "kind": "poste",
+      "key": "ventes",
+      "label": "Ventes de marchandises",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "701"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "achats",
+      "label": "Achats de marchandises",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "601"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "marge_commerciale",
+      "label": "MARGE COMMERCIALE",
+      "roman": "XA",
+      "add": [
+        "ventes"
+      ],
+      "sub": [
+        "achats"
+      ]
+    },
+    {
+      "kind": "poste",
+      "key": "charges_personnel",
+      "label": "Charges de personnel",
+      "roman": "",
+      "natural": "debit",
+      "additive": [
+        "661"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "resultat_exploitation",
+      "label": "RESULTAT D'EXPLOITATION",
+      "roman": "XI",
+      "add": [
+        "marge_commerciale"
+      ],
+      "sub": [
+        "charges_personnel"
+      ]
+    },
+    {
+      "kind": "poste",
+      "key": "produits_financiers",
+      "label": "Produits financiers",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "77"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "poste",
+      "key": "produits_hao",
+      "label": "Produits HAO",
+      "roman": "",
+      "natural": "credit",
+      "additive": [
+        "87"
+      ],
+      "subtractive": []
+    },
+    {
+      "kind": "total",
+      "key": "resultat_net",
+      "label": "RESULTAT NET",
+      "roman": "XV",
+      "add": [
+        "resultat_exploitation",
+        "produits_financiers",
+        "produits_hao"
+      ],
+      "sub": []
+    }
+  ],
+  "balance_sheet_order": {
+    "asset": {
+      "asset": 0,
+      "stock": 1,
+      "receivable": 2,
+      "tax": 3,
+      "bank": 4,
+      "cash": 5
+    },
+    "liability": {
+      "equity": 0,
+      "liability": 1,
+      "payable": 2,
+      "tax": 3
+    }
+  }
+}

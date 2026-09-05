@@ -21,6 +21,7 @@ from apps.accounting.models import (
     AccFramework,
     AccTenantDefaultAccount,
 )
+from apps.accounting.services.chart_of_accounts import load_chart_of_accounts
 from apps.accounting.services.default_accounts import (
     ROLE_FALLBACK_TYPE,
     resolve_default_account,
@@ -206,45 +207,75 @@ def test_a_second_framework_produces_its_own_statement_without_touching_python()
     """La preuve qui compte pour ACC-2 : changer de referentiel change l'etat
     financier, sans qu'une ligne de Python ne bouge.
 
-    Le referentiel de demonstration ci-dessous n'est evidemment pas un plan
-    SYSCOHADA reel — l'ADR le dit — mais il suffit a prouver que la structure
-    n'est plus dans le code."""
+    Le referentiel utilise ici est celui livre par la migration 0029 — un jeu
+    de DEMONSTRATION, pas un plan SYSCOHADA reel, l'ADR le dit. Il suffit a
+    prouver que la structure n'est plus dans le code."""
     from apps.accounting.services.reports import income_statement
 
-    tenant = TenantFactory(country_code="XX")
-    framework = AccFramework.objects.create(
-        code=AccFramework.CODE_SYSCOHADA_REVISE,
-        name="Referentiel de demonstration",
-        default_country_code="XX",
-        statement_structure={
-            "lines": [
-                {
-                    "kind": "poste",
-                    "key": "ventes",
-                    "label": "Ventes de marchandises",
-                    "roman": "",
-                    "natural": "credit",
-                    "additive": ["601"],
-                    "subtractive": [],
-                },
-                {
-                    "kind": "total",
-                    "key": "resultat",
-                    "label": "RESULTAT",
-                    "roman": "A",
-                    "add": ["ventes"],
-                    "sub": [],
-                },
-            ]
-        },
-    )
-    chart = AccChartOfAccounts.objects.create(
-        framework=framework, country_code="XX", name="Plan de demonstration"
-    )
+    tenant = TenantFactory(country_code="CI")
     with use_tenant(tenant.id):
-        AccAccountFactory(tenant=tenant, code="601", chart=chart)
+        load_chart_of_accounts(tenant)
         fiscal_year = AccFiscalYearFactory(tenant=tenant)
         rows = income_statement(fiscal_year)
 
-    assert [row["label"] for row in rows] == ["Ventes de marchandises", "RESULTAT"]
-    assert [row["poste"] for row in rows] == ["", "A"]
+    labels = [row["label"] for row in rows]
+    assert "MARGE COMMERCIALE" in labels
+    assert "RESULTAT NET" in labels
+    # Aucun poste du PCG 2005 ne doit apparaitre : ce sont deux referentiels
+    # distincts, jamais deux presentations du meme.
+    assert "VALEUR AJOUTEE D'EXPLOITATION" not in labels
+    assert [row["poste"] for row in rows if row["poste"]] == ["XA", "XI", "XV"]
+
+
+def test_the_chart_loaded_depends_on_the_country_of_the_tenant() -> None:
+    """ACC-1 et le defaut que D10-5 corrige.
+
+    Les quatre chemins de creation de tenant appelaient
+    `call_command("load_pcg2005")` INCONDITIONNELLEMENT : un tenant cree avec
+    `--country=SN` recevait le plan comptable malgache, et le
+    `chart_of_accounts_code` du profil pays n'etait lu par personne."""
+    malagasy = TenantFactory(country_code="MG")
+    ivorian = TenantFactory(country_code="CI")
+
+    with use_tenant(malagasy.id):
+        assert load_chart_of_accounts(malagasy) > 0
+        codes = set(AccAccount.objects.values_list("code", flat=True))
+    # "530" (Caisse) appartient au PCG 2005, "571" au jeu SYSCOHADA.
+    assert "530" in codes and "571" not in codes
+
+    with use_tenant(ivorian.id):
+        assert load_chart_of_accounts(ivorian) > 0
+        codes = set(AccAccount.objects.values_list("code", flat=True))
+    assert "571" in codes and "530" not in codes
+
+
+def test_a_country_without_referential_loads_nothing_rather_than_the_wrong_plan() -> None:
+    """Un pays sans referentiel n'est pas une erreur de programmation, c'est
+    une configuration a completer — et surtout, il ne doit pas recevoir le
+    plan d'un autre pays."""
+    tenant = TenantFactory(country_code="ZZ")
+    with use_tenant(tenant.id):
+        assert load_chart_of_accounts(tenant) == 0
+        assert AccAccount.objects.count() == 0
+
+
+def test_loaded_accounts_are_attached_to_their_chart() -> None:
+    """La regle du cahier §12.2 de bout en bout : tenant -> pays -> framework
+    -> plan -> comptes autorises."""
+    tenant = TenantFactory(country_code="CI")
+    with use_tenant(tenant.id):
+        load_chart_of_accounts(tenant)
+        charts = set(AccAccount.objects.values_list("chart__framework__code", flat=True))
+    assert charts == {"SYSCOHADA_REVISE"}
+
+
+def test_the_two_referentials_are_never_confused() -> None:
+    """« Madagascar n'est pas membre de l'OHADA. […] Toute confusion entre les
+    deux produit une comptabilite non conforme » (cahier §12.2). Les deux
+    referentiels n'ont ni les memes classes, ni le meme compte de caisse."""
+    pcg = AccFramework.objects.get(code=AccFramework.CODE_PCG2005)
+    syscohada = AccFramework.objects.get(code=AccFramework.CODE_SYSCOHADA_REVISE)
+    assert pcg.cash_account_prefix != syscohada.cash_account_prefix
+    assert set(pcg.account_classes) != set(syscohada.account_classes)
+    # Le jeu de demonstration doit se declarer comme tel, sans ambiguite.
+    assert "DEMONSTRATION" in syscohada.validation_reserve

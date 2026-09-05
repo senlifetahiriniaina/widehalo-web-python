@@ -110,27 +110,13 @@ class Command(BaseCommand):
             receivable = AccAccount.objects.get(tenant=tenant, code="411")
             income = AccAccount.objects.get(tenant=tenant, code="701")
             cash = AccAccount.objects.get(tenant=tenant, code="512")
-            # Comptes d'ecart de change : non fournis par le PCG2005 simplifie,
-            # crees ici en config annexe (jamais exerces reellement puisque le
-            # jeu de demonstration ne facture qu'en MGA = devise de base).
-            gain_account, _ = AccAccount.objects.get_or_create(
-                tenant=tenant,
-                code="766",
-                defaults={
-                    "name": "Gains de change",
-                    "account_class": 7,
-                    "type": AccAccount.TYPE_INCOME,
-                },
-            )
-            loss_account, _ = AccAccount.objects.get_or_create(
-                tenant=tenant,
-                code="666",
-                defaults={
-                    "name": "Pertes de change",
-                    "account_class": 6,
-                    "type": AccAccount.TYPE_EXPENSE,
-                },
-            )
+            # D10-5 : les comptes d'ecart de change appartiennent desormais au
+            # plan de comptes (fixture du referentiel), plus a cette commande
+            # de demonstration. Un compte cree ici n'aurait aucun plan
+            # rattache, ce qui contredit la regle « tenant -> pays ->
+            # referentiel -> plan -> comptes autorises » du cahier §12.2.
+            gain_account = AccAccount.objects.get(tenant=tenant, code="766")
+            loss_account = AccAccount.objects.get(tenant=tenant, code="666")
 
             ensure_default_approval_thresholds(tenant)
 
