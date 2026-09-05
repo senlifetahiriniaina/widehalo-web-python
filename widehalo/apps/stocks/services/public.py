@@ -334,6 +334,15 @@ def sell_from_stock(
         uom=quant.uom,
         unit_cost_mga=quant.unit_cost_mga,
         lot=quant.lot,
+        # POS-3 (L6) : nature `vente_comptoir`, et non la `livraison` que
+        # `_DEFAULT_MOVE_TYPE_BY_PICKING_TYPE` deduirait d'un picking de
+        # sortie. La nature existait depuis la Phase 3 SANS AUCUN
+        # PRODUCTEUR — sa propre declaration le disait : « le cablage reel
+        # d'`apps.pos` sur cette nouvelle valeur est un chantier distinct ».
+        # Une vente au comptoir n'est pas une expedition : elle ne suit
+        # aucun bon de livraison, et les confondre rendait toute analyse des
+        # sorties par nature (cahier §9) muette sur la caisse.
+        move_type=StkMove.TYPE_VENTE_COMPTOIR,
         operator=operator,
     )
     mark_picking_ready(picking)

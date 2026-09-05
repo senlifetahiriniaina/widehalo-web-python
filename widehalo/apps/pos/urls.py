@@ -14,5 +14,13 @@ urlpatterns = [
     path("payment-methods/", views.payment_method_list, name="payment_methods"),
     path("sessions/", views.session_list, name="sessions"),
     path("sessions/<uuid:session_id>/", views.session_detail, name="session_detail"),
+    # POS-1 (L6) : le ticket imprimable. `reprint_count` documentait cet
+    # ecran depuis la Phase 1 sans qu'il existe.
+    path("orders/<uuid:order_id>/ticket/", views.ticket_print, name="ticket"),
+    path(
+        "orders/<uuid:order_id>/ticket/reprint/",
+        views.ticket_reprint,
+        name="ticket_reprint",
+    ),
     path("sync-log/", views.sync_log_view, name="sync_log"),
 ]

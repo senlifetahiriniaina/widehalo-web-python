@@ -29,7 +29,7 @@ from apps.catalog.services.public import search_sellable_variants
 from apps.core.views.tenant_web import resolve_tenant
 from apps.partners.services.public import search_partners
 from apps.pos.models import PosOrder, PosPaymentMethod, PosRegister, PosSession, PosSyncLog
-from apps.pos.services.orders import sync_order
+from apps.pos.services.orders import mark_reprint, sync_order
 from apps.pos.services.sessions import (
     add_cash_movement,
     close_session,
@@ -175,6 +175,72 @@ def sale_submit(request: HttpRequest) -> HttpResponse:
         detail = _error_message(exc) if isinstance(exc, ValidationError) else str(exc)
         return redirect(f"/pos/sale/?error={quote(detail)}")
     return redirect(f"/pos/sale/?order_id={order.id}")
+
+
+# Formats thermiques courants. 80 mm par defaut (le plus repandu), 58 mm
+# pour les caisses mobiles/portables. Toute autre valeur est ignoree plutot
+# que rendue : une largeur libre produirait un ticket illisible sur du
+# materiel qui n'existe pas.
+_TICKET_WIDTHS_MM = (80, 58)
+
+
+def _resolve_ticket_width(raw: str | None) -> int:
+    try:
+        width = int(raw or "")
+    except ValueError:
+        return _TICKET_WIDTHS_MM[0]
+    return width if width in _TICKET_WIDTHS_MM else _TICKET_WIDTHS_MM[0]
+
+
+@login_required
+def ticket_print(request: HttpRequest, order_id: str) -> HttpResponse:
+    """POS-1 — impression du ticket de caisse.
+
+    **L'ecran que `reprint_count` documentait sans qu'il existe.** Le
+    compteur etait livre, incremente par `services.orders.mark_reprint`, et
+    sa docstring annoncait « l'ecran d'impression affiche DUPLICATA des que
+    reprint_count > 0 ». Cet ecran n'existait nulle part : le compteur
+    tracait les reimpressions d'un document qu'aucun code ne produisait.
+
+    LECTURE PURE — cette vue n'incremente rien. Recharger la page, revenir
+    en arriere ou reimprimer depuis le navigateur ne doit jamais compter une
+    reimpression, sans quoi la trace de duplicata ne voudrait plus rien
+    dire. C'est `ticket_reprint` (POST) qui declare l'acte."""
+    if not request.user.has_perm("pos.view_posorder"):
+        return HttpResponse(status=403)
+
+    order = get_object_or_404(
+        PosOrder.objects.select_related("register").prefetch_related("lines", "payments__method"),
+        id=order_id,
+    )
+    width = _resolve_ticket_width(request.GET.get("width"))
+    return render(
+        request,
+        "pos/ticket.html",
+        {
+            "order": order,
+            "tenant": resolve_tenant(request),
+            "paper_width_mm": width,
+            "other_width_mm": 58 if width == 80 else 80,
+        },
+    )
+
+
+@login_required
+def ticket_reprint(request: HttpRequest, order_id: str) -> HttpResponse:
+    """Declare une reimpression (POST) puis renvoie sur le ticket.
+
+    Separee de `ticket_print` parce qu'elle ECRIT : le cahier exige que la
+    reimpression soit « autorisee mais tracee et marquee comme duplicata »,
+    et une trace qu'un simple rechargement de page fait grimper ne trace
+    rien."""
+    if request.method != "POST" or not request.user.has_perm("pos.change_posorder"):
+        return HttpResponse(status=403)
+
+    order = get_object_or_404(PosOrder, id=order_id)
+    mark_reprint(order)
+    width = _resolve_ticket_width(request.POST.get("width"))
+    return redirect(f"/pos/orders/{order.id}/ticket/?width={width}")
 
 
 @login_required

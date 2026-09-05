@@ -1,0 +1,130 @@
+{% load i18n %}<!doctype html>
+{% comment %}
+POS-1 (L6) — gabarit d'impression du ticket de caisse.
+
+Ce gabarit N'EXISTAIT PAS. `PosOrder.reprint_count` était livré, incrémenté
+par `services.orders.mark_reprint`, et sa docstring annonçait que « l'écran
+d'impression affiche DUPLICATA dès que reprint_count > 0 » — un écran qui
+n'existait nulle part. Le compteur traçait donc des réimpressions d'un
+document qu'aucun code ne produisait.
+
+Page AUTONOME (ne dérive PAS de `base.html`) : un ticket de caisse s'imprime
+sur une imprimante thermique de 58 ou 80 mm, sans barre latérale, sans menu
+et sans police d'interface. Même discipline que `login.html`/
+`guest_portal.html`, autonomes pour d'autres raisons.
+
+Largeur pilotée par `?width=58` (défaut 80) : les deux formats couvrent
+l'essentiel du parc thermique. `@page size` autant que `max-width` — la
+première commande l'imprimante, la seconde l'aperçu écran.
+{% endcomment %}
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>{% blocktrans with number=order.number|default:order.client_uuid %}Ticket {{ number }}{% endblocktrans %}</title>
+  <style>
+    @page { size: {{ paper_width_mm }}mm auto; margin: 3mm; }
+    body {
+      font-family: "DejaVu Sans Mono", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.35;
+      margin: 0 auto;
+      padding: 4mm;
+      max-width: {{ paper_width_mm }}mm;
+      color: #000;
+      background: #fff;
+    }
+    h1 { font-size: 13px; margin: 0 0 2mm; text-align: center; text-transform: uppercase; }
+    .meta { text-align: center; margin-bottom: 3mm; }
+    .duplicata {
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #000;
+      padding: 1mm;
+      margin-bottom: 3mm;
+      letter-spacing: .1em;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 0; vertical-align: top; }
+    th { text-align: left; border-bottom: 1px dashed #000; }
+    .num { text-align: right; white-space: nowrap; }
+    .totals { border-top: 1px dashed #000; margin-top: 2mm; padding-top: 2mm; }
+    .grand { font-weight: bold; font-size: 13px; }
+    footer { margin-top: 4mm; text-align: center; border-top: 1px dashed #000; padding-top: 2mm; }
+    /* Barre d'actions : visible a l'ecran, jamais sur le papier. */
+    .actions { margin-top: 5mm; text-align: center; }
+    @media print { .actions { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <h1>{{ tenant.name }}</h1>
+  <div class="meta">
+    {{ order.register.name }}<br>
+    {{ order.number|default:order.client_uuid }}<br>
+    {{ order.created_at }}
+  </div>
+
+  {% if order.reprint_count %}
+    {# Marque exigee par le cahier : « reimpression autorisee mais tracee et
+       marquee comme duplicata ». Le compte est affiche, pas seulement le
+       mot : un 4e duplicata ne se lit pas comme un 1er. #}
+    <p class="duplicata">{% blocktrans count counter=order.reprint_count %}DUPLICATA ({{ counter }}<sup>e</sup> impression){% plural %}DUPLICATA ({{ counter }}<sup>e</sup> impression){% endblocktrans %}</p>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans "Article" %}</th>
+        <th class="num">{% trans "Qté" %}</th>
+        <th class="num">{% trans "Total" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in order.lines.all %}
+      <tr>
+        <td>{{ line.description }}{% if line.discount_pct %}<br><small>{% blocktrans with pct=line.discount_pct %}remise {{ pct }} %{% endblocktrans %}</small>{% endif %}</td>
+        <td class="num">{{ line.qty }}</td>
+        <td class="num">{{ line.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <table>
+      <tr><td>{% trans "Sous-total HT" %}</td><td class="num">{{ order.amount_untaxed }}</td></tr>
+      <tr><td>{% trans "TVA" %}</td><td class="num">{{ order.amount_tax }}</td></tr>
+      <tr class="grand"><td>{% trans "TOTAL TTC" %}</td><td class="num">{{ order.amount_total }} MGA</td></tr>
+    </table>
+  </div>
+
+  <div class="totals">
+    {% for payment in order.payments.all %}
+      <table>
+        <tr>
+          <td>{{ payment.method.name }}{% if payment.reference %}<br><small>{{ payment.reference }}</small>{% endif %}</td>
+          <td class="num">{{ payment.amount }}</td>
+        </tr>
+      </table>
+    {% empty %}
+      <p>{% trans "Aucun règlement enregistré." %}</p>
+    {% endfor %}
+  </div>
+
+  <footer>
+    {% trans "Merci de votre visite." %}
+  </footer>
+
+  <div class="actions">
+    <button type="button" onclick="window.print()">{% trans "Imprimer" %}</button>
+    {# La reimpression est un POST : elle ECRIT (`mark_reprint`). Un simple
+       rechargement de cette page ne doit jamais incrementer le compteur —
+       sans quoi la trace de duplicata perdrait tout sens. #}
+    <form method="post" action="{% url 'pos:ticket_reprint' order.id %}" style="display:inline;">
+      {% csrf_token %}
+      <input type="hidden" name="width" value="{{ paper_width_mm }}">
+      <button type="submit">{% trans "Déclarer une réimpression" %}</button>
+    </form>
+    <a href="?width={% if paper_width_mm == 80 %}58{% else %}80{% endif %}">{% blocktrans with other=other_width_mm %}Basculer en {{ other }} mm{% endblocktrans %}</a>
+  </div>
+</body>
+</html>
