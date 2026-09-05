@@ -8,6 +8,10 @@ class SalesConfig(AppConfig):
     verbose_name = "Ventes"
 
     def ready(self) -> None:
+        # L0-3 : declaration des commandes periodiques de ce module
+        # (registre `core.services.scheduled_commands`). Declare seulement —
+        # l'ecriture des planifications est faite au deploiement par
+        # `apps.core.tasks.sync_schedules`.
         # §5.11 reporting (REP4/REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.
@@ -16,6 +20,7 @@ class SalesConfig(AppConfig):
         from apps.sales.services.ai_data_query_registration import register_ai_data_query_tools
         from apps.sales.services.ai_insight_registration import register_ai_insight_sources
         from apps.sales.services.reports_registration import register_reports
+        from apps.sales.services.scheduling_registration import register_scheduled_commands
 
         register_reports()
         # AI2 (assistant contextuel par page/action) : meme patron, registre
@@ -30,3 +35,4 @@ class SalesConfig(AppConfig):
         # GW3 (passerelle IA locale d'analyse de donnees) : meme patron,
         # registre partage `core.services.data_query_tool_registry`.
         register_ai_data_query_tools()
+        register_scheduled_commands()

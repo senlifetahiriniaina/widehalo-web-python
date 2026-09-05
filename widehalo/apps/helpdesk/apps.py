@@ -8,6 +8,10 @@ class HelpdeskConfig(AppConfig):
     verbose_name = "Support et suivi operationnel"
 
     def ready(self) -> None:
+        # L0-3 : declaration des commandes periodiques de ce module
+        # (registre `core.services.scheduled_commands`). Declare seulement —
+        # l'ecriture des planifications est faite au deploiement par
+        # `apps.core.tasks.sync_schedules`.
         # HD5 (cf. plan section « Module `helpdesk` » -> HD5) : integration
         # IA/automatisation transversale, meme patron exact que
         # `apps.purchase.apps.PurchaseConfig.ready()` — 6 auto-enregistrements
@@ -23,6 +27,7 @@ class HelpdeskConfig(AppConfig):
         from apps.helpdesk.services.automation_registration import (
             register_actions as register_automation_actions,
         )
+        from apps.helpdesk.services.scheduling_registration import register_scheduled_commands
 
         # AUTO3 (Studio de workflow visuel) — « connexion native aux
         # operations » concrete, cf. `automation_registration.py`.
@@ -37,3 +42,4 @@ class HelpdeskConfig(AppConfig):
         register_ai_advisor_rules()
         # GW3 (passerelle IA locale d'analyse de donnees).
         register_ai_data_query_tools()
+        register_scheduled_commands()

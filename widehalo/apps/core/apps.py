@@ -15,9 +15,14 @@ class CoreConfig(AppConfig):
     verbose_name = "Socle"
 
     def ready(self) -> None:
+        # L0-3 : declaration des commandes periodiques de ce module
+        # (registre `core.services.scheduled_commands`). Declare seulement —
+        # l'ecriture des planifications est faite au deploiement par
+        # `apps.core.tasks.sync_schedules`.
         from apps.core import events  # noqa: F401
         from apps.core.audit_signals import connect_audit_signals
         from apps.core.services.automation_actions import register_actions
+        from apps.core.services.scheduling_registration import register_scheduled_commands
         from apps.core.workflows import connect_workflow_signals
 
         # Pas de filtre `sender` : on veut reappliquer RLS apres la migration
@@ -30,3 +35,4 @@ class CoreConfig(AppConfig):
         # action (`core.notify_role`) dans le registre partage, meme patron
         # que chaque module metier avec ses propres rapports/actions.
         register_actions()
+        register_scheduled_commands()

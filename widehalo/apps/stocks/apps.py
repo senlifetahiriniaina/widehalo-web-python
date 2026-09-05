@@ -8,6 +8,10 @@ class StocksConfig(AppConfig):
     verbose_name = "Stocks"
 
     def ready(self) -> None:
+        # L0-3 : declaration des commandes periodiques de ce module
+        # (registre `core.services.scheduled_commands`). Declare seulement —
+        # l'ecriture des planifications est faite au deploiement par
+        # `apps.core.tasks.sync_schedules`.
         # §5.11 reporting (REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.
@@ -15,6 +19,7 @@ class StocksConfig(AppConfig):
         from apps.stocks.services.ai_context_registration import register_ai_context
         from apps.stocks.services.ai_data_query_registration import register_ai_data_query_tools
         from apps.stocks.services.reports_registration import register_reports
+        from apps.stocks.services.scheduling_registration import register_scheduled_commands
 
         register_reports()
         # AI2 (assistant contextuel par page/action) : meme patron, registre
@@ -26,3 +31,4 @@ class StocksConfig(AppConfig):
         # GW3 (passerelle IA locale d'analyse de donnees) : meme patron,
         # registre partage `core.services.data_query_tool_registry`.
         register_ai_data_query_tools()
+        register_scheduled_commands()
