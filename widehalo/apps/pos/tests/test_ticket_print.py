@@ -124,7 +124,10 @@ def test_viewing_the_ticket_again_never_counts_a_reprint(ticket_ctx) -> None:
 
 def test_declaring_a_reprint_marks_the_ticket_as_a_duplicate(ticket_ctx) -> None:
     tenant, user, order = ticket_ctx
-    grant_role(user, "admin")  # `change_posorder` : declarer une reimpression ecrit.
+    # `caissier` porte deja {view, add, change} sur `pos` et n'est PAS dans
+    # `settings.CORE_MFA_REQUIRED_ROLES` — accorder `admin` ferait partir la
+    # requete vers `/mfa/` avant d'atteindre la vue, et le test mesurerait
+    # le detour MFA plutot que la permission.
     client = _client_for(tenant, user)
 
     response = client.post(
@@ -170,7 +173,10 @@ def test_the_action_bar_is_hidden_when_printing(ticket_ctx) -> None:
 def test_a_role_without_view_permission_is_refused(ticket_ctx) -> None:
     tenant, _user, order = ticket_ctx
     outsider = User.objects.create_user(email="hors-pos@example.com", password="Str0ngPassw0rd!23")
-    grant_role(outsider, "rh")
+    # `commercial` : aucun droit sur `pos`, et hors
+    # `settings.CORE_MFA_REQUIRED_ROLES` — sans quoi le 302 vers `/mfa/`
+    # masquerait le 403 que ce test cherche.
+    grant_role(outsider, "commercial")
     client = _client_for(tenant, outsider)
 
     response = client.get(f"/pos/orders/{order.id}/ticket/", HTTP_X_TENANT_ID=str(tenant.id))
