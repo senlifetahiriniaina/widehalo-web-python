@@ -1118,7 +1118,16 @@ class StkInventory(BaseModel, ReferenceMixin):
     # qu'on peut lever en cours de comptage n'est pas un mode aveugle. La
     # garde vit dans le service, pas dans un `save()` ni une contrainte —
     # meme discipline que le reste de ce module.
-    is_blind = models.BooleanField(default=False)
+    #
+    # **Defaut a True, corrige par L12-3.** L13 avait rendu le mode explicite
+    # mais l'avait rendu OPTIONNEL : avant lui le gabarit masquait
+    # INCONDITIONNELLEMENT, apres lui tout inventaire cree sans rien dire
+    # affichait la quantite theorique. Rendre une regle explicite ne doit
+    # jamais la desactiver au passage. Le defaut restitue donc le
+    # comportement d'avant L13, et c'est le fait de MONTRER la quantite qui
+    # demande desormais une action explicite (case a cocher inversee sur
+    # l'ecran, `reveal_expected`).
+    is_blind = models.BooleanField(default=True)
     validated_by = models.ForeignKey(
         "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )

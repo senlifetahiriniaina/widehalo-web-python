@@ -264,6 +264,66 @@ def test_inventory_hides_theoretical_qty_until_validated(stocks_screens_setup) -
     assert b"42,0000</td><td>42,0000</td><td>0,0000" in response.content
 
 
+def test_inventory_is_blind_by_default_and_reveals_only_on_explicit_request(
+    stocks_screens_setup,
+) -> None:
+    """Non-regression du defaut introduit par L13 et trouve par L12-3.
+
+    L13 a rendu le mode aveugle EXPLICITE (`is_blind`) la ou le gabarit
+    masquait inconditionnellement — mais l'a rendu optionnel au passage, et
+    par defaut a `False`. Tout inventaire cree sans rien dire affichait donc
+    la quantite theorique, ce que STK-6 interdit precisement. Rendre une
+    regle explicite ne doit jamais la desactiver.
+
+    La case de l'ecran est desormais INVERSEE : ne rien cocher laisse le
+    comptage aveugle, montrer la quantite est l'action explicite. Le test
+    verifie les deux sens — un defaut correct qu'on ne peut plus lever
+    serait un autre defaut."""
+    client, tenant, _user, warehouse, supplier, internal = stocks_screens_setup
+    variant_id = uuid.uuid4()
+    with use_tenant(tenant.id):
+        validate_move(
+            create_move(
+                tenant=tenant,
+                variant_id=variant_id,
+                qty=Decimal("7"),
+                uom="pc",
+                location_from=supplier,
+                location_to=internal,
+                date=dt.date(2026, 1, 1),
+                move_type=StkMove.TYPE_RECEPTION,
+                unit_cost_mga=Decimal("100"),
+            )
+        )
+
+    # Aucune mention du mode : l'inventaire doit etre aveugle.
+    client.post(
+        "/stocks/inventories/",
+        {"warehouse_id": str(warehouse.id), "date": "2026-02-01", "type": "ponctuel"},
+        follow=True,
+    )
+    with use_tenant(tenant.id):
+        blind = StkInventory.objects.get(warehouse=warehouse, date=dt.date(2026, 2, 1))
+    assert blind.is_blind is True
+    assert blind.hides_expected_quantity is True
+
+    # Choix explicite de montrer : l'inventaire n'est plus aveugle.
+    client.post(
+        "/stocks/inventories/",
+        {
+            "warehouse_id": str(warehouse.id),
+            "date": "2026-02-02",
+            "type": "ponctuel",
+            "reveal_expected": "on",
+        },
+        follow=True,
+    )
+    with use_tenant(tenant.id):
+        revealed = StkInventory.objects.get(warehouse=warehouse, date=dt.date(2026, 2, 2))
+    assert revealed.is_blind is False
+    assert revealed.hides_expected_quantity is False
+
+
 def test_traceability_lookup_screen_renders(stocks_screens_setup) -> None:
     client, *_ = stocks_screens_setup
     response = client.get("/stocks/traceability/?lot_name=LOT-INEXISTANT")

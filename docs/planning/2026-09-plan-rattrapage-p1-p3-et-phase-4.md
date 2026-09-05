@@ -102,6 +102,25 @@ Trois défauts réels découverts en chemin, corrigés hors chiffrage :
   par personne. Corrigé par D10-5.
 - **Les comptes par défaut se résolvaient par `.first()` sans `order_by`**, donc de
   façon non déterministe. Corrigé par D10-2.
+- **L13 avait désactivé le comptage à l'aveugle en le rendant explicite.** Avant L13
+  le gabarit masquait la quantité théorique **inconditionnellement** ; L13 a introduit
+  `is_blind`, mais avec `False` pour défaut. Tout inventaire créé sans rien dire
+  affichait donc le chiffre attendu — exactement ce que STK-6 interdit. Rendre une
+  règle explicite ne doit jamais la désactiver au passage. Corrigé par **L12-3** :
+  défaut à `True`, et la case de l'écran est inversée (« afficher la quantité
+  théorique » est désormais l'action explicite). Là encore, `tests/ui` n'avait pas été
+  rejoué après L13 : le test qui l'aurait vu existait déjà.
+- **L3 avait bloqué tout cycle de paie, et fait rougir six tests de `apps/core`.**
+  En plaçant `tva.taux_normal` dans `ACTIVE_CALCULATION_PARAMETER_CODES`, L3 a élargi
+  sans le vouloir un second verrou qui lit le même registre :
+  `payroll.services.batches.validate_and_post_batch` refusait dès lors la publication
+  de **tout** lot de paie, pour un taux de TVA qu'aucun calcul de paie ne lit. Les six
+  tests du verrou de déploiement échouaient de leur côté, la migration semant
+  réellement une ligne bloquante dans toute base. Rien ne l'a signalé parce que je
+  n'avais rejoué ni `apps/core` ni `apps/payroll` après L3 — l'omission est la mienne.
+  Corrigé par **L12-3** : le verrou de déploiement garde tout le registre, le verrou
+  métier de la paie ne porte que sur `PAYROLL_CALCULATION_PARAMETER_CODES`, et deux
+  gardes nouvelles interdisent que les deux redivergent.
 - **Toute sortie de stock débitait le compte de stock au lieu de le créditer.**
   `create_stock_movement_entry_from_source` résolvait le compte par le SIGNE de la
   ligne, ce qui rendait impossible de créditer le stock. Le solde du compte croissait

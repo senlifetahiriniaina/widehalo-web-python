@@ -120,7 +120,7 @@ def create_inventory(
     warehouse: StkWarehouse,
     date: dt.date,
     type: str,  # noqa: A002
-    is_blind: bool = False,
+    is_blind: bool = True,
 ) -> StkInventory:
     """`is_blind` ne se pose qu'ici (STK-6, L13) : un mode aveugle qu'on
     peut lever en cours de comptage n'en est pas un. Aucun service, aucune

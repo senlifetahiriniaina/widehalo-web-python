@@ -12,7 +12,10 @@ from django.utils.translation import gettext as _
 
 import apps.accounting.services.public as accounting_public
 from apps.core.models.user import User
-from apps.core.services.regulatory_governance import unvalidated_active_parameters
+from apps.core.services.regulatory_governance import (
+    PAYROLL_CALCULATION_PARAMETER_CODES,
+    unvalidated_active_parameters,
+)
 from apps.core.services.workflow import attempt_transition
 from apps.payroll.models import PayBatch, PayPayslip, PayPeriod
 from apps.payroll.services.anomalies import Anomaly, detect_batch_anomalies
@@ -141,7 +144,13 @@ def validate_and_post_batch(batch: PayBatch, user: User) -> PayBatch:
     acquittement global (`force_despite_anomalies`, retire) : plus aucune
     echappatoire "tout ou rien", chaque anomalie doit etre explicitement
     examinee et justifiee."""
-    blocking = unvalidated_active_parameters(tenants=[batch.tenant])
+    # Perimetre PAIE explicite : ce verrou ne doit porter que sur les codes
+    # que `compute_payslip` lit reellement. Sans ce filtre, il portait sur
+    # tout le registre, et l'ajout de `tva.taux_normal` par L3 a refuse la
+    # publication de tout lot de paie pour un taux de TVA (trouve par L12-3).
+    blocking = unvalidated_active_parameters(
+        tenants=[batch.tenant], codes=PAYROLL_CALCULATION_PARAMETER_CODES
+    )
     if blocking:
         codes = sorted({row.code for row in blocking})
         raise ValidationError(

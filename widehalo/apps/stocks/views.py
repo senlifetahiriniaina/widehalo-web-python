@@ -540,8 +540,13 @@ def inventory_list(request: HttpRequest) -> HttpResponse:
                 date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
                 type=request.POST.get("type", StkInventory.TYPE_PONCTUEL),
                 # STK-6 (L13) : choix explicite a la creation, jamais
-                # modifiable ensuite.
-                is_blind=bool(request.POST.get("is_blind")),
+                # modifiable ensuite. La case est INVERSEE (L12-3) : ne rien
+                # cocher laisse le comptage aveugle, montrer la quantite
+                # theorique est l'action explicite. Une case `is_blind`
+                # simple faisait de l'absence de choix un devoilement — et
+                # tout formulaire qui ne portait pas le champ (API interne,
+                # test, script) desactivait la regle en silence.
+                is_blind=not request.POST.get("reveal_expected"),
             )
         except _EXC as exc:
             error = _error_message(exc)

@@ -311,7 +311,7 @@ class InventoryIn(Schema):
     # STK-6 (L13) : comptage a l'aveugle. Defaut `False` — le mode aveugle
     # est un choix explicite de l'organisateur de l'inventaire, jamais un
     # comportement impose.
-    is_blind: bool = False
+    is_blind: bool = True
 
 
 class InventoryLineIn(Schema):

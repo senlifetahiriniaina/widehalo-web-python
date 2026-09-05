@@ -30,20 +30,25 @@ from django.db.models import Q
 from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 
-# Codes de `core_regulatory_parameter` reellement lus par un calcul actif
-# et deja livre (par opposition a un parametre seede par anticipation d'un
-# module futur, cf. cahier §12.3 : « Les valeurs relatives a la paie ne
-# servent aucun ecran de Phase 1... chargees des maintenant » — mais dans
-# CE depot, `payroll` est deja construit et son moteur `compute_payslip`
-# lit reellement ces 9 codes via `apps.payroll.services.params.
-# resolve_params`, cf. apps/payroll/services/seed.py pour leur definition).
+# Les dix codes que le moteur de paie lit REELLEMENT (`compute_payslip` via
+# `apps.payroll.services.params.resolve_params`, cf.
+# `apps/payroll/services/seed.py` pour leur definition).
 #
-# Registre explicite et documente (meme discipline que
-# `BUDGET_MAX_*`/`SENSITIVE_FIELDS`/`INTENTIONALLY_OPEN_ENDPOINTS`) plutot
-# qu'une detection automatique par introspection de code : un parametre
-# entre dans ce registre par decision explicite au moment ou le calcul qui
-# le consomme est livre, jamais par accident.
-ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
+# Ce sous-ensemble existe separement du registre global parce que les deux
+# verrous n'ont pas la meme portee, et que les confondre a produit un defaut
+# reel, trouve par L12-3 : `payroll.services.batches.
+# validate_and_post_batch` appelait `unvalidated_active_parameters` sans
+# filtre, donc sur le registre COMPLET. Quand L3 y a ajoute
+# `tva.taux_normal`, la publication de tout lot de paie s'est mise a etre
+# refusee pour un taux de TVA — un parametre qu'aucun calcul de paie ne lit.
+#
+# Regle : le verrou de DEPLOIEMENT (`check_regulatory_validation`) porte sur
+# tout le registre, un parametre legal non valide ne devant jamais partir en
+# production ; un verrou METIER porte sur les seuls codes que son calcul lit.
+# `apps/core/tests/test_regulatory_deployment_gate.py` verifie que ce
+# sous-ensemble reste exactement les codes `payroll.` du registre global —
+# sans quoi un futur parametre de paie pourrait etre oublie ici.
+PAYROLL_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
     {
         "payroll.irsa_brackets",
         "payroll.irsa_minimum",
@@ -59,28 +64,45 @@ ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
         # desormais reellement lu par `overtime_total_pay`/
         # `overtime_exempt_pay` via `PayrollParams.overtime_multipliers`.
         "payroll.overtime_multipliers",
-        # L3 (D9) — le taux normal de TVA entre enfin dans ce registre.
-        #
-        # Il etait, jusqu'a ce lot, le SEUL taux legal du produit a echapper
-        # au verrou de validation OECFM, alors que les dix parametres de paie
-        # ci-dessus y sont soumis depuis la Phase 3. L'ecart etait d'autant
-        # moins visible que le code `tva.taux_normal` etait reference a quatre
-        # endroits du depot et **seme nulle part** : un registre qui liste un
-        # parametre inexistant ne bloque rien, et un parametre qu'aucune
-        # migration ne cree ne se signale jamais.
-        #
-        # Les deux moities sont donc livrees ensemble : la migration
-        # `accounting/0030_seed_vat_reference_rate.py` cree le parametre, et
-        # cette ligne le place sous le verrou. Consequence assumee et voulue :
-        # `check_regulatory_validation` refusera desormais la mise en
-        # production tant que ce taux n'aura pas ete valide par un
-        # expert-comptable OECFM — exactement comme pour l'IRSA.
-        #
-        # Lu par `accounting.services.vat_reference.resolve_reference_vat_rate`,
-        # a la DATE DU DOCUMENT, et par `simulation.services.baseline` depuis
-        # la Phase 1.
-        "tva.taux_normal",
     }
+)
+
+# Registre GLOBAL : tout code de `core_regulatory_parameter` reellement lu
+# par un calcul actif et deja livre (par opposition a un parametre seede par
+# anticipation d'un module futur, cf. cahier §12.3).
+#
+# Registre explicite et documente (meme discipline que
+# `BUDGET_MAX_*`/`SENSITIVE_FIELDS`/`INTENTIONALLY_OPEN_ENDPOINTS`) plutot
+# qu'une detection automatique par introspection de code : un parametre
+# entre dans ce registre par decision explicite au moment ou le calcul qui
+# le consomme est livre, jamais par accident.
+ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = (
+    PAYROLL_CALCULATION_PARAMETER_CODES
+    | frozenset(
+        {
+            # L3 (D9) — le taux normal de TVA entre enfin dans ce registre.
+            #
+            # Il etait, jusqu'a ce lot, le SEUL taux legal du produit a echapper
+            # au verrou de validation OECFM, alors que les dix parametres de paie
+            # ci-dessus y sont soumis depuis la Phase 3. L'ecart etait d'autant
+            # moins visible que le code `tva.taux_normal` etait reference a quatre
+            # endroits du depot et **seme nulle part** : un registre qui liste un
+            # parametre inexistant ne bloque rien, et un parametre qu'aucune
+            # migration ne cree ne se signale jamais.
+            #
+            # Les deux moities sont donc livrees ensemble : la migration
+            # `accounting/0030_seed_vat_reference_rate.py` cree le parametre, et
+            # cette ligne le place sous le verrou. Consequence assumee et voulue :
+            # `check_regulatory_validation` refusera desormais la mise en
+            # production tant que ce taux n'aura pas ete valide par un
+            # expert-comptable OECFM — exactement comme pour l'IRSA.
+            #
+            # Lu par `accounting.services.vat_reference.resolve_reference_vat_rate`,
+            # a la DATE DU DOCUMENT, et par `simulation.services.baseline` depuis
+            # la Phase 1.
+            "tva.taux_normal",
+        }
+    )
 )
 
 
@@ -103,20 +125,31 @@ def _effective_rows(
 
 
 def unvalidated_active_parameters(
-    *, at_date: dt.date | None = None, tenants: list[Tenant] | None = None
+    *,
+    at_date: dt.date | None = None,
+    tenants: list[Tenant] | None = None,
+    codes: frozenset[str] | None = None,
 ) -> list[RegulatoryParameter]:
     """Renvoie chaque `RegulatoryParameter` actuellement effectif (a
-    `at_date`, defaut aujourd'hui), pour un code de
-    `ACTIVE_CALCULATION_PARAMETER_CODES`, dont `statut_validation` vaut
-    encore `STATUS_NON_VALIDE` — sur la valeur globale et, si `tenants` est
-    fourni, sur chaque surcharge tenant effective. Liste vide = rien ne
-    bloque le deploiement."""
+    `at_date`, defaut aujourd'hui), pour un code de `codes`
+    (`ACTIVE_CALCULATION_PARAMETER_CODES` par defaut), dont
+    `statut_validation` vaut encore `STATUS_NON_VALIDE` — sur la valeur
+    globale et, si `tenants` est fourni, sur chaque surcharge tenant
+    effective. Liste vide = rien ne bloque.
+
+    `codes` restreint le PERIMETRE du verrou. Le defaut (tout le registre)
+    est celui du verrou de deploiement : aucun parametre legal non valide
+    ne doit partir en production. Un verrou METIER doit au contraire passer
+    les seuls codes que son calcul lit — `payroll.services.batches` passe
+    `PAYROLL_CALCULATION_PARAMETER_CODES`. Sans ce parametre, l'ajout d'un
+    code par un module a bloque le cycle d'un autre (cf. commentaire du
+    sous-ensemble paie ci-dessus)."""
     resolved_at = at_date or dt.date.today()
     blocking: list[RegulatoryParameter] = []
     seen_ids: set[str] = set()
 
     tenant_list: list[Tenant | None] = [None, *(tenants or [])]
-    for code in sorted(ACTIVE_CALCULATION_PARAMETER_CODES):
+    for code in sorted(codes if codes is not None else ACTIVE_CALCULATION_PARAMETER_CODES):
         for tenant in tenant_list:
             for row in _effective_rows(code, resolved_at, tenant):
                 if str(row.id) in seen_ids:
