@@ -42,20 +42,24 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import AccAccount, AccJournal
+from apps.accounting.services.framework import chart_for_country, framework_for_tenant
 from apps.core.models.tenant import Tenant
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "pcg2005_mg.json"
 
-# Compte d'attente ("suspense") du chantier RG-QUALIF — classe 47x
-# ("Comptes transitoires ou d'attente" du PCG 2005), absent de la fixture
-# pcg2005_mg.json actuelle (comptes reels uniquement) : cree a la demande,
-# jamais dans le chargement initial du plan comptable, pour ne pas
-# polluer un plan comptable qui n'a jamais eu besoin d'un import
-# "degrade" avec identification incertaine.
-SUSPENSE_ACCOUNT_CODE = "471"
+# Compte d'attente ("suspense") du chantier RG-QUALIF — cree a la demande,
+# jamais dans le chargement initial du plan comptable, pour ne pas polluer un
+# plan comptable qui n'a jamais eu besoin d'un import "degrade" avec
+# identification incertaine.
+#
+# D10-4 : son code et sa classe viennent du referentiel actif
+# (`AccFramework.suspense_account_code`/`suspense_account_class`) — le "471"
+# et la classe 4 etaient la forme PCG 2005 ("Comptes transitoires ou
+# d'attente"), et un plan SYSCOHADA n'aurait aucune raison de les partager.
 
 
 def _read_fixture() -> list[dict[str, Any]]:
@@ -107,16 +111,23 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
     RG-QUALIF) : plutot que de bloquer la ligne (`COMPTE_INCONNU`
     devenait non-defaultable auparavant), un `AccMove` brouillon est
     materialise immediatement sur ce compte, marque `needs_qualification`."""
-    existing = AccAccount.objects.filter(tenant=tenant, code=SUSPENSE_ACCOUNT_CODE).first()
+    framework = framework_for_tenant(tenant)
+    if framework is None or not framework.suspense_account_code:
+        raise ValidationError(
+            _("Aucun compte d'attente n'est defini par le referentiel comptable de ce tenant.")
+        )
+    code = framework.suspense_account_code
+    existing = AccAccount.objects.filter(tenant=tenant, code=code).first()
     if existing is not None:
         return existing
     return AccAccount.objects.create(
         tenant=tenant,
-        code=SUSPENSE_ACCOUNT_CODE,
+        code=code,
         name=str(_("Compte d'attente (à qualifier)")),
-        account_class=4,
+        account_class=framework.suspense_account_class,
         type=AccAccount.TYPE_ASSET,
         is_placeholder=True,
+        chart=chart_for_country(tenant.country_code),
     )
 
 
@@ -131,8 +142,11 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
 _DEFAULT_JOURNALS: list[tuple[str, str, str, str | None]] = [
     ("VTE", AccJournal.TYPE_SALE, "Journal des ventes", None),
     ("ACH", AccJournal.TYPE_PURCHASE, "Journal des achats", None),
-    ("BQ", AccJournal.TYPE_BANK, "Journal de banque", "512"),
-    ("CAI", AccJournal.TYPE_CASH, "Journal de caisse", "530"),
+    # D10-4 : "bank"/"cash" sont des marqueurs symboliques, resolus a l'appel
+    # depuis `AccFramework.bank_account_prefix`/`cash_account_prefix` — les
+    # litteraux "512"/"530" etaient la numerotation PCG 2005.
+    ("BQ", AccJournal.TYPE_BANK, "Journal de banque", "bank"),
+    ("CAI", AccJournal.TYPE_CASH, "Journal de caisse", "cash"),
     ("OD", AccJournal.TYPE_MISC, "Operations diverses", None),
     ("PAI", AccJournal.TYPE_PAYROLL, "Journal de paie", None),
     ("STK", AccJournal.TYPE_STOCK, "Journal de stock", None),
@@ -152,6 +166,11 @@ def ensure_default_journals(tenant: Tenant) -> int:
     reste simplement `None`. Les 5 autres journaux (ventes/achats/operations
     diverses/paie/stock) n'ont pas de compte par defaut evident a ce niveau
     (simplification disclosed) et restent `default_account=None`."""
+    framework = framework_for_tenant(tenant)
+    prefix_by_marker = {
+        "bank": framework.bank_account_prefix if framework else "",
+        "cash": framework.cash_account_prefix if framework else "",
+    }
     existing_codes = set(AccJournal.objects.filter(tenant=tenant).values_list("code", flat=True))
 
     created = 0
@@ -159,9 +178,10 @@ def ensure_default_journals(tenant: Tenant) -> int:
         if code in existing_codes:
             continue
         default_account = None
-        if account_prefix is not None:
+        prefix = prefix_by_marker.get(account_prefix) if account_prefix else None
+        if prefix:
             default_account = (
-                AccAccount.objects.filter(tenant=tenant, code__startswith=account_prefix)
+                AccAccount.objects.filter(tenant=tenant, code__startswith=prefix)
                 .order_by("code")
                 .first()
             )

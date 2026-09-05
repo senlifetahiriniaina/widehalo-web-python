@@ -109,9 +109,11 @@ def test_the_same_code_remains_possible_in_two_tenants() -> None:
     first, second = TenantFactory(), TenantFactory()
     with use_tenant(first.id):
         AccAccountFactory(tenant=first, code="701")
+        assert AccAccount.objects.filter(code="701").count() == 1
     with use_tenant(second.id):
+        # Aucune levee : la contrainte porte sur le couple, pas sur le code.
         AccAccountFactory(tenant=second, code="701")
-    assert AccAccount.all_objects.filter(code="701").count() == 2
+        assert AccAccount.objects.filter(code="701").count() == 1
 
 
 def test_default_account_role_is_unique_per_tenant() -> None:

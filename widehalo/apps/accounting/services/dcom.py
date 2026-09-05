@@ -30,24 +30,19 @@ from apps.accounting.models import (
     AccMove,
     AccMoveLine,
 )
+from apps.accounting.services.framework import framework_for_tenant
 from apps.core.services.sequences import next_reference
 
-# Classement de repli PAR CLASSE PCG (cf. reserve OECFM/DGI en tete de
-# module) — pas les 9 canevas DGI exacts.
-_CLASSIFICATION_BY_PCG_CLASS: dict[int, str] = {
-    1: "capitaux",
-    2: "immobilisations",
-    3: "stocks",
-    4: "tiers",
-    5: "tresorerie",
-    6: "achats",
-    7: "ventes",
-}
+# D10-4 : le classement par classe n'est plus une table de module. Il vient
+# de `AccFramework.class_classification` — meme reserve qu'avant, ce n'est PAS
+# la classification officielle des 9 canevas DGI, c'est un classement de repli
+# (cf. reserve en tete de module) ; il a simplement cesse d'etre une hypothese
+# PCG figee dans le code de la declaration.
 _CLASSIFICATION_FALLBACK = "autres"
 
 
-def _classification_for(account_class: int) -> str:
-    return _CLASSIFICATION_BY_PCG_CLASS.get(account_class, _CLASSIFICATION_FALLBACK)
+def _classification_for(classification_by_class: dict[str, str], account_class: int) -> str:
+    return classification_by_class.get(str(account_class), _CLASSIFICATION_FALLBACK)
 
 
 def generate_dcom_declaration(fiscal_year: AccFiscalYear) -> AccDcomDeclaration:
@@ -63,6 +58,9 @@ def generate_dcom_declaration(fiscal_year: AccFiscalYear) -> AccDcomDeclaration:
     la conservation d'un historique de versions, coherent avec le fait que
     la DCOM est un etat RECALCULE depuis le grand livre a chaque
     generation, jamais une saisie manuelle a preserver."""
+    framework = framework_for_tenant(fiscal_year.tenant)
+    classification_by_class: dict[str, str] = framework.class_classification if framework else {}
+
     declaration, created = AccDcomDeclaration.objects.get_or_create(
         tenant=fiscal_year.tenant, fiscal_year=fiscal_year
     )
@@ -91,7 +89,9 @@ def generate_dcom_declaration(fiscal_year: AccFiscalYear) -> AccDcomDeclaration:
         amount = abs(debit - credit)
         if amount == 0:
             continue
-        classification = _classification_for(entry["account__account_class"])
+        classification = _classification_for(
+            classification_by_class, entry["account__account_class"]
+        )
         partner_id = entry["partner_id"]
         assert partner_id is not None  # garanti par le filtre partner_id__isnull=False ci-dessus
         dcom_lines.append(

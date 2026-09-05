@@ -62,6 +62,7 @@ from apps.accounting.models import (
     AccReconcileRule,
     AccTax,
     AccTaxCalendar,
+    AccTenantDefaultAccount,
 )
 
 
@@ -95,6 +96,15 @@ class AccAccountFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Compte {n}")
     account_class = 6
     type = AccAccount.TYPE_EXPENSE
+
+
+class AccTenantDefaultAccountFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccTenantDefaultAccount
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    role = AccTenantDefaultAccount.ROLE_SALE_INCOME
+    account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
 
 
 class AccJournalFactory(factory.django.DjangoModelFactory):

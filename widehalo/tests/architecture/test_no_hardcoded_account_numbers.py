@@ -37,19 +37,19 @@ ACCOUNTING_DIR = Path(__file__).resolve().parent.parent.parent / "apps" / "accou
 _PCG_ACCOUNT_CODE_PATTERN = re.compile(r"^\d{3,6}$")
 
 # Chaque entree DOIT rester documentee dans le fichier lui-meme (pas
-# seulement ici) — cf. `SUSPENSE_ACCOUNT_CODE`/table `_DEFAULT_JOURNALS` de
-# `chart_of_accounts.py` (dont le sprint D10-4 fera des attributs du
-# referentiel), et l'exemple illustratif de
+# seulement ici) — cf. l'exemple illustratif de
 # `views_imports.py::download_chart_of_accounts_template`/
 # `download_cash_journal_template` (une valeur d'EXEMPLE affichee dans un
 # modele XLSX telechargeable pour guider l'utilisateur qui le remplit —
 # jamais lue ni utilisee par un automatisme, contrairement a l'autre
 # entree de ce registre).
 #
-# `services/reports.py` a quitte cette liste au sprint D10-3, la structure
-# des etats financiers etant desormais portee par `AccFramework`.
+# `services/reports.py` a quitte cette liste au sprint D10-3 (la structure des
+# etats financiers est portee par `AccFramework`) et
+# `services/chart_of_accounts.py` au sprint D10-4 (compte d'attente et
+# prefixes des journaux de tresorerie idem). Les deux fois, c'est le test
+# d'obsolescence ci-dessous qui l'a signale des que les litteraux ont disparu.
 ACCOUNTING_FILES_ALLOWED_TO_HARDCODE_PCG_CODES = {
-    "services/chart_of_accounts.py",
     "views_imports.py",
 }
 

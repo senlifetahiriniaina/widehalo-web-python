@@ -383,11 +383,19 @@ def income_statement_by_function(fiscal_year: AccFiscalYear) -> list[dict[str, A
     produits (classe 7, inchanges par rapport a la nature) et le resultat
     net, qui doit necessairement egaler celui d'`income_statement` (memes
     ecritures, seule la ventilation des charges differe)."""
+    # D10-4 : les classes de charge et de produit viennent du referentiel
+    # actif du tenant, plus des litteraux 6 et 7 (qui sont la forme PCG 2005).
+    framework = framework_for_tenant(fiscal_year.tenant)
+    expense_class = framework.expense_class if framework else None
+    income_class = framework.income_class if framework else None
+    if expense_class is None or income_class is None:
+        return []
+
     charge_entries = (
         AccMoveLine.objects.filter(
             move__period__fiscal_year=fiscal_year,
             move__state=AccMove.STATE_POSTED,
-            account__account_class=6,
+            account__account_class=expense_class,
         )
         .values("account__functional_destination")
         .annotate(total_debit=Sum("debit"), total_credit=Sum("credit"))
@@ -409,7 +417,7 @@ def income_statement_by_function(fiscal_year: AccFiscalYear) -> list[dict[str, A
     revenue_entries = AccMoveLine.objects.filter(
         move__period__fiscal_year=fiscal_year,
         move__state=AccMove.STATE_POSTED,
-        account__account_class=7,
+        account__account_class=income_class,
     ).aggregate(total_debit=Sum("debit"), total_credit=Sum("credit"))
     total_produits = (revenue_entries["total_credit"] or Decimal(0)) - (
         revenue_entries["total_debit"] or Decimal(0)
@@ -436,11 +444,15 @@ def income_statement_by_function(fiscal_year: AccFiscalYear) -> list[dict[str, A
     ]
 
 
-def _cash_flow_section(account: AccAccount) -> str:
+def _cash_flow_section(account: AccAccount, investing_class: int | None) -> str:
     """ACC-CF (§1.10.3 du document annexe) : classification "methode
     directe" d'une ligne de contrepartie de mouvement de tresorerie —
-    choix de methode documente sur `cash_flow_statement`."""
-    if account.account_class == 2:
+    choix de methode documente sur `cash_flow_statement`.
+
+    D10-4 : `investing_class` vient du referentiel actif
+    (`AccFramework.investing_class`), plus du litteral 2 qui etait la forme
+    PCG 2005 des comptes d'immobilisation."""
+    if investing_class is not None and account.account_class == investing_class:
         return "investing"
     if account.type in (AccAccount.TYPE_EQUITY, AccAccount.TYPE_LIABILITY):
         return "financing"
@@ -471,6 +483,9 @@ def cash_flow_statement(fiscal_year: AccFiscalYear) -> dict[str, Any]:
     tresorerie de l'ecriture, ce qui permet d'imputer chaque contrepartie a
     sa section sans ambiguite meme si une ecriture a plusieurs
     contreparties."""
+    framework = framework_for_tenant(fiscal_year.tenant)
+    investing_class = framework.investing_class if framework else None
+
     sections: dict[str, Decimal] = {
         "operating": Decimal(0),
         "investing": Decimal(0),
@@ -495,7 +510,7 @@ def cash_flow_statement(fiscal_year: AccFiscalYear) -> dict[str, Any]:
             amount = line.credit - line.debit
             if amount == 0:
                 continue
-            section = _cash_flow_section(line.account)
+            section = _cash_flow_section(line.account, investing_class)
             sections[section] += amount
             detail_rows.append(
                 {

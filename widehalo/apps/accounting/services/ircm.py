@@ -28,15 +28,16 @@ from django.db.models import Sum
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import AccFiscalYear, AccIrcmDeclaration, AccMove, AccMoveLine
+from apps.accounting.services.framework import framework_for_tenant
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 
 _REAL_REGIMES = (Tenant.FISCAL_REGIME_REAL_NO_VAT, Tenant.FISCAL_REGIME_REAL_WITH_VAT)
 
-# Assiette IRCM = comptes de produits financiers, classe 76-77 (§1.7 du
-# document annexe) — mêmes prefixes que la ligne "Produits financiers" de
-# `services/reports.py::_CR_NATURE_MAPPING`.
-_FINANCIAL_INCOME_PREFIXES = ("76", "77")
+# D10-4 : les prefixes de comptes de produits financiers viennent du
+# referentiel (`AccFramework.financial_income_prefixes`) — les litteraux
+# "76"/"77" etaient la forme PCG 2005, et echappaient de surcroit a la garde
+# ACC-2, dont le motif ne voit pas les codes a deux chiffres.
 
 
 def generate_ircm_declaration(
@@ -48,6 +49,9 @@ def generate_ircm_declaration(
     regime reel (IR)" (§1.7) ; leve une `ValidationError` i18n pour un
     tenant au regime synthetique, meme discipline que RG-ACC-5
     (`AccTax`)."""
+    framework = framework_for_tenant(fiscal_year.tenant)
+    financial_prefixes = tuple(framework.financial_income_prefixes) if framework else ()
+
     tenant = fiscal_year.tenant
     if tenant.fiscal_regime not in _REAL_REGIMES:
         raise ValidationError(
@@ -66,7 +70,7 @@ def generate_ircm_declaration(
     )
     taxable_base = Decimal(0)
     for entry in balances:
-        if entry["account__code"].startswith(_FINANCIAL_INCOME_PREFIXES):
+        if financial_prefixes and entry["account__code"].startswith(financial_prefixes):
             debit = entry["total_debit"] or Decimal(0)
             credit = entry["total_credit"] or Decimal(0)
             taxable_base += credit - debit
