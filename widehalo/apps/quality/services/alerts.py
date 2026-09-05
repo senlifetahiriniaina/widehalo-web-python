@@ -27,7 +27,7 @@ from typing import Any
 from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
-from apps.core.services.notifications import notify_role
+from apps.core.services.notifications import notify_role_once
 from apps.quality.models import QltControlPlan, QltMeasurement
 from apps.quality.services.control_plans import get_last_measurement_date_for_plan
 
@@ -43,10 +43,9 @@ def check_overdue_controls(
     """Pour chaque `QltControlPlan` actif dont `frequency_days > 0`,
     compare le dernier controle reel (tous points critiques du plan
     confondus) de chaque lot deja mesure a la frequence attendue. Au-dela,
-    notifie `NOTIFICATION_ROLES` (une notification par role, jamais
-    dedoublonnee entre deux executions — une re-execution periodique
-    renotifie un lot qui reste en retard, meme comportement assume que
-    `run_price_watch_checks`). Retourne un resume par lot en retard
+    notifie `NOTIFICATION_ROLES` (une notification par role, **dedoublonnee
+    entre executions depuis L0-1** sur le couple plan/lot : un controle en
+    retard le reste jusqu'a ce qu'il soit fait). Retourne un resume par lot en retard
     (liste de dict, jamais les objets ORM — meme discipline que
     `run_price_watch_checks`/`run_reordering`)."""
     now = now or timezone.now()
@@ -78,7 +77,18 @@ def check_overdue_controls(
                 "days_overdue": days_overdue,
             }
             for role_code in NOTIFICATION_ROLES:
-                notify_role(str(tenant.id), role_code, "quality.control_overdue", payload)
+                # L0-1 : dedoublonnee sur (plan de controle, lot). Un controle
+                # en retard le reste jusqu'a ce qu'il soit fait : renotifier a
+                # chaque execution transformerait l'ordonnanceur en source de
+                # bruit, et une alerte que l'on apprend a ignorer ne protege
+                # plus de rien.
+                notify_role_once(
+                    str(tenant.id),
+                    role_code,
+                    "quality.control_overdue",
+                    payload,
+                    dedup_keys=("control_plan_id", "lot_variant_id", "lot_name"),
+                )
             results.append(
                 {
                     "control_plan_id": plan.id,

@@ -42,9 +42,11 @@ exception qui remonterait a l'appelant."""
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 from apps.ai.models import AiAnomaly, AiRequest
 from apps.ai.services.usage_budget import estimate_tokens, get_budget_gated_provider, record_request
@@ -58,6 +60,12 @@ from apps.core.services.anomaly_registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+# L0-1 : fenetre de dedoublonnage des anomalies. Une meme anomalie sur le meme
+# objet n'est recreee qu'au-dela de cette duree — assez large pour absorber une
+# execution quotidienne, assez courte pour qu'une anomalie reapparaisse si elle
+# persiste vraiment.
+ANOMALY_DEDUP_WINDOW = dt.timedelta(days=7)
 
 _NARRATIVE_MAX_TOKENS = 150
 
@@ -147,6 +155,25 @@ def _persist_candidate(
             candidate.content_type_label,
         )
         return None
+
+    # L0-1 : une anomalie qui DURE ne doit pas etre recreee a chaque
+    # execution. Sans cette garde, brancher un ordonnanceur sur
+    # `run_ai_anomaly_checks` recreerait la meme anomalie quotidiennement —
+    # et, en severite haute, declencherait un appel au modele de langage a
+    # chaque fois. Le cout n'est pas seulement du bruit, il est facture.
+    # La severite fait partie de la cle : une anomalie qui S'AGGRAVE est une
+    # constatation nouvelle, pas un doublon — et c'est precisement le passage
+    # en severite haute qui declenche la narration et l'evenement.
+    existing = AiAnomaly.objects.filter(
+        tenant=tenant,
+        content_type=content_type,
+        object_id=candidate.object_id,
+        check_code=check_code,
+        severity=candidate.severity,
+        created_at__gte=timezone.now() - ANOMALY_DEDUP_WINDOW,
+    ).first()
+    if existing is not None:
+        return existing
 
     anomaly = AiAnomaly.objects.create(
         tenant=tenant,

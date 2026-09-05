@@ -56,7 +56,7 @@ from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from apps.core.services.notifications import notify_role
+from apps.core.services.notifications import notify_role_once
 from apps.stocks.models import StkLocation, StkLot
 
 if TYPE_CHECKING:
@@ -141,5 +141,15 @@ def check_expiring_lots(
             "remaining_qty": str(row["remaining_qty"]),
         }
         for role_code in NOTIFICATION_ROLES:
-            notify_role(str(tenant.id), role_code, "stocks.lot_expiring", payload)
+            # L0-1 : dedoublonnee sur le lot. Un lot qui reste perimant
+            # plusieurs jours produisait une notification par execution — ce
+            # qui n'avait aucune consequence tant que rien n'ordonnancait
+            # cette commande, et en aurait eu des le lendemain.
+            notify_role_once(
+                str(tenant.id),
+                role_code,
+                "stocks.lot_expiring",
+                payload,
+                dedup_keys=("lot_id",),
+            )
     return results

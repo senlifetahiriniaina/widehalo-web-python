@@ -49,8 +49,10 @@ produit aucun insight."""
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 
+from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.ai.models import AiInsight, AiRequest
@@ -67,9 +69,23 @@ _SYNTHESIS_MAX_TOKENS = 200
 _NOTIFICATION_ROLE = "direction"
 
 
+# L0-1 : fenetre de dedoublonnage des insights, meme raisonnement que pour les
+# anomalies — un insight identique regenere chaque jour transforme une
+# information en bruit, et l'insight de synthese coute un appel au modele.
+INSIGHT_DEDUP_WINDOW = dt.timedelta(days=7)
+
+
 def _persist_candidate(
     tenant: Tenant, candidate: InsightCandidate, *, is_ai_generated: bool
 ) -> AiInsight:
+    existing = AiInsight.objects.filter(
+        tenant=tenant,
+        category=candidate.category,
+        title=candidate.title,
+        created_at__gte=timezone.now() - INSIGHT_DEDUP_WINDOW,
+    ).first()
+    if existing is not None:
+        return existing
     return AiInsight.objects.create(
         tenant=tenant,
         category=candidate.category,

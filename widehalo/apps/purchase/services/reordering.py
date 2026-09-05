@@ -117,8 +117,21 @@ def run_reordering(tenant: Tenant) -> list[PurReorderingProposal]:
     sans aucun superutilisateur renvoie une liste vide pour CE tenant."""
     rules = PurReorderingRule.objects.filter(tenant=tenant, is_active=True)
     triggered: list[tuple[PurReorderingRule, Decimal, Decimal]] = []
+    # L0-1 : une regle dont une proposition est deja EN ATTENTE ne redeclenche
+    # pas. Sans cette garde, brancher un ordonnanceur sur cette commande
+    # creerait une proposition ET une demande d'approbation A CHAQUE
+    # EXECUTION tant que la couverture reste sous le seuil — c'est-a-dire
+    # jusqu'a la reception reelle des marchandises. C'est le cas le plus
+    # couteux des cinq commandes non idempotentes du depot.
+    rules_with_pending = set(
+        PurReorderingProposal.objects.filter(
+            tenant=tenant, state=PurReorderingProposal.STATE_PENDING
+        ).values_list("rule_id", flat=True)
+    )
     for rule in rules:
         if rule.min_qty <= 0:
+            continue
+        if rule.id in rules_with_pending:
             continue
         available = get_available_stock_qty(rule.variant_id)
         on_order = get_open_order_qty(rule.variant_id)

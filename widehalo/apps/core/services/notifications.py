@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 from datetime import timedelta
 from typing import Any
 
@@ -66,6 +67,59 @@ def notify_role(
     return [
         dispatch_notification(user, notification_type, payload, tenant_id=tenant_id)
         for user in users
+    ]
+
+
+def notify_role_once(
+    tenant_id: str,
+    role_code: str,
+    notification_type: str,
+    payload: dict[str, Any],
+    *,
+    dedup_keys: tuple[str, ...],
+    window: dt.timedelta = dt.timedelta(days=1),
+) -> list[Notification]:
+    """Variante DEDOUBLONNEE de `notify_role`, pour les alertes periodiques.
+
+    L0-1 : plusieurs commandes de gestion notifient une situation qui DURE —
+    un lot qui approche de sa peremption, un controle qualite en retard.
+    Tant que rien ne les ordonnancait, le probleme restait theorique ; le jour
+    ou un ordonnanceur les execute quotidiennement, la meme situation produit
+    une notification par execution jusqu'a ce qu'elle soit traitee. C'est la
+    difference entre une alerte et du bruit.
+
+    `dedup_keys` designe les champs du `payload` qui identifient la situation
+    (`("lot_id",)` pour une peremption). Si une notification du meme type et
+    de la meme situation existe deja dans la fenetre, rien n'est emis.
+
+    Retourne les notifications creees — liste vide quand le doublon est
+    supprime, donc indiscernable pour l'appelant du cas « personne a
+    notifier », ce qui est voulu : aucune des deux situations n'est une
+    erreur."""
+    users = User.objects.filter(
+        groups__name=role_code, tenant_memberships__tenant_id=tenant_id
+    ).distinct()
+    if not users:
+        return []
+
+    fingerprint = {key: payload[key] for key in dedup_keys if key in payload}
+    already_notified = set(
+        Notification.objects.filter(
+            tenant_id=tenant_id,
+            notification_type=notification_type,
+            payload__contains=fingerprint,
+            created_at__gte=timezone.now() - window,
+            user__in=users,
+        ).values_list("user_id", flat=True)
+    )
+    # Le dedoublonnage est PAR DESTINATAIRE, jamais global : deux roles
+    # notifies de la meme situation doivent tous deux la recevoir, et un
+    # utilisateur qui rejoint le role apres coup ne doit pas etre prive de
+    # l'alerte parce qu'un collegue l'a deja recue.
+    return [
+        dispatch_notification(user, notification_type, payload, tenant_id=tenant_id)
+        for user in users
+        if user.id not in already_notified
     ]
 
 
