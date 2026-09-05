@@ -79,6 +79,36 @@ Cadence identique au patron du dépôt : **15 Jour-Token (JT) par semaine**
 
 ---
 
+## 3 bis. État d'avancement au 2026-09-05
+
+Trois chantiers des préalables sont livrés, ainsi que D10, que l'utilisateur a
+demandé de traiter en premier alors que ce plan le mettait hors périmètre.
+
+| Chantier | État | Écart avec le chiffrage de ce plan |
+|---|---|---|
+| **D10** — abstraction du référentiel comptable | ✅ livré, 6 sprints | Hors périmètre dans ce plan ; traité en premier sur décision de l'utilisateur, avec son ADR (`2026-09-adr-referentiel-comptable.md`). |
+| **L1** — budgets d'architecture | ✅ livré | Relèvement à **+33 %** (415 / 800 / 320) décidé par l'utilisateur, au lieu du relèvement au plus juste envisagé ici. Passé **avant** D10 : à 240/240 écrans, le premier gabarit de D10 faisait échouer la construction. |
+| **L0** — ordonnancement | ✅ livré, 5 sprints | **≈ 20 JT au lieu de 4.** Ce plan supposait neuf commandes prêtes à être planifiées. Il y en a **dix-neuf**, dont **cinq produisaient un doublon à chaque exécution** et **dix-huit interrompaient la boucle** au premier tenant en échec. Les brancher telles quelles aurait transformé « inerte » en « bruit et coût ». |
+| **L2** — gardes CI manquantes | ✅ livré, 4 sprints | **≈ 7 JT au lieu de 6.** La garde du copilote exigeait d'ajouter un champ `read_only` au registre avant de pouvoir vérifier quoi que ce soit ; et l'élargissement de la garde des comptes appartenait à D10-6, pas à L2 (le retirer de sa liste d'exception produisait 55 violations tant que D10-3 n'était pas livré). |
+
+Trois défauts réels découverts en chemin, corrigés hors chiffrage :
+
+- **`load_mg_holidays` n'existait pas** alors que la docstring du calendrier y
+  renvoyait : `ForHoliday` n'était peuplée par rien, donc `business_days_in_month`
+  surestimait la capacité de production d'une dizaine de jours par an. Commande,
+  fixture (avec sa réserve) et tests livrés avec L2-3.
+- **Les quatre chemins de création de tenant chargeaient le PCG malgache
+  inconditionnellement**, `CountryDefaultsProfile.chart_of_accounts_code` n'étant lu
+  par personne. Corrigé par D10-5.
+- **Les comptes par défaut se résolvaient par `.first()` sans `order_by`**, donc de
+  façon non déterministe. Corrigé par D10-2.
+
+Un écart fonctionnel signalé et **non corrigé**, hors périmètre des critères :
+`sales/services/orders.py` pose `amount_tax = Decimal(0)` — le module Sales ne
+calcule aucune taxe, seul le POS applique `get_default_sale_tax`. À verser au lot L5.
+
+Reste donc de la Vague 1 : **L3 à L16**.
+
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
 Seize lots, 51 écarts. L0 et L1 précèdent tout le reste : le premier parce qu'il

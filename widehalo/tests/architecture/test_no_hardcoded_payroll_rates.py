@@ -18,11 +18,30 @@ qui ne porte QUE sur les valeurs réellement stockées en base.
 multiplicateurs actuellement seedés par `apps.payroll.services.seed`
 partagent la même forme littérale « N,NN » à deux décimales — les taux
 CNaPS/OSTIE/FMFP (`"0.13"`, `"0.01"`, `"0.05"`...) et les multiplicateurs
-d'heures supplémentaires (`"1.30"`, `"1.50"`, `"2.00"`...). Les montants
-IRSA/SME (`"300000"`, `"3000"`...) et les bornes de tranches IRSA
-n'utilisent PAS cette forme et ne sont donc pas ciblés ici — un futur
-sprint qui constaterait un autre foyer de littéraux en dur pourra étendre
-ce motif, pas seulement l'allowlist."""
+d'heures supplémentaires (`"1.30"`, `"1.50"`, `"2.00"`...).
+
+**Extension L2-4 — les montants et les bornes de tranches.** La version
+initiale de ce fichier annonçait elle-même cette extension : les montants
+IRSA/SME (`"300000"`, `"3000"`) et les bornes de tranches (`"350001"`,
+`"4000000"`) n'utilisaient pas la forme « N,NN » et échappaient donc au
+motif. Ils sont désormais couverts par un second motif (`^\\d{3,9}$` en
+littéral chaîne). Le durcissement est **à coût nul** : les seules
+occurrences vivent dans `services/seed.py`, déjà sur la liste d'exception
+comme foyer légitime — la garde passe verte sans autre modification. C'est
+le bon moment pour la poser : elle ne coûte rien aujourd'hui et interdit
+demain un barème IRSA recopié dans un calcul.
+
+**Angle mort ferme au passage** : `management/` était exclu du scan, comme
+il l'était pour la garde des numéros de compte avant D10-6. Un barème écrit
+dans une commande de chargement y aurait échappé. Le répertoire est
+désormais scruté ; il ne contient aujourd'hui aucun littéral, l'exclusion
+ne protégeait donc rien — seulement un futur oubli.
+
+**Limite assumée** : le motif des montants ne distingue pas un barème d'un
+nombre à trois chiffres qui n'en est pas un (un identifiant, un code). Le
+périmètre étroit — `apps/payroll` hors migrations, tests et fixtures — rend
+ce risque acceptable, et la liste d'exception documentée reste la soupape.
+"""
 
 from __future__ import annotations
 
@@ -33,6 +52,9 @@ from pathlib import Path
 PAYROLL_DIR = Path(__file__).resolve().parent.parent.parent / "apps" / "payroll"
 
 _PAYROLL_RATE_PATTERN = re.compile(r"^\d{1,2}\.\d{2}$")
+# L2-4 : montants (SME, minimum IRSA) et bornes de tranches, la moitie du
+# bareme que le motif des taux ne voyait pas.
+_PAYROLL_AMOUNT_PATTERN = re.compile(r"^\d{3,9}$")
 
 # Chaque entree DOIT rester documentee dans le fichier lui-meme (meme
 # discipline que ACCOUNTING_FILES_ALLOWED_TO_HARDCODE_PCG_CODES) :
@@ -53,7 +75,11 @@ PAYROLL_FILES_ALLOWED_TO_HARDCODE_RATES = {
     "services/projection.py",
 }
 
-_EXCLUDED_DIR_NAMES = {"migrations", "tests", "fixtures", "management", "__pycache__"}
+# `management` N'EST PLUS exclu (L2-4) : une commande de chargement est un
+# endroit aussi plausible qu'un autre pour recopier un bareme, et l'exclure
+# revenait a ne pas regarder la ou l'on ecrit precisement des donnees de
+# reference. Meme correction que celle apportee a la garde ACC-2 en D10-6.
+_EXCLUDED_DIR_NAMES = {"migrations", "tests", "fixtures", "__pycache__"}
 
 
 def _payroll_source_files() -> list[Path]:
@@ -67,14 +93,16 @@ def _payroll_source_files() -> list[Path]:
 
 
 def _hardcoded_rate_literals(path: Path) -> list[tuple[int, str]]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return _findings_in_source(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def _findings_in_source(source: str, *, filename: str = "<source>") -> list[tuple[int, str]]:
+    tree = ast.parse(source, filename=filename)
     findings: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and _PAYROLL_RATE_PATTERN.match(node.value)
-        ):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        if _PAYROLL_RATE_PATTERN.match(node.value) or _PAYROLL_AMOUNT_PATTERN.match(node.value):
             findings.append((node.lineno, node.value))
     return findings
 
@@ -117,3 +145,17 @@ def test_allowlisted_files_still_exist_and_still_need_the_exemption() -> None:
     assert not stale, (
         "Entrée(s) obsolète(s) dans PAYROLL_FILES_ALLOWED_TO_HARDCODE_RATES : " + ", ".join(stale)
     )
+
+
+def test_the_detector_catches_a_rate_and_a_bracket_bound() -> None:
+    """Auto-test du detecteur, ajoute avec L2-4 : sans quoi le garde-fou
+    serait un theatre de securite (meme discipline que
+    `test_module_boundaries.py::test_forbidden_import_is_detected`).
+
+    Les deux formes doivent etre vues : le taux, que la version initiale
+    couvrait deja, et la borne de tranche, qui lui echappait."""
+    source = 'CNAPS = Decimal("0.13")\nTRANCHE_IRSA = {"min": "350001", "max": "400000"}\n'
+    findings = _findings_in_source(source)
+    values = {value for _lineno, value in findings}
+    assert "0.13" in values, findings
+    assert {"350001", "400000"} <= values, findings

@@ -1,0 +1,89 @@
+{
+  "_reserve": [
+    "Jours feries legaux malgaches. Ces dates sont une DONNEE, pas du code :",
+    "FOR-5 exige qu'aucune date feriee n'apparaisse dans une ligne de Python,",
+    "et une garde d'architecture le verifie (tests/architecture/",
+    "test_no_hardcoded_holidays.py).",
+    "",
+    "RESERVE, dans la meme discipline que la reserve OECFM portee par le plan",
+    "comptable : cette liste est etablie a partir des jours feries usuellement",
+    "chomes a Madagascar et n'a PAS ete validee contre le Journal Officiel. Le",
+    "calendrier legal peut ajouter un jour chome ponctuel (journee electorale,",
+    "deuil national) qui ne figurera jamais ici. Avant tout usage sur lequel",
+    "repose un calcul contractuel (penalites de retard, delais de livraison),",
+    "faire confirmer la liste de l'annee par le service juridique ou les RH, et",
+    "corriger a l'ecran plutot que d'attendre une livraison logicielle.",
+    "",
+    "Le 8 mars (journee internationale des femmes, chomee pour les femmes a",
+    "Madagascar) est volontairement ABSENT : il n'est pas chome pour toute la",
+    "population et son traitement releve d'une regle RH par employe, pas d'un",
+    "calendrier d'entreprise. A trancher avec le maitre d'ouvrage si un tenant",
+    "en a besoin.",
+    "",
+    "Les dates mobiles (Paques et ses derives) sont enumerees annee par annee",
+    "plutot que calculees : un algorithme de comput pascal dans le code serait",
+    "du code metier de plus a maintenir et a tester, pour une donnee qui tient",
+    "en quelques lignes et qui doit de toute facon etre relue chaque annee."
+  ],
+  "fixed": [
+    { "month": 1, "day": 1, "name": "Jour de l'An" },
+    { "month": 3, "day": 29, "name": "Commemoration de l'insurrection de 1947" },
+    { "month": 5, "day": 1, "name": "Fete du Travail" },
+    { "month": 6, "day": 26, "name": "Fete de l'Independance" },
+    { "month": 8, "day": 15, "name": "Assomption" },
+    { "month": 11, "day": 1, "name": "Toussaint" },
+    { "month": 12, "day": 25, "name": "Noel" }
+  ],
+  "movable": {
+    "2026": [
+      { "date": "2026-04-06", "name": "Lundi de Paques" },
+      { "date": "2026-05-14", "name": "Ascension" },
+      { "date": "2026-05-25", "name": "Lundi de Pentecote" }
+    ],
+    "2027": [
+      { "date": "2027-03-29", "name": "Lundi de Paques" },
+      { "date": "2027-05-06", "name": "Ascension" },
+      { "date": "2027-05-17", "name": "Lundi de Pentecote" }
+    ],
+    "2028": [
+      { "date": "2028-04-17", "name": "Lundi de Paques" },
+      { "date": "2028-05-25", "name": "Ascension" },
+      { "date": "2028-06-05", "name": "Lundi de Pentecote" }
+    ],
+    "2029": [
+      { "date": "2029-04-02", "name": "Lundi de Paques" },
+      { "date": "2029-05-10", "name": "Ascension" },
+      { "date": "2029-05-21", "name": "Lundi de Pentecote" }
+    ],
+    "2030": [
+      { "date": "2030-04-22", "name": "Lundi de Paques" },
+      { "date": "2030-05-30", "name": "Ascension" },
+      { "date": "2030-06-10", "name": "Lundi de Pentecote" }
+    ],
+    "2031": [
+      { "date": "2031-04-14", "name": "Lundi de Paques" },
+      { "date": "2031-05-22", "name": "Ascension" },
+      { "date": "2031-06-02", "name": "Lundi de Pentecote" }
+    ],
+    "2032": [
+      { "date": "2032-03-29", "name": "Lundi de Paques" },
+      { "date": "2032-05-06", "name": "Ascension" },
+      { "date": "2032-05-17", "name": "Lundi de Pentecote" }
+    ],
+    "2033": [
+      { "date": "2033-04-18", "name": "Lundi de Paques" },
+      { "date": "2033-05-26", "name": "Ascension" },
+      { "date": "2033-06-06", "name": "Lundi de Pentecote" }
+    ],
+    "2034": [
+      { "date": "2034-04-10", "name": "Lundi de Paques" },
+      { "date": "2034-05-18", "name": "Ascension" },
+      { "date": "2034-05-29", "name": "Lundi de Pentecote" }
+    ],
+    "2035": [
+      { "date": "2035-03-26", "name": "Lundi de Paques" },
+      { "date": "2035-05-03", "name": "Ascension" },
+      { "date": "2035-05-14", "name": "Lundi de Pentecote" }
+    ]
+  }
+}

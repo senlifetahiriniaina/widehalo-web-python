@@ -75,6 +75,11 @@ _ONE_SHOT_COMMANDS: dict[str, str] = {
     "load_default_product_catalog": _MOTIF_REFERENTIEL,
     "load_epi_standards": _MOTIF_REFERENTIEL,
     "load_material_references": _MOTIF_REFERENTIEL,
+    "load_mg_holidays": (
+        "Calendrier ferie d'une annee : charge une fois par tenant et par "
+        "annee, ou a la creation d'un tenant. Une planification n'aurait "
+        "rien a faire onze mois sur douze."
+    ),
     "load_payroll_reference_data": _MOTIF_REFERENTIEL,
     "load_pcg2005": _MOTIF_REFERENTIEL,
     "load_roles": _MOTIF_REFERENTIEL,

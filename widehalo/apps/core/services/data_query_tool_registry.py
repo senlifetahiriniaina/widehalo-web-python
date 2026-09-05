@@ -44,6 +44,17 @@ explicitement, dans son propre adaptateur, comment il respecte le meme
 niveau de masquage par role que son ecran/API existants — jamais une
 exposition brute de donnees individuelles a un LLM.
 
+**`read_only` est declare, pas devine (L2-1)** : jusqu'a ce lot, la
+distinction lecture/ecriture n'etait materialisee nulle part. Les huit
+tools etaient en lecture, mais rien de mecanique ne le disait — et une
+analyse statique du corps de la fonction ne l'aurait pas etabli, chacune
+deleguant a un import local qu'il aurait fallu suivre. Le champ est donc
+OBLIGATOIRE a l'enregistrement, et la garde
+`tests/architecture/test_ai_tools_are_read_only.py` refuse tout tool
+declarant `read_only=False` ainsi que tout `required_permission` qui ne
+commence pas par `<app>.view_`. Un invariant declare se verifie ; un
+invariant suppose se contredit en silence.
+
 **Ecart assume (Sprint 11, L7 IA gateway)** : l'isolation garantie
 aujourd'hui par ce registre est UNIQUEMENT applicative — liste blanche de
 tools + `required_permission` filtre par `user.has_perm()` avant meme
@@ -87,6 +98,10 @@ class DataQueryTool:
     description: str
     parameters_schema: dict[str, Any]
     required_permission: str
+    # Invariant du cahier (IA-1) : le copilote lit, il n'ecrit jamais. Champ
+    # obligatoire plutot que defaut a True — un defaut permissif laisserait
+    # un futur tool d'ecriture passer par simple oubli.
+    read_only: bool
     function: DataQueryToolFunction
 
 
@@ -101,10 +116,20 @@ def register_data_query_tool(
     description: str,
     parameters_schema: dict[str, Any],
     required_permission: str,
+    read_only: bool,
     function: DataQueryToolFunction,
 ) -> None:
     """Appele depuis `apps.py::ready()` de chaque module metier. Idempotent
-    (un meme `code` re-enregistre remplace simplement l'entree)."""
+    (un meme `code` re-enregistre remplace simplement l'entree).
+
+    `read_only` n'a pas de valeur par defaut : le declarer est le seul moyen
+    de rendre l'invariant IA-1 verifiable, et un defaut a True le rendrait
+    verifiable sans etre vrai."""
+    if not read_only:
+        raise ValueError(
+            f"Tool {code!r} : le copilote ne dispose que de tools en lecture "
+            "(cahier IA-1). Un tool d'ecriture ne peut pas etre enregistre ici."
+        )
     _REGISTRY[code] = DataQueryTool(
         code=code,
         module=module,
@@ -112,6 +137,7 @@ def register_data_query_tool(
         description=description,
         parameters_schema=parameters_schema,
         required_permission=required_permission,
+        read_only=read_only,
         function=function,
     )
 

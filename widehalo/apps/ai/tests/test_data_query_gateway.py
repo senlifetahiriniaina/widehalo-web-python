@@ -60,6 +60,7 @@ def _register_test_tool(code: str = "test.dq_tool") -> list[dict]:
             "required": [],
         },
         required_permission="sales.view_salesorder",
+        read_only=True,
         function=_fn,
     )
     return calls

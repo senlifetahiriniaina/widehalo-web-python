@@ -80,6 +80,7 @@ def register_ai_data_query_tools() -> None:
             "required": [],
         },
         required_permission="purchase.view_purorder",
+        read_only=True,
         function=_tool_supplier_risk_scores,
     )
 

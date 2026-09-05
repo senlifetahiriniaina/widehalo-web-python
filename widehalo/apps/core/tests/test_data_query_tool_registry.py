@@ -26,6 +26,7 @@ def test_register_and_get_tool() -> None:
         description="Un tool de test.",
         parameters_schema=_SCHEMA,
         required_permission="test.view_test",
+        read_only=True,
         function=_noop_tool,
     )
     tool = get_data_query_tool("test.noop")
@@ -43,6 +44,7 @@ def test_register_is_idempotent_replaces_entry() -> None:
         description="V1",
         parameters_schema=_SCHEMA,
         required_permission="test.view_test",
+        read_only=True,
         function=_noop_tool,
     )
     register_data_query_tool(
@@ -52,6 +54,7 @@ def test_register_is_idempotent_replaces_entry() -> None:
         description="V2",
         parameters_schema=_SCHEMA,
         required_permission="test.view_test",
+        read_only=True,
         function=_noop_tool,
     )
     tool = get_data_query_tool("test.replace")
@@ -71,6 +74,7 @@ def test_list_data_query_tools_is_sorted_by_code() -> None:
         description="Z",
         parameters_schema=_SCHEMA,
         required_permission="test.view_test",
+        read_only=True,
         function=_noop_tool,
     )
     register_data_query_tool(
@@ -80,6 +84,7 @@ def test_list_data_query_tools_is_sorted_by_code() -> None:
         description="A",
         parameters_schema=_SCHEMA,
         required_permission="test.view_test",
+        read_only=True,
         function=_noop_tool,
     )
     codes = [t.code for t in list_data_query_tools()]

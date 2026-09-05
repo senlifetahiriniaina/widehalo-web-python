@@ -67,6 +67,7 @@ def register_ai_data_query_tools() -> None:
         ),
         parameters_schema={"type": "object", "properties": lever_properties, "required": []},
         required_permission="simulation.view_simscenario",
+        read_only=True,
         function=_tool_propose_scenario,
     )
 

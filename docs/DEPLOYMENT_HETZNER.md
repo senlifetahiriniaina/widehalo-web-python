@@ -389,6 +389,48 @@ Deux points de cadence qui ne sont pas des préférences :
   cohérence) sont poussés entre 01h et 06h pour ne pas concurrencer l'usage
   interactif.
 
+### 9 bis.3. Première exécution surveillée (relevé du 2026-09-05)
+
+Les dix-neuf traitements ont été exécutés pour de bon sur un jeu de
+démonstration (tenant `DEMO` : 7 partenaires, 3 factures, 1 devis accepté,
+1 commande confirmée, 5 opportunités, 2 quants, 1 entrepôt), puis rejoués
+deux fois pour vérifier que la planification n'invente rien.
+
+**Aucun échec sur les trois passages.** Durées : toutes sous 0,2 s sur ce
+volume — `run_analytics_refresh` est la plus lourde (0,18 s, 9 lignes
+traitées, réconciliation OK), les dix-huit autres sont sous 0,1 s. Ces
+chiffres ne valent que comme point de départ : ils croissent avec le nombre
+de tenants et l'historique, et c'est l'écran « Traitements périodiques » qui
+donne la mesure réelle en exploitation.
+
+**La preuve qui comptait, c'est le deuxième passage** — celle du lot L0-1,
+qui a rendu idempotentes cinq commandes qui ne l'étaient pas :
+
+| Effet observé | Après 1 passage | Après 3 passages |
+|---|---|---|
+| Anomalies IA créées | 1 | 1 |
+| Notifications créées | 1 | 1 |
+| Propositions de réapprovisionnement | 0 | 0 |
+| E-mails de résumé envoyés | 1 | 0 puis 0 |
+
+Sans L0-1, chacun de ces compteurs aurait suivi le nombre de passages : trois
+anomalies IA (et deux appels LLM de plus), trois notifications, et une
+proposition d'achat par nuit tant que la couverture reste sous le seuil.
+
+`AnRefreshRun` est la seule table qui grandit à chaque passage, et c'est
+voulu : c'est le journal des exécutions, une ligne par run, avec
+`rows_processed` et le résultat de réconciliation. Le troisième passage
+traite 0 ligne et réconcilie OK — l'entrepôt était déjà à jour. C'est le
+comportement attendu, et le contraire (un recalcul complet à chaque nuit)
+aurait été le vrai problème.
+
+**Ce que ce relevé ne prouve pas** : le comportement à volume réel et
+multi-tenant. Les commandes lourdes (`run_analytics_refresh`,
+`run_tenant_backups`, `check_quant_consistency`) doivent être re-mesurées sur
+la première instance de production avec plusieurs mois d'historique, et leur
+heure d'exécution réajustée si deux d'entre elles se chevauchent
+durablement.
+
 ## 10. Sauvegarde
 
 Deux mécanismes complémentaires, à des granularités différentes — l'un ne

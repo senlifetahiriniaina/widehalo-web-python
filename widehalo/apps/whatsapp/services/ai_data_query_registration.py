@@ -45,6 +45,7 @@ def register_ai_data_query_tools() -> None:
             "required": ["phone_number"],
         },
         required_permission="whatsapp.view_waconversation",
+        read_only=True,
         function=_tool_conversation_status,
     )
 
