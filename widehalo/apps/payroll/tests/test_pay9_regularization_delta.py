@@ -38,8 +38,9 @@ from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.payroll.models import PayPayslip, PayPeriod
+from apps.payroll.models import PayAdvance, PayPayslip, PayPeriod
 from apps.payroll.services.batches import (
+    _register_advance_installments,
     acknowledge_anomaly,
     control_batch,
     create_batch,
@@ -69,7 +70,12 @@ def _accounting(tenant: Tenant) -> None:
     AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_PAYABLE)
 
 
-def _validated_original(tenant: Tenant, *, overtime: dict[str, str] | None = None) -> PayPayslip:
+def _validated_original(
+    tenant: Tenant,
+    *,
+    overtime: dict[str, str] | None = None,
+    advance_remaining: Decimal | None = None,
+) -> PayPayslip:
     """`overtime` est pose AVANT le calcul et l'approbation : un bulletin
     publie est immuable en base (declencheur
     `pay_payslip_reject_mutation_if_published`), et c'est tant mieux — la
@@ -77,6 +83,19 @@ def _validated_original(tenant: Tenant, *, overtime: dict[str, str] | None = Non
     s'est fait refuser par le depot."""
     setup_payroll_reference_data(tenant)
     contract = make_active_contract(tenant, employee_id=uuid.uuid4(), wage_base=WAGE_BASE)
+    if advance_remaining is not None:
+        # AVANT le calcul de l'original : c'est ce qui fait que l'original et
+        # son rectificatif portent la MEME retenue d'avance, donc un ecart
+        # nul — le scenario reel d'une correction sans effet sur l'avance.
+        PayAdvance.objects.create(
+            tenant=tenant,
+            employee_id=contract.employee_id,
+            date=dt.date(2026, 1, 15),
+            amount=Decimal("300000"),
+            remaining=advance_remaining,
+            repayment_months=3,
+            state=PayAdvance.STATE_REPAYING,
+        )
     period = make_period(tenant)
     payslip = PayPayslip.objects.create(
         tenant=tenant,
@@ -250,3 +269,41 @@ def test_a_non_monetary_field_is_refused() -> None:
 
         with pytest.raises(ValueError, match="taxable_base"):
             regularization_movement(payslip, "taxable_base")
+
+
+def test_the_advance_balance_only_drops_by_what_was_really_withheld() -> None:
+    """QUATRIEME chemin d'argent, manque par la premiere passe de ce lot.
+
+    `_register_advance_installments` decrementait le solde de l'avance du
+    montant PLEIN de la ligne `RETENUE_AVANCE` du rectificatif. Or seul
+    l'ECART est reellement retenu sur le bulletin : la dette du salarie
+    s'eteignait donc sans qu'un ariary soit repris, et l'avance pouvait
+    passer en `settled` sans avoir ete remboursee.
+
+    Scenario : une avance de 300 000 Ar sur 3 mois. Le bulletin de mars en
+    retient 100 000. Un rectificatif de mars cree en juin recalcule la meme
+    retenue de 100 000 — mais l'ecart est NUL, donc le solde ne doit pas
+    bouger d'un ariary."""
+    tenant = Tenant.objects.create(code="PAY-L14-7", name="PAY-9 avance")
+    with use_tenant(tenant.id):
+        user = User.objects.create_user(email="rh-l14-7@example.com", password="Str0ngPassw0rd!23")
+        original = _validated_original(tenant, advance_remaining=Decimal("200000"))
+        advance = PayAdvance.objects.get(tenant=tenant, employee_id=original.employee_id)
+        remaining_before = advance.remaining
+        target = _target_period(tenant)
+
+        regularization = create_regularization(
+            original,
+            target_period=target,
+            reason="Correction sans effet sur la retenue d'avance",
+            user=user,
+        )
+        _register_advance_installments(regularization, user)
+
+        advance.refresh_from_db()
+        # L'original et le rectificatif portent la MEME retenue d'avance :
+        # l'ecart est nul, donc rien n'a ete retenu, donc le solde ne doit
+        # pas bouger d'un ariary. Avant L14 il perdait une echeance entiere.
+        assert original.lines.get(code="RETENUE_AVANCE").amount > 0
+        assert advance.remaining == remaining_before
+        assert advance.state == PayAdvance.STATE_REPAYING

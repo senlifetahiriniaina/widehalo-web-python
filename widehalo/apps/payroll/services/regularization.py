@@ -156,15 +156,25 @@ def regularization_movement(payslip: PayPayslip, field: str) -> Decimal:
     return value - previous
 
 
-def regularization_withholdings(payslip: PayPayslip, *, current: Decimal) -> Decimal:
+def regularization_withholdings(
+    payslip: PayPayslip,
+    *,
+    current: Decimal,
+    codes: tuple[str, ...] = WITHHOLDING_CODES,
+) -> Decimal:
     """Meme regle du delta, pour les retenues — qui ne sont pas
     denormalisees sur `PayPayslip` mais sommees depuis les
-    `PayPayslipLine` par l'appelant, d'ou le parametre `current`."""
+    `PayPayslipLine` par l'appelant, d'ou le parametre `current`.
+
+    `codes` restreint le perimetre a un sous-ensemble de rubriques. Un seul
+    appelant l'utilise : `batches._register_advance_installments`, qui ne
+    raisonne que sur `RETENUE_AVANCE` — le solde d'une avance ne doit etre
+    decremente que de ce qui a REELLEMENT ete retenu sur ce bulletin."""
     original = payslip.rectifies
     if original is None:
         return current
     previous = sum(
-        original.lines.filter(code__in=WITHHOLDING_CODES).values_list("amount", flat=True),
+        original.lines.filter(code__in=codes).values_list("amount", flat=True),
         Decimal(0),
     )
     return current - previous

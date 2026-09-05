@@ -3,6 +3,7 @@ cycle de vie d'un `PayBatch`."""
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -25,6 +26,8 @@ from apps.payroll.services.regularization import (
     regularization_movement,
     regularization_withholdings,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def create_batch(period: PayPeriod) -> PayBatch:
@@ -298,6 +301,30 @@ def _register_advance_installments(payslip: PayPayslip, user: User) -> None:
     line = payslip.lines.filter(code="RETENUE_AVANCE").first()
     if line is None or line.amount <= 0:
         return
+    # L14/PAY-9 — QUATRIEME chemin d'argent, manque par la premiere passe
+    # de ce lot et trouve par la reconnaissance adverse.
+    #
+    # Un rectificatif ne retient reellement que l'ECART (cf.
+    # `validate_and_post_batch` et `services/mobile_money.py`). Decrementer
+    # le solde de l'avance du montant PLEIN de sa ligne `RETENUE_AVANCE`
+    # eteindrait donc la dette du salarie sans qu'un ariary soit retenu —
+    # et pourrait faire passer l'avance en `settled` sans remboursement.
+    withheld = regularization_withholdings(payslip, current=line.amount, codes=("RETENUE_AVANCE",))
+    if withheld <= 0:
+        # Correction a la baisse : on a retenu TROP sur l'original. Rendre
+        # cet argent au salarie est une operation a part entiere (un
+        # remboursement d'avance), pas une echeance negative que
+        # `register_installment` saurait traiter — il ne sait
+        # qu'augmenter le rembourse. On ne touche donc pas au solde
+        # plutot que de le fausser dans l'autre sens, et on le dit.
+        logger.warning(
+            "Rectificatif %s : retenue d'avance en baisse (%s) — le solde de "
+            "l'avance n'est PAS modifie. Un remboursement au salarie doit etre "
+            "traite separement.",
+            payslip.reference or payslip.pk,
+            withheld,
+        )
+        return
     advances = list(
         PayAdvance.objects.filter(
             tenant=payslip.tenant, employee_id=payslip.employee_id, state=PayAdvance.STATE_REPAYING
@@ -307,5 +334,5 @@ def _register_advance_installments(payslip: PayPayslip, user: User) -> None:
     if total_remaining <= 0:
         return
     for advance in advances:
-        share = (line.amount * advance.remaining / total_remaining).quantize(Decimal("0.0001"))
+        share = (withheld * advance.remaining / total_remaining).quantize(Decimal("0.0001"))
         register_installment(advance, user, amount=min(share, advance.remaining))
