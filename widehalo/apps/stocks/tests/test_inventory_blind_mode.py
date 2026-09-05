@@ -271,6 +271,11 @@ def test_the_screen_never_renders_the_expected_quantity(blind_setup) -> None:
     with use_tenant(tenant.id):
         inventory = _blind_inventory(tenant, warehouse, location, variant_id)
         start_inventory(inventory)
+        # Releve DANS le contexte tenant : hors de lui, la RLS filtre la
+        # ligne et `first()` rend `None` (piege deja rencontre dans ce
+        # depot — `all_objects` ne contourne que la RLS applicative, pas
+        # celle de PostgreSQL).
+        location_code = inventory.lines.first().location.code
 
     client = Client()
     assert client.post("/login/", {"email": user.email, "password": PASSWORD}).status_code == 302
@@ -284,14 +289,14 @@ def test_the_screen_never_renders_the_expected_quantity(blind_setup) -> None:
     # Assertion STRUCTURELLE et non textuelle : chercher « 42 » dans tout le
     # document echoue sur le premier UUID venu (`...afbd-42e9-b406-...`).
     # Ce qui compte est que les deux cellules concernees portent le
-    # marqueur de masquage, et rien d'autre.
+    # marqueur de masquage.
     soup = BeautifulSoup(response.content, "html.parser")
-    cells = [
-        cell.get_text(strip=True)
-        for row in soup.find_all("tr")
-        for cell in row.find_all("td")
-        if str(inventory.lines.first().location.code) in row.get_text()
+    line_rows = [
+        row for row in soup.find_all("tr") if location_code in row.get_text() and row.find_all("td")
     ]
-    assert MASKED_CELL in cells, cells
+    assert line_rows, "La ligne de comptage n'apparait pas sur l'ecran."
+    cells = [cell.get_text(strip=True) for cell in line_rows[0].find_all("td")]
     # Quantite theorique ET ecart : deux colonnes masquees, pas une.
     assert cells.count(MASKED_CELL) >= 2, cells
+    # Et la quantite ne doit apparaitre dans AUCUNE cellule de cette ligne.
+    assert str(STOCKED_QTY) not in cells, cells
