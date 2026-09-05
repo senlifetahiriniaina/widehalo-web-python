@@ -650,7 +650,20 @@ plan de rattrapage doit commencer par les ré-exécuter.
 
 ---
 
-## 6. Suite
+## 6. Ce qui a changé depuis cet audit
+
+Cet audit est un instantané. Les chantiers engagés ensuite ferment des critères
+qu'il compte encore comme partiels ou absents — les lignes du §2 ne sont pas
+réécrites, la trace du point de départ étant ce qui rend le progrès lisible.
+
+| Critère | Verdict à l'audit | Depuis |
+|---|---|---|
+| `P1/ACC-1` | 🟡 — plan chargé par commande, jamais automatiquement, et jamais selon le pays | Fermé par **D10-5** : `load_chart_of_accounts` résout le plan par `tenant → pays → référentiel`, dans les quatre chemins de création de tenant. Un tenant `--country=SN` ne reçoit plus le plan malgache. |
+| `P1/ACC-2` | 🟡 — la garde n'inspectait pas la structure des états financiers, et exemptait `reports.py` | Fermé par **D10-3/4/6** : la structure vit dans `AccFramework.statement_structure`, la garde est élargie à ses trois angles morts (codes à 1-2 chiffres, littéraux entiers, `management/`), une garde nouvelle interdit toute structure d'état financier en Python, et un test prouve la portabilité vers un second référentiel. |
+| `P1/ACC-7` | ✅ avec réserve — la forme PCG était en dur dans `reports.py` | Réserve levée par **D10-3**. |
+| §3.2 Budgets d'architecture | ❓ non mesurables | Mesurés le jour même (300 / 576 / 240) et relevés de +33 % à **415 / 800 / 320**. |
+
+## 7. Suite
 
 Le plan de fermeture des écarts constatés ici — rattrapage des Phases 1 à 3, puis les
 34 sprints de la Phase 4 — est dans
