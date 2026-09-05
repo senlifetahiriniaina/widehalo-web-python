@@ -38,6 +38,7 @@ from apps.analytics.models import (
     AnFactEncaissement,
     AnFactMouvementStock,
     AnFactOrdreFabrication,
+    AnFactPaie,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -48,6 +49,7 @@ from apps.catalog.services.public import list_variants_for_warehouse
 from apps.core.tenant_context import activate_tenant
 from apps.mrp.services.public import list_closed_orders_for_warehouse
 from apps.partners.services.public import list_partners_for_warehouse
+from apps.payroll.services.public import list_published_payslips_for_warehouse
 from apps.pos.services.public import (
     list_order_lines_for_warehouse as list_pos_order_lines_for_warehouse,
 )
@@ -375,6 +377,37 @@ def _refresh_fact_ordre_fabrication(
     return len(rows)
 
 
+def _refresh_fact_paie(
+    tenant: Tenant, state: AnWarehouseState, dim_temps_cache: dict[dt.date, AnDimTemps]
+) -> int:
+    rows = list_published_payslips_for_warehouse(tenant, updated_since=state.watermark_pay_payslip)
+    latest_watermark = state.watermark_pay_payslip
+    for row in rows:
+        dim_temps = _ensure_dim_temps(tenant, row["date"], dim_temps_cache)
+        AnFactPaie.objects.update_or_create(
+            tenant=tenant,
+            source_payslip_id=row["payslip_id"],
+            defaults={
+                "dim_temps": dim_temps,
+                "employee_id": row["employee_id"],
+                "period_code": row["period_code"],
+                "payslip_reference": row["reference"],
+                "state": row["state"],
+                "gross_mga": row["gross"],
+                "taxable_base_mga": row["taxable_base"],
+                "irsa_mga": row["irsa"],
+                "social_employee_mga": row["social_employee"],
+                "social_employer_mga": row["social_employer"],
+                "payment_method": row["payment_method"],
+                "regulatory_parameter_versions": row["regulatory_parameter_versions"],
+            },
+        )
+        if latest_watermark is None or row["updated_at"] > latest_watermark:
+            latest_watermark = row["updated_at"]
+    state.watermark_pay_payslip = latest_watermark
+    return len(rows)
+
+
 def _check_reconciliation(tenant: Tenant) -> tuple[bool | None, dict[str, Any]]:
     """Compare `sum(AnFactVente.montant_ht_mga)` au total HT calculé
     indépendamment par `sales.services.public.get_untaxed_revenue_for_
@@ -457,6 +490,7 @@ def refresh_warehouse_for_tenant(
                 rows_processed += _refresh_fact_ordre_fabrication(
                     tenant, state, dim_temps_cache, dim_article
                 )
+                rows_processed += _refresh_fact_paie(tenant, state, dim_temps_cache)
         except Exception as exc:  # noqa: BLE001 - trace l'echec en base plutot que de le laisser silencieux
             state.is_locked = False
             state.save(update_fields=["is_locked"])
@@ -479,6 +513,7 @@ def refresh_warehouse_for_tenant(
                     "watermark_stk_move",
                     "watermark_pur_receipt_line",
                     "watermark_mrp_order",
+                    "watermark_pay_payslip",
                 ]
             )
             reconciliation_ok, reconciliation_detail = _check_reconciliation(tenant)

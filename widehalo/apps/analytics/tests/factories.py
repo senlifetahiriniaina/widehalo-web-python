@@ -17,6 +17,7 @@ from apps.analytics.models import (
     AnFactEncaissement,
     AnFactMouvementStock,
     AnFactOrdreFabrication,
+    AnFactPaie,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -172,6 +173,24 @@ class AnFactOrdreFabricationFactory(factory.django.DjangoModelFactory):
     cout_reel_mga = Decimal("1000")
     cout_planifie_mga = Decimal("900")
     ecart_cout_mga = Decimal("100")
+
+
+class AnFactPaieFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AnFactPaie
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_payslip_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    employee_id = factory.LazyFunction(uuid.uuid4)
+    period_code = "2026-03"
+    payslip_reference = "BULL-2026-0001"
+    state = "approved"
+    gross_mga = Decimal("1000000")
+    taxable_base_mga = Decimal("900000")
+    irsa_mga = Decimal("50000")
+    social_employee_mga = Decimal("15000")
+    social_employer_mga = Decimal("140000")
 
 
 class AnWarehouseStateFactory(factory.django.DjangoModelFactory):

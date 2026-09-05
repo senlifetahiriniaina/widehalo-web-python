@@ -445,6 +445,64 @@ class AnFactOrdreFabrication(BaseModel):
         return f"{self.order_reference} — écart {self.ecart_cout_mga}"
 
 
+class AnFactPaie(BaseModel):
+    """Grain = `payroll.PayPayslip` PUBLIÉ (`state in (approved, paid)` —
+    même définition exacte que le docstring "publié" de `PayPayslip`,
+    Bloc E/E9/PAY-8). Bloc Transverse, T4 (FOR-11), dépend de E1/E3.
+
+    `date`/`dim_temps` utilise `PayPayslip.date_to` (fin de période de
+    paie) — à la différence d'`AnFactOrdreFabrication` (qui doit se
+    rabattre sur `updated_at.date()` faute de `closed_at` dédié), un
+    bulletin porte déjà une date de fin de période directement
+    pertinente pour une consultation historique par période de paie.
+
+    `employee_id` : UUID simple dégénéré (même choix qu'`AnFactMouvement
+    Stock` sans `AnDimTiers` dédié) — aucune nouvelle dimension employé
+    créée pour ce seul sprint.
+
+    `regulatory_parameter_versions` : instantané `{code -> version}` des
+    paramètres réglementaires ayant produit ce bulletin — copié tel quel
+    depuis `PayPayslipLine.regulatory_parameter_versions` (Bloc E, E3,
+    PAY-4 ; même instantané sur toutes les lignes d'un même bulletin,
+    donc n'importe laquelle convient), jamais recalculé ici. C'est
+    exactement la dépendance sur E1 (paramètre `payroll.
+    overtime_multipliers`) /E3 que le plan Phase 3 annonce pour ce
+    sprint : la traçabilité de version survit jusque dans l'entrepôt.
+
+    **`net_to_pay` (RG-PAY-9, chiffré individuellement) volontairement
+    ABSENT de ce fait** : cf. docstring de
+    `payroll.services.public.list_published_payslips_for_warehouse` pour
+    la justification complète (cloisonnement paie transverse, P5) — seuls
+    les composants de COÛT employeur (brut, base imposable, charges)
+    sont repris ici, jamais le net à payer individuel d'un salarié."""
+
+    source_payslip_id = models.UUIDField()
+    dim_temps = models.ForeignKey(AnDimTemps, on_delete=models.PROTECT, related_name="paies")
+    employee_id = models.UUIDField()
+    period_code = models.CharField(max_length=32, blank=True)
+    payslip_reference = models.CharField(max_length=64, blank=True)
+    state = models.CharField(max_length=16, blank=True)
+    gross_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    taxable_base_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    irsa_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    social_employee_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    social_employer_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    payment_method = models.CharField(max_length=16, blank=True)
+    regulatory_parameter_versions = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "an_fact_paie"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_payslip_id"], name="uniq_an_fact_paie"
+            )
+        ]
+        indexes = [models.Index(fields=["dim_temps"]), models.Index(fields=["employee_id"])]
+
+    def __str__(self) -> str:
+        return f"{self.payslip_reference} — {self.employee_id}"
+
+
 class AnWarehouseState(BaseModel):
     """Singleton par tenant : verrou de rafraîchissement + jalons
     (watermarks) `updated_at` par source, condition du rafraîchissement
@@ -465,6 +523,8 @@ class AnWarehouseState(BaseModel):
     watermark_pur_receipt_line = models.DateTimeField(null=True, blank=True)
     # Bloc Transverse, T3.
     watermark_mrp_order = models.DateTimeField(null=True, blank=True)
+    # Bloc Transverse, T4.
+    watermark_pay_payslip = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "an_warehouse_state"

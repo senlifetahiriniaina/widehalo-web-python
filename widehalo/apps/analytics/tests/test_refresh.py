@@ -19,6 +19,7 @@ from apps.analytics.models import (
     AnFactEncaissement,
     AnFactMouvementStock,
     AnFactOrdreFabrication,
+    AnFactPaie,
     AnFactReception,
     AnFactTicketPos,
     AnFactVente,
@@ -31,6 +32,8 @@ from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder
 from apps.mrp.tests.factories import MrpOrderFactory, MrpWorkshopFactory
 from apps.partners.tests.factories import PartnerFactory
+from apps.payroll.models import PayPayslip
+from apps.payroll.tests.factories import PayPayslipFactory, PayPayslipLineFactory
 from apps.pos.models import PosOrder
 from apps.pos.tests.factories import PosOrderFactory, PosOrderLineFactory
 from apps.purchase.models import PurReceiptLine
@@ -369,3 +372,60 @@ def test_refresh_populates_ordre_fabrication_fact(warehouse_tenant: Tenant) -> N
         assert fact.cout_planifie_mga == Decimal("45000")
         assert fact.ecart_cout_mga == Decimal("5000")
         assert fact.dim_temps.date == order.updated_at.date()
+
+
+def test_refresh_populates_payslip_fact(warehouse_tenant: Tenant) -> None:
+    """Bloc Transverse, T4 (FOR-11) — bulletin PUBLIÉ (`state=approved`)
+    matérialisé en `AnFactPaie`, avec l'instantané de version des
+    paramètres réglementaires (Bloc E, E1/E3) repris tel quel, et jamais
+    de `net_to_pay` exposé (RG-PAY-9/P5)."""
+    with use_tenant(warehouse_tenant.id):
+        employee_id = uuid.uuid4()
+        payslip = PayPayslipFactory(
+            tenant=warehouse_tenant,
+            employee_id=employee_id,
+            state=PayPayslip.STATE_APPROVED,
+            date_to=dt.date(2026, 3, 31),
+            gross=Decimal("1000000"),
+            taxable_base=Decimal("900000"),
+            irsa=Decimal("50000"),
+            social_employee=Decimal("15000"),
+            social_employer=Decimal("140000"),
+        )
+        PayPayslipLineFactory(
+            tenant=warehouse_tenant,
+            payslip=payslip,
+            regulatory_parameter_versions={"payroll.overtime_multipliers": 3},
+        )
+
+    run = refresh_warehouse_for_tenant(warehouse_tenant)
+
+    assert run.status == AnRefreshRun.STATUS_SUCCESS
+    assert run.rows_processed == 1
+    with use_tenant(warehouse_tenant.id):
+        fact = AnFactPaie.objects.get(tenant=warehouse_tenant)
+        assert fact.source_payslip_id == payslip.id
+        assert fact.employee_id == employee_id
+        assert fact.payslip_reference == payslip.reference
+        assert fact.state == PayPayslip.STATE_APPROVED
+        assert fact.gross_mga == Decimal("1000000")
+        assert fact.taxable_base_mga == Decimal("900000")
+        assert fact.irsa_mga == Decimal("50000")
+        assert fact.social_employee_mga == Decimal("15000")
+        assert fact.social_employer_mga == Decimal("140000")
+        assert fact.regulatory_parameter_versions == {"payroll.overtime_multipliers": 3}
+        assert fact.dim_temps.date == dt.date(2026, 3, 31)
+
+
+def test_refresh_excludes_unpublished_payslips(warehouse_tenant: Tenant) -> None:
+    """Seuls `approved`/`paid` sont "publiés" (Bloc E, E9/PAY-8) — un
+    bulletin `draft`/`computed`/`to_approve` ne doit jamais être
+    matérialisé."""
+    with use_tenant(warehouse_tenant.id):
+        PayPayslipFactory(tenant=warehouse_tenant, state=PayPayslip.STATE_TO_APPROVE)
+
+    run = refresh_warehouse_for_tenant(warehouse_tenant)
+
+    assert run.rows_processed == 0
+    with use_tenant(warehouse_tenant.id):
+        assert AnFactPaie.objects.filter(tenant=warehouse_tenant).count() == 0

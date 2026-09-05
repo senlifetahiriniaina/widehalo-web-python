@@ -20,6 +20,7 @@ MODULE = ModuleSpec(
     # Transverse T2).
     # "mrp" : `AnFactOrdreFabrication` (ordres de fabrication clôturés,
     # Bloc Transverse T3).
+    # "payroll" : `AnFactPaie` (bulletins publiés, Bloc Transverse T4).
     dependencies=(
         "core",
         "sales",
@@ -30,6 +31,7 @@ MODULE = ModuleSpec(
         "stocks",
         "purchase",
         "mrp",
+        "payroll",
     ),
     verbose_name="Analytique (entrepôt & indicateurs)",
 )
