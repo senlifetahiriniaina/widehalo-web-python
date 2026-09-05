@@ -147,11 +147,21 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
     devenait non-defaultable auparavant), un `AccMove` brouillon est
     materialise immediatement sur ce compte, marque `needs_qualification`."""
     framework = framework_for_tenant(tenant)
-    if framework is None or not framework.suspense_account_code:
+    # La CLASSE est exigee autant que le code : `AccAccount.account_class`
+    # n'est pas nullable, un referentiel qui declarerait l'un sans l'autre
+    # ferait echouer la creation sur une IntegrityError au lieu d'un message
+    # exploitable. Signale par mypy sur `int | None`, mais le defaut est
+    # reel : il attend un referentiel incomplet, pas un typage strict.
+    if (
+        framework is None
+        or not framework.suspense_account_code
+        or framework.suspense_account_class is None
+    ):
         raise ValidationError(
             _("Aucun compte d'attente n'est defini par le referentiel comptable de ce tenant.")
         )
     code = framework.suspense_account_code
+    account_class = framework.suspense_account_class
     existing = AccAccount.objects.filter(tenant=tenant, code=code).first()
     if existing is not None:
         return existing
@@ -159,7 +169,7 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
         tenant=tenant,
         code=code,
         name=str(_("Compte d'attente (à qualifier)")),
-        account_class=framework.suspense_account_class,
+        account_class=account_class,
         type=AccAccount.TYPE_ASSET,
         is_placeholder=True,
         chart=chart_for_country(tenant.country_code),

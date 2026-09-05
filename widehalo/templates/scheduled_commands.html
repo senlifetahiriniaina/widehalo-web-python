@@ -42,7 +42,7 @@
         {% if row.entry.description %}<br><small>{{ row.entry.description }}</small>{% endif %}
       </th>
       <td>{{ row.entry.module }}</td>
-      <td>{{ row.entry.frequency }}{% if row.entry.frequency != "hourly" %} — {{ row.entry.hour }}h{% endif %}</td>
+      <td>{{ row.entry.cadence }}</td>
       <td>{% if row.last_run %}{{ row.last_run }}{% else %}{% trans "Jamais" %}{% endif %}</td>
       <td>{% if row.duration_seconds is not None %}{{ row.duration_seconds|floatformat:1 }} s{% else %}—{% endif %}</td>
       <td>

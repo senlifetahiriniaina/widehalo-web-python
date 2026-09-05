@@ -39,7 +39,7 @@ class Command(BaseCommand):
         if options["list_only"]:
             for entry in entries:
                 self.stdout.write(
-                    f"{entry.code} — {entry.command} ({entry.frequency}, {entry.hour:02d}h) "
+                    f"{entry.code} — {entry.command} ({entry.cadence}) "
                     f"[{entry.module}] {entry.label}"
                 )
             self.stdout.write(

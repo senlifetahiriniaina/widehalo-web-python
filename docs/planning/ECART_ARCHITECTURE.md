@@ -21,6 +21,15 @@ par l'état réel, mesuré, du dépôt `widehalo-web-python`.
 > couverts, les modèles et surtout les endpoints exigeront un second relèvement.
 > Les chiffres du §2 restent la mesure historique du 2026-09-02.
 
+> **Mesure de contrôle après D10, L0 et L2 (même jour, fin de chantier)** :
+> **304 modèles / 576 endpoints / 242 écrans**, soit 73 % / 72 % / 76 % des nouveaux
+> plafonds. D10 a coûté 4 modèles (`AccFramework`, `AccChartOfAccounts`,
+> `AccTenantDefaultAccount`, `AccAccountMapping`) et 1 écran (comptes par défaut du
+> tenant) ; L0 a coûté 1 écran (traitements périodiques) et **aucun modèle** — la
+> planification vit dans les objets `Schedule` de django-q2, pas dans un modèle de
+> plus. Aucun endpoint ajouté par les trois chantiers. La marge est donc bien celle
+> qui était visée, et le relèvement a servi ce pour quoi il a été décidé.
+
 > **Mise à jour 2026-09-04.** Les chiffres du §2 (254/515/218, mesurés le 2026-09-02)
 > sont **obsolètes** : depuis cette date, le dépôt a livré les modules manquants de la
 > Phase 1 officielle (POS, Simulation financière) et l'intégralité de la Phase 2

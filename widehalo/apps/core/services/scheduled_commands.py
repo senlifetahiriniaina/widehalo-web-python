@@ -82,6 +82,16 @@ FREQUENCY_CHOICES = (
     FREQUENCY_WEEKLY,
     FREQUENCY_MONTHLY,
 )
+# Libelles d'affichage. Non traduits par `gettext` : ce module est importe
+# depuis les `ready()` des apps, ou l'infrastructure de traduction n'est pas
+# encore prete — la traduction, si elle devient necessaire, se fait au point
+# d'affichage.
+FREQUENCY_LABELS = {
+    FREQUENCY_HOURLY: "Chaque heure",
+    FREQUENCY_DAILY: "Quotidien",
+    FREQUENCY_WEEKLY: "Hebdomadaire",
+    FREQUENCY_MONTHLY: "Mensuel",
+}
 
 
 @dataclass(frozen=True)
@@ -100,6 +110,15 @@ class ScheduledCommand:
     frequency: str
     hour: int = 2
     description: str = ""
+
+    @property
+    def cadence(self) -> str:
+        """Cadence lisible, heure comprise — l'heure n'a pas de sens pour une
+        cadence horaire et n'est donc pas affichee dans ce cas."""
+        label = FREQUENCY_LABELS[self.frequency]
+        if self.frequency == FREQUENCY_HOURLY:
+            return label
+        return f"{label} — {self.hour:02d}h"
 
 
 _SCHEDULE_REGISTRY: dict[str, ScheduledCommand] = {}
