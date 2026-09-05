@@ -13,12 +13,18 @@ ligne de table dataee, applicable par le comptable, pas une livraison — et
 surtout pas une livraison qui reecrirait retroactivement des factures
 emises sous l'ancien taux.
 
-**Ce que la garde ne couvre pas, et qui est plus grave** : SAL-5 porte sur
-l'ORIGINE du taux, pas sur son application. `apps.sales.services.orders`
-pose `amount_tax = Decimal(0)` — le module Sales ne calcule aucune taxe, et
-seul le POS applique `get_default_sale_tax`. Le critere reste satisfait au
-sens strict, l'ecart fonctionnel est reel, et il est signale au maitre
-d'ouvrage plutot que dissimule derriere une garde verte.
+**L'ecart que cette docstring signalait est ferme (L5).** Elle disait, et
+c'etait vrai jusque-la : « `apps.sales.services.orders` pose
+`amount_tax = Decimal(0)` — le module Sales ne calcule aucune taxe, et seul
+le POS applique `get_default_sale_tax` ». SAL-5 ne portant que sur
+l'ORIGINE du taux, la garde restait verte sur un module qui ne facturait
+aucune TVA ; l'ecart etait signale ici plutot que dissimule. Depuis L5,
+`sales.services.taxes` fige le taux par ligne a l'ecriture du document et
+`invoicing.invoice_order` credite un compte de TVA collectee — la garde
+protege desormais un chemin reellement emprunte, et non plus seulement un
+chemin theorique. Elle n'a pas eu a changer pour autant : `sales` lit son
+taux dans `AccTax`, jamais dans une constante Python, ce qui est
+exactement l'invariant qu'elle rend opposable.
 
 **Limite assumee** : detection d'un litteral au voisinage d'un mot « TVA ».
 Un taux stocke dans une constante nommee neutralement, loin de tout indice,

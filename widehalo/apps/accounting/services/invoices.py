@@ -87,16 +87,32 @@ def create_invoice(
     partner_id: UUID | None,
     receivable_account: AccAccount,
     income_lines: list[dict[str, Any]],
+    tax_lines: list[dict[str, Any]] | None = None,
     currency: str = "MGA",
 ) -> AccMove:
     """`income_lines` : liste de {"account": AccAccount, "amount": Decimal,
-    "label": str}, montants exprimes dans `currency`. La ligne client
-    (debit) est calculee automatiquement en somme des lignes de produit
-    (credit). RG-ACC-7 : si `currency` differe de la devise de base du
-    tenant, les lignes sont enregistrees converties en MGA au taux du jour
-    de la facture (`amount_currency`/`currency` conservent le montant
-    d'origine pour reference)."""
-    total = sum((line["amount"] for line in income_lines), Decimal(0))
+    "label": str}, montants exprimes dans `currency` — le HORS TAXE. La
+    ligne client (debit) est calculee automatiquement en somme des lignes
+    de produit ET de taxe (credit), c'est-a-dire le TOUTES TAXES
+    COMPRISES : c'est bien le TTC que le client doit. RG-ACC-7 : si
+    `currency` differe de la devise de base du tenant, les lignes sont
+    enregistrees converties en MGA au taux du jour de la facture
+    (`amount_currency`/`currency` conservent le montant d'origine pour
+    reference).
+
+    `tax_lines` (L5) : liste de {"account": AccAccount, "amount": Decimal,
+    "label": str, "tax": AccTax | None, "base": Decimal | None} — la TVA
+    COLLECTEE, creditee sur un compte de taxe. `tax`/`base` alimentent
+    `AccMoveLine.tax`/`tax_base`, les deux champs que le modele portait
+    depuis l'origine et qu'aucun ecrivain ne renseignait : sans eux, une
+    declaration de TVA ne peut pas remonter du journal a la base taxable.
+    Vide ou absente, l'ecriture est exactement celle d'avant ce lot — un
+    tenant non assujetti (RG-ACC-5) passe donc par ce chemin inchange."""
+    tax_lines = tax_lines or []
+    total = sum(
+        (line["amount"] for line in [*income_lines, *tax_lines]),
+        Decimal(0),
+    )
     is_foreign = currency != tenant.base_currency
     rate = get_rate(tenant, currency, date) if is_foreign else Decimal(1)
 
@@ -128,6 +144,18 @@ def create_invoice(
             account=line["account"],
             label=line.get("label", ""),
             credit=_mga(line["amount"]),
+            amount_currency=line["amount"] if is_foreign else None,
+            currency=currency,
+        )
+    for line in tax_lines:
+        base = line.get("base")
+        add_line(
+            move,
+            account=line["account"],
+            label=line.get("label", ""),
+            credit=_mga(line["amount"]),
+            tax=line.get("tax"),
+            tax_base=_mga(base) if base is not None else None,
             amount_currency=line["amount"] if is_foreign else None,
             currency=currency,
         )

@@ -25,7 +25,21 @@
 
   </div>
   <p>{% trans "Partenaire" %}: {{ quotation.partner_id }}</p>
-  <p>{% trans "Total" %}: {{ quotation.amount_total }} {{ quotation.currency }}</p>
+  {% comment %}
+    L5 : le total affiche est desormais un TTC. Le montrer seul, sans la
+    ventilation qui le compose, laisserait le commercial incapable de
+    repondre a la seule question que le client pose devant un devis
+    (« c'est HT ou TTC ? »). Meme forme que le ticket du POS
+    (templates/pos/ticket.html), seul precedent HT/TVA/TTC du depot.
+    La ligne de TVA n'est rendue que si une TVA existe : un tenant non
+    assujetti (RG-ACC-5) ne doit voir aucun champ de TVA, pas un champ
+    de TVA a zero.
+  {% endcomment %}
+  <p>{% trans "Total HT" %}: {{ quotation.amount_untaxed }} {{ quotation.currency }}</p>
+  {% if quotation.amount_tax %}
+    <p>{% trans "TVA" %}: {{ quotation.amount_tax }} {{ quotation.currency }}</p>
+  {% endif %}
+  <p><strong>{% trans "Total TTC" %}: {{ quotation.amount_total }} {{ quotation.currency }}</strong></p>
 
   <p><a href="{% url 'sales:report_quotation_pdf' quotation_id=quotation.id %}">{% trans "Telecharger le devis (PDF)" %}</a></p>
 

@@ -63,6 +63,7 @@ from apps.accounting.services.landed_costs import (
     create_landed_cost_batch,
 )
 from apps.accounting.services.moves import add_line, create_draft_move, post_move
+from apps.accounting.services.taxes import vat_applicable
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 
@@ -73,6 +74,7 @@ def create_customer_invoice_from_source(
     partner_id: UUID,
     date: dt.date,
     income_lines: list[dict[str, Any]],
+    tax_lines: list[dict[str, Any]] | None = None,
     currency: str = "MGA",
 ) -> UUID | None:
     """Point d'integration appele par
@@ -84,7 +86,30 @@ def create_customer_invoice_from_source(
     "label": str}` — `sales` ne peut jamais passer un objet `AccAccount`
     (couplage n°1), donc chaque `account_id` est resolu ici ; s'il est
     `None`, on retombe sur un compte de produit par defaut du tenant
-    (premier `AccAccount` de type `income`).
+    (premier `AccAccount` de type `income`). Ce sont des montants HORS
+    TAXE.
+
+    `tax_lines` (L5) : `{"tax_id": UUID | None, "amount": Decimal,
+    "base": Decimal | None, "label": str}` — la TVA collectee sur ces
+    memes lignes. `sales` transporte l'UUID de l'`AccTax` qu'il a fige sur
+    sa ligne au moment de la vente (jamais l'objet, couplage n°1) ; le
+    compte credite est resolu ICI, dans cet ordre : le compte de TVA
+    collectee de cette taxe (`AccTax.account_collected`), puis le compte
+    par defaut de role `tva` du tenant, puis le repli par type de compte
+    de `resolve_default_account`. Un `tax_lines` vide ou absent produit
+    exactement l'ecriture d'avant ce lot.
+
+    **Aucune TVA n'est calculee ici.** Ce module ne connait ni les
+    quantites, ni les remises, ni la politique de facturation d'une ligne
+    de commande : recalculer la TVA a partir du HT reçu redonnerait un
+    montant proche mais pas identique a celui que le client a signe sur
+    son devis (arrondi par ligne contre arrondi global). Le montant fige
+    par `sales` est donc pris tel quel — meme discipline "document valide
+    immuable" que le reste du depot. En contrepartie, si aucun compte de
+    taxe n'est resolvable alors qu'une TVA est due, cette fonction
+    retourne `None` plutot que de poster une facture amputee de sa TVA :
+    une facture au HT credite mais au TTC debite ne serait pas equilibree,
+    et une facture equilibree en oubliant la TVA serait un faux.
 
     Ne leve jamais d'exception pour une configuration comptable
     manquante — meme discipline que
@@ -143,6 +168,35 @@ def create_customer_invoice_from_source(
             {"account": account, "amount": line["amount"], "label": line.get("label", "")}
         )
 
+    resolved_tax_lines: list[dict[str, Any]] = []
+    default_vat_account: AccAccount | None = None
+    for line in tax_lines or []:
+        amount = line["amount"]
+        if not amount:
+            continue
+        tax: AccTax | None = None
+        tax_id = line.get("tax_id")
+        if tax_id is not None:
+            tax = AccTax.objects.filter(tenant=tenant, id=tax_id).first()
+        vat_account = tax.account_collected if tax is not None else None
+        if vat_account is None:
+            if default_vat_account is None:
+                default_vat_account = resolve_default_account(
+                    tenant, AccTenantDefaultAccount.ROLE_VAT
+                )
+            vat_account = default_vat_account
+        if vat_account is None:
+            return None
+        resolved_tax_lines.append(
+            {
+                "account": vat_account,
+                "amount": amount,
+                "label": line.get("label", ""),
+                "tax": tax,
+                "base": line.get("base"),
+            }
+        )
+
     move = create_invoice(
         tenant=tenant,
         journal=journal,
@@ -151,6 +205,7 @@ def create_customer_invoice_from_source(
         partner_id=partner_id,
         receivable_account=receivable_account,
         income_lines=resolved_lines,
+        tax_lines=resolved_tax_lines,
         currency=currency,
     )
     move_id: UUID = move.id
@@ -577,7 +632,18 @@ def get_default_sale_tax(
     n1). Retourne `None`, jamais une exception, si aucune `AccTax` de vente
     valide n'existe pour ce tenant a cette date (gap de configuration a la
     charge de l'administrateur du tenant, meme discipline que le reste de
-    ce module)."""
+    ce module).
+
+    **Garde d'assujettissement ajoutee en L5.** Cette fonction ne
+    consultait pas le regime fiscal : elle proposait donc un taux a un
+    tenant non assujetti des lors qu'une `AccTax` de vente trainait dans sa
+    base — exactement ce que RG-ACC-5 interdit ("aucune AccTax n'est
+    proposee ni appliquee"), et ce que `services.taxes.applicable_taxes`
+    respectait deja de son cote. Les deux surfaces disaient le contraire
+    l'une de l'autre ; c'est celle qu'appellent le POS et desormais
+    `sales` qui avait tort."""
+    if not vat_applicable(tenant):
+        return None
     on_date = on_date or timezone.now().date()
     tax = (
         AccTax.objects.filter(tenant=tenant, type=AccTax.TYPE_SALE)
@@ -586,6 +652,25 @@ def get_default_sale_tax(
         .order_by("code")
         .first()
     )
+    if tax is None:
+        return None
+    return {"id": tax.id, "rate": tax.rate, "account_id": tax.account_collected_id}
+
+
+def get_sale_tax(tenant: Tenant, tax_id: UUID) -> dict[str, Any] | None:
+    """Une `AccTax` de vente PRECISE, par son UUID (L5).
+
+    Pendant de `get_default_sale_tax` pour un appelant qui a deja fige une
+    taxe sur son document et veut en relire le taux — jamais pour en
+    RECALCULER un montant deja fige (`sales` conserve son propre
+    `tax_rate` instantane sur la ligne, cf. `SalesOrderLine.tax_rate`),
+    mais pour afficher/verifier. Meme forme de retour et meme garde
+    d'assujettissement que `get_default_sale_tax` ; `None` si la taxe
+    n'existe pas, n'appartient pas a ce tenant, ou n'est pas une taxe de
+    vente."""
+    if not vat_applicable(tenant):
+        return None
+    tax = AccTax.objects.filter(tenant=tenant, id=tax_id, type=AccTax.TYPE_SALE).first()
     if tax is None:
         return None
     return {"id": tax.id, "rate": tax.rate, "account_id": tax.account_collected_id}

@@ -27,5 +27,9 @@
       {% endfor %}
     </tbody>
   </table>
-  <p>Total / Total : {{ quotation.amount_total }} {{ quotation.currency }}</p>
+  {% if quotation.amount_tax %}
+    <p>Total HT / Subtotal excl. tax : {{ quotation.amount_untaxed }} {{ quotation.currency }}</p>
+    <p>TVA / VAT : {{ quotation.amount_tax }} {{ quotation.currency }}</p>
+  {% endif %}
+  <p><strong>Total TTC / Total incl. tax : {{ quotation.amount_total }} {{ quotation.currency }}</strong></p>
 {% endblock %}

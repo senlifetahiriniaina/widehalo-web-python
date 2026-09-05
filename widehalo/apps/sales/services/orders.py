@@ -35,6 +35,7 @@ from apps.core.services.workflow import attempt_transition
 from apps.partners.services.public import is_over_credit_limit
 from apps.sales.models import SalesOrder, SalesOrderLine, SalesQuotation
 from apps.sales.services import procurement
+from apps.sales.services.taxes import document_tax_total, resolve_line_tax
 from apps.stocks.services.public import deliver_reserved_stock
 
 
@@ -150,6 +151,12 @@ def create_order_from_quotation(quotation: SalesQuotation) -> SalesOrder:
             unit_price=line.unit_price,
             discount_pct=line.discount_pct,
             tax_id=line.tax_id,
+            # RG-SAL-1 (aucune ressaisie) : le TAUX suit le `tax_id`. Le
+            # relire ici depuis `AccTax` ferait basculer une commande sur le
+            # taux du jour de la transformation alors que le client a
+            # accepte celui du devis — c'est precisement ce qu'un instantane
+            # sert a empecher.
+            tax_rate=line.tax_rate,
             subtotal=line.subtotal,
             cost_estimate_mga=line.cost_estimate_mga,
             margin_pct=line.margin_pct,
@@ -180,6 +187,12 @@ def add_order_line(
         Decimal("0.0001")
     )
 
+    # L5 : cf. `services.quotations.add_quotation_line` — meme instantane,
+    # a la date de la commande.
+    tax_id, tax_rate = resolve_line_tax(
+        order.tenant, on_date=order.date, tax_id=optional_fields.pop("tax_id", None)
+    )
+
     line = SalesOrderLine.objects.create(
         tenant=order.tenant,
         order=order,
@@ -189,6 +202,8 @@ def add_order_line(
         uom=uom,
         unit_price=unit_price,
         discount_pct=discount_pct,
+        tax_id=tax_id,
+        tax_rate=tax_rate,
         subtotal=subtotal,
         is_custom=is_custom,
         **optional_fields,
@@ -198,15 +213,29 @@ def add_order_line(
 
 
 def _recompute_totals(order: SalesOrder) -> None:
-    """Recalcule les montants totaux de la commande a partir de ses
-    lignes — meme simplification assumee que
-    `quotations._recompute_totals` (pas de calcul de taxe reel, pas de
-    conversion de change reelle en S2)."""
-    amount_untaxed = order.lines.aggregate(total=Sum("subtotal"))["total"] or Decimal(0)
+    """Recalcule les montants totaux de la commande a partir de ses lignes
+    — meme regle que `quotations._recompute_totals` (cf. sa docstring pour
+    la justification de l'instantane par ligne).
+
+    `amount_total_mga` devient donc un TTC, et deux lecteurs en dependent
+    directement :
+
+    - `confirm_order` (RG-SAL-4) compare l'encours du client a son plafond
+      de credit. Le passer au TTC est une CORRECTION, pas un effet de
+      bord : ce que le client doit, et donc ce qu'un plafond de credit
+      borne, a toujours ete le TTC.
+    - `invoicing.invoice_order` compare ce total au cumul deja facture. Ce
+      cumul etait HT ; laisse tel quel, une commande n'aurait plus JAMAIS
+      atteint l'etat `invoiced`. Il est passe au TTC dans le meme lot (cf.
+      `invoice_order`), et un test le prouve.
+
+    La conversion de change reste la meme approximation documentee qu'en
+    S2 (pas de gap public de taux du jour)."""
+    amount_untaxed, amount_tax = document_tax_total(order.lines)
     order.amount_untaxed = amount_untaxed
-    order.amount_tax = Decimal(0)
-    order.amount_total = amount_untaxed
-    order.amount_total_mga = amount_untaxed
+    order.amount_tax = amount_tax
+    order.amount_total = amount_untaxed + amount_tax
+    order.amount_total_mga = order.amount_total
     order.save(update_fields=["amount_untaxed", "amount_tax", "amount_total", "amount_total_mga"])
 
 

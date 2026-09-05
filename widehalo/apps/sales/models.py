@@ -115,9 +115,18 @@ class SalesQuotationLine(BaseModel):
     uom = models.CharField(max_length=16, blank=True)
     unit_price = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    # Jamais de FK Django vers `apps.accounting.models.AccTax` — purement
-    # informatif en S1, aucun calcul de taxe n'est encore effectue.
+    # Jamais de FK Django vers `apps.accounting.models.AccTax` — l'identite
+    # de la taxe appliquee, resolue via `accounting.services.public`.
     tax_id = models.UUIDField(null=True, blank=True)
+    # L5 : le taux FIGE au moment ou la ligne est ecrite, jamais relu depuis
+    # `AccTax` ensuite. `tax_id` seul ne suffit pas : un devis emis a 20 %
+    # doit rester a 20 % quand la loi de finances passe la taxe a 18 %, et
+    # une `AccTax` est une ligne editable en base — la relire, ce serait
+    # reecrire retroactivement un document deja signe par le client. Meme
+    # forme et meme role que `PosOrderLine.tax_rate` (le seul precedent
+    # d'instantane de taux du depot), et meme discipline « document valide
+    # immuable » que `SalesQuotationLine.unit_price` juste au-dessus.
+    tax_rate = models.DecimalField(max_digits=6, decimal_places=3, default=0)
     subtotal = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     # Renseignes plus tard par `mrp.services.public.simulate_product_cost`
     # (gap identifie pour un lot ulterieur) — toujours nuls en S1.
@@ -336,6 +345,9 @@ class SalesOrderLine(BaseModel):
     discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     # Jamais de FK Django vers `apps.accounting.models.AccTax`.
     tax_id = models.UUIDField(null=True, blank=True)
+    # L5 : taux fige a l'ecriture de la ligne — cf. la justification
+    # complete sur `SalesQuotationLine.tax_rate`.
+    tax_rate = models.DecimalField(max_digits=6, decimal_places=3, default=0)
     subtotal = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     cost_estimate_mga = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
     margin_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)

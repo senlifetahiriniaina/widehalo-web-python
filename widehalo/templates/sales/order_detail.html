@@ -33,7 +33,17 @@
   </div>
   <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
   <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
-  <p>{% trans "Total" %}: {{ order.amount_total_mga }} MGA</p>
+  {% comment %}
+    L5 : cf. templates/sales/quotation_detail.html — meme ventilation, et
+    meme raison. « Deja facture » juste en dessous est un cumul TTC depuis
+    ce lot, donc comparable au total affiche ici : les deux montants que
+    l'ecran met cote a cote parlent enfin de la meme chose.
+  {% endcomment %}
+  <p>{% trans "Total HT" %}: {{ order.amount_untaxed }} MGA</p>
+  {% if order.amount_tax %}
+    <p>{% trans "TVA" %}: {{ order.amount_tax }} MGA</p>
+  {% endif %}
+  <p><strong>{% trans "Total TTC" %}: {{ order.amount_total_mga }} MGA</strong></p>
   <p>{% trans "Déjà facture" %}: {{ order.invoiced_amount_mga }} MGA</p>
 
   <h2>{% trans "Rapports" %}</h2>

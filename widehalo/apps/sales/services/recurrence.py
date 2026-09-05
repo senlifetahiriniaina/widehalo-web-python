@@ -124,6 +124,12 @@ def generate_due_order(recurrence: SalesRecurrence, user: User) -> SalesOrder | 
             unit_price=line.unit_price,
             discount_pct=line.discount_pct,
             tax_id=line.tax_id,
+            # L5 : le taux suit la ligne copiee, comme le prix unitaire
+            # juste au-dessus. Une commande recurrente reconduit le gabarit
+            # tel qu'il a ete negocie ; le jour ou elle devra au contraire
+            # se repricer au taux courant, c'est TOUT le gabarit (prix
+            # compris) qu'il faudra rejouer, pas la seule TVA.
+            tax_rate=line.tax_rate,
             subtotal=line.subtotal,
             cost_estimate_mga=line.cost_estimate_mga,
             margin_pct=line.margin_pct,

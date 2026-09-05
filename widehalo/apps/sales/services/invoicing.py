@@ -31,6 +31,7 @@ from apps.core.services.notifications import dispatch_notification
 from apps.core.services.workflow import attempt_transition
 from apps.mrp.services.public import get_order_produced_qty
 from apps.sales.models import SalesOrder, SalesOrderLine
+from apps.sales.services.taxes import line_tax_amount
 
 # Tolerance sur l'egalite `invoiced_amount_mga` / `amount_total_mga` avant
 # de considerer une commande entierement facturee — evite qu'un arrondi
@@ -135,7 +136,30 @@ def invoice_order(
     vers `invoiced` (`mark_invoiced`) si elle est `delivered` et que le
     cumul couvre desormais `amount_total_mga` (tolerance
     `_FULLY_INVOICED_TOLERANCE_MGA`) — une commande partiellement facturee
-    reste dans son etat courant (typiquement `delivered`)."""
+    reste dans son etat courant (typiquement `delivered`).
+
+    **TVA (L5).** La facture porte desormais la TVA collectee de la part
+    facturee, groupee par taxe. Une configuration comptable incomplete
+    cote TVA (aucun compte imputable alors qu'une TVA est due) suit la
+    meme discipline que les autres : `None`, aucune mutation, jamais une
+    facture amputee de sa taxe.
+
+    **Deux consequences en aval, assumees et signalees plutot que
+    corrigees ici.**
+
+    - Les seuils d'approbation de facture (`accounting.services.invoices`,
+      2 M / 10 M Ar) s'appliquaient jusqu'ici a un montant HT, faute de
+      TVA. Ils portent maintenant sur le TTC. C'est le sens attendu — un
+      seuil de validation borne l'engagement reel, pas son assiette — mais
+      aucun texte du cahier ne le dit, et le changement doit etre connu :
+      une facture de 1,9 M Ar HT bascule desormais au-dessus du premier
+      palier.
+    - Les ratios financiers DSO/BFR (`accounting.services.reports`)
+      rapportent des CREANCES a un CHIFFRE D'AFFAIRES. Les creances
+      passent au TTC, le chiffre d'affaires reste HT : l'approximation
+      deja documentee de ces ratios devient un ecart chiffrable (de
+      l'ordre du taux de TVA). A corriger dans `accounting`, ou le ratio
+      est calcule — pas ici, ou il serait recalcule une seconde fois."""
     target_lines = list(lines) if lines is not None else list(order.lines.all())
 
     line_amounts: list[tuple[SalesOrderLine, Decimal]] = [
@@ -154,11 +178,35 @@ def invoice_order(
         # une erreur, simplement rien a faire.
         return None
 
+    # L5 : la TVA de la part REELLEMENT facturee maintenant. Sur une
+    # facturation partielle (a l'avancement, a l'acompte, au livre), la
+    # base taxable est la part facturee, pas le sous-total de la ligne —
+    # facturer 30 % d'une ligne doit collecter 30 % de sa TVA, et le solde
+    # portera le reste. Le taux vient de l'INSTANTANE de la ligne, jamais
+    # d'une relecture d'`AccTax` : la facture reprend le taux que le client
+    # a accepte.
+    tax_by_id: dict[Any, dict[str, Any]] = {}
+    for line, amount in line_amounts:
+        if amount <= 0 or not line.tax_rate:
+            continue
+        tax_amount = line_tax_amount(amount, line.tax_rate)
+        if not tax_amount:
+            continue
+        bucket = tax_by_id.setdefault(
+            line.tax_id,
+            {"tax_id": line.tax_id, "amount": Decimal(0), "base": Decimal(0), "label": _("TVA")},
+        )
+        bucket["amount"] += tax_amount
+        bucket["base"] += amount
+    tax_lines: list[dict[str, Any]] = list(tax_by_id.values())
+    tax_total = sum((bucket["amount"] for bucket in tax_lines), Decimal(0))
+
     move_id = create_customer_invoice_from_source(
         tenant=order.tenant,
         partner_id=order.partner_id,
         date=timezone.now().date(),
         income_lines=income_lines,
+        tax_lines=tax_lines,
         currency=order.currency,
     )
     if move_id is None:
@@ -170,7 +218,14 @@ def invoice_order(
         line.qty_invoiced = line.qty_invoiced + _amount_to_qty_equivalent(line, amount)
         line.save(update_fields=["qty_invoiced"])
 
-    order.invoiced_amount_mga = order.invoiced_amount_mga + total
+    # `invoiced_amount_mga` cumule le TTC, jamais le HT — parce qu'il est
+    # compare juste en dessous a `amount_total_mga`, qui est un TTC depuis
+    # L5. Y cumuler le HT laisserait un ecart permanent egal a la TVA de la
+    # commande, donc `fully_invoiced` toujours faux, donc une commande
+    # entierement facturee bloquee a `delivered` pour toujours — une panne
+    # dont le symptome (un etat qui ne bouge plus) est tres loin de sa
+    # cause (deux montants qui ne parlent pas de la meme chose).
+    order.invoiced_amount_mga = order.invoiced_amount_mga + total + tax_total
 
     fully_invoiced = (
         order.amount_total_mga - order.invoiced_amount_mga

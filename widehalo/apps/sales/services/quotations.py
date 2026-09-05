@@ -14,7 +14,6 @@ from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
-from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -23,6 +22,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
 from apps.sales.models import SalesQuotation, SalesQuotationLine
+from apps.sales.services.taxes import document_tax_total, resolve_line_tax
 
 
 def create_quotation(
@@ -89,6 +89,14 @@ def add_quotation_line(
         Decimal("0.0001")
     )
 
+    # L5 : la taxe est FIGEE ici, a la date du devis (jamais « aujourd'hui »,
+    # cf. `services.taxes.resolve_line_tax`). Un `tax_id` explicite fourni
+    # par l'appelant l'emporte ; son taux est relu sur cette taxe-la, jamais
+    # recopie depuis un parametre.
+    tax_id, tax_rate = resolve_line_tax(
+        quotation.tenant, on_date=quotation.date, tax_id=optional_fields.pop("tax_id", None)
+    )
+
     line = SalesQuotationLine.objects.create(
         tenant=quotation.tenant,
         quotation=quotation,
@@ -98,6 +106,8 @@ def add_quotation_line(
         uom=uom,
         unit_price=unit_price,
         discount_pct=discount_pct,
+        tax_id=tax_id,
+        tax_rate=tax_rate,
         subtotal=subtotal,
         is_custom=is_custom,
         **optional_fields,
@@ -108,19 +118,23 @@ def add_quotation_line(
 
 def _recompute_totals(quotation: SalesQuotation) -> None:
     """Recalcule les montants totaux du devis a partir de ses lignes.
-    Aucun calcul de taxe reel en S1 (`tax_id` est purement informatif,
-    cf. modele) : `amount_tax` reste a 0, `amount_total` = `amount_untaxed`."""
-    amount_untaxed = quotation.lines.aggregate(total=Sum("subtotal"))["total"] or Decimal(0)
+
+    L5 : `amount_tax` n'est plus force a zero. Il est la somme des TVA
+    figees ligne a ligne (`SalesQuotationLine.tax_rate`), jamais un
+    recalcul depuis `AccTax` — un devis emis sous l'ancien taux garde le
+    sien meme apres une loi de finances. `amount_total` devient donc le
+    TTC : c'est le montant que le client signe, et celui qu'il devra."""
+    amount_untaxed, amount_tax = document_tax_total(quotation.lines)
     quotation.amount_untaxed = amount_untaxed
-    quotation.amount_tax = Decimal(0)
-    quotation.amount_total = amount_untaxed
+    quotation.amount_tax = amount_tax
+    quotation.amount_total = amount_untaxed + amount_tax
     # Pas de conversion de change reelle en S1 (le taux du jour vit dans
     # `accounting.AccExchangeRate`, non expose en `services.public` — hors
     # perimetre de ce lot) : `amount_total_mga` reprend `amount_total` tel
     # quel, ce qui est exact quand `currency == "MGA"` (cas par defaut) et
     # une approximation documentee sinon, a corriger quand `sales`
     # consommera un futur gap de change public.
-    quotation.amount_total_mga = amount_untaxed
+    quotation.amount_total_mga = quotation.amount_total
     quotation.save(
         update_fields=["amount_untaxed", "amount_tax", "amount_total", "amount_total_mga"]
     )
