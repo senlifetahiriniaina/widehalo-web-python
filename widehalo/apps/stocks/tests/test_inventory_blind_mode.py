@@ -30,6 +30,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from bs4 import BeautifulSoup
 from django.test import Client
 
 from apps.core.models.tenant import Tenant
@@ -52,6 +53,31 @@ pytestmark = pytest.mark.django_db
 
 PASSWORD = "Str0ngPassw0rd!23"
 STOCKED_QTY = Decimal("42")
+
+# Cellule rendue a la place d'une quantite masquee (cf. `templates/stocks/
+# index.html`). Le cadratin, pas une chaine vide : une colonne vide se lit
+# comme une donnee manquante, un cadratin comme une donnee retenue.
+MASKED_CELL = "—"
+
+
+def _contains_value(payload: object, needle: Decimal) -> bool:
+    """Cherche `needle` comme VALEUR dans une reponse JSON deja parsee.
+
+    Une recherche de chaine dans le corps brut ne marche pas : un UUID
+    contient volontiers les chiffres de la quantite (le premier jet de ce
+    fichier echouait sur `...afbd-42e9-b406-...`). Ce qui doit etre verifie
+    est qu'aucune VALEUR ne porte la quantite, pas qu'aucun octet ne la
+    contient."""
+    if isinstance(payload, dict):
+        return any(_contains_value(value, needle) for value in payload.values())
+    if isinstance(payload, list):
+        return any(_contains_value(item, needle) for item in payload)
+    if isinstance(payload, (int, float, str)):
+        try:
+            return Decimal(str(payload)) == needle
+        except Exception:  # noqa: BLE001 — une chaine non numerique n'est pas la quantite
+            return False
+    return False
 
 
 @pytest.fixture
@@ -202,7 +228,9 @@ def test_adding_a_line_over_the_api_never_returns_the_expected_quantity(blind_se
     )
     assert line.status_code == 200, line.content
     assert line.json()["qty_theoretical"] is None
-    assert str(STOCKED_QTY) not in line.content.decode()
+    # Et sous aucune autre cle : masquer un champ en laissant fuir la meme
+    # valeur ailleurs dans la reponse ne masquerait rien.
+    assert not _contains_value(line.json(), STOCKED_QTY)
 
 
 def test_listing_lines_over_the_api_never_leaks_the_expected_quantity(blind_setup) -> None:
@@ -219,7 +247,7 @@ def test_listing_lines_over_the_api_never_leaks_the_expected_quantity(blind_setu
     body = response.json()
     assert body["is_blind"] is True
     assert body["results"][0]["qty_theoretical"] is None
-    assert str(STOCKED_QTY) not in response.content.decode()
+    assert not _contains_value(body, STOCKED_QTY)
 
 
 def test_the_inventory_sheet_never_leaks_the_expected_quantity(blind_setup) -> None:
@@ -252,4 +280,18 @@ def test_the_screen_never_renders_the_expected_quantity(blind_setup) -> None:
 
     response = client.get(f"/stocks/inventories/{inventory.id}/", HTTP_X_TENANT_ID=str(tenant.id))
     assert response.status_code == 200
-    assert str(STOCKED_QTY) not in response.content.decode()
+
+    # Assertion STRUCTURELLE et non textuelle : chercher « 42 » dans tout le
+    # document echoue sur le premier UUID venu (`...afbd-42e9-b406-...`).
+    # Ce qui compte est que les deux cellules concernees portent le
+    # marqueur de masquage, et rien d'autre.
+    soup = BeautifulSoup(response.content, "html.parser")
+    cells = [
+        cell.get_text(strip=True)
+        for row in soup.find_all("tr")
+        for cell in row.find_all("td")
+        if str(inventory.lines.first().location.code) in row.get_text()
+    ]
+    assert MASKED_CELL in cells, cells
+    # Quantite theorique ET ecart : deux colonnes masquees, pas une.
+    assert cells.count(MASKED_CELL) >= 2, cells
