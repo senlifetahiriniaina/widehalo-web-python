@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
 from apps.accounting.services.moves import add_line, create_draft_move, post_move
+from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import RegulatoryParameterFactory
 from apps.core.tests.utils import use_tenant
@@ -114,8 +115,17 @@ def ledger_tenant() -> Tenant:
         add_line(move, account=income, label="Vente comptant", credit=Decimal(5000000))
         post_move(move)
 
+        # Surcharge PROPRE AU TENANT depuis L3, et non plus une ligne
+        # globale : `accounting/migrations/0030_seed_vat_reference_rate.py`
+        # seme desormais `tva.taux_normal` en valeur globale a partir du
+        # 2026-01-01, et deux plages globales qui se chevauchent violent la
+        # contrainte d'exclusion `core_regulatory_parameter_no_overlap`.
+        # Une surcharge par tenant ne chevauche rien (la contrainte inclut
+        # `tenant_id`) et prevaut sur la valeur globale
+        # (`services/regulatory.py::get_parameter`) — ce test continue donc
+        # d'imposer SA valeur, ce qui est ce qu'il verifie.
         RegulatoryParameterFactory(
-            tenant=None, code="tva.taux_normal", value=20, valid_from=dt.date(2025, 1, 1)
+            tenant=tenant, code="tva.taux_normal", value=20, valid_from=dt.date(2025, 1, 1)
         )
     return tenant
 
@@ -149,7 +159,17 @@ def test_build_baseline_includes_open_settlement_items(ledger_tenant: Tenant) ->
 
 
 def test_build_baseline_raises_without_a_configured_tva_parameter() -> None:
+    """Depuis L3, `tva.taux_normal` est seme en valeur globale par
+    `accounting/migrations/0030_seed_vat_reference_rate.py` — precisement
+    parce que son absence rendait ce module inutilisable sur toute instance
+    neuve. L'absence doit donc etre PROVOQUEE pour etre testee.
+
+    Le test garde tout son sens : un exploitant peut fermer la plage de
+    validite du parametre (`valid_to`) sans en ouvrir une nouvelle, et le
+    socle doit alors refuser de se construire plutot que d'inventer un
+    taux."""
     tenant = Tenant.objects.create(code="SIM-NOTVA", name="No TVA Tenant")
+    RegulatoryParameter.objects.filter(code="tva.taux_normal").delete()
     with use_tenant(tenant.id), pytest.raises(ValidationError):
         build_baseline(tenant, as_of_date=dt.date(2026, 9, 30))
 
@@ -172,8 +192,17 @@ def test_build_baseline_degrades_gracefully_without_a_fiscal_year() -> None:
     inventée pour les postes de charges."""
     tenant = Tenant.objects.create(code="SIM-NOFY", name="No Fiscal Year Tenant")
     with use_tenant(tenant.id):
+        # Surcharge PROPRE AU TENANT depuis L3, et non plus une ligne
+        # globale : `accounting/migrations/0030_seed_vat_reference_rate.py`
+        # seme desormais `tva.taux_normal` en valeur globale a partir du
+        # 2026-01-01, et deux plages globales qui se chevauchent violent la
+        # contrainte d'exclusion `core_regulatory_parameter_no_overlap`.
+        # Une surcharge par tenant ne chevauche rien (la contrainte inclut
+        # `tenant_id`) et prevaut sur la valeur globale
+        # (`services/regulatory.py::get_parameter`) — ce test continue donc
+        # d'imposer SA valeur, ce qui est ce qu'il verifie.
         RegulatoryParameterFactory(
-            tenant=None, code="tva.taux_normal", value=20, valid_from=dt.date(2025, 1, 1)
+            tenant=tenant, code="tva.taux_normal", value=20, valid_from=dt.date(2025, 1, 1)
         )
         baseline = build_baseline(tenant, as_of_date=dt.date(2026, 9, 30))
 

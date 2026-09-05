@@ -110,7 +110,11 @@ calcule aucune taxe, seul le POS applique `get_default_sale_tax`. À verser au l
 | **L15** — hygiène (dérive documentaire, secrets en clair) | ✅ livré | **Le plan se trompait sur un point, et il faut le dire** : il prescrivait de porter `PrjGuestAccess.token` en `EncryptedCharField`. C'était impossible — ce champ est **cherché par sa valeur** (`resolve_guest_access`) et Fernet n'est pas déterministe : le portail invité aurait cessé de fonctionner en silence. Empreinte SHA-256 à la place. Un troisième secret en clair, absent de l'audit, a été trouvé au passage (`UserEmailChangeRequest.token`) et fermé, ainsi que la classe entière par une garde. |
 | **L11** — sortir `apps/quality` de l'ombre | ✅ livré | Conforme au plan, plus deux ajouts nécessaires qu'il ne nommait pas : le module devait aussi entrer dans le calcul de visibilité des menus (`context_processors._MODULE_APP_LABELS`), sans quoi sa tuile serait restée invisible à tous sauf aux superutilisateurs ; et publier ses évènements exigeait d'abord d'en **émettre**, le module n'en publiant aucun. |
 
-Reste donc de la Vague 1 : **L3 à L10, L12 à L14, et L16**.
+| **L13** — inventaire à l'aveugle | ✅ livré | Le gabarit masquait déjà, et son propre commentaire prévoyait le risque mot pour mot (« si une future API sérialise StkInventoryLine, elle doit reprendre la même garde ») : elle ne l'avait pas repris. **Deux fuites** fermées — `POST .../lines` et la feuille STK-INV, dont le lien de téléchargement est affiché juste sous le tableau masqué. Le mode devient explicite (`is_blind`) là où le masquage était inconditionnel et non déclaré. |
+| **L6** — POS | ✅ livré | Trois manques qui se documentaient eux-mêmes : `reprint_count` décrivait un écran d'impression inexistant ; `StkMove.TYPE_VENTE_COMPTOIR` était livré « sans producteur » ; le rendu de monnaie manquait. |
+| **L3** — comptabilité : paramètres et verrous | ✅ livré | Un quart était déjà fermé par **D10-5** (chargement du plan par pays), pas par L3. **Défaut bloquant trouvé au passage** : `tva.taux_normal` était référencé à quatre endroits et semé nulle part — le module Simulation ne pouvait construire aucun socle, sur aucune instance. Le taux entre en outre sous le verrou OECFM (seul taux légal du produit à y échapper) et la période close passe d'une garde applicative à un **trigger PostgreSQL**, comme les deux autres invariants comptables depuis la Phase 1. |
+
+Reste donc de la Vague 1 : **L4, L5, L7, L8, L9, L10, L12, L14, L16**.
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 

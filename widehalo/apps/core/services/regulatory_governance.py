@@ -59,6 +59,27 @@ ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = frozenset(
         # desormais reellement lu par `overtime_total_pay`/
         # `overtime_exempt_pay` via `PayrollParams.overtime_multipliers`.
         "payroll.overtime_multipliers",
+        # L3 (D9) — le taux normal de TVA entre enfin dans ce registre.
+        #
+        # Il etait, jusqu'a ce lot, le SEUL taux legal du produit a echapper
+        # au verrou de validation OECFM, alors que les dix parametres de paie
+        # ci-dessus y sont soumis depuis la Phase 3. L'ecart etait d'autant
+        # moins visible que le code `tva.taux_normal` etait reference a quatre
+        # endroits du depot et **seme nulle part** : un registre qui liste un
+        # parametre inexistant ne bloque rien, et un parametre qu'aucune
+        # migration ne cree ne se signale jamais.
+        #
+        # Les deux moities sont donc livrees ensemble : la migration
+        # `accounting/0030_seed_vat_reference_rate.py` cree le parametre, et
+        # cette ligne le place sous le verrou. Consequence assumee et voulue :
+        # `check_regulatory_validation` refusera desormais la mise en
+        # production tant que ce taux n'aura pas ete valide par un
+        # expert-comptable OECFM — exactement comme pour l'IRSA.
+        #
+        # Lu par `accounting.services.vat_reference.resolve_reference_vat_rate`,
+        # a la DATE DU DOCUMENT, et par `simulation.services.baseline` depuis
+        # la Phase 1.
+        "tva.taux_normal",
     }
 )
 
