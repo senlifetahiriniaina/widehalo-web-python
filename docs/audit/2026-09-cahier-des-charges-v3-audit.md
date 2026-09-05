@@ -1,5 +1,13 @@
 # Audit — WideHalo v3, cahiers des charges Phase 1 + Phase 2 vs. code réel
 
+> **Document historique — ne plus citer comme état courant.**
+> Cet audit décrit le dépôt tel qu'il était à sa date. Il a été remplacé par
+> [`docs/audit/2026-09-audit-complet-phases-1-4.md`](2026-09-audit-complet-phases-1-4.md),
+> qui reprend les 203 critères des quatre cahiers des charges sur le code
+> d'aujourd'hui. Conservé pour la traçabilité de la décision, pas pour la lecture
+> de l'état du produit.
+
+
 **Date** : 2026-09-03
 **Périmètre** : dépôt `widehalo-web-python`, branche `claude/verification-cahier-charges-phases-vamu6g`
 (41 commits au-dessus de `madagascar1`), confrontée aux deux documents fournis :

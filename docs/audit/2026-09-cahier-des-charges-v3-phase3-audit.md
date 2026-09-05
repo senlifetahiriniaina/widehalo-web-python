@@ -1,5 +1,13 @@
 # Audit — WideHalo v3, cahier des charges Phase 3 vs. code réel
 
+> **Document historique — ne plus citer comme état courant.**
+> Cet audit décrit le dépôt tel qu'il était à sa date. Il a été remplacé par
+> [`docs/audit/2026-09-audit-complet-phases-1-4.md`](2026-09-audit-complet-phases-1-4.md),
+> qui reprend les 203 critères des quatre cahiers des charges sur le code
+> d'aujourd'hui. Conservé pour la traçabilité de la décision, pas pour la lecture
+> de l'état du produit.
+
+
 **Date** : 2026-09-04
 **Périmètre** : dépôt `widehalo-web-python`, branche `claude/widehalo-cdc-phase3-docs-ah1bs4`
 (basée sur `madagascar1`, qui porte déjà les modules `pos`/`simulation`/`analytics`/`bi`/

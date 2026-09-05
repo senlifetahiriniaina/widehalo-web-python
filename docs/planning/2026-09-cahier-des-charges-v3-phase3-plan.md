@@ -1,5 +1,14 @@
 # Plan de développement — Cahier des charges Phase 3 vs. code réel
 
+> **Plan exécuté — statut mis à jour le 2026-09-05.**
+> Ce document se déclare plus bas « plan prospectif, non encore exécuté ». Ce n'est
+> plus vrai : **les 34 sprints ont tous été livrés** (P1–P7, A1–A6, B1–B5, C1–C6,
+> D1–D5, E1–E9, F1–F4, T1–T4, chacun retrouvable dans le journal git), et les deux
+> violations structurelles qu'il visait sont refermées. L'état de conformité qui en
+> résulte — 44 des 59 critères de la Phase 3 conformes — est établi par
+> [`docs/audit/2026-09-audit-complet-phases-1-4.md`](../audit/2026-09-audit-complet-phases-1-4.md) §2.3.
+
+
 **Source de vérité pour le contenu** : [`docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md`](../audit/2026-09-cahier-des-charges-v3-phase3-audit.md) —
 59 critères d'acceptation confrontés au code : **8 conformes, 27 partiels, 21 absents, 2
 non vérifiables, 1 sans objet**. Ce document ne ré-audite rien ; il organise la fermeture
