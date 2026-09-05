@@ -558,11 +558,13 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_CMP
                 lines=[
                     {
                         "account_id": None,
+                        "account_role": accounting_public.STOCK_ENTRY_ROLE_STOCK,
                         "amount": value_delta,
                         "label": _("Entrée stock — %(nature)s") % {"nature": move_label},
                     },
                     {
                         "account_id": None,
+                        "account_role": accounting_public.STOCK_ENTRY_ROLE_VARIATION,
                         "amount": -value_delta,
                         "label": _("Contrepartie — %(nature)s") % {"nature": move_label},
                     },
@@ -574,13 +576,21 @@ def validate_move(move: StkMove, *, valuation_method: str = VALUATION_METHOD_CMP
                 tenant=move.tenant,
                 date=move.date,
                 lines=[
+                    # Le compte vient du ROLE, le sens du SIGNE : une sortie
+                    # CREDITE le compte de stock (et debite la contrepartie).
+                    # Avant L12-1 le compte etait choisi par le signe, ce qui
+                    # rendait ce credit impossible et faisait croitre le solde
+                    # de stock a chaque sortie — cf. `create_stock_movement_
+                    # entry_from_source`.
                     {
                         "account_id": None,
+                        "account_role": accounting_public.STOCK_ENTRY_ROLE_STOCK,
                         "amount": -value_delta,
                         "label": _("Sortie stock — %(nature)s") % {"nature": move_label},
                     },
                     {
                         "account_id": None,
+                        "account_role": accounting_public.STOCK_ENTRY_ROLE_VARIATION,
                         "amount": value_delta,
                         "label": _("Contrepartie — %(nature)s") % {"nature": move_label},
                     },

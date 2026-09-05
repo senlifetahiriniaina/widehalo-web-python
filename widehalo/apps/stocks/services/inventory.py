@@ -45,7 +45,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
-from apps.accounting.services.public import create_stock_movement_entry_from_source
+from apps.accounting.services.public import (
+    STOCK_ENTRY_ROLE_STOCK,
+    STOCK_ENTRY_ROLE_VARIATION,
+    create_stock_movement_entry_from_source,
+)
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.audit import log_action
@@ -403,23 +407,42 @@ def validate_inventory(inventory: StkInventory, *, validated_by: User) -> StkInv
             move = validate_move(move)
 
             value = move.value_mga
+            # Le compte vient du ROLE, le sens du SIGNE : un ecart negatif
+            # CREDITE le compte de stock et DEBITE l'ecart d'inventaire (une
+            # perte est une charge). Avant L12-1 le compte etait choisi par
+            # le signe, donc une perte d'inventaire debitait le stock comme
+            # un gain — cf. `create_stock_movement_entry_from_source`.
+            stock_role = STOCK_ENTRY_ROLE_STOCK
+            variance_role = STOCK_ENTRY_ROLE_VARIATION
             if line.difference > 0:
                 adjustment_lines = [
                     {
                         "account_id": None,
+                        "account_role": stock_role,
                         "amount": value,
                         "label": _("Entrée ajustement inventaire"),
                     },
-                    {"account_id": None, "amount": -value, "label": _("Écart d'inventaire")},
+                    {
+                        "account_id": None,
+                        "account_role": variance_role,
+                        "amount": -value,
+                        "label": _("Écart d'inventaire"),
+                    },
                 ]
             else:
                 adjustment_lines = [
                     {
                         "account_id": None,
+                        "account_role": stock_role,
                         "amount": -value,
                         "label": _("Sortie ajustement inventaire"),
                     },
-                    {"account_id": None, "amount": value, "label": _("Écart d'inventaire")},
+                    {
+                        "account_id": None,
+                        "account_role": variance_role,
+                        "amount": value,
+                        "label": _("Écart d'inventaire"),
+                    },
                 ]
             create_stock_movement_entry_from_source(
                 tenant=inventory.tenant,

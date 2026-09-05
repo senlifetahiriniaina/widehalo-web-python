@@ -138,18 +138,16 @@ def test_validate_move_posts_balanced_entry_on_livraison(moves_accounting_setup)
         assert livraison_entry.total_credit == Decimal("4000.0000")
         debit_line = livraison_entry.lines.get(debit__gt=0)
         credit_line = livraison_entry.lines.get(credit__gt=0)
-        # Corrige par le premier passage CI avec une vraie base (l'hypothese
-        # initiale, non verifiee faute de DB, etait inversee). La resolution
-        # de compte par defaut de `create_stock_movement_entry_from_source`
-        # est PAR SIGNE, pas par sens du mouvement (cf. sa docstring) :
-        # positif/debit -> TYPE_STOCK, negatif/credit -> TYPE_EXPENSE,
-        # SYSTEMATIQUEMENT — meme convention deja en place cote ST5
-        # (`services.inventory.validate_inventory`, ligne "Sortie ajustement
-        # inventaire" deja negative) que la sortie mirroir ici respecte a
-        # l'identique (`moves.py` : "Sortie stock" = -value_delta,
-        # "Contrepartie" = +value_delta).
-        assert debit_line.account.type == AccAccount.TYPE_STOCK
-        assert credit_line.account.type == AccAccount.TYPE_EXPENSE
+        # Une sortie CREDITE le compte de stock. Ce test affirmait l'inverse
+        # jusqu'a L12-1 : il avait ete aligne sur le code apres un echec CI,
+        # alors que c'etait le code qui avait tort (`create_stock_movement_
+        # entry_from_source` choisissait le compte par le SIGNE, ce qui
+        # rendait le credit du stock impossible). L'egalite STK-12
+        # (`test_valuation_replay.py`) est ce qui l'a revele : le solde du
+        # compte de stock croissait a l'entree ET a la sortie, donc ne
+        # pouvait jamais egaler la valeur reellement detenue.
+        assert credit_line.account.type == AccAccount.TYPE_STOCK
+        assert debit_line.account.type == AccAccount.TYPE_EXPENSE
         assert AccMove.objects.filter(tenant=tenant).count() == 2
 
 

@@ -102,6 +102,14 @@ Trois défauts réels découverts en chemin, corrigés hors chiffrage :
   par personne. Corrigé par D10-5.
 - **Les comptes par défaut se résolvaient par `.first()` sans `order_by`**, donc de
   façon non déterministe. Corrigé par D10-2.
+- **Toute sortie de stock débitait le compte de stock au lieu de le créditer.**
+  `create_stock_movement_entry_from_source` résolvait le compte par le SIGNE de la
+  ligne, ce qui rendait impossible de créditer le stock. Le solde du compte croissait
+  donc à l'entrée ET à la sortie. Le défaut était invisible parce que rien ne
+  rapprochait ce solde de la valeur de stock — c'est-à-dire précisément l'égalité
+  STK-12 que L12-1 est allé prouver. Un test l'avait même figé : il affirmait la
+  résolution par signe comme une propriété, après avoir été **aligné sur le code**
+  à la suite d'un échec CI. Corrigé par L12-1 (`account_role` explicite).
 
 Un écart fonctionnel signalé et **non corrigé**, hors périmètre des critères :
 `sales/services/orders.py` pose `amount_tax = Decimal(0)` — le module Sales ne

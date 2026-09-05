@@ -36,7 +36,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.accounting.models import (
@@ -386,6 +386,16 @@ def get_budget_variance_for_analytic_account(
     }
 
 
+# Roles de compte qu'une ligne de `create_stock_movement_entry_from_source`
+# peut designer, exposes ici sous forme de CHAINES primitives : l'appelant
+# (`stocks`) ne doit jamais manipuler `AccTenantDefaultAccount` lui-meme
+# (couplage n°1). Ils remplacent la resolution par signe, qui rendait
+# impossible de crediter le compte de stock — cf. docstring ci-dessous.
+STOCK_ENTRY_ROLE_STOCK = AccTenantDefaultAccount.ROLE_STOCK
+STOCK_ENTRY_ROLE_VARIATION = AccTenantDefaultAccount.ROLE_STOCK_VARIATION
+STOCK_ENTRY_ROLES = frozenset({STOCK_ENTRY_ROLE_STOCK, STOCK_ENTRY_ROLE_VARIATION})
+
+
 def create_stock_movement_entry_from_source(
     *,
     tenant: Tenant,
@@ -418,33 +428,47 @@ def create_stock_movement_entry_from_source(
     depuis `validate_move` — cf. docstring de ce dernier pour la garde
     exacte qui evite un double enregistrement.
 
-    `lines` : `[{"account_id": UUID | None, "amount": Decimal, "label":
-    str}, ...]` — `stocks` ne peut jamais passer un objet `AccAccount`
-    (couplage n°1), memes primitives que `income_lines`/`expense_lines`
-    des 2 autres gaps. **Convention de signe assumee (documentee ici, le
-    CDC ne la precise pas)** : `amount` POSITIF = ligne au DEBIT,
-    NEGATIF = ligne au CREDIT — a la difference d'une `AccMoveLine` reelle
-    qui porte `debit`/`credit` comme 2 champs distincts toujours positifs,
-    un seul montant signe est plus simple a construire cote appelant
-    (`stocks`, qui raisonne en delta de valeur signe : + une entree de
-    stock, - une sortie) ; la conversion vers `debit`/`credit` a lieu
-    ICI, jamais cote appelant.
+    `lines` : `[{"account_id": UUID | None, "account_role": str, "amount":
+    Decimal, "label": str}, ...]` — `stocks` ne peut jamais passer un objet
+    `AccAccount` (couplage n°1), memes primitives que `income_lines`/
+    `expense_lines` des 2 autres gaps. **Convention de signe** : `amount`
+    POSITIF = ligne au DEBIT, NEGATIF = ligne au CREDIT — a la difference
+    d'une `AccMoveLine` reelle qui porte `debit`/`credit` comme 2 champs
+    distincts toujours positifs, un seul montant signe est plus simple a
+    construire cote appelant (`stocks`, qui raisonne en delta de valeur
+    signe) ; la conversion vers `debit`/`credit` a lieu ICI, jamais cote
+    appelant.
 
-    **Resolution du compte par defaut (`account_id is None`)** : le CDC ne
-    definit aucun type de compte "ecart d'inventaire" dedie parmi
-    `AccAccount.TYPE_CHOICES` — convention assumee ici, par SIGNE de la
-    ligne plutot que par un type unique comme les 2 autres gaps (qui n'ont
-    besoin que d'un seul type de compte par defaut, cote produit/charge
-    UNIQUEMENT) : une ligne positive (debit) sans compte explicite retombe
-    sur le premier compte de type `AccAccount.TYPE_STOCK` du tenant (la
-    valorisation de stock elle-meme) ; une ligne negative (credit) sans
-    compte explicite retombe sur le premier compte de type
-    `AccAccount.TYPE_EXPENSE` (le compte de charge le plus proche
-    disponible pour la contrepartie d'ecart, faute d'un type "ecart
-    d'inventaire" dedie — meme perte de precision assumee qu'une perte
-    d'inventaire imputee en charge, gain compris, simplification
-    documentee plutot qu'un nouveau `AccAccount.TYPE_CHOICES` invente sans
-    fondement CDC explicite).
+    **Resolution du compte par defaut (`account_id is None`)** : par le
+    `account_role` de la ligne (`STOCK_ENTRY_ROLE_STOCK` ou
+    `STOCK_ENTRY_ROLE_VARIATION`, chaines primitives exposees ci-dessus),
+    resolu via le registre `AccTenantDefaultAccount` du tenant. Une ligne
+    sans `account_id` NI `account_role` valide leve `ValueError` : c'est
+    une erreur d'appel, pas un gap de configuration a avaler
+    silencieusement — meme discipline que le desequilibre debit/credit
+    ci-dessous.
+
+    **Corrige un defaut reel (L12-1, STK-12)** : cette resolution se
+    faisait auparavant par le SIGNE de la ligne — positif au compte de
+    stock, negatif au compte de variation. Elle rendait donc litteralement
+    impossible de CREDITER le compte de stock, alors que c'est exactement
+    ce que fait toute SORTIE (livraison, vente au comptoir, perte
+    d'inventaire). Consequence : le compte de stock etait debite a
+    l'entree ET a la sortie, son solde croissait de la somme de tous les
+    mouvements au lieu de suivre la valeur reellement detenue, et la
+    contrepartie de charge etait creditee au lieu d'etre debitee (resultat
+    inverse). L'ecart etait invisible parce que rien ne rapprochait ce
+    solde de la valeur de stock : c'est precisement l'egalite STK-12,
+    restee 🟡 jusqu'ici, qui l'a revele. Le role explicite supprime la
+    cause : le signe dit desormais le sens (debit/credit), le role dit le
+    compte, et les deux sont independants.
+
+    Le repli du role `variation_stock` reste le premier compte de type
+    `AccAccount.TYPE_EXPENSE` (`default_accounts.ROLE_FALLBACK_TYPE`) :
+    le CDC ne definit aucun type "ecart d'inventaire" dedie parmi
+    `AccAccount.TYPE_CHOICES` — meme perte de precision assumee qu'une
+    perte d'inventaire imputee en charge, gain compris, simplification
+    documentee plutot qu'un `TYPE_CHOICES` invente sans fondement CDC.
 
     Journal : premier `AccJournal.TYPE_STOCK` du tenant (type dedie deja
     present dans `AccJournal.TYPE_CHOICES`). Periode : premiere periode
@@ -479,8 +503,7 @@ def create_stock_movement_entry_from_source(
     if period is None:
         return None
 
-    default_stock_account: AccAccount | None = None
-    default_variance_account: AccAccount | None = None
+    default_by_role: dict[str, AccAccount | None] = {}
     resolved_lines: list[dict[str, Any]] = []
     for line in lines:
         amount: Decimal = line["amount"]
@@ -489,18 +512,17 @@ def create_stock_movement_entry_from_source(
         if account_id is not None:
             account = AccAccount.objects.filter(tenant=tenant, id=account_id).first()
         if account is None:
-            if amount >= 0:
-                if default_stock_account is None:
-                    default_stock_account = resolve_default_account(
-                        tenant, AccTenantDefaultAccount.ROLE_STOCK
-                    )
-                account = default_stock_account
-            else:
-                if default_variance_account is None:
-                    default_variance_account = resolve_default_account(
-                        tenant, AccTenantDefaultAccount.ROLE_STOCK_VARIATION
-                    )
-                account = default_variance_account
+            role = line.get("account_role")
+            if role not in STOCK_ENTRY_ROLES:
+                raise ValueError(
+                    "create_stock_movement_entry_from_source : toute ligne sans "
+                    "`account_id` doit porter un `account_role` parmi "
+                    f"{sorted(STOCK_ENTRY_ROLES)} — recu {role!r}. Le sens "
+                    "debit/credit vient du signe, jamais le choix du compte."
+                )
+            if role not in default_by_role:
+                default_by_role[role] = resolve_default_account(tenant, role)
+            account = default_by_role[role]
         if account is None:
             return None
         resolved_lines.append(
@@ -1234,3 +1256,36 @@ def list_accounts_for_warehouse(tenant: Tenant) -> list[dict[str, Any]]:
             "id", "code", "name", "account_class"
         )
     ]
+
+
+def get_stock_account_balance(tenant: Tenant, *, at_date: dt.date) -> Decimal:
+    """STK-12 (L12) : solde du compte de stock a une date, pour rapprochement
+    avec la valeur de stock rejouee (`stocks.services.valuation_replay`).
+
+    **Le compte est resolu par son ROLE, pas par son type.** C'est le meme
+    compte que celui sur lequel `create_stock_movement_entry_from_source`
+    poste reellement (`AccTenantDefaultAccount.ROLE_STOCK`, avec repli sur
+    le premier compte de type `TYPE_STOCK` depuis D10-2). Filtrer par type
+    donnerait un solde proche mais pas identique des qu'un tenant configure
+    un compte de stock d'un autre type — et un rapprochement qui compare
+    presque la bonne chose ne prouve rien.
+
+    Ecritures PUBLIEES uniquement et `date <= at_date` : meme convention
+    cumulee que `reports.balance_sheet`. Un brouillon n'a aucune realite
+    comptable, et le rejeu de stock ne compte que des mouvements valides —
+    les deux cotes doivent appliquer la meme regle.
+
+    Renvoie `Decimal(0)`, jamais une exception, si aucun compte de stock
+    n'est resolvable : c'est un defaut de parametrage du tenant, pas une
+    erreur de programmation, et la meme discipline que le reste de ce
+    module (`create_stock_movement_entry_from_source` renvoie `None` dans
+    ce cas plutot que de lever)."""
+    account = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_STOCK)
+    if account is None:
+        return Decimal(0)
+    totals = AccMoveLine.objects.filter(
+        account=account,
+        move__state=AccMove.STATE_POSTED,
+        move__date__lte=at_date,
+    ).aggregate(debit=Sum("debit"), credit=Sum("credit"))
+    return (totals["debit"] or Decimal(0)) - (totals["credit"] or Decimal(0))

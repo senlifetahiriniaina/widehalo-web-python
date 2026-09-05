@@ -31,6 +31,8 @@ from apps.accounting.models import (
     AccTax,
 )
 from apps.accounting.services.public import (
+    STOCK_ENTRY_ROLE_STOCK,
+    STOCK_ENTRY_ROLE_VARIATION,
     create_customer_invoice_from_source,
     create_landed_cost_batch_from_source,
     create_pos_session_closing_entry_from_source,
@@ -453,8 +455,18 @@ def test_create_stock_movement_entry_from_source_success_path(public_setup) -> N
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
-                {"account_id": None, "amount": Decimal("10000"), "label": "Entree ajustement"},
-                {"account_id": None, "amount": Decimal("-10000"), "label": "Ecart d'inventaire"},
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_STOCK,
+                    "amount": Decimal("10000"),
+                    "label": "Entree ajustement",
+                },
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                    "amount": Decimal("-10000"),
+                    "label": "Ecart d'inventaire",
+                },
             ],
             label="STKINV-2026-0001",
         )
@@ -471,13 +483,20 @@ def test_create_stock_movement_entry_from_source_success_path(public_setup) -> N
         assert credit_line.account.type == AccAccount.TYPE_EXPENSE
 
 
-def test_create_stock_movement_entry_from_source_negative_amount_credits(public_setup) -> None:
-    """Ecart negatif (sortie) : la resolution du compte par defaut se fait
-    par SIGNE de la ligne, jamais par position dans la liste — la ligne
-    positive (debit) retombe toujours sur le compte de stock, la ligne
-    negative (credit) toujours sur le compte de charge, quel que soit
-    l'ordre passe par l'appelant (ici l'inverse de l'entree : la ligne
-    negative est fournie EN PREMIER)."""
+def test_create_stock_movement_entry_from_source_credits_the_stock_account_on_an_exit(
+    public_setup,
+) -> None:
+    """Non-regression du defaut trouve par L12-1 (STK-12).
+
+    Ce test affirmait auparavant l'inverse : que le compte etait choisi par
+    le SIGNE de la ligne, donc que la ligne au debit tombait TOUJOURS sur le
+    compte de stock. Cette regle rendait impossible de crediter le stock,
+    alors que c'est exactement ce que fait une sortie. Le solde du compte de
+    stock croissait donc a l'entree ET a la sortie.
+
+    La regle est desormais : le ROLE choisit le compte, le SIGNE choisit le
+    sens. Une sortie (role `stock`, montant negatif) CREDITE le stock et
+    DEBITE la contrepartie de charge."""
     tenant = public_setup
     with use_tenant(tenant.id):
         AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
@@ -491,8 +510,18 @@ def test_create_stock_movement_entry_from_source_negative_amount_credits(public_
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
-                {"account_id": None, "amount": Decimal("-5000"), "label": "Sortie ajustement"},
-                {"account_id": None, "amount": Decimal("5000"), "label": "Ecart d'inventaire"},
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_STOCK,
+                    "amount": Decimal("-5000"),
+                    "label": "Sortie ajustement",
+                },
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                    "amount": Decimal("5000"),
+                    "label": "Ecart d'inventaire",
+                },
             ],
         )
 
@@ -500,10 +529,37 @@ def test_create_stock_movement_entry_from_source_negative_amount_credits(public_
         move = AccMove.objects.get(id=move_id)
         credit_line = move.lines.get(credit__gt=0)
         debit_line = move.lines.get(debit__gt=0)
-        # Positif=debit -> compte stock ; negatif=credit -> compte charge,
-        # independamment de l'ordre des lignes en entree.
-        assert debit_line.account.type == AccAccount.TYPE_STOCK
-        assert credit_line.account.type == AccAccount.TYPE_EXPENSE
+        assert credit_line.account.type == AccAccount.TYPE_STOCK
+        assert credit_line.credit == Decimal("5000.0000")
+        assert debit_line.account.type == AccAccount.TYPE_EXPENSE
+        assert debit_line.debit == Decimal("5000.0000")
+
+
+def test_create_stock_movement_entry_from_source_refuses_a_line_without_role(
+    public_setup,
+) -> None:
+    """Une ligne sans `account_id` ni `account_role` est une erreur d'appel,
+    pas un gap de configuration : elle leve, elle ne retombe pas
+    silencieusement sur un compte devine. C'est la garde qui empeche le
+    defaut corrige ci-dessus de revenir par un nouvel appelant."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        AccJournalFactory(tenant=tenant, type=AccJournal.TYPE_STOCK)
+        AccPeriodFactory(
+            tenant=tenant, date_start=dt.date(2026, 1, 1), date_end=dt.date(2026, 1, 31)
+        )
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_STOCK)
+        AccAccountFactory(tenant=tenant, type=AccAccount.TYPE_EXPENSE)
+
+        with pytest.raises(ValueError, match="account_role"):
+            create_stock_movement_entry_from_source(
+                tenant=tenant,
+                date=dt.date(2026, 1, 15),
+                lines=[
+                    {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
+                    {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+                ],
+            )
 
 
 def test_create_stock_movement_entry_from_source_refuses_unbalanced_lines(public_setup) -> None:
@@ -521,8 +577,18 @@ def test_create_stock_movement_entry_from_source_refuses_unbalanced_lines(public
                 tenant=tenant,
                 date=dt.date(2026, 1, 15),
                 lines=[
-                    {"account_id": None, "amount": Decimal("10000"), "label": "Entree"},
-                    {"account_id": None, "amount": Decimal("-9000"), "label": "Ecart"},
+                    {
+                        "account_id": None,
+                        "account_role": STOCK_ENTRY_ROLE_STOCK,
+                        "amount": Decimal("10000"),
+                        "label": "Entree",
+                    },
+                    {
+                        "account_id": None,
+                        "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                        "amount": Decimal("-9000"),
+                        "label": "Ecart",
+                    },
                 ],
             )
 
@@ -542,8 +608,18 @@ def test_create_stock_movement_entry_from_source_returns_none_without_stock_jour
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
-                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
-                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_STOCK,
+                    "amount": Decimal("1000"),
+                    "label": "Entree",
+                },
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                    "amount": Decimal("-1000"),
+                    "label": "Ecart",
+                },
             ],
         )
 
@@ -563,8 +639,18 @@ def test_create_stock_movement_entry_from_source_returns_none_without_open_perio
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
-                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
-                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_STOCK,
+                    "amount": Decimal("1000"),
+                    "label": "Entree",
+                },
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                    "amount": Decimal("-1000"),
+                    "label": "Ecart",
+                },
             ],
         )
 
@@ -600,8 +686,18 @@ def test_create_stock_movement_entry_from_source_returns_none_without_stock_acco
             tenant=tenant,
             date=dt.date(2026, 1, 15),
             lines=[
-                {"account_id": None, "amount": Decimal("1000"), "label": "Entree"},
-                {"account_id": None, "amount": Decimal("-1000"), "label": "Ecart"},
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_STOCK,
+                    "amount": Decimal("1000"),
+                    "label": "Entree",
+                },
+                {
+                    "account_id": None,
+                    "account_role": STOCK_ENTRY_ROLE_VARIATION,
+                    "amount": Decimal("-1000"),
+                    "label": "Ecart",
+                },
             ],
         )
 
