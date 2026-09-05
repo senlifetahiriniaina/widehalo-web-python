@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n core_extras %}
+{% load i18n core_extras l10n %}
 {% block title %}{{ order.reference }} — WideHalo{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -94,7 +94,7 @@
               <input type="text" name="consumption_lot" placeholder="{% trans 'N° de lot' %}" value="{{ component.lot }}"
                      style="width:8em;" aria-label="{% trans 'N° de lot consommé' %}">
               <input type="number" name="consumption_qty" placeholder="{% trans 'Qté consommée' %}" step="0.0001"
-                     value="{{ component.qty_consumed }}" style="width:6em;" aria-label="{% trans 'Quantité consommée' %}">
+                     value="{{ component.qty_consumed|unlocalize }}" style="width:6em;" aria-label="{% trans 'Quantité consommée' %}">
               <c-button variant="primary" type="submit" name="action" value="record_component_consumption">{% trans "Enregistrer" %}</c-button>
               {% if not proc_state or proc_state.state == "a_commander" %}
                 <c-button variant="primary" type="submit" name="action" value="request_sample">{% trans "Demander échantillon" %}</c-button>

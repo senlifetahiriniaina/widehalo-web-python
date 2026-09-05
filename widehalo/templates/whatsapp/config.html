@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{% trans "Configuration WhatsApp" %} — WideHalo{% endblock %}
 {% block content %}
 <c-breadcrumb><a href="{% url 'whatsapp:conversations' %}">{% trans "WhatsApp" %}</a> / {% trans "Configuration" %}</c-breadcrumb>
@@ -14,7 +14,7 @@
   {% if can_manage %}
     <form method="post" action="{% url 'whatsapp:cost_cap_update' %}">
       {% csrf_token %}
-      <input type="number" step="0.01" name="monthly_cost_cap_ariary" placeholder="{% trans "Plafond mensuel (Ar), vide = illimité" %}" value="{{ tenant.whatsapp_monthly_cost_cap_ariary|default:"" }}">
+      <input type="number" step="0.01" name="monthly_cost_cap_ariary" placeholder="{% trans "Plafond mensuel (Ar), vide = illimité" %}" value="{{ tenant.whatsapp_monthly_cost_cap_ariary|unlocalize|default:"" }}">
       <label><input type="checkbox" name="hard_stop" {% if tenant.whatsapp_cost_cap_hard_stop %}checked{% endif %}> {% trans "Bloquer les envois au-delà du plafond" %}</label>
       <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     </form>

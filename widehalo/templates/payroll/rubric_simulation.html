@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{% trans "Simulation sur salarié témoin" %} — WideHalo{% endblock %}
 {% block content %}
 <c-breadcrumb>
@@ -40,7 +40,7 @@
   </div>
   <div class="form-field">
     <label for="dependents">{% trans "Personnes à charge" %}</label>
-    <input type="number" name="dependents" id="dependents" min="0" value="{{ dependents }}">
+    <input type="number" name="dependents" id="dependents" min="0" value="{{ dependents|unlocalize }}">
   </div>
   <c-button variant="primary" type="submit">{% trans "Simuler" %}</c-button>
 </form>

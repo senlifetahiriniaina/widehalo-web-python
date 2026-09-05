@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{% trans "Capacité de charge a 90 jours" %} — WideHalo{% endblock %}
 {% block content %}
 <c-breadcrumb>{% trans "Capacité de charge" %}</c-breadcrumb>
@@ -8,7 +8,7 @@
 </div>
   <form method="get">
     <label for="horizon_days">{% trans "Horizon (jours)" %}</label>
-    <input type="number" id="horizon_days" name="horizon_days" value="{{ horizon_days }}" min="7" step="1">
+    <input type="number" id="horizon_days" name="horizon_days" value="{{ horizon_days|unlocalize }}" min="7" step="1">
     <c-button variant="primary" type="submit">{% trans "Actualiser" %}</c-button>
   </form>
   <p>

@@ -329,10 +329,17 @@ def work_order_kanban(request: HttpRequest) -> HttpResponse:
     (`MrpWorkcenter.TYPE_CHOICES` couvre déjà coupe/couture/broderie/
     impression/finition/contrôle/emballage, aucun nouveau champ), une
     carte par ordre de travail non terminé. "Déplacer une carte" se fait
-    par bouton (jamais de glisser-déposer — cohérent avec l'unique autre
-    kanban du dépôt, `apps.projects`, lui aussi sans drag-and-drop) :
-    `advance_work_order` termine l'étape, démarre la suivante si elle
-    existe et journalise dans le chatter de l'ordre."""
+    par glisser-déposer (SortableJS, vendorisé — ajouté par le Bloc C6)
+    OU par le bouton, toujours disponible : un dépôt légal soumet
+    exactement le même formulaire qu'un clic, `form.requestSubmit()`
+    plutôt que `form.submit()` pour rester intercepté par
+    `static/js/offline_queue.js` en réseau dégradé (PRD-5, vérifié par
+    `tests/e2e/test_kanban_degraded_network.py`). `advance_work_order`
+    termine l'étape, démarre la suivante si elle existe et journalise dans
+    le chatter de l'ordre.
+
+    (Cette docstring affirmait « jamais de glisser-déposer » alors que son
+    propre gabarit chargeait SortableJS — dérive corrigée par L14.)"""
     tenant = resolve_tenant(request)
     user = cast(User, request.user)
     error = None

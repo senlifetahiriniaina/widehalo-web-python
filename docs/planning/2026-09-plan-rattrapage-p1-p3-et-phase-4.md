@@ -110,6 +110,12 @@ Trois défauts réels découverts en chemin, corrigés hors chiffrage :
   défaut à `True`, et la case de l'écran est inversée (« afficher la quantité
   théorique » est désormais l'action explicite). Là encore, `tests/ui` n'avait pas été
   rejoué après L13 : le test qui l'aurait vu existait déjà.
+- **Tout champ `type="number"` prérempli perdait sa valeur.** Django rend un `Decimal`
+  avec une virgule sous locale française ; le navigateur juge cette valeur invalide et
+  la lit comme une chaîne vide. Sept champs touchés — le kanban atelier enregistrait
+  0 pièce produite, la fiche partenaire effaçait l'encours autorisé, la configuration
+  WhatsApp effaçait le plafond de coût. Trouvé par le test e2e de **L14** écrit pour
+  tout autre chose, corrigé par `|unlocalize` et fermé par une garde.
 - **Une régularisation de paie payait le salarié deux fois.** Le plan proposait pour
   PAY-9 « le delta, ou la décision explicite de conserver la recopie ». La seconde
   branche n'était pas défendable : le rectificatif entrait dans le lot de la période

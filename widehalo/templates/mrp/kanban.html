@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n core_extras static %}
+{% load i18n core_extras static l10n %}
 {% block title %}{% trans "Atelier (kanban)" %} — WideHalo{% endblock %}
 {% block extra_head %}
   {# Bibliotheque de tri/glisser-deposer VENDORISEE localement (jamais un #}
@@ -67,7 +67,7 @@
                 <input type="hidden" name="work_order_id" value="{{ wo.id }}">
                 <label class="sr-only" for="qty-done-{{ wo.id }}">{% trans "Quantité bonne" %}</label>
                 <input id="qty-done-{{ wo.id }}" type="number" name="qty_done" step="0.0001"
-                       placeholder="{% trans 'Qté bonne' %}" value="{{ wo.qty_planned }}"
+                       placeholder="{% trans 'Qté bonne' %}" value="{{ wo.qty_planned|unlocalize }}"
                        style="min-height:44px;width:100%;margin-bottom:.35rem;">
                 <label class="sr-only" for="qty-rejected-{{ wo.id }}">{% trans "Quantité rejetée" %}</label>
                 <input id="qty-rejected-{{ wo.id }}" type="number" name="qty_rejected" step="0.0001"

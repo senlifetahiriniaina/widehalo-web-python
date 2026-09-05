@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{% trans "Modifier" %} {{ partner.name }} — WideHalo{% endblock %}
 {% block content %}
 <c-breadcrumb>
@@ -32,7 +32,7 @@
     </div>
     <div class="form-field">
       <label for="credit_limit_mga">{% trans "Plafond crédit (MGA)" %}</label>
-      <input id="credit_limit_mga" type="number" name="credit_limit_mga" value="{{ partner.credit_limit_mga }}" min="0" step="0.01">
+      <input id="credit_limit_mga" type="number" name="credit_limit_mga" value="{{ partner.credit_limit_mga|unlocalize }}" min="0" step="0.01">
     </div>
     <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
     <a href="{% url 'partners:detail' partner.id %}">{% trans "Annuler" %}</a>
