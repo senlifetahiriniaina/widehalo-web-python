@@ -84,11 +84,25 @@ def add_line(
 def post_move(move: AccMove) -> AccMove:
     """RG-ACC-1 : refuse la publication si debit != credit. RG-ACC-3 : la
     reference n'est attribuee qu'ici, jamais au brouillon. RG-ACC-4 : refuse
-    la publication dans une periode close."""
+    la publication dans une periode close.
+
+    **Refuse aussi une ecriture SANS AUCUNE LIGNE (L16).** Zero egale zero :
+    le controle d'equilibre laissait donc passer une ecriture vide, qui
+    consommait un numero de la sequence legale (RG-ACC-3, attribue juste
+    en dessous) et devenait immediatement IMMUABLE par declencheur base.
+    L'ecran de saisie rapide affichait meme un badge vert « Equilibree » sur
+    ce brouillon vide : un comptable qui tabulait jusqu'au premier bouton et
+    validait publiait une piece numerotee vide, definitivement au journal et
+    dans la numerotation legale. Un trou dans une numerotation legale ne se
+    repare pas — d'ou une garde ici, en amont de l'attribution."""
     if move.state != AccMove.STATE_DRAFT:
         raise ValidationError(_("Seule une écriture en brouillon peut être publiée."))
     if move.period.state == AccPeriod.STATE_CLOSED:
         raise ValidationError(_("Période close : publication refusée."))
+    if not move.lines.exists():
+        raise ValidationError(
+            _("Écriture sans aucune ligne : publication refusée (elle consommerait un numéro).")
+        )
 
     totals = move.lines.aggregate(debit=Sum("debit"), credit=Sum("credit"))
     total_debit = totals["debit"] or Decimal(0)

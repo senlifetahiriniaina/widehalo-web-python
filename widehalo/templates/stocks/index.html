@@ -408,7 +408,7 @@
         <tbody>
           {% for line in lines %}
             <tr>
-              {# STK-6 (Phase 3 §13, sprint A4 ; mode explicite depuis L13) :
+              {% comment %} STK-6 (Phase 3 §13, sprint A4 ; mode explicite depuis L13) :
                  comptage a l'aveugle — la quantite theorique et l'ecart
                  derive restent ABSENTS DU HTML RENDU (jamais un masquage
                  CSS/JS cote client) tant que la session aveugle est
@@ -422,7 +422,7 @@
                  garde par etat » — et c'est exactement ce qui a manque :
                  `POST /stocks/inventories/{id}/lines` renvoyait
                  `qty_theoretical` en clair. Une seule source de verite
-                 desormais, cote modele. #}
+                 desormais, cote modele. {% endcomment %}
               <td>{{ line.variant_id }}</td><td>{{ line.location.code }}</td><td>{% if inventory.hides_expected_quantity %}—{% else %}{{ line.qty_theoretical }}{% endif %}</td><td>{{ line.qty_counted|default:"-" }}</td><td>{% if inventory.hides_expected_quantity %}—{% else %}{{ line.difference }}{% endif %}</td>
               <td>
                 {% if inventory.state == "in_progress" %}
@@ -477,8 +477,8 @@
         <select name="warehouse_id" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}">{{ warehouse.code }}</option>{% endfor %}</select>
         <input type="date" name="date">
         <select name="type">{% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
-        {# Case INVERSEE (L12-3) : le comptage a l'aveugle est le defaut
-           (STK-6), montrer la quantite theorique est le choix explicite. #}
+        {% comment %} Case INVERSEE (L12-3) : le comptage a l'aveugle est le defaut
+           (STK-6), montrer la quantite theorique est le choix explicite. {% endcomment %}
         <label><input type="checkbox" name="reveal_expected"> {% trans "Afficher la quantité théorique pendant le comptage (désactive le comptage à l'aveugle)" %}</label>
         <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>

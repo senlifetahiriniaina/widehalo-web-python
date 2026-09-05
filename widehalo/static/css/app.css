@@ -1057,13 +1057,31 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
   border-radius: var(--r-md);
 }
 
-.wh-partner-picker-results li[data-partner-id] {
+/* SAL-1 (L16) : le resultat est un `<button>` (focalisable au clavier), plus
+   un `<li>` nu. Le style suit donc le bouton, remis a plat pour qu'il reste
+   visuellement identique a une ligne de liste. Le `:focus-visible` est ce qui
+   rend le parcours clavier LISIBLE — un element focalisable dont on ne voit
+   pas le focus n'est utilisable par personne. */
+.wh-partner-picker-results .wh-partner-picker-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
   padding: var(--spacing-sm) var(--spacing);
   cursor: pointer;
 }
 
-.wh-partner-picker-results li[data-partner-id]:hover {
+.wh-partner-picker-results .wh-partner-picker-option:hover {
   background: var(--bg-hover);
+}
+
+.wh-partner-picker-results .wh-partner-picker-option:focus-visible {
+  background: var(--bg-hover);
+  outline: 2px solid var(--focus-ring, currentColor);
+  outline-offset: -2px;
 }
 
 .wh-partner-picker-empty {

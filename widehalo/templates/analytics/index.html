@@ -97,11 +97,11 @@
   </table>
 
   {% if can_edit_metrics %}
-    {# L8 : le dictionnaire cesse d'etre en lecture seule. `register_metric`
+    {% comment %} L8 : le dictionnaire cesse d'etre en lecture seule. `register_metric`
        existait deja, aucun ecran ne l'appelait — un client ne pouvait donc
        pas alimenter « la SEULE voie declaree d'acces aux donnees
        decisionnelles ». Les faits et leurs axes viennent de la vue, qui les
-       lit dans `fact_specs` : jamais recopies ici. #}
+       lit dans `fact_specs` : jamais recopies ici. {% endcomment %}
     <h2>{% trans "Ajouter ou faire evoluer un indicateur" %}</h2>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post" action="{% url 'analytics:metric_save' %}" class="wh-panel flex flex-col gap-3">
@@ -130,10 +130,10 @@
         </select>
       </label>
 
-      {# Liste complete des axes, pas seulement ceux du fait choisi : un
+      {% comment %} Liste complete des axes, pas seulement ceux du fait choisi : un
          selecteur dependant exigerait du JS, et le coeur applicatif de ce
          depot fonctionne sans. Une combinaison impossible est refusee par
-         `register_metric` avec le detail des axes disponibles. #}
+         `register_metric` avec le detail des axes disponibles. {% endcomment %}
       <label>{% trans "Axes autorisés" %}
         <select name="axes_autorises" multiple size="6">
           {% for axis in all_axes %}<option value="{{ axis }}">{{ axis }}</option>{% endfor %}
@@ -183,9 +183,9 @@
             <td>{{ metric.code }}</td>
             <td>{{ metric.libelle }}</td>
             <td>{{ metric.get_statut_display }}</td>
-            {# Un indicateur sans fait est descriptif : il ne sera pas
+            {% comment %} Un indicateur sans fait est descriptif : il ne sera pas
                calcule, et l'ecran doit le dire plutot que de laisser croire
-               le contraire. #}
+               le contraire. {% endcomment %}
             <td>{% if metric.fait_source %}{{ metric.fait_source }}{% else %}<span class="badge b-warning">{% trans "non calculable" %}</span>{% endif %}</td>
             <td>{{ metric.version }}</td>
           </tr>

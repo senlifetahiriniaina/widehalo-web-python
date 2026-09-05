@@ -1,10 +1,10 @@
 {% extends "reports/_base.html" %}
 {% load i18n %}
-{# ACC-FAC — facture client (SAL-8). Ce gabarit n'existait pas : `invoice_pdf`
+{% comment %} ACC-FAC — facture client (SAL-8). Ce gabarit n'existait pas : `invoice_pdf`
    concatenait une f-string de douze lignes, sans identite du vendeur, sans
    identite du client, sans ventilation HT/TVA/TTC — et sans echappement, donc
    un libelle de ligne contenant du HTML se retrouvait interprete dans un
-   document declare `is_legal_document=True`. #}
+   document declare `is_legal_document=True`. {% endcomment %}
 {% block title %}Facture / Invoice {{ invoice.reference }}{% endblock %}
 {% block document_title %}Facture / Invoice{% endblock %}
 {% block header_meta %}
@@ -42,9 +42,9 @@
     </tbody>
   </table>
 
-  {# Mentions obligatoires du tenant (SAL-8). L'en-tete de `_base.html` porte
+  {% comment %} Mentions obligatoires du tenant (SAL-8). L'en-tete de `_base.html` porte
      deja raison sociale, adresse et NIF ; ce bloc rend les mentions libres
-     que le tenant a parametrees, sans en inventer aucune. #}
+     que le tenant a parametrees, sans en inventer aucune. {% endcomment %}
   {% if tenant.legal_mentions %}
     <p style="font-size:9pt;white-space:pre-line;">{{ tenant.legal_mentions }}</p>
   {% endif %}

@@ -63,8 +63,8 @@
         </div>
       </div>
 
-      {# Configuration (une fois par session terrain — pas une action repetee au scan,
-         donc pas besoin de fonctionner hors ligne : simples selects/texte). #}
+      {% comment %} Configuration (une fois par session terrain — pas une action repetee au scan,
+         donc pas besoin de fonctionner hors ligne : simples selects/texte). {% endcomment %}
       <form method="get" action="{% url 'stocks:scan' %}" class="flex flex-col gap-3 rounded-box border border-base-300 p-4">
         <h2 class="font-semibold">{% trans "1. Entrepôt et destination" %}</h2>
         <select name="warehouse_id" class="select select-bordered w-full" required>
@@ -136,9 +136,9 @@
       </div>
       {% endif %}
 
-      {# Reconciliation explicite (cahier §7.3) : les lignes rejetees restent
+      {% comment %} Reconciliation explicite (cahier §7.3) : les lignes rejetees restent
          visibles jusqu'a ce qu'un nouveau scan corrige reussisse — pas
-         d'edition en ligne dans ce sprint, l'utilisateur rescanne. #}
+         d'edition en ligne dans ce sprint, l'utilisateur rescanne. {% endcomment %}
       {% if pending_arbitration %}
       <div class="rounded-box border border-error/40 bg-error/5 p-4">
         <h2 class="font-semibold text-error">{% trans "À traiter" %}</h2>

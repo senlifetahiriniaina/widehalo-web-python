@@ -35,8 +35,15 @@
       </tr>
     </tfoot>
   </table>
+  {% comment %} L16 : une ecriture VIDE n'est pas « equilibree », elle est vide. Le
+     badge vert s'affichait sur un brouillon sans ligne (0 = 0) et
+     `post_move` acceptait alors de la publier, consommant un numero de la
+     sequence legale sur une piece devenue immuable. Le service porte
+     desormais la garde ; l'ecran cesse de la contredire. {% endcomment %}
   <p>
-    {% if balance == 0 %}
+    {% if not move.lines.exists %}
+      <span class="badge b-pending">{% trans "Aucune ligne — rien à publier" %}</span>
+    {% elif balance == 0 %}
       <span class="badge b-success">{% trans "Équilibrée" %}</span>
     {% else %}
       <span class="badge b-pending">{% trans "Écart" %} : {{ balance }}</span>
@@ -76,10 +83,15 @@
       <c-button type="submit">{% trans "Ajouter la ligne" %}</c-button>
     </form>
 
-    <form method="post">
-      {% csrf_token %}
-      <c-button variant="primary" type="submit" name="action" value="post">{% trans "Publier l'écriture" %}</c-button>
-    </form>
+    {% comment %} Le bouton disparait tant qu'aucune ligne n'existe : la garde du
+       service reste la verite, l'ecran evite simplement de proposer une
+       action qu'il sait refusee. {% endcomment %}
+    {% if move.lines.exists %}
+      <form method="post">
+        {% csrf_token %}
+        <c-button variant="primary" type="submit" name="action" value="post">{% trans "Publier l'écriture" %}</c-button>
+      </form>
+    {% endif %}
   {% endif %}
 
   <p><a href="{% url 'accounting:quick_entry_list' %}">{% trans "Retour à la liste" %}</a></p>

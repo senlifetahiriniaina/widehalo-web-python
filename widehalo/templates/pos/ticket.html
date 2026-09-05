@@ -64,9 +64,9 @@ première commande l'imprimante, la seconde l'aperçu écran.
   </div>
 
   {% if order.reprint_count %}
-    {# Marque exigee par le cahier : « reimpression autorisee mais tracee et
+    {% comment %} Marque exigee par le cahier : « reimpression autorisee mais tracee et
        marquee comme duplicata ». Le compte est affiche, pas seulement le
-       mot : un 4e duplicata ne se lit pas comme un 1er. #}
+       mot : un 4e duplicata ne se lit pas comme un 1er. {% endcomment %}
     <p class="duplicata">{% blocktrans count counter=order.reprint_count %}DUPLICATA ({{ counter }}<sup>e</sup> impression){% plural %}DUPLICATA ({{ counter }}<sup>e</sup> impression){% endblocktrans %}</p>
   {% endif %}
 
@@ -116,9 +116,9 @@ première commande l'imprimante, la seconde l'aperçu écran.
 
   <div class="actions">
     <button type="button" onclick="window.print()">{% trans "Imprimer" %}</button>
-    {# La reimpression est un POST : elle ECRIT (`mark_reprint`). Un simple
+    {% comment %} La reimpression est un POST : elle ECRIT (`mark_reprint`). Un simple
        rechargement de cette page ne doit jamais incrementer le compteur —
-       sans quoi la trace de duplicata perdrait tout sens. #}
+       sans quoi la trace de duplicata perdrait tout sens. {% endcomment %}
     <form method="post" action="{% url 'pos:ticket_reprint' order.id %}" style="display:inline;">
       {% csrf_token %}
       <input type="hidden" name="width" value="{{ paper_width_mm }}">

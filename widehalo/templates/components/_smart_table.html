@@ -58,10 +58,10 @@
       <div class="smart-table-bulk-bar" :class="count ? 'is-active' : ''">
         <span x-text="count + ' {% trans "sélectionné(s)" %}'"></span>
         {% for action in bulk_actions %}
-          {# Formulaire natif (pas hx-post) : les actions de masse fonctionnent
+          {% comment %} Formulaire natif (pas hx-post) : les actions de masse fonctionnent
              sans JavaScript (A.10 du cahier des charges) -- hx-confirm ne
              s'applique qu'aux requetes declenchees par htmx, jamais a une
-             soumission de formulaire classique, d'ou confirm() natif ici. #}
+             soumission de formulaire classique, d'ou confirm() natif ici. {% endcomment %}
           <button type="submit" form="bulk-form-{{ dom_id }}" formaction="{{ action.url }}"
                   name="__bulk_action" value="{{ action.key }}"
                   class="btn btn-sm {% if action.danger %}btn-danger{% else %}btn-secondary{% endif %}"

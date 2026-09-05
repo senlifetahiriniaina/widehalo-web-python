@@ -2,14 +2,29 @@
 {% comment %}
 Fragment de resultats de `apps/partners/views.py::partner_instant_picker`
 (UXR3) — swappe dans le `<ul data-partner-picker-results>` de
-`components/_partner_picker.html`. Chaque `<li>` porte `data-partner-id`/
+`components/_partner_picker.html`. Chaque resultat est un `<button>` portant
+`data-partner-id`/
 `data-partner-name`, lus par le gestionnaire de clic delegue defini dans
 `static/js/ui_patterns.js` pour peupler le champ cache/le texte affiche
 du picker appelant.
 {% endcomment %}
 {% for partner in partners %}
-<li data-partner-id="{{ partner.id }}" data-partner-name="{{ partner.name }}">
-  {{ partner.name }}{% if partner.nif %} — {{ partner.nif }}{% endif %}
+{% comment %} SAL-1 (L16) : chaque resultat est un vrai `<button>`, donc focalisable au
+   clavier et actionnable par Entree/Espace SANS aucun JS supplementaire — le
+   gestionnaire de clic delegue existant se declenche tel quel.
+
+   Avant : un `<li>` nu, ni focalisable ni actionnable au clavier, dont
+   l'unique gestionnaire etait un `click` delegue. Le champ `partner_id`
+   etant OBLIGATOIRE a la creation d'un devis, un commercial travaillant au
+   clavier ne pouvait PAS creer de devis — quelle que soit la duree. SAL-1
+   n'etait donc pas « non mesure », il etait faux. Le test e2e existant
+   contournait d'ailleurs le composant a la main (`page.evaluate`), ce qui
+   rendait le trou invisible en CI. {% endcomment %}
+<li>
+  <button type="button" class="wh-partner-picker-option"
+          data-partner-id="{{ partner.id }}" data-partner-name="{{ partner.name }}">
+    {{ partner.name }}{% if partner.nif %} — {{ partner.nif }}{% endif %}
+  </button>
 </li>
 {% empty %}
 <li class="wh-partner-picker-empty">{% trans "Aucun partenaire trouvé." %}</li>

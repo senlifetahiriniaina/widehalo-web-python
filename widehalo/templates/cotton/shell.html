@@ -177,7 +177,7 @@ pas de nouvelle logique RBAC.
     </div>
   </div>
 
-  {# Conteneur de toasts (L12-5). `static/js/offline_queue.js` cherche
+  {% comment %} Conteneur de toasts (L12-5). `static/js/offline_queue.js` cherche
      `.wh-toast-container` et, faute de le trouver, retombe sur un
      `window.alert()` BLOQUANT. Ce conteneur n'existait que dans
      `base.html` : les gabarits autonomes qui chargent la file hors-ligne
@@ -194,7 +194,7 @@ pas de nouvelle logique RBAC.
      Volontairement NU, sans le gabarit Alpine `$store.toast` de
      `base.html` : ce store vit dans `static/js/ui_patterns.js`, que les
      ecrans autonomes ne chargent pas. `offline_queue.js` se contente
-     d'ajouter un enfant au conteneur, il n'a besoin d'aucun store. #}
+     d'ajouter un enfant au conteneur, il n'a besoin d'aucun store. {% endcomment %}
   <div class="wh-toast-container" aria-live="polite" role="status"></div>
 
   <main id="main-content" class="flex-1 p-4 sm:p-6">

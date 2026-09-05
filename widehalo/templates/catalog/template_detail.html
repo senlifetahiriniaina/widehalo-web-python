@@ -25,11 +25,11 @@
 
   <h2>{% trans "Variantes" %}</h2>
   {% if variant_matrix %}
-    {# Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
+    {% comment %} Grille tailles×couleurs (T1 refonte UX, Sprint 4 / L3, cf.
        docs/planning/2026-refonte-ux-sprints.md §5) : n'apparait que si le
        gabarit a exactement 2 attributs generateurs -- sinon la liste
        plate ci-dessous reste utilisee (aucune grille 2D partielle/fausse
-       affichee). #}
+       affichee). {% endcomment %}
     <div class="panel-body" style="overflow-x:auto;">
       <table class="smart-table variant-matrix">
         <caption class="sr-only">

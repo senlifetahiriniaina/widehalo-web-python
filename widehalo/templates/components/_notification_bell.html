@@ -1,7 +1,7 @@
 {% load i18n %}
-{# Fragment recharge par polling HTMX (cf. c-shell) et par
+{% comment %} Fragment recharge par polling HTMX (cf. c-shell) et par
    notifications_bell_fragment/notification_mark_read -- toujours le
-   meme fragment, jamais de reload complet. #}
+   meme fragment, jamais de reload complet. {% endcomment %}
 <span id="notif-count" hx-swap-oob="true"
       class="badge badge-error badge-sm absolute -top-1 -right-1{% if not unread_count %} hidden{% endif %}">
   {{ unread_count }}
@@ -21,10 +21,10 @@
           {% if n.payload.message %}<span class="text-xs text-base-content/60 font-normal">{{ n.payload.message }}</span>{% endif %}
           <span class="text-xs text-base-content/60 font-normal">{{ n.created_at }}</span>
           {% if n.payload.action_url %}
-            {# Notification contextuelle avec action (Sprint 3 / L2, cf.
+            {% comment %} Notification contextuelle avec action (Sprint 3 / L2, cf.
                docs/planning/2026-refonte-ux-sprints.md §5) : convention
                payload.action_url/action_label, premier appelant reel dans
-               apps.sales.services.orders._notify_salesperson. #}
+               apps.sales.services.orders._notify_salesperson. {% endcomment %}
             {% trans "Voir" as default_action_label %}
             <a href="{{ n.payload.action_url }}" class="link link-primary text-xs font-normal">
               {{ n.payload.action_label|default:default_action_label }}

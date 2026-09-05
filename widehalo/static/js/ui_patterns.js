@@ -211,7 +211,7 @@ document.body.addEventListener("wh-toast", (event) => {
  * sur une meme page, sans configuration cote appelant au-dela des ids
  * `field_id`/`display_id` passes a l'include.
  *
- * 1. Clic sur un resultat de recherche (`<li data-partner-id
+ * 1. Activation d'un resultat de recherche (`<button data-partner-id
  *    data-partner-name>`, fragment rendu par
  *    `apps/partners/views.py::partner_instant_picker`) : peuple le champ
  *    cache et le texte affiche identifies par les attributs
@@ -225,6 +225,9 @@ document.body.addEventListener("wh-toast", (event) => {
  *    est dispatche sur l'element swappe par htmx, qui bouillonne jusqu'au
  *    document en traversant necessairement le wrapper de la modale).
  */
+// Le resultat etant un `<button>` (L16/SAL-1), ce meme gestionnaire couvre
+// le clic ET l'activation au clavier (Entree/Espace) : le navigateur emet
+// un `click` dans les deux cas, aucun gestionnaire de touche a ajouter.
 document.body.addEventListener("click", (event) => {
   const item = event.target.closest("[data-partner-id]");
   if (!item) return;

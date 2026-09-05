@@ -110,13 +110,13 @@
       </template>
       <p>{% trans "Restant dû" %} : <span x-text="remainingDue().toFixed(2)"></span> MGA</p>
 
-      {# POS-1 (L6) — rendu de monnaie. Les reglements enregistres doivent
+      {% comment %} POS-1 (L6) — rendu de monnaie. Les reglements enregistres doivent
          toujours egaler le total au centime (`services.orders.
          validate_order`) ; c'est le montant REMIS par le client qui est
          saisi ici. Il n'est jamais soumis ni persiste — il ne sert qu'a
          calculer ce que le caissier doit rendre. Une caisse qui ne sait pas
          dire combien rendre laisse le calcul de tete, et l'ecart de caisse
-         suit. #}
+         suit. {% endcomment %}
       <div style="margin-top:.5rem;">
         <label for="cash-tendered">{% trans "Espèces remises par le client" %}</label>
         <input id="cash-tendered" type="number" step="0.01" min="0" x-model.number="cashTendered" style="width:8rem;">

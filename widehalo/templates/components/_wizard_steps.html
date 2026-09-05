@@ -1,10 +1,10 @@
 {% load i18n %}
-{# Bandeau de progression generique pour un assistant multi-etapes.
+{% comment %} Bandeau de progression generique pour un assistant multi-etapes.
    Parametres attendus dans le contexte d'inclusion :
    - wizard_current_step (int, 1-indexe)
    - wizard_steps (liste de libelles, ex. ["En-tête", "Lignes", "Simulation"])
    Reutilise pour UXR6 (assistant de creation d'etude de faisabilite) ; le
-   patron reste generique pour un futur assistant, cf. plan. #}
+   patron reste generique pour un futur assistant, cf. plan. {% endcomment %}
 <nav class="wizard-steps" aria-label="{% trans "Étapes" %}">
   <ol>
     {% for label in wizard_steps %}
