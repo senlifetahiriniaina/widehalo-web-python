@@ -156,6 +156,13 @@ def test_traceability_rows_flattens_upstream_downstream_and_locations(report_set
 
 
 def test_inventory_line_rows_returns_all_lines(report_setup) -> None:
+    """Feuille STK-INV complete. `is_blind=False` est EXPLICITE depuis
+    L12-3 : le comptage a l'aveugle est redevenu le defaut (STK-6), et un
+    inventaire aveugle masque legitimement theorique et ecart dans cette
+    meme feuille — c'est la fuite que L13 a fermee, couverte par
+    `test_inventory_blind_mode.py`. Ce test-ci porte sur la feuille
+    complete, il doit donc demander un inventaire a decouvert plutot que de
+    compter sur un defaut."""
     tenant, warehouse, supplier, internal = report_setup
     with use_tenant(tenant.id):
         variant_id = uuid.uuid4()
@@ -164,6 +171,7 @@ def test_inventory_line_rows_returns_all_lines(report_setup) -> None:
             warehouse=warehouse,
             date=dt.date(2026, 1, 4),
             type=StkInventory.TYPE_PONCTUEL,
+            is_blind=False,
         )
         add_inventory_line(inventory, variant_id=variant_id, location=internal)
         start_inventory(inventory)

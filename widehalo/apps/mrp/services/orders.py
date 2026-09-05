@@ -5,6 +5,7 @@ sous-traitance."""
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -342,9 +343,45 @@ def pause_work_order(work_order: MrpWorkOrder) -> MrpWorkOrder:
     return work_order
 
 
+def scrap_source_document(order: MrpOrder, work_order: MrpWorkOrder) -> str:
+    """Convention de correlation du rebut D'UN POSTE (PRD-6, L12-4).
+
+    `MrpWorkOrder` n'a pas de reference propre ; le poste est donc porte par
+    la chaine, dans l'esprit de la correlation deja etablie pour
+    `production_in` (`stocks.services.consistency`, ou
+    `source_document == order.reference`).
+
+    **Le suffixe par poste n'est pas cosmetique.** Le FPY somme
+    `qty_done`/`qty_rejected` sur TOUS les ordres de travail : sur une gamme
+    a trois postes, la meme piece est comptee trois fois. Sans un
+    `source_document` distinct par poste, un recalcul depuis les mouvements
+    ne pourrait pas separer les postes et ne retomberait jamais sur le
+    FPY."""
+    return f"{order.reference}/WO{work_order.sequence}"
+
+
+def scrap_declaration_source_document(order: MrpOrder) -> str:
+    """Convention de correlation du rebut DECLARE PAR INTERVENTION (PRD-6).
+
+    Volontairement distincte de `scrap_source_document` ci-dessus : le FPY
+    lit `MrpWorkOrder.qty_rejected` et jamais `MrpScrap`. Si les deux
+    natures partageaient un meme document, un recalcul depuis les
+    mouvements gonflerait le denominateur du FPY avec du rebut qu'il n'a
+    jamais compte — et l'egalite que PRD-6 demande serait fausse."""
+    return f"{order.reference}/SCRAP"
+
+
 def done_work_order(
     work_order: MrpWorkOrder, *, qty_done: Decimal, qty_rejected: Decimal = Decimal(0)
 ) -> MrpWorkOrder:
+    """Termine un ordre de travail et, depuis L12-4 (PRD-6), materialise le
+    rebut du poste en mouvement de stock.
+
+    `qty_rejected` est ce que le taux de conformite au premier passage
+    compte (`services.quality.first_pass_yield`) ; jusqu'a ce lot il ne
+    quittait jamais `mrp`, donc PRD-6 (« recalculable a l'identique depuis
+    les mouvements ») etait infaisable. Le mouvement ne deplace aucun
+    montant, cf. `stocks.services.public.scrap_from_stock`."""
     now = timezone.now()
     duration_real_min = 0
     if work_order.date_start is not None:
@@ -358,7 +395,49 @@ def done_work_order(
     work_order.save(
         update_fields=["state", "qty_done", "qty_rejected", "date_end", "duration_real_min"]
     )
+    if qty_rejected > 0:
+        _record_scrap_movement(
+            work_order.order,
+            variant_id=work_order.order.variant_id,
+            qty=qty_rejected,
+            date=now.date(),
+            source_document=scrap_source_document(work_order.order, work_order),
+        )
     return work_order
+
+
+def _record_scrap_movement(
+    order: MrpOrder, *, variant_id: UUID | None, qty: Decimal, date: dt.date, source_document: str
+) -> None:
+    """Appel commun aux deux natures de rebut (`done_work_order` et
+    `interventions.declare_scrap`), avec le meme repli JOURNALISE.
+
+    Un atelier sans entrepot ou un ordre sans variante ne peut produire
+    aucun mouvement : c'est un gap de configuration, il ne doit jamais
+    faire echouer la declaration de production — mais il ne doit pas non
+    plus disparaitre en silence, sous peine de reproduire exactement le
+    defaut que PRD-6 corrige (une quantite declaree que rien ne trace).
+    Meme discipline que le repli de `close_order` (L12-2)."""
+    from apps.stocks.services.public import scrap_from_stock
+
+    warehouse_id = order.workshop.warehouse_id if order.workshop_id else None
+    if warehouse_id is None or variant_id is None:
+        logger.warning(
+            "Rebut non trace en stock pour %s (%s) : %s. La quantite reste declaree "
+            "dans `mrp` mais PRD-6 ne pourra pas la recalculer depuis les mouvements.",
+            source_document,
+            qty,
+            "atelier sans entrepot" if warehouse_id is None else "ordre sans variante",
+        )
+        return
+    scrap_from_stock(
+        tenant=order.tenant,
+        variant_id=variant_id,
+        qty=qty,
+        warehouse_id=warehouse_id,
+        date=date,
+        source_document=source_document,
+    )
 
 
 def advance_work_order(

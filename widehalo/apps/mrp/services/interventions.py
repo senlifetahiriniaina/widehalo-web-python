@@ -12,6 +12,10 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.sequences import next_reference
 from apps.mrp.models import MrpCri, MrpOrder, MrpScrap, MrpWorkcenter
+from apps.mrp.services.orders import (
+    _record_scrap_movement,
+    scrap_declaration_source_document,
+)
 
 
 def create_cri(
@@ -66,10 +70,25 @@ def declare_scrap(
     variant_id: UUID | None = None,
     cost_mga: Decimal = Decimal(0),
 ) -> MrpScrap:
-    """RG-MRP-12 : le mouvement de stock vers l'emplacement « rebut » et la
-    charge analytique seront branches via `stocks`/`accounting.services.public`
-    une fois ces modules disponibles pour ce mouvement precis — cette entite
-    trace deja la declaration cote production."""
+    """RG-MRP-12 : declaration de rebut par intervention.
+
+    **Le mouvement de stock est branche depuis L12-4 (PRD-6).** Cette
+    docstring annoncait qu'il « sera branche […] une fois ces modules
+    disponibles » — ils l'etaient depuis A2, `mrp` consommant deja
+    `stocks.services.public.receive_production_output`. La promesse est
+    tenue ici : la declaration produit desormais un `StkMove.TYPE_REBUT`.
+
+    **`source_document` distinct de celui du rejet au poste**
+    (`{reference}/SCRAP` contre `{reference}/WO{sequence}`, cf.
+    `services.orders.scrap_source_document`). Les deux natures de rebut ne
+    doivent JAMAIS se confondre : le taux de conformite au premier passage
+    lit `MrpWorkOrder.qty_rejected`, jamais `MrpScrap` — melanger les deux
+    dans un meme document gonflerait le denominateur du FPY avec du rebut
+    qu'il n'a jamais compte.
+
+    La charge analytique, elle, n'est toujours pas branchee : `cost_mga`
+    reste une donnee declarative de cette entite. L'ecart est reel et
+    reste signale, plutot que d'etre efface d'une docstring."""
     scrap = MrpScrap.objects.create(
         tenant=order.tenant,
         order=order,
@@ -82,4 +101,13 @@ def declare_scrap(
     )
     order.qty_scrapped = order.qty_scrapped + qty
     order.save(update_fields=["qty_scrapped"])
+    _record_scrap_movement(
+        order,
+        # Le rebut declare porte sa propre variante quand elle est connue
+        # (matiere mise au rebut) ; a defaut c'est le produit de l'ordre.
+        variant_id=variant_id or order.variant_id,
+        qty=qty,
+        date=scrap.date,
+        source_document=scrap_declaration_source_document(order),
+    )
     return scrap

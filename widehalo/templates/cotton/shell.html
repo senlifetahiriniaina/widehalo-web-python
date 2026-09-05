@@ -177,6 +177,26 @@ pas de nouvelle logique RBAC.
     </div>
   </div>
 
+  {# Conteneur de toasts (L12-5). `static/js/offline_queue.js` cherche
+     `.wh-toast-container` et, faute de le trouver, retombe sur un
+     `window.alert()` BLOQUANT. Ce conteneur n'existait que dans
+     `base.html` : les gabarits autonomes qui chargent la file hors-ligne
+     (`stocks/tw-scan.html`, `tw-launchpad.html`) n'en avaient aucun, donc
+     chaque scan hors connexion ouvrait une boite de dialogue modale que le
+     magasinier devait fermer avant de scanner l'article suivant — sur
+     l'ecran precisement concu pour le mode degrade, et en contradiction
+     directe avec le retour visuel sous 300 ms exige par STK-10.
+
+     Volontairement pose ICI plutot que dans chaque gabarit : tout ecran
+     autonome monte sur `<c-shell>` en herite. `base.html` garde le sien
+     (il n'utilise pas ce composant), donc aucun doublon.
+
+     Volontairement NU, sans le gabarit Alpine `$store.toast` de
+     `base.html` : ce store vit dans `static/js/ui_patterns.js`, que les
+     ecrans autonomes ne chargent pas. `offline_queue.js` se contente
+     d'ajouter un enfant au conteneur, il n'a besoin d'aucun store. #}
+  <div class="wh-toast-container" aria-live="polite" role="status"></div>
+
   <main id="main-content" class="flex-1 p-4 sm:p-6">
     {{ slot }}
   </main>

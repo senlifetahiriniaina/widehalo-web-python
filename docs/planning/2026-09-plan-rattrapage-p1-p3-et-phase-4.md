@@ -110,6 +110,9 @@ Trois défauts réels découverts en chemin, corrigés hors chiffrage :
   défaut à `True`, et la case de l'écran est inversée (« afficher la quantité
   théorique » est désormais l'action explicite). Là encore, `tests/ui` n'avait pas été
   rejoué après L13 : le test qui l'aurait vu existait déjà.
+- **Le rebut de production n'atteignait jamais le stock.** `declare_scrap` annonçait
+  depuis l'origine que le mouvement « sera branché […] une fois ces modules
+  disponibles » — ils l'étaient depuis A2. Corrigé par **L12-4**.
 - **L3 avait bloqué tout cycle de paie, et fait rougir six tests de `apps/core`.**
   En plaçant `tva.taux_normal` dans `ACTIVE_CALCULATION_PARAMETER_CODES`, L3 a élargi
   sans le vouloir un second verrou qui lit le même registre :
@@ -134,6 +137,17 @@ Un écart fonctionnel signalé et **non corrigé**, hors périmètre des critèr
 `sales/services/orders.py` pose `amount_tax = Decimal(0)` — le module Sales ne
 calcule aucune taxe, seul le POS applique `get_default_sale_tax`. À verser au lot L5.
 
+Un second écart signalé et **non corrigé**, à chiffrer séparément : **la production
+entre en stock à coût zéro.** `finish_transformation_order` appelle
+`receive_production_output` sans coût unitaire, donc le produit fini est valorisé à
+zéro — alors que `close_order` calcule justement son coût de revient réel (matière +
+main-d'œuvre + frais généraux + sous-traitance), qui n'est reversé nulle part. La
+conséquence immédiate : la valeur de stock des produits finis est nulle, et le rebut
+branché par L12-4 (couche à coût zéro lui aussi) ne la dégrade pas davantage
+*aujourd'hui* — mais le jour où la production entrera à son coût réel, il la diluerait.
+Les deux moitiés doivent donc être traitées ensemble. Réserve écrite dans
+`stocks/services/public.py::scrap_from_stock` et dans `valuation_replay.py`.
+
 | **L15** — hygiène (dérive documentaire, secrets en clair) | ✅ livré | **Le plan se trompait sur un point, et il faut le dire** : il prescrivait de porter `PrjGuestAccess.token` en `EncryptedCharField`. C'était impossible — ce champ est **cherché par sa valeur** (`resolve_guest_access`) et Fernet n'est pas déterministe : le portail invité aurait cessé de fonctionner en silence. Empreinte SHA-256 à la place. Un troisième secret en clair, absent de l'audit, a été trouvé au passage (`UserEmailChangeRequest.token`) et fermé, ainsi que la classe entière par une garde. |
 | **L11** — sortir `apps/quality` de l'ombre | ✅ livré | Conforme au plan, plus deux ajouts nécessaires qu'il ne nommait pas : le module devait aussi entrer dans le calcul de visibilité des menus (`context_processors._MODULE_APP_LABELS`), sans quoi sa tuile serait restée invisible à tous sauf aux superutilisateurs ; et publier ses évènements exigeait d'abord d'en **émettre**, le module n'en publiant aucun. |
 
@@ -141,7 +155,9 @@ calcule aucune taxe, seul le POS applique `get_default_sale_tax`. À verser au l
 | **L6** — POS | ✅ livré | Trois manques qui se documentaient eux-mêmes : `reprint_count` décrivait un écran d'impression inexistant ; `StkMove.TYPE_VENTE_COMPTOIR` était livré « sans producteur » ; le rendu de monnaie manquait. |
 | **L3** — comptabilité : paramètres et verrous | ✅ livré | Un quart était déjà fermé par **D10-5** (chargement du plan par pays), pas par L3. **Défaut bloquant trouvé au passage** : `tva.taux_normal` était référencé à quatre endroits et semé nulle part — le module Simulation ne pouvait construire aucun socle, sur aucune instance. Le taux entre en outre sous le verrou OECFM (seul taux légal du produit à y échapper) et la période close passe d'une garde applicative à un **trigger PostgreSQL**, comme les deux autres invariants comptables depuis la Phase 1. |
 
-Reste donc de la Vague 1 : **L4, L5, L7, L8, L9, L10, L12, L14, L16**.
+| **L12** — les égalités affirmées mais jamais prouvées | ✅ livré, 5 sprints | **≈ 24 JT au lieu de 12.** Le plan annonçait « cinq critères » là où il en listait six, et confondait STK-10 (retour visuel de scan) avec STK-12 (valeur de stock). Surtout, il supposait six tests à écrire : **quatre des six critères cachaient un défaut de production**. STK-12 : le compte de stock était débité à l'entrée ET à la sortie, l'égalité ne pouvait pas tenir. PRD-9 : le coût de clôture était pris au CUMP courant, pas à la date d'effet — laquelle n'était enregistrée nulle part. ACH-10 : le rapprochement littéral du critère est une tautologie, le périmètre a dû être corrigé. PRD-6 : le rebut n'atteignait jamais le stock, le recalcul était infaisable. PAY-10 et STK-10 n'étaient « que » des tests manquants — et STK-10 a quand même révélé un `window.alert()` bloquant sur l'écran magasinier hors ligne. |
+
+Reste donc de la Vague 1 : **L4, L5, L7, L8, L9, L10, L14, L16**.
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 

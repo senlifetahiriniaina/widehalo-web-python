@@ -24,7 +24,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F
+from django.db.models import F, Sum
 from django.utils.translation import gettext as _
 
 from apps.catalog.services.public import (
@@ -592,6 +592,141 @@ def receive_production_output(
     validate_move(move)
     move_id: UUID = move.id
     return move_id
+
+
+def scrap_from_stock(
+    *,
+    tenant: Tenant,
+    variant_id: Any,
+    qty: Decimal,
+    warehouse_id: Any,
+    date: dt.date,
+    source_document: str,
+    unit_cost_mga: Decimal = Decimal(0),
+) -> UUID | None:
+    """Mouvement de mise au rebut (PRD-6, L12-4) — cree+valide un `StkMove`
+    `TYPE_REBUT` vers l'emplacement rebut de l'entrepot.
+
+    **Comble une promesse restee lettre morte.**
+    `mrp.services.interventions.declare_scrap` annoncait que le mouvement
+    vers l'emplacement rebut « sera branche une fois ces modules
+    disponibles ». Ils le sont depuis A2 — `mrp` consomme deja
+    `receive_production_output` — mais AUCUN `StkMove.TYPE_REBUT` n'etait
+    produit par quoi que ce soit. Le critere PRD-6 (« le taux de conformite
+    au premier passage est recalculable a l'identique depuis les
+    mouvements ») etait donc litteralement infaisable : le rebut n'atteignait
+    jamais le stock.
+
+    **Meme convention d'emplacements que `receive_production_output`**
+    ci-dessus : `location_to` est l'emplacement `TYPE_REBUT` de l'entrepot
+    (cree s'il n'existe pas), `location_from` l'emplacement virtuel
+    `TYPE_PRODUCTION` du meme entrepot. La piece rejetee suit exactement le
+    chemin de la bonne, vers une autre benne — c'est cette symetrie qui
+    justifie de ne pas inventer une troisieme convention.
+
+    **Ce mouvement ne deplace aucun montant, et c'est voulu.**
+    `unit_cost_mga` vaut zero par defaut, donc `value_delta` est nul, donc
+    `validate_move` ne poste AUCUNE ecriture comptable (sa garde
+    `value_delta != 0`). Brancher le rebut rend la quantite tracable ; il ne
+    change ni la valeur de stock ni le solde du compte de stock — verifie
+    par `test_prd6_scrap_movements.py` contre `replay_stock_value`
+    (L12-1/STK-12) plutot qu'affirme ici.
+
+    **Reserve a connaitre.** La branche `virtuel -> interne` de
+    `validate_move` cree une `StkValuationLayer` INCONDITIONNELLEMENT, meme
+    a valeur nulle : une couche a cout zero et quantite positive dilue le
+    CUMP du variant. C'est sans effet aujourd'hui — `mrp.services.
+    transformation.finish_transformation_order` recoit deja sa production a
+    cout zero (`receive_production_output`, defaut a 0), donc le pool du
+    produit fini est uniformement nul. Le jour ou la production entrera a
+    son cout reel, le rebut le diluerait. « La production entre en stock a
+    cout zero » est un ecart en soi, signale comme chantier separe plutot
+    que corrige au passage ici — meme traitement que la reserve `scan.py`
+    documentee dans `services/valuation_replay.py`.
+
+    Retourne `None`, jamais une exception, si `qty <= 0` (rien a tracer) ou
+    si l'entrepot est introuvable — meme discipline « aucun gap ne fait
+    echouer le module appelant » que le reste de ce fichier."""
+    if qty is None or qty <= 0:
+        return None
+    warehouse = StkWarehouse.objects.filter(tenant=tenant, id=warehouse_id).first()
+    if warehouse is None:
+        return None
+
+    location_to, _created_to = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=warehouse,
+        type=StkLocation.TYPE_REBUT,
+        defaults={
+            "code": f"{warehouse.code}-REBUT",
+            "name": "Rebut",
+            # Champ redondant avec `type == TYPE_REBUT` mais explicitement
+            # liste dans le CDC (§5.8) — pose ici pour que l'emplacement cree
+            # automatiquement soit indiscernable d'un emplacement configure a
+            # la main sur l'ecran (`views.py`, case « Rebut »).
+            "is_scrap": True,
+        },
+    )
+    location_from, _created_from = StkLocation.objects.get_or_create(
+        tenant=tenant,
+        warehouse=warehouse,
+        type=StkLocation.TYPE_PRODUCTION,
+        defaults={"code": f"{warehouse.code}-PROD", "name": "Production (virtuel)"},
+    )
+    move = create_move(
+        tenant=tenant,
+        variant_id=variant_id,
+        qty=qty,
+        uom="",
+        location_from=location_from,
+        location_to=location_to,
+        date=date,
+        move_type=StkMove.TYPE_REBUT,
+        source_document=source_document,
+        unit_cost_mga=unit_cost_mga,
+    )
+    validate_move(move)
+    move_id: UUID = move.id
+    return move_id
+
+
+def list_scrap_quantities_by_source(
+    tenant: Tenant, *, source_documents: list[str]
+) -> dict[str, Decimal]:
+    """Quantites mises au rebut, agregees PAR `source_document` (PRD-6).
+
+    Renvoie un dictionnaire de primitives, jamais des `StkMove` (regle de
+    couplage n1) — `mrp` recalcule son taux de conformite au premier
+    passage depuis ces quantites sans jamais atteindre les modeles de
+    `stocks`.
+
+    **L'agregation par `source_document` est le coeur du critere, pas un
+    detail d'implementation.** Le FPY somme `qty_done`/`qty_rejected` sur
+    TOUS les ordres de travail d'un ordre de fabrication : sur une gamme a
+    trois postes, la meme piece physique est comptee trois fois. Un
+    recalcul qui sommerait naivement tous les mouvements de rebut d'un
+    ordre ne retomberait donc jamais sur le FPY. Chaque mouvement porte son
+    poste dans `source_document` (`{reference}/WO{sequence}`, cf.
+    `mrp.services.orders.done_work_order`), et le rebut declare par
+    intervention porte un marqueur distinct (`{reference}/SCRAP`) pour que
+    les deux natures ne se melangent jamais.
+
+    Une cle absente du resultat signifie « aucun mouvement pour ce
+    document » — l'appelant lit un zero, pas un `KeyError`, en passant par
+    `.get(..., Decimal(0))`."""
+    if not source_documents:
+        return {}
+    rows = (
+        StkMove.objects.filter(
+            tenant=tenant,
+            move_type=StkMove.TYPE_REBUT,
+            state=StkMove.STATE_DONE,
+            source_document__in=source_documents,
+        )
+        .values("source_document")
+        .annotate(total=Sum("qty"))
+    )
+    return {row["source_document"]: row["total"] or Decimal(0) for row in rows}
 
 
 def receive_purchase_line(
