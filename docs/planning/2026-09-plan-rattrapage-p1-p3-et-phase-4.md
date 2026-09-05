@@ -126,7 +126,7 @@ rend la Phase 2 réellement observable, le second parce que sans lui quatre lots
 
 | # | Lot | Objectif | Définition de fin | Fichiers | Effort |
 |---|---|---|---|---|---|
-| **L15** | Dérive documentaire et secret en clair | Aucun document du dépôt n'affirme un état faux | `README.md` : table d'état reprise sur l'audit courant, Phase 4 ajoutée, plafonds corrigés, modules `automation`/`chat`/`quality`/`patronage` ajoutés. `CONTRIBUTING.md` : plafonds réels. Les deux docstrings périmées corrigées (`apps/stocks/services/consistency.py:53`, `apps/sales/services/reports.py:112`). `LogServiceProvider.webhook_secret` et `PrjGuestAccess.token` portés en `EncryptedCharField` avec migration de reprise | `README.md`, `CONTRIBUTING.md`, `apps/stocks/services/consistency.py`, `apps/sales/services/reports.py`, `apps/logistics/models.py` | 3 JT |
+| **L15** | Dérive documentaire et secret en clair | Aucun document du dépôt n'affirme un état faux | `README.md` et `CONTRIBUTING.md` : **fait au commit de ce plan** (table d'état reprise sur l'audit, Phase 4 ajoutée, plafonds corrigés, modules manquants ajoutés). Reste à faire : les deux docstrings périmées corrigées (`apps/stocks/services/consistency.py:53`, `apps/sales/services/reports.py:112`). `LogServiceProvider.webhook_secret` et `PrjGuestAccess.token` portés en `EncryptedCharField` avec migration de reprise | `README.md`, `CONTRIBUTING.md`, `apps/stocks/services/consistency.py`, `apps/sales/services/reports.py`, `apps/logistics/models.py` | 3 JT |
 
 ### 4.6 Synthèse de la Vague 1
 

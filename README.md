@@ -7,34 +7,46 @@ transformation, distribution) — succession de l'ERP WideHalo existant
 
 ## État du projet face aux cahiers des charges
 
-Le projet est cadré par trois cahiers des charges officiels du maître
-d'ouvrage (Life MDG), chacun confronté au code réel par un audit sourcé
-fichier par fichier plutôt que par une simple déclaration de statut :
+Le projet est cadré par **quatre cahiers des charges officiels** du maître d'ouvrage
+(Life MDG), dont le texte intégral est versionné dans
+[`docs/cdc-complet/`](docs/cdc-complet/README.md) — 203 critères d'acceptation. Chacun
+est confronté au code réel, fichier par fichier, par
+[`docs/audit/2026-09-audit-complet-phases-1-4.md`](docs/audit/2026-09-audit-complet-phases-1-4.md)
+(2026-09-05), qui remplace les deux audits antérieurs.
 
-| Phase | Périmètre | État | Audit |
-|---|---|---|---|
-| **Phase 1** | Socle UX, CRM, Sales, Accounting (PCG 2005), POS, Simulation financière, IA | Modules livrés (POS et Simulation financière, initialement absents, ont été construits depuis) | [`docs/audit/2026-09-cahier-des-charges-v3-audit.md`](docs/audit/2026-09-cahier-des-charges-v3-audit.md) |
-| **Phase 2** | Business Intelligence, Forecast, Strategy, WhatsApp (sur un entrepôt analytique en étoile + dictionnaire d'indicateurs) | Modules livrés depuis le même audit (`analytics`, `bi`, `forecast`, `strategy`, `whatsapp`) | même document |
-| **Phase 3** | Stock et entrepôt, Achats/Import/CREDOC, Production, Qualité et HACCP, Paie, extension Forecast | Cahier reçu le 2026-09-04 ; le dépôt couvre déjà une bonne partie de ce périmètre sous des modules construits antérieurement et indépendamment (`stocks`, `purchase`, `mrp`, `payroll`, `presence`) — **8 des 59 critères d'acceptation du cahier sont conformes, 27 partiels, 21 absents**, dont deux violations concrètes de règles explicites (double comptabilité de quantité stock/achats, portail salarié alors qu'explicitement interdit) | [`docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md`](docs/audit/2026-09-cahier-des-charges-v3-phase3-audit.md) |
+| Phase | Périmètre | Critères | ✅ | 🟡 | ❌ |
+|---|---|---|---|---|---|
+| **1** | Socle UX, CRM, Sales, Accounting (PCG 2005), POS, Simulation financière, IA | 52 | 25 | 19 | 6 |
+| **2** | Business Intelligence, Forecast, Strategy, WhatsApp (sur entrepôt en étoile + dictionnaire d'indicateurs) | 38 | 24 | 11 | 2 |
+| **3** | Stock et entrepôt, Achats/Import/CREDOC, Production, Qualité et HACCP, Paie, extension Forecast | 59 | 44 | 12 | 1 |
+| **4** | Socle de flux, API publique, e-facture, encaissement mobile, flux bancaires, bureautique, commerce, console de flux | 54 | 1 | 16 | 37 |
+| | | **203** | **94** | **58** | **46** |
 
-Le plan de fermeture des écarts Phase 3 (deux vagues : les 7 recommandations
-prioritaires de l'audit, puis le reste jusqu'à conformité complète des 59
-critères, ≈165 Jour-Token) est dans
-[`docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md`](docs/planning/2026-09-cahier-des-charges-v3-phase3-plan.md).
+Plus 3 critères non vérifiables et 2 sans objet. Le plan de fermeture — 16 lots de
+rattrapage pour les Phases 1 à 3, puis les 34 sprints de la Phase 4 — est dans
+[`docs/planning/2026-09-plan-rattrapage-p1-p3-et-phase-4.md`](docs/planning/2026-09-plan-rattrapage-p1-p3-et-phase-4.md).
 
-**Ne jamais se fier à un chiffre de documentation sans le re-vérifier** :
-les compteurs de modèles/endpoints/écrans ne font foi que ré-exécutés
-(`docs/planning/ECART_ARCHITECTURE.md` §1) — au 2026-09-04 : **290 modèles
-/ 569 endpoints / 238 écrans**, contre un plafond CI de 290/600/240 (le
-plafond « modèles » est atteint exactement, marge nulle).
+**Deux points à connaître avant de lire un ✅ :**
 
-Modules métier existants sous `widehalo/apps/` : `accounting`, `ai`,
-`analytics`, `bi`, `catalog`, `crm`, `feasibility`, `financing`,
-`forecast`, `helpdesk`, `logistics`, `mrp`, `partners`, `patronage`,
-`payroll`, `pos`, `presence`, `projects`, `purchase`, `reporting`,
-`sales`, `simulation`, `stocks`, `strategy`, `whatsapp` — voir
-[`docs/RBAC.md`](docs/RBAC.md) pour le détail des rôles et permissions par
-module.
+1. **Rien n'ordonnance rien.** Les 51 commandes de gestion périodiques
+   (rafraîchissement de l'entrepôt analytique, diffusions BI, alertes de péremption,
+   contrôles qualité en retard…) n'ont aucun ordonnanceur : ni cron, ni service dans
+   `docker-compose.prod.yml`, ni `Schedule` django-q2. En exploitation, BI, Forecast
+   et Strategy travaillent donc sur des données vides. C'est le premier lot du plan.
+2. **Ne jamais se fier à un chiffre de documentation sans le re-vérifier.** Les
+   compteurs de modèles/endpoints/écrans ne font foi que ré-exécutés
+   (`widehalo/tests/architecture/test_budget.py`, méthode dans
+   `docs/planning/ECART_ARCHITECTURE.md` §1). Plafonds CI actuels, eux vérifiables
+   dans le code : **310 / 600 / 240** (`widehalo/config/settings/base.py:412-414`).
+   Une mesure statique du 2026-09-05 situe les écrans **à 240, soit le plafond exact**
+   — le prochain gabarit ajouté fait échouer la construction sans relèvement.
+
+Modules métier sous `widehalo/apps/` : `accounting`, `ai`, `analytics`, `automation`,
+`bi`, `catalog`, `chat`, `crm`, `feasibility`, `financing`, `forecast`, `helpdesk`,
+`logistics`, `mrp`, `partners`, `patronage`, `payroll`, `pos`, `presence`, `projects`,
+`purchase`, `quality`, `reporting`, `sales`, `simulation`, `stocks`, `strategy`,
+`whatsapp` — plus le socle `core`. Voir [`docs/RBAC.md`](docs/RBAC.md) pour les rôles
+et permissions par module.
 
 ## Démarrage
 
