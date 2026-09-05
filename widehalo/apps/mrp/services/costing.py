@@ -4,17 +4,24 @@ cloture (a partir des consommations et durees reelles), avec ecart
 explicite par composante. RG-MRP-11 : ecart de consommation avec motif
 obligatoire au-dela d'un seuil parametrable.
 
-Le cout unitaire de valorisation des composants (FIFO/CMP) depend du futur
-module `stocks` (non construit) — fourni explicitement en parametre par
-l'appelant en attendant, plutot que fige en dur."""
+Le cout unitaire de valorisation des composants (FIFO/CMP) est fourni
+explicitement en parametre par l'appelant plutot que lu ici : `mrp` ne doit
+jamais atteindre les couches de `stocks` (regle de couplage n1). C'est
+`services.orders.close_order` qui les resout, via
+`stocks.services.public.get_variant_unit_cost_at_date` A LA DATE D'EFFET de
+chaque consommation (PRD-9, `MrpOrderComponent.consumed_at`).
+(Cette docstring annoncait encore `stocks` comme « futur module (non
+construit) » — corrige avec L12-2.)"""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.mrp.models import MrpBom, MrpOrder, MrpOrderComponent
@@ -168,6 +175,7 @@ def consume_component(
     qty_consumed: Decimal,
     reason: str = "",
     threshold_pct: Decimal = DEFAULT_VARIANCE_THRESHOLD_PCT,
+    date: dt.date | None = None,
 ) -> MrpOrderComponent:
     """RG-MRP-11 : l'ecart entre consommation planifiee et reelle est
     constate ligne a ligne ; motif obligatoire au-dela du seuil.
@@ -195,7 +203,11 @@ def consume_component(
     component.qty_consumed = qty_consumed
     component.variance_reason = reason
     component.state = "consumed"
-    component.save(update_fields=["qty_consumed", "variance_reason", "state"])
+    # PRD-9 : la date d'effet, sans laquelle la cloture ne peut valoriser
+    # qu'au CUMP courant. `date` explicite pour une declaration
+    # retroactive ; aujourd'hui a defaut, jamais la date de cloture.
+    component.consumed_at = date or timezone.now().date()
+    component.save(update_fields=["qty_consumed", "variance_reason", "state", "consumed_at"])
     return component
 
 

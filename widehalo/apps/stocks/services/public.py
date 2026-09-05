@@ -110,6 +110,37 @@ def get_variant_unit_cost(tenant: Tenant, variant_id: Any) -> Decimal | None:
     return total_value / total_qty
 
 
+def get_variant_unit_cost_at_date(
+    tenant: Tenant, variant_id: Any, *, at_date: dt.date
+) -> Decimal | None:
+    """CUMP d'une variante A UNE DATE PASSEE (PRD-9, L12-2).
+
+    `get_variant_unit_cost` ci-dessus ne sait donner que le CUMP COURANT :
+    il lit les couches actives, dont `remaining_qty`/`remaining_value_mga`
+    sont un etat ecrase a chaque sortie. Aucune couche ne conserve
+    l'historique date de sa consommation, donc aucune lecture de couche ne
+    peut restituer un cout passe.
+
+    PRD-9 exige pourtant le CUMP « a la date d'effet » de chaque
+    consommation : sur un ordre dont les consommations s'etalent et dont le
+    CUMP bouge entre-temps, le cout de cloture calcule au CUMP courant est
+    faux, parfois de beaucoup. Ce gap expose donc le rejeu
+    (`services.valuation_replay.replay_unit_cost`), qui reconstruit les
+    couches en memoire depuis les `StkMove`.
+
+    **Cout d'appel a connaitre** : le rejeu relit tous les mouvements du
+    variant jusqu'a `at_date`. C'est acceptable a la cloture d'un ordre de
+    fabrication (une fois par ordre, quelques composants), ce n'est PAS un
+    substitut a `get_variant_unit_cost` sur un chemin chaud.
+
+    Retourne `None`, jamais une exception, si aucun stock n'existait a
+    cette date — un zero serait un chiffre faux la ou il n'y a pas de cout
+    a produire, meme discipline que les autres gaps de ce fichier."""
+    from apps.stocks.services.valuation_replay import replay_unit_cost
+
+    return replay_unit_cost(tenant, variant_id=variant_id, at_date=at_date)
+
+
 def check_and_reserve_stock(
     tenant: Tenant,
     *,

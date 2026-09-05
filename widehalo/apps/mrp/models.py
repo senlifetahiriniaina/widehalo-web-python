@@ -354,6 +354,17 @@ class MrpOrderComponent(BaseModel):
     variant_id = models.UUIDField(null=True, blank=True)
     qty_planned = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     qty_consumed = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    # PRD-9 (L12-2) : DATE D'EFFET de la consommation. Le critere exige que
+    # le cout reel d'un ordre cloture soit la somme des consommations
+    # valorisees « au CUMP a leur date d'effet ». Cette date n'etait
+    # enregistree nulle part : `close_order` valorisait donc tout au CUMP
+    # COURANT, celui du jour de la cloture. Sur un ordre dont les
+    # consommations s'etalent et dont le CUMP bouge entre-temps, les deux
+    # different.
+    # `null` pour les composants anterieurs a ce champ : `close_order`
+    # retombe alors explicitement sur le CUMP courant plutot que d'inventer
+    # une date, et le dit dans sa docstring.
+    consumed_at = models.DateField(null=True, blank=True)
     uom_code = models.CharField(max_length=16, blank=True)
     lot = models.CharField(max_length=64, blank=True)
     state = models.CharField(max_length=32, default="planned")

@@ -44,7 +44,11 @@ from apps.stocks.services.public import (
 
 
 def record_component_consumption(
-    component: MrpOrderComponent, *, lot_name: str, qty_consumed: Decimal
+    component: MrpOrderComponent,
+    *,
+    lot_name: str,
+    qty_consumed: Decimal,
+    date: dt.date | None = None,
 ) -> MrpOrderComponent:
     """Renseigne le lot et la quantité réellement consommés pour un
     composant planifié — à faire AVANT la clôture de l'ordre
@@ -65,7 +69,11 @@ def record_component_consumption(
         raise ValidationError(_("La quantité consommée ne peut pas être négative."))
     component.lot = lot_name
     component.qty_consumed = qty_consumed
-    component.save(update_fields=["lot", "qty_consumed"])
+    # PRD-9 (L12-2) : meme date d'effet que `costing.consume_component` —
+    # les deux chemins de declaration doivent la poser, sans quoi la
+    # cloture retomberait au CUMP courant pour l'un des deux.
+    component.consumed_at = date or timezone.now().date()
+    component.save(update_fields=["lot", "qty_consumed", "consumed_at"])
     return component
 
 

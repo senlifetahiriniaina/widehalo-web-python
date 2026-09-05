@@ -5,6 +5,7 @@ sous-traitance."""
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from uuid import UUID
 
@@ -31,6 +32,8 @@ from apps.mrp.models import (
 )
 from apps.mrp.services.bom import explode
 from apps.mrp.services.costing import check_material_reconciliation, compute_real_cost
+
+logger = logging.getLogger(__name__)
 
 
 def create_order(
@@ -197,11 +200,30 @@ def close_order(
     overhead_rate_pct: Decimal = Decimal(0),
     reconciliation_reason: str = "",
 ) -> MrpOrder:
-    """Bloc C, C3 (RG-MRP-6/PRD-9, PRD-7) : la clôture calcule désormais
-    automatiquement le coût réel au CUMP courant (`stocks.services.
-    public.get_variant_unit_cost`, jamais fourni manuellement par
-    l'appelant comme avant ce chantier) + le coût de sous-traitance, et
-    vérifie la réconciliation matière (no-op hors nomenclature process).
+    """Bloc C, C3 (RG-MRP-6/PRD-9, PRD-7) : la clôture calcule
+    automatiquement le coût réel des composants + le coût de
+    sous-traitance, et vérifie la réconciliation matière (no-op hors
+    nomenclature process).
+
+    **PRD-9, corrigé par L12-2 : le CUMP est celui de la DATE D'EFFET de
+    chaque consommation, plus celui du jour de la clôture.** Le critère dit
+    « valorisées au CUMP à leur date d'effet » ; la clôture appelait
+    `get_variant_unit_cost`, dont la docstring dit elle-même « coût
+    unitaire COURANT ». Sur un ordre dont les consommations s'étalent et
+    dont le CUMP bouge entre-temps — une réception plus chère, par exemple
+    — les deux diffèrent, et le coût de revient de l'ordre était celui d'un
+    approvisionnement qui n'avait pas servi à le fabriquer.
+
+    La résolution passe désormais par
+    `stocks.services.public.get_variant_unit_cost_at_date`
+    (`MrpOrderComponent.consumed_at`), qui rejoue les mouvements. **Repli
+    explicite sur le CUMP courant** quand `consumed_at` est `None` : les
+    composants antérieurs à ce champ n'ont pas de date d'effet, et en
+    inventer une serait pire qu'un repli déclaré.
+
+    Les ordres DÉJÀ CLÔTURÉS gardent leur `cost_total_mga` tel quel — même
+    discipline « document validé immuable » qui interdit de retoucher une
+    écriture publiée. La correction ne vaut que pour les clôtures à venir.
 
     `@transaction.atomic` (même discipline que `finish_transformation_
     order`, A2) : si `check_material_reconciliation` refuse (motif
@@ -214,7 +236,10 @@ def close_order(
     # apps.mrp.apps.ready()). `services.costing` n'a pas ce probleme
     # (deja importe au niveau module par `services/public.py` avant
     # `services/orders.py`, aucun cycle reel avec ce module).
-    from apps.stocks.services.public import get_variant_unit_cost
+    from apps.stocks.services.public import (
+        get_variant_unit_cost,
+        get_variant_unit_cost_at_date,
+    )
 
     with transaction.atomic():
         attempt_transition(order, "close", user)
@@ -225,7 +250,29 @@ def close_order(
         for component in order.components.select_related("bom_line").all():
             if component.variant_id is None:
                 continue
-            unit_cost = get_variant_unit_cost(order.tenant, component.variant_id)
+            unit_cost = None
+            if component.consumed_at is not None:
+                unit_cost = get_variant_unit_cost_at_date(
+                    order.tenant, component.variant_id, at_date=component.consumed_at
+                )
+                if unit_cost is None:
+                    # Le rejeu ne trouve aucun stock a cette date. Retomber
+                    # sur le CUMP courant est moins juste, mais laisser le
+                    # composant HORS du cout serait pire : il compterait
+                    # pour zero et le cout de revient serait sous-evalue
+                    # sans que rien ne le dise. Repli journalise, jamais
+                    # silencieux — meme discipline que
+                    # `accounting.services.default_accounts`.
+                    logger.warning(
+                        "Aucun cout historise pour le variant %s au %s (ordre %s) : "
+                        "repli sur le CUMP courant. Le cout de revient de cet ordre "
+                        "n'est donc pas celui de la date d'effet (PRD-9).",
+                        component.variant_id,
+                        component.consumed_at,
+                        order.reference,
+                    )
+            if unit_cost is None:
+                unit_cost = get_variant_unit_cost(order.tenant, component.variant_id)
             if unit_cost is not None:
                 component_unit_costs[component.bom_line.component_template_id] = unit_cost
 
