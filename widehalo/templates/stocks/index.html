@@ -408,14 +408,22 @@
         <tbody>
           {% for line in lines %}
             <tr>
-              {# STK-6 (Phase 3 §13, sprint A4) : comptage a l'aveugle — la
-                 quantite theorique et l'ecart derive restent absents du
-                 HTML rendu (pas un masquage CSS/JS cote client) tant que
-                 l'inventaire n'est pas "validated", pour ne jamais
-                 transformer le comptage en simple confirmation. Si une
-                 future API serialise StkInventoryLine, elle doit reprendre
-                 la meme garde par etat. #}
-              <td>{{ line.variant_id }}</td><td>{{ line.location.code }}</td><td>{% if inventory.state == "validated" %}{{ line.qty_theoretical }}{% else %}—{% endif %}</td><td>{{ line.qty_counted|default:"-" }}</td><td>{% if inventory.state == "validated" %}{{ line.difference }}{% else %}—{% endif %}</td>
+              {# STK-6 (Phase 3 §13, sprint A4 ; mode explicite depuis L13) :
+                 comptage a l'aveugle — la quantite theorique et l'ecart
+                 derive restent ABSENTS DU HTML RENDU (jamais un masquage
+                 CSS/JS cote client) tant que la session aveugle est
+                 ouverte, pour ne jamais transformer le comptage en simple
+                 confirmation.
+
+                 La condition passe par `inventory.hides_expected_quantity`
+                 et non plus par un test d'etat recopie ici. Le commentaire
+                 d'origine prevoyait le risque — « si une future API
+                 serialise StkInventoryLine, elle doit reprendre la meme
+                 garde par etat » — et c'est exactement ce qui a manque :
+                 `POST /stocks/inventories/{id}/lines` renvoyait
+                 `qty_theoretical` en clair. Une seule source de verite
+                 desormais, cote modele. #}
+              <td>{{ line.variant_id }}</td><td>{{ line.location.code }}</td><td>{% if inventory.hides_expected_quantity %}—{% else %}{{ line.qty_theoretical }}{% endif %}</td><td>{{ line.qty_counted|default:"-" }}</td><td>{% if inventory.hides_expected_quantity %}—{% else %}{{ line.difference }}{% endif %}</td>
               <td>
                 {% if inventory.state == "in_progress" %}
                   <form method="post" style="display:inline;">
@@ -454,12 +462,13 @@
     {% else %}
       <h2>{% trans "Inventaires physiques (RG-STK-9)" %}</h2>
       <table class="smart-table">
-        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Entrepôt" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th></th></tr></thead>
+        <thead><tr><th>{% trans "Référence" %}</th><th>{% trans "Entrepôt" %}</th><th>{% trans "Type" %}</th><th>{% trans "Statut" %}</th><th>{% trans "Aveugle" %}</th><th></th></tr></thead>
         <tbody>
           {% for inv in inventories %}
             <tr><td>{{ inv.reference }}</td><td>{{ inv.warehouse.code }}</td><td><span class="badge {{ inv.type|state_badge_class }}">{{ inv.get_type_display }}</span></td><td><span class="badge {{ inv.state|state_badge_class }}">{{ inv.get_state_display }}</span></td>
+              <td>{% if inv.is_blind %}{% trans "Oui" %}{% else %}—{% endif %}</td>
               <td><a href="{% url 'stocks:inventory_detail' inventory_id=inv.id %}">{% trans "Ouvrir" %}</a></td></tr>
-          {% empty %}<tr><td colspan="5">{% trans "Aucun inventaire." %}</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="6">{% trans "Aucun inventaire." %}</td></tr>{% endfor %}
         </tbody>
       </table>
       <h3>{% trans "Nouvel inventaire" %}</h3>
@@ -468,6 +477,7 @@
         <select name="warehouse_id" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}">{{ warehouse.code }}</option>{% endfor %}</select>
         <input type="date" name="date">
         <select name="type">{% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        <label><input type="checkbox" name="is_blind"> {% trans "Comptage à l'aveugle (la quantité attendue reste cachée jusqu'à la validation)" %}</label>
         <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
       </form>
     {% endif %}

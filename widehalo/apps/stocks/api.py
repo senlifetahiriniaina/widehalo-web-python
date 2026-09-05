@@ -47,6 +47,7 @@ from apps.stocks.services.inventory import (
     add_inventory_line,
     create_inventory,
     validate_inventory,
+    visible_inventory_line_rows,
 )
 from apps.stocks.services.measurements import record_measurement
 from apps.stocks.services.moves import (
@@ -307,6 +308,10 @@ class InventoryIn(Schema):
     warehouse_id: str
     date: str
     type: str = StkInventory.TYPE_PONCTUEL
+    # STK-6 (L13) : comptage a l'aveugle. Defaut `False` — le mode aveugle
+    # est un choix explicite de l'organisateur de l'inventaire, jamais un
+    # comportement impose.
+    is_blind: bool = False
 
 
 class InventoryLineIn(Schema):
@@ -645,6 +650,7 @@ def list_inventories(request):
                 "date": inventory.date,
                 "type": inventory.type,
                 "state": inventory.state,
+                "is_blind": inventory.is_blind,
             }
             for inventory in inventories
         ]
@@ -661,8 +667,14 @@ def create_inventory_endpoint(request, payload: InventoryIn):
         warehouse=warehouse,
         date=dt.date.fromisoformat(payload.date),
         type=payload.type,
+        is_blind=payload.is_blind,
     )
-    return {"id": str(inventory.id), "reference": inventory.reference, "state": inventory.state}
+    return {
+        "id": str(inventory.id),
+        "reference": inventory.reference,
+        "state": inventory.state,
+        "is_blind": inventory.is_blind,
+    }
 
 
 @router.post("/stocks/inventories/{inventory_id}/lines")
@@ -677,7 +689,28 @@ def add_inventory_line_endpoint(request, inventory_id: str, payload: InventoryLi
         )
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return {"id": str(line.id), "qty_theoretical": line.qty_theoretical}
+    # LA fuite que L13 ferme : cet endpoint renvoyait `qty_theoretical` en
+    # clair, alors meme que le gabarit la masquait deja. Un compteur muni du
+    # jeton d'API voyait donc le chiffre attendu que l'ecran lui cachait.
+    return {
+        "id": str(line.id),
+        "qty_theoretical": None if inventory.hides_expected_quantity else line.qty_theoretical,
+    }
+
+
+@router.get("/stocks/inventories/{inventory_id}/lines")
+@require_permission("stocks.view_stkinventory")
+def list_inventory_lines_endpoint(request, inventory_id: str):
+    """Lignes de comptage, quantite attendue masquee tant que la session est
+    aveugle et ouverte (STK-6). Passe par `inventory_line_rows`, seul endroit
+    ou cette decision est prise."""
+    inventory = get_object_or_404(StkInventory, id=inventory_id)
+    return {
+        "inventory_id": str(inventory.id),
+        "state": inventory.state,
+        "is_blind": inventory.is_blind,
+        "results": visible_inventory_line_rows(inventory),
+    }
 
 
 @router.post("/stocks/inventories/{inventory_id}/validate")

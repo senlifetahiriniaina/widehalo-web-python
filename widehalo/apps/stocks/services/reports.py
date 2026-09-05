@@ -175,16 +175,28 @@ def traceability_rows(lot: StkLot) -> list[dict[str, Any]]:
 
 def inventory_line_rows(inventory: StkInventory) -> list[dict[str, Any]]:
     """STK-INV — feuille d'inventaire et ecarts : toutes les lignes de
-    `inventory`."""
+    `inventory`.
+
+    **La fuite la plus concrete que L13 ferme** (STK-6). L'ecran masquait la
+    quantite attendue pendant le comptage, et proposait juste en dessous un
+    lien « Telecharger la feuille d'inventaire » qui la restituait en clair.
+    Un compteur contournait donc le mode aveugle en un clic, sans rien faire
+    d'anormal.
+
+    La decision de masquer vit sur le modele
+    (`StkInventory.hides_expected_quantity`), une seule fois, precisement
+    parce qu'elle etait deja prise a deux endroits differents et qu'un
+    troisieme l'avait oubliee."""
+    hidden = inventory.hides_expected_quantity
     lines = StkInventoryLine.objects.filter(inventory=inventory).order_by("location_id", "id")
     return [
         {
             "variant_id": line.variant_id,
             "lot_id": line.lot_id,
             "location_id": line.location_id,
-            "qty_theoretical": line.qty_theoretical,
+            "qty_theoretical": None if hidden else line.qty_theoretical,
             "qty_counted": line.qty_counted,
-            "difference": line.difference,
+            "difference": None if hidden else line.difference,
             "reason": line.reason,
         }
         for line in lines

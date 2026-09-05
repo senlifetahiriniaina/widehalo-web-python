@@ -539,6 +539,9 @@ def inventory_list(request: HttpRequest) -> HttpResponse:
                 warehouse=get_object_or_404(StkWarehouse, id=request.POST.get("warehouse_id")),
                 date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
                 type=request.POST.get("type", StkInventory.TYPE_PONCTUEL),
+                # STK-6 (L13) : choix explicite a la creation, jamais
+                # modifiable ensuite.
+                is_blind=bool(request.POST.get("is_blind")),
             )
         except _EXC as exc:
             error = _error_message(exc)

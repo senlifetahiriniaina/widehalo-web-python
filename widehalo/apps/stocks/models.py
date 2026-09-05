@@ -1107,9 +1107,36 @@ class StkInventory(BaseModel, ReferenceMixin):
     date = models.DateField()
     type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_PONCTUEL)
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    # STK-6 (L13) : comptage a l'aveugle — la quantite attendue n'est
+    # exposee ni par le service, ni par l'API, ni par le gabarit tant que la
+    # session n'est pas terminee. Un compteur qui connait le chiffre attendu
+    # le retrouve : c'est le biais que l'inventaire tournant est cense
+    # eliminer, et le seul defaut qu'aucun test ne pouvait attraper puisque
+    # rien ne le declarait.
+    #
+    # Fige a la creation (`create_inventory` seul le pose) : un mode aveugle
+    # qu'on peut lever en cours de comptage n'est pas un mode aveugle. La
+    # garde vit dans le service, pas dans un `save()` ni une contrainte —
+    # meme discipline que le reste de ce module.
+    is_blind = models.BooleanField(default=False)
     validated_by = models.ForeignKey(
         "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+
+    # Etats ou la session de comptage est terminee : l'ecart peut alors etre
+    # montre, il n'oriente plus rien.
+    COUNTING_CLOSED_STATES = (STATE_VALIDATED, STATE_CANCELLED)
+
+    @property
+    def hides_expected_quantity(self) -> bool:
+        """Vrai tant que la quantite attendue doit rester cachee.
+
+        Sur le modele et non dans une vue : l'API, les gabarits et les
+        services doivent tous repondre la meme chose a cette question, et
+        trois implementations divergeraient le jour ou l'une d'elles serait
+        oubliee — ce qui est exactement ce qui s'est produit ici, le gabarit
+        masquant deja alors que l'API renvoyait le chiffre en clair."""
+        return self.is_blind and self.state not in self.COUNTING_CLOSED_STATES
 
     class Meta:
         db_table = "stk_inventory"

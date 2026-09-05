@@ -116,7 +116,11 @@ def create_inventory(
     warehouse: StkWarehouse,
     date: dt.date,
     type: str,  # noqa: A002
+    is_blind: bool = False,
 ) -> StkInventory:
+    """`is_blind` ne se pose qu'ici (STK-6, L13) : un mode aveugle qu'on
+    peut lever en cours de comptage n'en est pas un. Aucun service, aucune
+    vue et aucun endpoint ne le modifie ensuite."""
     reference = next_reference(tenant, "STKINV", date.year)
     return StkInventory.objects.create(
         tenant=tenant,
@@ -125,7 +129,41 @@ def create_inventory(
         date=date,
         type=type,
         state=StkInventory.STATE_DRAFT,
+        is_blind=is_blind,
     )
+
+
+def visible_inventory_line_rows(inventory: StkInventory) -> list[dict[str, Any]]:
+    """Lignes d'un inventaire, prêtes à être affichées ou sérialisées, avec
+    la quantité attendue MASQUÉE tant que la session est aveugle et ouverte.
+
+    **Le seul endroit** où cette décision est prise. Avant L13, le gabarit
+    masquait déjà (`{% if inventory.state == "validated" %}`) pendant que
+    l'API renvoyait `qty_theoretical` en clair depuis
+    `add_inventory_line_endpoint` : deux implémentations d'une même règle,
+    dont une seule était juste. Les appelants passent désormais par ici.
+
+    `qty_theoretical` et `difference` valent `None` quand elles sont
+    masquées — jamais `0`, qui serait indistinguable d'un stock théorique
+    réellement nul (un premier comptage d'emplacement jamais mouvementé, cas
+    parfaitement valide)."""
+    hidden = inventory.hides_expected_quantity
+    rows: list[dict[str, Any]] = []
+    for line in inventory.lines.select_related("location", "lot").all():
+        rows.append(
+            {
+                "id": str(line.id),
+                "variant_id": str(line.variant_id),
+                "location_id": str(line.location_id),
+                "location_code": line.location.code,
+                "lot_id": str(line.lot_id) if line.lot_id else None,
+                "qty_theoretical": None if hidden else line.qty_theoretical,
+                "qty_counted": line.qty_counted,
+                "difference": None if hidden else line.difference,
+                "reason": line.reason,
+            }
+        )
+    return rows
 
 
 def add_inventory_line(
