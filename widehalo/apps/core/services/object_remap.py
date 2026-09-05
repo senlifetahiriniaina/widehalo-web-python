@@ -16,6 +16,7 @@ au lieu de deux copies potentiellement divergentes."""
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from collections.abc import Iterator
 from typing import Any
@@ -64,7 +65,17 @@ IdRemap = dict[tuple[str, str], Any]
 # tout champ de ce registre car AUCUN n'a de contrainte de format au-dela de
 # "chaine opaque unique" (contrairement a un champ structure : email,
 # reference numerotee...).
-SECRET_TOKEN_FIELD_NAMES = {"token"}
+#
+# **L15** : `token_hash` rejoint ce registre. Depuis ce lot, les deux jetons
+# du depot (`PrjGuestAccess`, `UserEmailChangeRequest`) ne sont plus stockes
+# en clair mais sous forme d'empreinte — le nom de champ `token` a donc
+# disparu, et un registre reste sur le seul `token` aurait cesse de
+# regenerer quoi que ce soit EN SILENCE, ramenant exactement la collision
+# et la fuite cross-tenant decrites ci-dessus. C'est le risque propre a un
+# registre indexe par nom de champ : il ne signale pas ce qu'il ne trouve
+# plus. `tests/architecture/test_secrets_are_never_stored_in_clear.py`
+# verifie desormais que tout champ de secret du depot est couvert.
+SECRET_TOKEN_FIELD_NAMES = {"token", "token_hash"}
 
 
 def regenerate_secret_token_fields(instance: Any) -> None:
@@ -72,10 +83,21 @@ def regenerate_secret_token_fields(instance: Any) -> None:
     `instance`, AVANT sauvegarde — a appeler par tout appelant qui recopie
     un `BaseModel` vers un nouveau tenant (`tenant_export.import_tenant_
     archive`, `sandbox.clone_tenant_to_sandbox`), au meme titre que le
-    remappage d'id/references (cf. docstring de module)."""
+    remappage d'id/references (cf. docstring de module).
+
+    Un champ d'EMPREINTE (`*_hash`) recoit l'empreinte d'un jeton neuf dont
+    le clair est immediatement perdu — c'est le comportement voulu : le lien
+    importe doit etre MORT, pas transferable. Reveiller un lien d'invite en
+    restaurant une sauvegarde serait une porte ouverte silencieuse."""
     for field_name in SECRET_TOKEN_FIELD_NAMES:
         if hasattr(instance, field_name):
-            setattr(instance, field_name, secrets.token_urlsafe(32))
+            fresh = secrets.token_urlsafe(32)
+            value = (
+                hashlib.sha256(fresh.encode("utf-8")).hexdigest()
+                if field_name.endswith("_hash")
+                else fresh
+            )
+            setattr(instance, field_name, value)
 
 
 def remap_generic_fk(imported: Any, id_remap: IdRemap, content_type_labels: dict[int, str]) -> None:

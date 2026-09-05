@@ -50,8 +50,7 @@ aucune FK vers `MrpOrder` (regle de couplage n°1, `stocks` ne fait jamais
 de FK vers `apps.mrp`) — `source_document` (CharField libre, deja etabli
 depuis ST2, cf. docstring `StkMove.source_document`) est la convention
 retenue pour cette correlation : un mouvement `production_in` genere par
-une INTEGRATION future `mrp` -> `stocks` (hors perimetre de ce lot, `mrp`
-ne cree encore aucun `StkMove` lui-meme) devrait renseigner
+l'integration `mrp` -> `stocks` doit renseigner
 `source_document` avec la REFERENCE de l'ordre de fabrication d'origine
 (`MrpOrder.reference`, deja expose par `list_closed_orders` ci-dessous).
 Cette correlation par correspondance de CHAINE (pas de FK reelle) depend

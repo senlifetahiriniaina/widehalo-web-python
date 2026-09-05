@@ -21,6 +21,7 @@ nouvelle dependance, SMTP deja configure au niveau settings)."""
 from __future__ import annotations
 
 import datetime
+import hashlib
 import secrets
 
 from django.conf import settings
@@ -32,6 +33,19 @@ from apps.core.models.user import User, UserEmailChangeRequest
 
 _TOKEN_BYTES = 32
 _EXPIRY_HOURS = 24
+
+
+def hash_token(token: str) -> str:
+    """Empreinte stockee a la place du jeton (L15).
+
+    Duplique volontairement `apps.projects.services.guest_portal.hash_token`
+    plutot que de l'importer : `core` ne depend jamais d'un module metier
+    (regle de couplage n°1 du modulith), et l'inverse — faire porter la
+    fonction par `core` — ferait de `core` le proprietaire d'une primitive
+    que les deux appelants pourraient vouloir faire diverger (rotation
+    d'algorithme sur l'un sans l'autre). Trois lignes identiques valent mieux
+    qu'une dependance qui n'a pas lieu d'etre."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def request_email_change(
@@ -62,16 +76,21 @@ def request_email_change(
             _("Impossible de déterminer la société de la demande de changement d'e-mail.")
         )
 
+    # L15 : la base ne porte que l'empreinte. Le jeton en clair n'existe que
+    # dans cette variable et dans l'e-mail envoye — jamais en base, donc
+    # jamais dans une sauvegarde.
+    token = secrets.token_urlsafe(_TOKEN_BYTES)
     change_request = UserEmailChangeRequest.objects.create(
         tenant_id=tenant_id,
         user=user,
         new_email=new_email,
-        token=secrets.token_urlsafe(_TOKEN_BYTES),
+        token_hash=hash_token(token),
         requested_by=requested_by,
         expires_at=timezone.now() + datetime.timedelta(hours=_EXPIRY_HOURS),
     )
+    change_request.plaintext_token = token
 
-    confirm_url = f"{settings.SITE_URL}/account/confirm-email/{change_request.token}/"
+    confirm_url = f"{settings.SITE_URL}/account/confirm-email/{token}/"
     message = EmailMessage(
         subject="Confirmez votre nouvelle adresse e-mail",
         body=(
@@ -97,7 +116,7 @@ def confirm_email_change(token: str) -> bool:
     cf. docstring de `UserEmailChangeRequest`."""
     if not token:
         return False
-    change_request = UserEmailChangeRequest.all_objects.filter(token=token).first()
+    change_request = UserEmailChangeRequest.all_objects.filter(token_hash=hash_token(token)).first()
     if change_request is None:
         return False
     if change_request.confirmed_at is not None:

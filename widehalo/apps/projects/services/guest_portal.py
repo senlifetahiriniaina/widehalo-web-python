@@ -56,6 +56,7 @@ sensible) ni `custom_fields` (contenu libre non audite pour ce public)."""
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from datetime import datetime
 from typing import Any, TypedDict
@@ -67,6 +68,19 @@ from apps.projects.models import PrjGuestAccess, PrjProject, PrjTask
 from apps.projects.services.gantt import render_gantt_svg
 
 _TOKEN_BYTES = 32
+
+
+def hash_token(token: str) -> str:
+    """Empreinte stockee en base a la place du jeton (L15).
+
+    SHA-256 nu : le jeton porte 256 bits d'entropie cryptographique, il n'y
+    a donc ni dictionnaire ni table arc-en-ciel a lui opposer — le sel et le
+    cout calculatoire d'un `argon2` protegent contre la faible entropie d'un
+    mot de passe humain, absente ici, et rendraient chaque ouverture de lien
+    mesurablement plus couteuse. Deterministe A DESSEIN : c'est ce qui
+    permet la recherche par valeur que `EncryptedCharField` (Fernet, non
+    deterministe) rendrait impossible."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class GuestTaskRow(TypedDict):
@@ -101,19 +115,30 @@ def create_guest_access(
     expires_at: datetime,
     created_by: User | None = None,
 ) -> PrjGuestAccess:
-    """Cree un nouveau lien d'acces invite pour `project`. Le `token` est
+    """Cree un nouveau lien d'acces invite pour `project`. Le jeton est
     TOUJOURS genere ici (jamais fourni par l'appelant) via
     `secrets.token_urlsafe(32)` — module standard dedie aux jetons de
     securite (32 octets d'entropie cryptographique), jamais un UUID4 seul
-    ni `random`, cf. docstring de `PrjGuestAccess`."""
-    return PrjGuestAccess.objects.create(
+    ni `random`, cf. docstring de `PrjGuestAccess`.
+
+    **Le jeton en clair n'est renvoye qu'ici, et une seule fois** (L15) :
+    la ligne ne porte que son empreinte, il est donc impossible de le
+    retrouver ensuite. L'instance renvoyee porte `plaintext_token`, un
+    attribut TRANSITOIRE (jamais un champ, jamais persiste) que l'appelant
+    doit consommer immediatement pour construire le lien remis a l'invite.
+    Perdu ce lien, il faut en creer un autre — c'est la contrepartie
+    assumee, et la meme que celle de toute cle d'API affichee une fois."""
+    token = secrets.token_urlsafe(_TOKEN_BYTES)
+    guest_access = PrjGuestAccess.objects.create(
         tenant=project.tenant,
         project=project,
-        token=secrets.token_urlsafe(_TOKEN_BYTES),
+        token_hash=hash_token(token),
         guest_email=guest_email,
         expires_at=expires_at,
         created_by=created_by,
     )
+    guest_access.plaintext_token = token
+    return guest_access
 
 
 def revoke_guest_access(guest_access: PrjGuestAccess) -> None:
@@ -137,7 +162,7 @@ def resolve_guest_access(token: str) -> PrjGuestAccess | None:
     generique cote vue)."""
     if not token:
         return None
-    guest_access = PrjGuestAccess.all_objects.filter(token=token).first()
+    guest_access = PrjGuestAccess.all_objects.filter(token_hash=hash_token(token)).first()
     if guest_access is None:
         return None
     if guest_access.revoked_at is not None:

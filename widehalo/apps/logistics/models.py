@@ -33,6 +33,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django_fsm import FSMField, transition
 
+from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel, ReferenceMixin
 
 
@@ -365,7 +366,17 @@ class LogServiceProvider(BaseModel):
     # mecanisme propre a l'API Meta Cloud, pas un HMAC generique). Vide
     # par defaut : un transporteur sans webhook configure n'en a pas
     # besoin.
-    webhook_secret = models.CharField(max_length=128, blank=True)
+    #
+    # L15 : chiffre au repos (`EncryptedCharField`, meme mecanisme que
+    # `PrsEmployee.cin`). L'API n'exposait deja que `has_webhook_secret:
+    # bool`, ce qui limitait la fuite par l'application — mais ne protegeait
+    # ni la base ni les SAUVEGARDES, qui sont precisement ce qui circule le
+    # plus. Le champ n'est jamais filtre ni recherche par l'ORM (il est lu
+    # une fois pour calculer un HMAC, cf. `services/webhooks.py`), ce qui est
+    # la condition d'emploi de ce champ chiffre : Fernet n'est pas
+    # deterministe, un `filter(webhook_secret=...)` ne pourrait jamais
+    # correspondre.
+    webhook_secret = EncryptedCharField(max_length=128, blank=True)
 
     class Meta:
         db_table = "log_service_provider"

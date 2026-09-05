@@ -757,8 +757,11 @@ def project_guest_links(request: HttpRequest, project_id: str) -> HttpResponse:
                     expires_at=expires_at,
                     created_by=user,
                 )
+                # `plaintext_token` et jamais `token` : depuis L15, la base ne
+                # porte que l'empreinte du jeton. C'est le seul instant ou le
+                # lien peut etre construit.
                 new_link_url = request.build_absolute_uri(
-                    reverse("projects:guest_view", args=[guest_access.token])
+                    reverse("projects:guest_view", args=[guest_access.plaintext_token])
                 )
             elif action == "revoke":
                 guest_access = get_object_or_404(

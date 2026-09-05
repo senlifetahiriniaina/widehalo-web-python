@@ -152,19 +152,34 @@ class UserEmailChangeRequest(BaseModel):
     navigateur — donc AUCUN tenant n'est necessairement actif au moment de
     resoudre le token (meme probleme de la poule et l'oeuf que le portail
     invite PJ14). `confirm_email_change` (`services/email_change.py`)
-    utilise donc `UserEmailChangeRequest.all_objects.filter(token=...)`,
+    utilise donc `UserEmailChangeRequest.all_objects.filter(token_hash=...)`,
     jamais le manager `objects` filtre par tenant.
 
     **Rejet indiscernable** (token inconnu / deja confirme / expire) :
     `confirm_email_change` renvoie `False` dans les 3 cas, jamais une
     exception, meme discipline que `apps.projects.services.guest_portal.
-    resolve_guest_access`."""
+    resolve_guest_access`.
+
+    **L15 — la base ne stocke que l'empreinte du jeton.** Meme traitement,
+    pour la meme raison, que `PrjGuestAccess.token_hash` : ce jeton donne le
+    pouvoir de changer l'adresse e-mail d'un compte, c'est-a-dire son
+    identifiant de connexion. Une empreinte SHA-256 plutot qu'un chiffrement
+    parce que le champ est cherche par sa valeur (`confirm_email_change`) et
+    que Fernet n'est pas deterministe ; nu, sans sel ni derivation lente,
+    parce que `secrets.token_urlsafe(32)` porte 256 bits d'entropie et n'a
+    donc rien a craindre d'un dictionnaire. L'audit ne signalait que deux
+    secrets en clair (§3.6) ; celui-ci est le troisieme, trouve en fermant
+    les deux autres."""
 
     RLS_FORCE_FOR_OWNER = False
 
+    # Attribut TRANSITOIRE, jamais un champ : le jeton en clair, pose par
+    # `request_email_change` le temps de composer le lien envoye par e-mail.
+    plaintext_token: str | None = None
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_change_requests")
     new_email = models.EmailField()
-    token = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
     requested_by = models.ForeignKey(
         User,
         null=True,

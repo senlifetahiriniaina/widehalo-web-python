@@ -1143,7 +1143,10 @@ def remove_task_dependency_endpoint(
 
 
 def _serialize_guest_access(guest_access: PrjGuestAccess) -> dict[str, Any]:
-    return {
+    """N'expose JAMAIS le jeton, sauf a la creation (cf. ci-dessous) : depuis
+    L15 la base ne porte que son empreinte, et une lecture ne peut donc plus
+    le restituer meme si elle le voulait."""
+    payload = {
         "id": str(guest_access.id),
         "project_id": str(guest_access.project_id),
         "guest_email": guest_access.guest_email,
@@ -1151,6 +1154,13 @@ def _serialize_guest_access(guest_access: PrjGuestAccess) -> dict[str, Any]:
         "revoked_at": guest_access.revoked_at.isoformat() if guest_access.revoked_at else None,
         "permissions": guest_access.permissions,
     }
+    # Uniquement sur l'instance qui sort de `create_guest_access`, jamais sur
+    # une instance relue. Sans cela, un client d'API pouvait creer un acces
+    # invite sans jamais obtenir le lien a transmettre — un defaut anterieur
+    # a L15, que le passage a l'empreinte rend structurel et donc visible.
+    if guest_access.plaintext_token is not None:
+        payload["token"] = guest_access.plaintext_token
+    return payload
 
 
 @router.get("/projects/{project_id}/guest-access")

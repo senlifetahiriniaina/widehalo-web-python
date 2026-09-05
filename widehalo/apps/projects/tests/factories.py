@@ -24,6 +24,7 @@ from apps.projects.models import (
     PrjTimeEntry,
     PrjWikiPage,
 )
+from apps.projects.services.guest_portal import hash_token
 
 
 class PrjProjectFactory(factory.django.DjangoModelFactory):
@@ -157,16 +158,32 @@ class PrjWikiPageFactory(factory.django.DjangoModelFactory):
 
 
 class PrjGuestAccessFactory(factory.django.DjangoModelFactory):
-    """PJ14 — lien de portail invite. `token` genere via `secrets.
-    token_urlsafe` (jamais une sequence previsible), meme discipline que
-    `services/guest_portal.py::create_guest_access`."""
+    """PJ14 — lien de portail invite. Le jeton est genere via
+    `secrets.token_urlsafe` (jamais une sequence previsible), meme discipline
+    que `services/guest_portal.py::create_guest_access`.
+
+    Depuis L15 la base ne porte que `token_hash`. La fabrique reproduit donc
+    exactement le contrat du service : elle genere le jeton en clair, stocke
+    son empreinte, et repose le jeton sur l'instance en `plaintext_token`.
+    Sans cela, aucun test ne pourrait exercer `resolve_guest_access` — et une
+    fabrique qui ne se comporte pas comme la production fait passer des tests
+    qui ne prouvent rien."""
 
     class Meta:
         model = PrjGuestAccess
 
     tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
     project = factory.SubFactory(PrjProjectFactory, tenant=factory.SelfAttribute("..tenant"))
-    token = factory.LazyFunction(lambda: secrets.token_urlsafe(32))
     guest_email = factory.Sequence(lambda n: f"invite{n}@example.com")
     expires_at = factory.LazyFunction(lambda: dt.datetime.now(dt.UTC) + dt.timedelta(days=7))
     permissions = PrjGuestAccess.PERMISSIONS_READ_ONLY
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):  # type: ignore[no-untyped-def]
+        # `plaintext_token` accepte en entree pour les tests qui ont besoin
+        # d'un jeton connu d'avance ; genere sinon.
+        plaintext = kwargs.pop("plaintext_token", None) or secrets.token_urlsafe(32)
+        kwargs.setdefault("token_hash", hash_token(plaintext))
+        instance = super()._create(model_class, *args, **kwargs)
+        instance.plaintext_token = plaintext
+        return instance

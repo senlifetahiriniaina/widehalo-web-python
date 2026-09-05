@@ -109,11 +109,19 @@ def order_confirmation_pdf(order: SalesOrder) -> bytes:
 
 
 def delivery_note_rows(order: SalesOrder) -> list[dict[str, Any]]:
-    """SAL-BL — bon de livraison, portee MINIMALE assumee (documentee) :
-    `apps.stocks` n'existe pas encore (pas de numero de colis/emplacement
-    entrepot/transporteur reel a afficher) — se contente de lister les
-    lignes de la commande avec ce qui est deja livre, suffisant pour un
-    accuse de reception papier basique."""
+    """SAL-BL — bon de livraison, portee MINIMALE assumee (documentee) : se
+    contente de lister les lignes de la commande avec ce qui est deja livre,
+    suffisant pour un accuse de reception papier basique.
+
+    **Correction L15** : cette docstring affirmait « `apps.stocks` n'existe
+    pas encore » pour justifier l'absence de numero de colis, d'emplacement
+    d'entrepot et de transporteur. Le module existe depuis la Phase 3, et
+    `apps.logistics` porte meme les transporteurs. La portee reste minimale,
+    mais c'est desormais un CHOIX et non une contrainte : enrichir ce bon de
+    livraison suppose de decider ce qu'un client doit voir d'un mouvement de
+    stock interne, et cette decision n'a pas ete prise. La justification
+    perimee est retiree parce qu'un motif faux empeche de rouvrir la
+    question."""
     return [
         {
             "description": line.description,

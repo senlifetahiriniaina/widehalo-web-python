@@ -41,6 +41,7 @@ from apps.core.models.workflow import (
     ApprovalRule,
     StateTransitionLog,
 )
+from apps.core.services.email_change import hash_token
 
 
 class TenantFactory(factory.django.DjangoModelFactory):
@@ -96,8 +97,12 @@ class UserTenantMembershipFactory(factory.django.DjangoModelFactory):
 
 
 class UserEmailChangeRequestFactory(factory.django.DjangoModelFactory):
-    """UXR1 — `token` genere via `secrets.token_urlsafe`, meme discipline
-    que `PrjGuestAccessFactory` (jamais une sequence previsible)."""
+    """UXR1 — jeton genere via `secrets.token_urlsafe`, meme discipline que
+    `PrjGuestAccessFactory` (jamais une sequence previsible).
+
+    Depuis L15 la base ne porte que `token_hash` : la fabrique reproduit donc
+    le contrat du service — empreinte en base, jeton en clair repose sur
+    l'instance en `plaintext_token`."""
 
     class Meta:
         model = UserEmailChangeRequest
@@ -105,11 +110,18 @@ class UserEmailChangeRequestFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     user = factory.SubFactory(UserFactory)
     new_email = factory.Sequence(lambda n: f"nouveladresse{n}@example.com")
-    token = factory.LazyFunction(lambda: secrets.token_urlsafe(32))
     requested_by = factory.SubFactory(UserFactory)
     expires_at = factory.LazyFunction(
         lambda: datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=24)
     )
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):  # type: ignore[no-untyped-def]
+        plaintext = kwargs.pop("plaintext_token", None) or secrets.token_urlsafe(32)
+        kwargs.setdefault("token_hash", hash_token(plaintext))
+        instance = super()._create(model_class, *args, **kwargs)
+        instance.plaintext_token = plaintext
+        return instance
 
 
 class SavedTableViewFactory(factory.django.DjangoModelFactory):

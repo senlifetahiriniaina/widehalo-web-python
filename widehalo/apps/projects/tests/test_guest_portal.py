@@ -9,6 +9,7 @@ sensible/de navigation authentifiee dans la page rendue."""
 from __future__ import annotations
 
 import datetime as dt
+import re
 from decimal import Decimal
 
 import pytest
@@ -23,6 +24,7 @@ from apps.projects.services.evm import add_budget_line
 from apps.projects.services.guest_portal import (
     create_guest_access,
     get_guest_project_view,
+    hash_token,
     resolve_guest_access,
     revoke_guest_access,
 )
@@ -71,13 +73,13 @@ def test_create_guest_access_generates_secure_token(guest_ctx) -> None:
     assert guest_access.tenant_id == tenant.id
     assert guest_access.project_id == project.id
     # secrets.token_urlsafe(32) -> 43 caracteres, alphabet URL-safe.
-    assert len(guest_access.token) >= 32
+    assert len(guest_access.plaintext_token) >= 32
     assert guest_access.permissions == PrjGuestAccess.PERMISSIONS_READ_ONLY
 
 
 def test_resolve_guest_access_valid_token_succeeds(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
-    resolved = resolve_guest_access(guest_access.token)
+    resolved = resolve_guest_access(guest_access.plaintext_token)
     assert resolved is not None
     assert resolved.id == guest_access.id
 
@@ -96,7 +98,7 @@ def test_resolve_guest_access_expired_token_returns_none(guest_ctx) -> None:
         expired = create_guest_access(
             project, guest_email="expired@external.example", expires_at=_PAST
         )
-    assert resolve_guest_access(expired.token) is None
+    assert resolve_guest_access(expired.plaintext_token) is None
 
 
 def test_resolve_guest_access_future_expiry_is_accepted(guest_ctx) -> None:
@@ -105,22 +107,22 @@ def test_resolve_guest_access_future_expiry_is_accepted(guest_ctx) -> None:
         access = create_guest_access(
             project, guest_email="future@external.example", expires_at=_FUTURE
         )
-    assert resolve_guest_access(access.token) is not None
+    assert resolve_guest_access(access.plaintext_token) is not None
 
 
 def test_resolve_guest_access_revoked_token_returns_none(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
     revoke_guest_access(guest_access)
-    assert resolve_guest_access(guest_access.token) is None
+    assert resolve_guest_access(guest_access.plaintext_token) is None
 
 
 def test_revoke_guest_access_invalidates_previously_working_token(guest_ctx) -> None:
     """Creation -> l'acces fonctionne -> revocation -> le MEME token ne
     fonctionne plus."""
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
-    assert resolve_guest_access(guest_access.token) is not None
+    assert resolve_guest_access(guest_access.plaintext_token) is not None
     revoke_guest_access(guest_access)
-    assert resolve_guest_access(guest_access.token) is None
+    assert resolve_guest_access(guest_access.plaintext_token) is None
 
 
 def test_revoke_guest_access_is_idempotent(guest_ctx) -> None:
@@ -191,7 +193,7 @@ def test_resolve_guest_access_never_leaks_across_tenants() -> None:
         )
 
     # Le token A resout STRICTEMENT vers le tenant A, jamais B.
-    resolved_a = resolve_guest_access(access_a.token)
+    resolved_a = resolve_guest_access(access_a.plaintext_token)
     assert resolved_a is not None
     assert resolved_a.tenant_id == tenant_a.id
     assert resolved_a.tenant_id != tenant_b.id
@@ -204,7 +206,7 @@ def test_resolve_guest_access_never_leaks_across_tenants() -> None:
     assert str(task_b.id) not in task_ids_a  # contenu reel verifie, pas juste un compte
 
     # Symetriquement pour B.
-    resolved_b = resolve_guest_access(access_b.token)
+    resolved_b = resolve_guest_access(access_b.plaintext_token)
     assert resolved_b is not None
     assert resolved_b.tenant_id == tenant_b.id
     with use_tenant(resolved_b.tenant_id):
@@ -227,7 +229,7 @@ def _guest_url(token: str) -> str:
 def test_guest_http_view_valid_token_renders_project_data(guest_ctx) -> None:
     tenant, project, task, milestone, guest_access, _user = guest_ctx
     client = Client()
-    response = client.get(_guest_url(guest_access.token))
+    response = client.get(_guest_url(guest_access.plaintext_token))
     assert response.status_code == 200
     content = response.content.decode()
     assert project.name in content
@@ -238,7 +240,7 @@ def test_guest_http_view_valid_token_renders_project_data(guest_ctx) -> None:
 def test_guest_http_view_never_exposes_financial_figures(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
     client = Client()
-    response = client.get(_guest_url(guest_access.token))
+    response = client.get(_guest_url(guest_access.plaintext_token))
     content = response.content.decode()
     assert "75000" not in content
     assert "Ligne sensible" not in content
@@ -250,7 +252,7 @@ def test_guest_http_view_never_exposes_financial_figures(guest_ctx) -> None:
 def test_guest_http_view_has_no_authenticated_navigation(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
     client = Client()
-    response = client.get(_guest_url(guest_access.token))
+    response = client.get(_guest_url(guest_access.plaintext_token))
     content = response.content.decode()
     assert "app-menu" not in content
     assert "/login/" not in content
@@ -272,7 +274,7 @@ def test_guest_http_view_expired_token_returns_404(guest_ctx) -> None:
             project, guest_email="expired@external.example", expires_at=_PAST
         )
     client = Client()
-    response = client.get(_guest_url(expired.token))
+    response = client.get(_guest_url(expired.plaintext_token))
     assert response.status_code == 404
 
 
@@ -280,7 +282,7 @@ def test_guest_http_view_revoked_token_returns_404(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
     revoke_guest_access(guest_access)
     client = Client()
-    response = client.get(_guest_url(guest_access.token))
+    response = client.get(_guest_url(guest_access.plaintext_token))
     assert response.status_code == 404
 
 
@@ -301,8 +303,8 @@ def test_guest_http_view_404_responses_are_indistinguishable(guest_ctx) -> None:
 
     client = Client()
     resp_unknown = client.get(_guest_url("never-existed-token-xyz"))
-    resp_expired = client.get(_guest_url(expired.token))
-    resp_revoked = client.get(_guest_url(revoked.token))
+    resp_expired = client.get(_guest_url(expired.plaintext_token))
+    resp_revoked = client.get(_guest_url(revoked.plaintext_token))
 
     assert resp_unknown.status_code == resp_expired.status_code == resp_revoked.status_code == 404
     assert resp_unknown.content == resp_expired.content == resp_revoked.content
@@ -311,7 +313,7 @@ def test_guest_http_view_404_responses_are_indistinguishable(guest_ctx) -> None:
 def test_guest_http_view_rejects_post(guest_ctx) -> None:
     _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
     client = Client()
-    response = client.post(_guest_url(guest_access.token), {"anything": "1"})
+    response = client.post(_guest_url(guest_access.plaintext_token), {"anything": "1"})
     assert response.status_code == 405
 
 
@@ -343,7 +345,7 @@ def test_guest_http_view_cross_tenant_isolation_end_to_end() -> None:
     # (`task.id`, globalement unique, jamais reutilise d'un tenant a
     # l'autre) plutot que sur la reference lisible.
     client = Client()
-    response_a = client.get(_guest_url(access_a.token))
+    response_a = client.get(_guest_url(access_a.plaintext_token))
     content_a = response_a.content.decode()
     assert response_a.status_code == 200
     assert "Alpha Confidentiel" in content_a
@@ -351,7 +353,7 @@ def test_guest_http_view_cross_tenant_isolation_end_to_end() -> None:
     assert "Beta Confidentiel" not in content_a
     assert str(task_b.id) not in content_a
 
-    response_b = client.get(_guest_url(access_b.token))
+    response_b = client.get(_guest_url(access_b.plaintext_token))
     content_b = response_b.content.decode()
     assert response_b.status_code == 200
     assert "Beta Confidentiel" in content_b
@@ -386,10 +388,20 @@ def test_project_guest_links_create_and_revoke_screen(guest_ctx) -> None:
     assert response.status_code == 200
     assert b"guest/" in response.content
 
+    # Depuis L15, le jeton en clair n'existe qu'a l'instant de la creation :
+    # il est relu DEPUIS L'ECRAN et non depuis la base, ce qui verifie en
+    # meme temps que la page affiche bien un lien utilisable. Une relecture
+    # de la ligne ne rendrait plus que son empreinte.
+    match = re.search(r"/projects/guest/([A-Za-z0-9_-]+)/", response.content.decode())
+    assert match is not None, "L'ecran n'affiche aucun lien invite exploitable."
+    issued_token = match.group(1)
+
     with use_tenant(tenant.id):
         created = PrjGuestAccess.objects.get(guest_email="new-guest@external.example")
+    assert created.plaintext_token is None, "Une ligne relue ne doit plus porter le jeton."
+
     guest_client = Client()
-    assert guest_client.get(_guest_url(created.token)).status_code == 200
+    assert guest_client.get(_guest_url(issued_token)).status_code == 200
 
     revoke_response = client.post(
         f"/projects/{project.id}/guest-links/",
@@ -397,4 +409,45 @@ def test_project_guest_links_create_and_revoke_screen(guest_ctx) -> None:
         HTTP_X_TENANT_ID=str(tenant.id),
     )
     assert revoke_response.status_code == 200
-    assert guest_client.get(_guest_url(created.token)).status_code == 404
+    assert guest_client.get(_guest_url(issued_token)).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# L15 — la base ne stocke plus le jeton en clair
+# ---------------------------------------------------------------------------
+
+
+def test_the_database_never_holds_the_plaintext_token(guest_ctx) -> None:
+    """La preuve qui compte : ce qu'une lecture de la base — ou d'une
+    SAUVEGARDE — donne a qui la consulte. Avant L15, le jeton lui-meme, donc
+    un acces en lecture a tous les projets partages."""
+    from django.db import connection
+
+    _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
+    token = guest_access.plaintext_token
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT token_hash FROM prj_guest_access WHERE id = %s", [str(guest_access.id)]
+        )
+        (stored,) = cursor.fetchone()
+
+    assert stored != token
+    assert token not in stored
+    assert stored == hash_token(token)
+
+
+def test_a_previously_issued_link_still_resolves(guest_ctx) -> None:
+    """Passer a l'empreinte ne devait casser aucun lien deja distribue :
+    l'empreinte se recalcule a partir du meme jeton."""
+    _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
+    assert resolve_guest_access(guest_access.plaintext_token) is not None
+
+
+def test_the_plaintext_token_is_gone_once_the_row_is_reread(guest_ctx) -> None:
+    """Contrepartie assumee : le lien ne peut plus etre reconstruit apres
+    coup, ni par l'application, ni par un administrateur. Perdu, il faut en
+    emettre un autre."""
+    _tenant, _project, _task, _milestone, guest_access, _user = guest_ctx
+    reread = PrjGuestAccess.all_objects.get(id=guest_access.id)
+    assert reread.plaintext_token is None

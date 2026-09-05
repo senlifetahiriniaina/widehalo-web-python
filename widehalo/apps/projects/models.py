@@ -777,18 +777,42 @@ class PrjGuestAccess(BaseModel):
     (`apps.core.services.rbac_policy` — ce portail est explicitement HORS
     de ce systeme, cf. `apps/projects/services/guest_portal.py`).
 
-    **`token`** : genere par `secrets.token_urlsafe(32)` (cote service,
-    jamais ici) — 32 octets d'entropie cryptographique, encodes en
-    base64 URL-safe (~43 caracteres). Deliberement PAS un UUID4 seul :
-    bien qu'un UUID4 soit lui-meme tire d'un generateur cryptographique
-    sur CPython, un identifiant technique de ce type reste concu pour
-    l'UNICITE, pas explicitement documente/audite comme un secret
-    resistant a l'enumeration — `secrets.token_urlsafe` est le module
-    standard prevu specifiquement pour generer des jetons de securite
-    (cf. https://docs.python.org/3/library/secrets.html), c'est le choix
-    qui doit rester la seule source de ce champ. `unique=True` +
-    `db_index=True` : la recherche par token (cf. `resolve_guest_access`)
-    doit rester O(1)/O(log n), jamais un scan complet de la table.
+    **`token_hash`** : le jeton en clair genere par
+    `secrets.token_urlsafe(32)` (cote service, jamais ici) — 32 octets
+    d'entropie cryptographique, encodes en base64 URL-safe (~43
+    caracteres). Deliberement PAS un UUID4 seul : bien qu'un UUID4 soit
+    lui-meme tire d'un generateur cryptographique sur CPython, un
+    identifiant technique de ce type reste concu pour l'UNICITE, pas
+    explicitement documente/audite comme un secret resistant a
+    l'enumeration — `secrets.token_urlsafe` est le module standard prevu
+    specifiquement pour generer des jetons de securite (cf.
+    https://docs.python.org/3/library/secrets.html), c'est le choix qui
+    doit rester la seule source de ce jeton.
+
+    **L15 — la base ne stocke plus le jeton, seulement son empreinte.**
+    Le jeton en clair n'existe qu'a l'instant de la creation, le temps de
+    construire le lien remis a l'invite ; la ligne ne porte que
+    `sha256(jeton)`. Une lecture de la base ou d'une SAUVEGARDE ne donne
+    donc plus acces a aucun projet.
+
+    Une EMPREINTE et non un chiffrement, contrairement a
+    `LogServiceProvider.webhook_secret` traite dans le meme lot : ce champ
+    est cherche PAR SA VALEUR (`resolve_guest_access`), et
+    `EncryptedCharField` repose sur Fernet, qui n'est pas deterministe —
+    un `filter(token=...)` sur un champ chiffre ne correspondrait jamais,
+    et le portail invite entier cesserait silencieusement de fonctionner.
+
+    SHA-256 nu, sans sel ni derivation lente (PBKDF2/argon2) : ce n'est
+    pas un mot de passe. Le jeton porte 256 bits d'entropie tires d'un
+    generateur cryptographique, il n'existe donc ni dictionnaire ni table
+    arc-en-ciel a lui opposer — le sel et le cout calculatoire protegent
+    contre la faible entropie humaine, absente ici. Une derivation lente
+    rendrait en revanche chaque ouverture de lien mesurablement plus
+    couteuse.
+
+    `unique=True` + `db_index=True` sur l'empreinte : la resolution (cf.
+    `resolve_guest_access`) doit rester O(1)/O(log n), jamais un scan
+    complet de la table.
 
     **Revocation** (`revoked_at`) distincte de l'expiration naturelle
     (`expires_at`) : un lien peut avoir ete partage par erreur ou son
@@ -815,13 +839,19 @@ class PrjGuestAccess(BaseModel):
 
     RLS_FORCE_FOR_OWNER = False
 
+    # Attribut TRANSITOIRE, jamais un champ et jamais persiste : le jeton en
+    # clair, pose par `create_guest_access` le temps que l'appelant construise
+    # le lien remis a l'invite. Vaut `None` sur toute instance relue depuis la
+    # base — c'est le point de tout le mecanisme.
+    plaintext_token: str | None = None
+
     PERMISSIONS_READ_ONLY = "read_only"
     PERMISSIONS_CHOICES = [
         (PERMISSIONS_READ_ONLY, _("Lecture seule")),
     ]
 
     project = models.ForeignKey(PrjProject, on_delete=models.CASCADE, related_name="guest_accesses")
-    token = models.CharField(max_length=128, unique=True, db_index=True, editable=False)
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
     guest_email = models.EmailField()
     expires_at = models.DateTimeField()
     permissions = models.CharField(

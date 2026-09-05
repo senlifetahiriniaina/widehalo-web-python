@@ -44,14 +44,14 @@ def test_request_email_change_creates_row_and_sends_email(tenant: Tenant) -> Non
     assert change_request.new_email == "new@example.com"
     assert change_request.requested_by_id == admin.id
     assert change_request.confirmed_at is None
-    assert change_request.token
+    assert change_request.plaintext_token
     user.refresh_from_db()
     assert user.email == "old@example.com"  # jamais ecrit avant confirmation
 
     assert len(mail.outbox) == 1
     sent = mail.outbox[0]
     assert sent.to == ["new@example.com"]
-    assert change_request.token in sent.body
+    assert change_request.plaintext_token in sent.body
 
 
 def test_request_email_change_self_service_has_no_requested_by(tenant: Tenant) -> None:
@@ -72,7 +72,7 @@ def test_confirm_email_change_with_valid_token_changes_email() -> None:
     user = UserFactory(email="before@example.com")
     change_request = UserEmailChangeRequestFactory(user=user, new_email="after@example.com")
 
-    result = confirm_email_change(change_request.token)
+    result = confirm_email_change(change_request.plaintext_token)
 
     assert result is True
     user.refresh_from_db()
@@ -100,7 +100,7 @@ def test_confirm_email_change_expired_token_fails() -> None:
         expires_at=dt.datetime(2020, 1, 1, tzinfo=dt.UTC),
     )
 
-    assert confirm_email_change(change_request.token) is False
+    assert confirm_email_change(change_request.plaintext_token) is False
     user.refresh_from_db()
     assert user.email == "expired@example.com"
 
@@ -110,13 +110,13 @@ def test_confirm_email_change_already_confirmed_token_fails() -> None:
     change_request = UserEmailChangeRequestFactory(
         user=user, new_email="second-attempt@example.com"
     )
-    assert confirm_email_change(change_request.token) is True
+    assert confirm_email_change(change_request.plaintext_token) is True
     user.refresh_from_db()
     assert user.email == "second-attempt@example.com"
 
     # Un second appel avec le MEME token (deja confirme) echoue — l'e-mail
     # ne change plus, meme si un nouvel appelant tentait de rejouer le lien.
-    assert confirm_email_change(change_request.token) is False
+    assert confirm_email_change(change_request.plaintext_token) is False
 
 
 def test_confirm_email_change_three_failure_cases_are_indistinguishable() -> None:
@@ -127,13 +127,13 @@ def test_confirm_email_change_three_failure_cases_are_indistinguishable() -> Non
     unknown_result = confirm_email_change("does-not-exist")
 
     confirmed = UserEmailChangeRequestFactory(user=UserFactory())
-    confirm_email_change(confirmed.token)
-    already_confirmed_result = confirm_email_change(confirmed.token)
+    confirm_email_change(confirmed.plaintext_token)
+    already_confirmed_result = confirm_email_change(confirmed.plaintext_token)
 
     expired = UserEmailChangeRequestFactory(
         user=UserFactory(), expires_at=dt.datetime(2020, 1, 1, tzinfo=dt.UTC)
     )
-    expired_result = confirm_email_change(expired.token)
+    expired_result = confirm_email_change(expired.plaintext_token)
 
     assert unknown_result is already_confirmed_result is expired_result is False
 
@@ -146,7 +146,7 @@ def test_confirm_email_view_is_public_and_does_not_require_login() -> None:
     change_request = UserEmailChangeRequestFactory(user=user, new_email="public2@example.com")
 
     client = Client()  # jamais de connexion prealable
-    response = client.get(f"/account/confirm-email/{change_request.token}/")
+    response = client.get(f"/account/confirm-email/{change_request.plaintext_token}/")
 
     assert response.status_code == 200
     user.refresh_from_db()
