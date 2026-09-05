@@ -25,6 +25,7 @@ from apps.mrp.models import (
     MrpWorkcenter,
     MrpWorkshop,
 )
+from apps.mrp.services.bom import explode as _explode_bom
 from apps.mrp.services.costing import simulate_bom_cost as _simulate_bom_cost
 from apps.mrp.services.interventions import create_cri
 from apps.mrp.services.orders import create_order
@@ -87,6 +88,29 @@ def list_active_boms_for_product(product_template_id: Any) -> list[dict[str, Any
     de version de patron."""
     boms = MrpBom.objects.filter(product_template_id=product_template_id, state=MrpBom.STATE_ACTIVE)
     return [{"id": bom.id, "code": bom.code, "version": bom.version} for bom in boms]
+
+
+def explode_material_needs(product_template_id: Any, qty: Decimal) -> list[dict[str, Any]] | None:
+    """Bloc F, F1 : explosion de la nomenclature ACTIVE de
+    `product_template_id` pour `qty` unites — enveloppe fine de
+    `apps.mrp.services.bom.explode` (seule implementation reelle,
+    jamais dupliquee), meme resolution ACTIVE-par-`.first()` que
+    `_explode_level` (bom.py) pour une eventuelle nomenclature enfant.
+    Retourne `None`, jamais une exception, si aucune nomenclature
+    active n'existe pour ce produit (meme discipline que `simulate_
+    bom_cost`) — a charge de l'appelant (`forecast.services.
+    material_needs`) de traiter ce cas comme un produit fini non
+    decompose (demande directe, pas de composants a en deduire).
+
+    N'applique JAMAIS le rendement/les sous-produits d'une nomenclature
+    de type PROCESS (`expected_yield_pct`/`by_products`, C5) : `explode`
+    lui-meme les ignore, purement declaratifs (cf. sa docstring)."""
+    bom = MrpBom.objects.filter(
+        product_template_id=product_template_id, state=MrpBom.STATE_ACTIVE
+    ).first()
+    if bom is None:
+        return None
+    return _explode_bom(bom, qty)
 
 
 def create_manufacturing_order(

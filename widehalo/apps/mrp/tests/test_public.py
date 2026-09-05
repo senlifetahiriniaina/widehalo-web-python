@@ -19,9 +19,10 @@ from django.utils import timezone
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.mrp.models import MrpOrder, MrpSupplierEvaluation
-from apps.mrp.services.bom import activate_bom, create_bom
+from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
 from apps.mrp.services.public import (
     create_manufacturing_order,
+    explode_material_needs,
     get_order_produced_qty,
     get_supplier_score,
     get_total_workshop_capacity,
@@ -46,6 +47,42 @@ def public_setup():
     tenant = Tenant.objects.create(code="MRP-PUB", name="MRP Public Tenant")
     with use_tenant(tenant.id):
         return tenant
+
+
+def test_explode_material_needs_returns_none_without_active_bom(public_setup) -> None:
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        assert explode_material_needs(uuid.uuid4(), Decimal(10)) is None
+
+
+def test_explode_material_needs_explodes_the_active_bom(public_setup) -> None:
+    """Bloc F, F1 : enveloppe fine de `apps.mrp.services.bom.explode` —
+    resout la nomenclature ACTIVE par `product_template_id` (jamais par
+    `bom_id`, contrairement à `simulate_bom_cost`, car l'appelant
+    `forecast.services.material_needs` ne connaît que le produit fini
+    prévu, pas sa nomenclature)."""
+    tenant = public_setup
+    with use_tenant(tenant.id):
+        product_template_id = uuid.uuid4()
+        component_template_id = uuid.uuid4()
+        component_variant_id = uuid.uuid4()
+        bom = create_bom(
+            tenant=tenant, code="BOM-PUB-EXPL", product_template_id=product_template_id
+        )
+        add_bom_line(
+            bom,
+            component_template_id=component_template_id,
+            component_variant_id=component_variant_id,
+            qty=Decimal("2.5"),
+        )
+        activate_bom(bom)
+
+        result = explode_material_needs(product_template_id, Decimal(10))
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["component_variant_id"] == component_variant_id
+        assert result[0]["qty"] == Decimal("25.0")
 
 
 def test_create_manufacturing_order_creates_real_order_when_bom_and_workshop_exist(

@@ -11,6 +11,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.services.permissions import require_permission
 from apps.forecast.models import ForSeriesForecast
 from apps.forecast.services.compute import compute_and_store_forecast
+from apps.forecast.services.material_needs import compute_material_needs
 from ninja import Router
 
 router = Router(tags=["forecast"])
@@ -48,3 +49,16 @@ def compute_series_endpoint(
         tenant, dimension_type=dimension_type, dimension_value=dimension_value
     )
     return {"computed": len(rows)}
+
+
+@router.get("/forecast/material-needs")
+@require_permission("forecast.view_forseriesforecast")
+def material_needs_endpoint(request: Any, period_from: str, period_to: str) -> dict[str, Any]:
+    """Bloc F, F1 : seul point d'entrée réel de `services.material_needs.
+    compute_material_needs` — même permission que `list_series_endpoint`
+    (aucun modèle dédié à « besoin matière », `direction`/
+    `controleur_gestion` restent l'audience actuelle du module
+    `forecast`, cf. `ROLE_APP_PERMISSIONS`)."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    needs = compute_material_needs(tenant, period_from=period_from, period_to=period_to)
+    return {"results": needs}

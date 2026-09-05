@@ -23,11 +23,27 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 
+from apps.catalog.services.public import get_conversion_factor, get_variant_base_uom_code
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.purchase.models import PurOrder, PurReceiptLine
+from apps.purchase.models import PurOrder, PurOrderLine, PurReceiptLine
 from apps.purchase.services.cri import create_cri
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
+
+# Bloc F, F1 : commande fournisseur "en cours" = deja engagee et pas
+# encore integralement receptionnee/close/annulee. Decision de cadrage
+# (aucun precedent ne definissait cet ensemble avant ce sprint) :
+# SENT/CONFIRMED/IN_TRANSIT/PARTIALLY_RECEIVED — jamais un brouillon
+# non confirme (DRAFT/TO_VALIDATE/VALIDATED, pas encore un engagement
+# ferme envers le fournisseur), jamais RECEIVED/INVOICED/CLOSED (plus
+# rien a recevoir), jamais CANCELLED/IN_DISPUTE (approvisionnement
+# compromis, ne doit pas etre compte comme un apport futur fiable).
+_OPEN_ORDER_STATES = (
+    PurOrder.STATE_SENT,
+    PurOrder.STATE_CONFIRMED,
+    PurOrder.STATE_IN_TRANSIT,
+    PurOrder.STATE_PARTIALLY_RECEIVED,
+)
 
 
 def open_purchase_incident(
@@ -223,3 +239,35 @@ def list_receipt_lines_for_warehouse(
         }
         for line in qs
     ]
+
+
+def get_open_order_qty(variant_id: Any) -> Decimal:
+    """Bloc F, F1 : quantité restant à recevoir (`qty - qty_received`)
+    sur les commandes fournisseur EN COURS (cf. `_OPEN_ORDER_STATES` ci-
+    dessus pour la définition exacte) pour `variant_id`, convertie dans
+    l'UNITÉ DE STOCK de la variante — `PurOrderLine.qty`/`uom` restent
+    TOUJOURS exprimés dans l'unité d'ACHAT de la ligne (jamais
+    contrainte à l'unité de stock, cf. docstring `PurOrderLine`), même
+    conversion DÉCLARÉE que `stocks.services.public.
+    receive_purchase_line` (B1, `catalog.services.public.
+    get_conversion_factor`) — jamais un facteur deviné.
+
+    Une ligne dont l'unité d'achat n'a pas de facteur de conversion
+    déclaré vers l'unité de stock est ignorée (gap de configuration à
+    la charge du tenant, même discipline que `receive_purchase_line` —
+    jamais une estimation silencieuse à facteur 1). Retourne
+    `Decimal(0)` si la variante elle-même est inconnue."""
+    stock_uom_code = get_variant_base_uom_code(variant_id)
+    if stock_uom_code is None:
+        return Decimal(0)
+    total = Decimal(0)
+    lines = PurOrderLine.objects.filter(order__state__in=_OPEN_ORDER_STATES, variant_id=variant_id)
+    for line in lines:
+        remaining = line.qty - line.qty_received
+        if remaining <= 0:
+            continue
+        factor = get_conversion_factor(from_uom_code=line.uom, to_uom_code=stock_uom_code)
+        if factor is None:
+            continue
+        total += remaining * factor
+    return total

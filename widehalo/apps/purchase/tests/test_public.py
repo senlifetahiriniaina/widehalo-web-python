@@ -14,14 +14,21 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 
-from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
+from apps.catalog.models import ProductTemplate, ProductVariant, UnitConversion, UnitOfMeasure
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.purchase.models import PurCri, PurReceiptLine, PurRequisition, PurRequisitionLine
+from apps.purchase.models import (
+    PurCri,
+    PurOrder,
+    PurReceiptLine,
+    PurRequisition,
+    PurRequisitionLine,
+)
 from apps.purchase.services.orders import create_order
 from apps.purchase.services.public import (
     create_requisition_line_from_source,
+    get_open_order_qty,
     get_order_summary,
     list_receipt_lines_for_warehouse,
     open_purchase_incident,
@@ -40,6 +47,88 @@ def incident_setup():
     tenant = Tenant.objects.create(code="PUR-PUB-INC", name="Purchase Public Incident Tenant")
     with use_tenant(tenant.id):
         return tenant
+
+
+@pytest.fixture
+def open_order_setup():
+    tenant = Tenant.objects.create(code="PUR-PUB-OPEN", name="Purchase Public Open Order Tenant")
+    with use_tenant(tenant.id):
+        return tenant
+
+
+def test_get_open_order_qty_returns_zero_for_unknown_variant(open_order_setup) -> None:
+    tenant = open_order_setup
+    with use_tenant(tenant.id):
+        assert get_open_order_qty(uuid.uuid4()) == Decimal(0)
+
+
+def test_get_open_order_qty_sums_remaining_qty_converted_to_stock_uom(open_order_setup) -> None:
+    """Bloc F, F1 : « en cours » = confirmée/envoyée/en transit/
+    partiellement reçue — jamais un brouillon, jamais close/reçue/
+    annulée/en litige. `qty - qty_received` est converti dans l'unité de
+    stock de la variante, même facteur DÉCLARÉ que `receive_purchase_
+    line` (B1) — jamais deviné."""
+    tenant = open_order_setup
+    with use_tenant(tenant.id):
+        stock_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-F1", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        purchase_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="CARTON-F1", name="Carton", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        UnitConversion.objects.create(
+            tenant=tenant, from_unit=purchase_uom, to_unit=stock_uom, factor=Decimal("12")
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Bouton F1", base_uom=stock_uom
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+        open_order = PurOrderFactory(tenant=tenant, state=PurOrder.STATE_CONFIRMED)
+        PurOrderLineFactory(
+            tenant=tenant,
+            order=open_order,
+            variant_id=variant.id,
+            qty=Decimal(5),
+            qty_received=Decimal(1),
+            uom="CARTON-F1",
+        )
+        # Commande RECUE (etat non "en cours") : solde non nul ignore.
+        closed_order = PurOrderFactory(tenant=tenant, state=PurOrder.STATE_RECEIVED)
+        PurOrderLineFactory(
+            tenant=tenant,
+            order=closed_order,
+            variant_id=variant.id,
+            qty=Decimal(100),
+            qty_received=Decimal(0),
+            uom="CARTON-F1",
+        )
+
+        assert get_open_order_qty(variant.id) == Decimal("48")  # (5 - 1) cartons * 12
+
+
+def test_get_open_order_qty_ignores_lines_without_a_declared_conversion(open_order_setup) -> None:
+    tenant = open_order_setup
+    with use_tenant(tenant.id):
+        stock_uom = UnitOfMeasure.objects.create(
+            tenant=tenant, code="PC-F1B", name="Piece", category=UnitOfMeasure.CATEGORY_COUNT
+        )
+        template = ProductTemplate.objects.create(
+            tenant=tenant, name="Bouton F1B", base_uom=stock_uom
+        )
+        variant = ProductVariant.objects.create(tenant=tenant, template=template)
+
+        order = PurOrderFactory(tenant=tenant, state=PurOrder.STATE_CONFIRMED)
+        PurOrderLineFactory(
+            tenant=tenant,
+            order=order,
+            variant_id=variant.id,
+            qty=Decimal(5),
+            qty_received=Decimal(0),
+            uom="INCONNU-F1B",
+        )
+
+        assert get_open_order_qty(variant.id) == Decimal(0)
 
 
 def test_open_purchase_incident_creates_a_real_pur_cri(incident_setup) -> None:
