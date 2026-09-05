@@ -23,6 +23,7 @@ from apps.purchase.models import (
     PurOrder,
     PurOrderLine,
     PurReceiptLine,
+    PurReorderingProposal,
     PurReorderingRule,
     PurRequisition,
     PurRequisitionLine,
@@ -155,6 +156,18 @@ class PurReorderingRuleFactory(factory.django.DjangoModelFactory):
     variant_id = factory.LazyFunction(uuid.uuid4)
     min_qty = 10
     max_qty = 50
+
+
+class PurReorderingProposalFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PurReorderingProposal
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    rule = factory.SubFactory(PurReorderingRuleFactory, tenant=factory.SelfAttribute("..tenant"))
+    variant_id = factory.LazyFunction(uuid.uuid4)
+    qty_proposed = 40
+    available_stock = 0
+    on_order_qty = 0
 
 
 class PurCraFactory(factory.django.DjangoModelFactory):

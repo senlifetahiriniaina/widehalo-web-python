@@ -25,12 +25,17 @@ def _qualification_decision_hooks() -> dict[tuple[str, str], Any]:
         decide_cash_journal_qualification,
         decide_invoice_import_qualification,
     )
+    from apps.purchase.services.public import decide_reordering_proposal
     from apps.stocks.services.public import decide_stock_import_qualification
 
     return {
         ("accounting", "accimportrow"): decide_cash_journal_qualification,
         ("accounting", "accinvoiceimportrow"): decide_invoice_import_qualification,
         ("stocks", "stkimportrow"): decide_stock_import_qualification,
+        # Bloc F, F2 (FOR-12/FOR-13) : decision sur une proposition de
+        # reapprovisionnement — meme patron RG-QUALIF que les 3 entrees
+        # ci-dessus.
+        ("purchase", "purreorderingproposal"): decide_reordering_proposal,
     }
 
 

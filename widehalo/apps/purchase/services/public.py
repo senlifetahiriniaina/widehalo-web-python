@@ -10,7 +10,13 @@ seuil parametrable. Remplace le "rien a exposer pour l'instant" de PU1.
 
 Gap ajoute par le chantier de durcissement retroactif qui leve le stub
 RG-SAL-3 "a acheter" de `sales.services.procurement` :
-`create_requisition_line_from_source`."""
+`create_requisition_line_from_source`.
+
+Bloc F, F2 (FOR-12/FOR-13) : `decide_reordering_proposal` — seule
+surface autorisee pour l'ecran generique "Mes validations en attente"
+(`apps.core.api_workflow.decide_approval`) de decider une
+`PurReorderingProposal`, meme patron RG-QUALIF que
+`apps.accounting.services.public.decide_cash_journal_qualification`."""
 
 from __future__ import annotations
 
@@ -271,3 +277,18 @@ def get_open_order_qty(variant_id: Any) -> Decimal:
             continue
         total += remaining * factor
     return total
+
+
+def decide_reordering_proposal(
+    approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
+) -> None:
+    """Enveloppe publique de `apps.purchase.services.reordering.
+    decide_reordering_proposal` — seule surface autorisee pour l'ecran
+    generique "Mes validations en attente" (`apps.core.api_workflow.
+    decide_approval`, meme patron RG-QUALIF que `apps.accounting.
+    services.public.decide_cash_journal_qualification`)."""
+    from apps.core.models.workflow import ApprovalRequest as _ApprovalRequest
+    from apps.purchase.services.reordering import decide_reordering_proposal as _decide
+
+    approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
+    _decide(approval_request, decided_by, approved=approved, comment=comment)

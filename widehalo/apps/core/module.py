@@ -24,6 +24,10 @@ class ModuleSpec:
 # services.public.decide_stock_import_qualification` pour repercuter la
 # decision generique sur le statut de la ligne d'import metier concernee
 # — jamais un import de modele, uniquement leurs services.public.
+# "purchase" ajoute par le Bloc F, F2 (FOR-12/FOR-13) : meme registre
+# `apps.core.api_workflow._qualification_decision_hooks`, nouvelle entree
+# `apps.purchase.services.public.decide_reordering_proposal` pour
+# repercuter la decision generique sur une `PurReorderingProposal`.
 # "crm"/"sales" ajoutes par le chantier UX6 (refonte visuelle) :
 # `apps.core.views.dashboard` consomme `apps.crm.services.public.
 # count_open_opportunities`/`apps.sales.services.public.
@@ -32,5 +36,7 @@ class ModuleSpec:
 # "accounting" ci-dessus) pour les 3 tuiles KPI du tableau de bord —
 # jamais un import de modele, uniquement leurs services.public.
 MODULE = ModuleSpec(
-    name="core", dependencies=("accounting", "stocks", "crm", "sales"), verbose_name="Socle"
+    name="core",
+    dependencies=("accounting", "stocks", "purchase", "crm", "sales"),
+    verbose_name="Socle",
 )

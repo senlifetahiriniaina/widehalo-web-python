@@ -16,7 +16,7 @@ from apps.core.models.event import EventLog
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import use_tenant
-from apps.purchase.models import PurRequisition
+from apps.purchase.models import PurReorderingProposal, PurRequisition
 from apps.purchase.services.orders import (
     add_order_line,
     confirm_order,
@@ -99,6 +99,10 @@ def _make_variant(tenant, *, suffix="0001"):
 
 
 def test_run_reordering_publishes_reorder_triggered() -> None:
+    """Bloc F, F2 (FOR-12/FOR-13) : depuis ce sprint, `run_reordering` ne
+    cree plus directement de `PurRequisition` — le payload de l'evenement
+    porte desormais `proposal_ids` (des `PurReorderingProposal` EN
+    ATTENTE), plus `requisition_ids`."""
     tenant = Tenant.objects.create(code="PUR-INT1-REORD", name="Purchase INT1 Reordering Tenant")
     with use_tenant(tenant.id):
         User.objects.create_superuser(
@@ -108,13 +112,14 @@ def test_run_reordering_publishes_reorder_triggered() -> None:
         create_reordering_rule(
             tenant=tenant, variant_id=variant.id, min_qty=Decimal(10), max_qty=Decimal(30)
         )
-        requisitions = run_reordering(tenant)
-        assert len(requisitions) == 1
-        assert PurRequisition.objects.filter(tenant=tenant).count() == 1
+        proposals = run_reordering(tenant)
+        assert len(proposals) == 1
+        assert PurReorderingProposal.objects.filter(tenant=tenant).count() == 1
+        assert PurRequisition.objects.filter(tenant=tenant).count() == 0
 
     event = EventLog.objects.get(event_type="purchase.reorder_triggered", tenant_id=str(tenant.id))
     assert event.payload["count"] == 1
-    assert event.payload["requisition_ids"] == [str(requisitions[0].id)]
+    assert event.payload["proposal_ids"] == [str(proposals[0].id)]
 
 
 def test_run_reordering_does_not_publish_when_nothing_is_triggered() -> None:

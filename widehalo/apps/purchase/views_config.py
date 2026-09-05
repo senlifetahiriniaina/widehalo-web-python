@@ -23,8 +23,12 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.views.tenant_web import resolve_tenant
-from apps.purchase.models import PurReorderingRule, PurSubstitute
-from apps.purchase.services.reordering import create_reordering_rule
+from apps.purchase.models import PurReorderingProposal, PurReorderingRule, PurSubstitute
+from apps.purchase.services.reordering import (
+    create_reordering_rule,
+    decide_reordering_proposal,
+    get_reordering_acceptance_rate,
+)
 from apps.purchase.services.substitution import (
     approve_substitute,
     create_substitute,
@@ -48,26 +52,58 @@ def config_reordering_rules(request: HttpRequest) -> HttpResponse:
     error = None
 
     if request.method == "POST":
+        action = request.POST.get("action", "create")
         try:
-            create_reordering_rule(
-                tenant=tenant,
-                variant_id=uuid.UUID(request.POST.get("variant_id", "")),
-                min_qty=Decimal(request.POST.get("min_qty") or "0"),
-                max_qty=Decimal(request.POST.get("max_qty") or "0"),
-                multiple_qty=Decimal(request.POST.get("multiple_qty") or "1"),
-                lead_time_days=int(request.POST.get("lead_time_days") or "0"),
-                warehouse_id=uuid.UUID(request.POST["warehouse_id"])
-                if request.POST.get("warehouse_id")
-                else None,
-            )
+            if action == "create":
+                create_reordering_rule(
+                    tenant=tenant,
+                    variant_id=uuid.UUID(request.POST.get("variant_id", "")),
+                    min_qty=Decimal(request.POST.get("min_qty") or "0"),
+                    max_qty=Decimal(request.POST.get("max_qty") or "0"),
+                    multiple_qty=Decimal(request.POST.get("multiple_qty") or "1"),
+                    lead_time_days=int(request.POST.get("lead_time_days") or "0"),
+                    warehouse_id=uuid.UUID(request.POST["warehouse_id"])
+                    if request.POST.get("warehouse_id")
+                    else None,
+                )
+            elif action in ("accept", "reject"):
+                # Bloc F, F2 (FOR-12/FOR-13) : "depliable + acceptation/
+                # rejet" greffe dans cet ecran existant plutot qu'un
+                # nouveau — budget d'ecrans a 0/240 de marge depuis E7.
+                proposal = get_object_or_404(
+                    PurReorderingProposal, id=request.POST.get("proposal_id"), tenant=tenant
+                )
+                if proposal.approval_request is None:
+                    raise ValidationError(
+                        "Cette proposition n'a aucune demande d'approbation associée."
+                    )
+                decide_reordering_proposal(
+                    proposal.approval_request,
+                    request.user,
+                    approved=action == "accept",
+                    comment=request.POST.get("rejection_reason", ""),
+                )
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = _error_message(exc)
         else:
             return redirect("purchase:config_reordering_rules")
 
     rules = PurReorderingRule.objects.filter(tenant=tenant, is_active=True)
+    proposals = PurReorderingProposal.objects.filter(
+        tenant=tenant, state=PurReorderingProposal.STATE_PENDING
+    ).select_related("rule")
+    acceptance_rate = get_reordering_acceptance_rate(tenant)
+    acceptance_rate_pct = f"{acceptance_rate * 100:.1f}" if acceptance_rate is not None else None
     return render(
-        request, "purchase/config_reordering_rules.html", {"rules": rules, "error": error}
+        request,
+        "purchase/config_reordering_rules.html",
+        {
+            "rules": rules,
+            "proposals": proposals,
+            "acceptance_rate": acceptance_rate,
+            "acceptance_rate_pct": acceptance_rate_pct,
+            "error": error,
+        },
     )
 
 

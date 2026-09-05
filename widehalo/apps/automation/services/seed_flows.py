@@ -125,8 +125,13 @@ def _build_purchase_reorder_triggered(
         name=name,
         trigger_event_type="purchase.reorder_triggered",
         description=(
-            "Un reapprovisionnement automatique a genere des demandes d'achat : "
-            "notifie l'acheteur pour revue."
+            # Bloc F, F2 (FOR-12/FOR-13) : depuis ce sprint, le
+            # declenchement genere des PROPOSITIONS en attente, jamais
+            # directement des demandes d'achat — l'acheteur doit
+            # explicitement accepter/rejeter chacune (ecran "Regles de
+            # reapprovisionnement"), pas seulement "revoir".
+            "Un reapprovisionnement automatique a genere des propositions de "
+            "reapprovisionnement : notifie l'acheteur pour acceptation/rejet."
         ),
         created_by=created_by,
     )
@@ -137,7 +142,7 @@ def _build_purchase_reorder_triggered(
             "role_code": "acheteur",
             "notification_type": "purchase.reorder_triggered",
             "payload": {
-                "requisition_ids": "=payload['requisition_ids']",
+                "proposal_ids": "=payload['proposal_ids']",
                 "count": "=payload['count']",
             },
         },

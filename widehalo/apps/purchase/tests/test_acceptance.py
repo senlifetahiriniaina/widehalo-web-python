@@ -15,12 +15,16 @@ Statuts (recapitulatif) :
      complet. Cf. `apps/purchase/tests/test_substitution.py`/
      `test_requisitions.py` (PU2).
   3. RG-PUR-3 (reapprovisionnement automatique -> demande d'achat en
-     brouillon) : PASS complet. `run_reordering` interroge desormais le
-     VRAI stock disponible via `apps.stocks.services.public.
-     get_available_stock_qty` (chantier de durcissement retroactif,
-     cf. docstring `services/reordering.py`) — le stock est a zero dans ce
-     test parce qu'aucun mouvement n'a jamais ete cree pour la variante
-     testee, un zero reel, plus un stub. Cf.
+     brouillon) : PASS complet, EN DEUX TEMPS depuis le Bloc F, F2
+     (FOR-12/FOR-13) — `run_reordering` interroge desormais le VRAI stock
+     disponible via `apps.stocks.services.public.get_available_stock_qty`
+     PLUS les commandes fournisseur deja en cours (`get_open_order_qty`,
+     F1) — le stock est a zero dans ce test parce qu'aucun mouvement
+     n'a jamais ete cree pour la variante testee, un zero reel, pas un
+     stub. Une regle declenchee genere desormais une `PurReorderingProposal`
+     EN ATTENTE (jamais automatique, FOR-13) ; la demande d'achat en
+     brouillon annoncee par l'enonce du CDC n'est creee qu'apres
+     acceptation explicite (`decide_reordering_proposal`). Cf.
      `apps/purchase/tests/test_reordering.py`.
   4. RG-PUR-6 (facture >5% du bon de commande bloque la validation et
      ouvre un litige) : PASS complet, SANS deviation. Cf.
@@ -33,6 +37,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth.models import Group
 
 from apps.catalog.models import ProductTemplate, ProductVariant, UnitOfMeasure
 from apps.core.models.tenant import Tenant
@@ -50,7 +55,7 @@ from apps.purchase.services.orders import (
     validate_order,
 )
 from apps.purchase.services.receiving import receive_order_line
-from apps.purchase.services.reordering import run_reordering
+from apps.purchase.services.reordering import decide_reordering_proposal, run_reordering
 from apps.purchase.services.requisitions import add_requisition_line, create_requisition
 from apps.purchase.services.substitution import create_substitute, list_substitutes_for_variant
 from apps.stocks.models import StkLocation, StkWarehouse
@@ -120,15 +125,22 @@ def test_acceptance_2_degraded_substitute_without_validation_is_rejected_full_pa
 def test_acceptance_3_reordering_creates_draft_requisition_below_min_full_pass() -> None:
     """§5.6.7 n°3 : "Le reapprovisionnement automatique cree une demande
     d'achat en brouillon lorsque le stock passe sous le minimum" — PASS
-    complet. Le stock disponible interroge via `apps.stocks.services.
-    public.get_available_stock_qty` est a zero pour la variante testee
-    (aucun mouvement jamais cree) — une valeur reelle, pas un stub, cf.
-    correction du sommaire de tete de fichier. Des que `min_qty > 0`, une
-    `PurRequisition` EN BROUILLON est bien creee, jamais une commande
+    complet, EN DEUX TEMPS depuis le Bloc F, F2 (FOR-12/FOR-13, cf. le
+    sommaire de tete de fichier). Le stock disponible interroge via
+    `apps.stocks.services.public.get_available_stock_qty` est a zero pour
+    la variante testee (aucun mouvement jamais cree) — une valeur reelle,
+    pas un stub. Des que `min_qty > 0`, une `PurReorderingProposal` EN
+    ATTENTE est generee ; ce n'est qu'apres acceptation explicite
+    (`decide_reordering_proposal`, jamais automatique) qu'une
+    `PurRequisition` EN BROUILLON est enfin creee, jamais une commande
     confirmee. Detail complet : `apps/purchase/tests/test_reordering.py`."""
     tenant = Tenant.objects.create(code="PUR-ACC-3", name="Acceptance 3 Tenant")
     with use_tenant(tenant.id):
         User.objects.create_superuser(email="acc3-admin@example.com", password="Str0ngPassw0rd!23")
+        buyer = User.objects.create_user(
+            email="acc3-buyer@example.com", password="Str0ngPassw0rd!23"
+        )
+        buyer.groups.add(Group.objects.get_or_create(name="acheteur")[0])
         # `run_reordering` -> `add_requisition_line` resout
         # `estimated_price_mga` via `catalog.services.public.
         # get_variant_price`, qui exige un `ProductVariant` REEL (pas un
@@ -155,11 +167,18 @@ def test_acceptance_3_reordering_creates_draft_requisition_below_min_full_pass()
             multiple_qty=Decimal(1),
         )
 
-        created = run_reordering(tenant)
+        proposals = run_reordering(tenant)
 
-        assert len(created) == 1
-        assert created[0].state == "draft"
-        assert created[0].lines.count() == 1
+        assert len(proposals) == 1
+        proposal = proposals[0]
+        assert proposal.state == "pending"
+        assert proposal.approval_request is not None
+
+        decided = decide_reordering_proposal(proposal.approval_request, buyer, approved=True)
+
+        assert decided.requisition is not None
+        assert decided.requisition.state == "draft"
+        assert decided.requisition.lines.count() == 1
 
 
 def test_acceptance_4_invoice_variance_above_5pct_blocks_and_opens_dispute_full_pass() -> None:

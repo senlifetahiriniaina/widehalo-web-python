@@ -9,9 +9,49 @@
 <div class="page-head">
   <h1>{% trans "Règles de réapprovisionnement (RG-PUR-3)" %}</h1>
 </div>
-  <p>{% blocktrans %}Chaque règle déclenchée genere une demande d'achat en brouillon uniquement, jamais une commande confirmée automatiquement.{% endblocktrans %}</p>
+  <p>{% blocktrans %}Chaque règle déclenchée génère une PROPOSITION de réapprovisionnement — jamais une demande d'achat automatique : la proposition n'est transformée en demande d'achat brouillon qu'après acceptation explicite ci-dessous.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
+  <h2>{% trans "Propositions en attente" %}</h2>
+  <p>
+    {% if acceptance_rate is not None %}
+      {% blocktrans %}Taux d'acceptation mesuré (historique) : {{ acceptance_rate_pct }} %{% endblocktrans %}
+    {% else %}
+      {% trans "Taux d'acceptation mesuré : aucune proposition décidée pour l'instant." %}
+    {% endif %}
+  </p>
+  {% for proposal in proposals %}
+    <details>
+      <summary>
+        {{ proposal.variant_id }} — {% blocktrans with qty=proposal.qty_proposed %}proposé : {{ qty }}{% endblocktrans %}
+      </summary>
+      <table class="smart-table">
+        <tbody>
+          <tr><th>{% trans "Règle" %}</th><td>{{ proposal.rule_id }}</td></tr>
+          <tr><th>{% trans "Stock disponible au calcul" %}</th><td>{{ proposal.available_stock }}</td></tr>
+          <tr><th>{% trans "Commandes en cours au calcul" %}</th><td>{{ proposal.on_order_qty }}</td></tr>
+          <tr><th>{% trans "Quantité proposée" %}</th><td>{{ proposal.qty_proposed }}</td></tr>
+        </tbody>
+      </table>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="accept">
+        <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+        <c-button variant="primary" type="submit">{% trans "Accepter" %}</c-button>
+      </form>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reject">
+        <input type="hidden" name="proposal_id" value="{{ proposal.id }}">
+        <div class="form-field"><label>{% trans "Motif du rejet" %}</label><input type="text" name="rejection_reason" required></div>
+        <c-button variant="secondary" type="submit">{% trans "Rejeter" %}</c-button>
+      </form>
+    </details>
+  {% empty %}
+    <p>{% trans "Aucune proposition en attente." %}</p>
+  {% endfor %}
+
+  <h2>{% trans "Règles actives" %}</h2>
   <table class="smart-table">
     <thead><tr><th>{% trans "Article (UUID)" %}</th><th>{% trans "Min" %}</th><th>{% trans "Max" %}</th><th>{% trans "Multiple" %}</th><th>{% trans "Délai (jours)" %}</th></tr></thead>
     <tbody>
@@ -26,6 +66,7 @@
   <h2>{% trans "Nouvelle règle" %}</h2>
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="action" value="create">
     <div class="form-field"><label>{% trans "Article (UUID)" %}</label><input type="text" name="variant_id" required></div>
     <div class="form-field"><label>{% trans "Quantité minimum" %}</label><input type="number" name="min_qty" step="0.0001" required></div>
     <div class="form-field"><label>{% trans "Quantité maximum" %}</label><input type="number" name="max_qty" step="0.0001" required></div>

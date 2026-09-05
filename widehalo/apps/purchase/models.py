@@ -571,14 +571,16 @@ class PurReorderingRule(BaseModel):
     champ dedie.
 
     `variant_id`/`warehouse_id` sont de simples UUID opaques (regle de
-    couplage n°1 — jamais de FK Django vers `apps.catalog`) ; `warehouse_id`
-    reste nullable et opaque des maintenant car `stocks`/`logistics`
-    n'existent pas encore (meme discipline que `PurOrder.warehouse_id`,
-    PU3+PU4). La comparaison "stock disponible" reellement exigee par le
-    CDC n'est PAS calculee ici (`stocks` n'existe pas) — cf. `services/
-    reordering.py::run_reordering` pour le stub documente (stock toujours
-    considere a zero, jamais un faux negatif qui ferait perdre un vrai
-    besoin)."""
+    couplage n°1 — jamais de FK Django vers `apps.catalog`).
+
+    Docstring corrigee (Bloc F, F2/FOR-12/13) : le stub "stock toujours
+    considere a zero" mentionne ici jusqu'a ce sprint ne reflete plus le
+    code depuis le chantier de durcissement retroactif de `stocks`
+    (`services/reordering.py::run_reordering` compare desormais le VRAI
+    stock disponible et les VRAIES commandes fournisseur en cours). Une
+    regle declenchee ne cree plus directement de demande d'achat : elle
+    genere une `PurReorderingProposal` (jamais automatique, cf. sa
+    docstring) qui attend une acceptation/un rejet explicite."""
 
     variant_id = models.UUIDField()
     warehouse_id = models.UUIDField(null=True, blank=True)
@@ -598,6 +600,64 @@ class PurReorderingRule(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.variant_id} (min={self.min_qty}, max={self.max_qty})"
+
+
+class PurReorderingProposal(BaseModel):
+    """Bloc F, F2 (FOR-12/FOR-13) : proposition de réapprovisionnement
+    interposée entre `services.reordering.run_reordering` et la création
+    de la demande d'achat — JAMAIS automatique (contrairement au
+    comportement précédent). Même patron générique `ApprovalRule`/
+    `ApprovalRequest` du socle que `apps.purchase.services.substitution`
+    (RG-PUR-2) et `apps.accounting.services.cash_journal_import`
+    (RG-QUALIF) : la décision (accepter/rejeter) transite par
+    `apps.core.services.approvals.decide`, jamais une mutation directe
+    de `state` — `services.reordering.decide_reordering_proposal` est le
+    seul point d'entrée qui la fait évoluer.
+
+    Champs figés au moment du calcul par `run_reordering` (jamais
+    recalculés a posteriori si `rule` change entre-temps ou si le stock
+    bouge avant la décision) : `qty_proposed`/`available_stock`/
+    `on_order_qty` sont un instantané, pas une requête live — cohérent
+    avec la discipline "montrer ce qui a motivé la proposition à
+    l'instant où elle a été générée", même choix que `StkRecall`/
+    `QltRecallDossier` (D4) pour leur instantané de généalogie."""
+
+    STATE_PENDING = "pending"
+    STATE_ACCEPTED = "accepted"
+    STATE_REJECTED = "rejected"
+    STATE_CHOICES = [
+        (STATE_PENDING, "En attente"),
+        (STATE_ACCEPTED, "Acceptée"),
+        (STATE_REJECTED, "Rejetée"),
+    ]
+
+    rule = models.ForeignKey(PurReorderingRule, on_delete=models.CASCADE, related_name="proposals")
+    variant_id = models.UUIDField()
+    warehouse_id = models.UUIDField(null=True, blank=True)
+    qty_proposed = models.DecimalField(max_digits=18, decimal_places=4)
+    available_stock = models.DecimalField(max_digits=18, decimal_places=4)
+    on_order_qty = models.DecimalField(max_digits=18, decimal_places=4)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_PENDING)
+    approval_request = models.ForeignKey(
+        "core.ApprovalRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Renseignee UNIQUEMENT si `state == accepted` (services.reordering.
+    # decide_reordering_proposal) — jamais creee tant que la proposition
+    # n'a pas ete explicitement acceptee (FOR-13, "jamais automatique").
+    requisition = models.ForeignKey(
+        PurRequisition,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reordering_proposals",
+    )
+    rejection_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "pur_reordering_proposal"
+
+    def __str__(self) -> str:
+        return f"{self.variant_id} ({self.state}, qty={self.qty_proposed})"
 
 
 class PurCra(BaseModel, ReferenceMixin):
