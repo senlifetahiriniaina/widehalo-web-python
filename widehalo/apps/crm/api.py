@@ -164,7 +164,13 @@ def move_lead_stage_endpoint(request, lead_id: str, payload: MoveStageIn):
         else None
     )
     try:
-        moved = move_lead_to_stage(lead, stage, lost_reason=lost_reason, comment=payload.comment)
+        moved = move_lead_to_stage(
+            lead,
+            stage,
+            lost_reason=lost_reason,
+            comment=payload.comment,
+            moved_by=request.auth,
+        )
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return _serialize_lead(moved)

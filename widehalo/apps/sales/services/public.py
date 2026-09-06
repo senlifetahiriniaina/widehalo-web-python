@@ -15,6 +15,8 @@ from django.db.models import Sum
 from apps.sales.models import SalesForecast, SalesOrder, SalesOrderLine, SalesQuotation
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from apps.core.models.tenant import Tenant
 
 
@@ -133,6 +135,23 @@ def get_untaxed_revenue_for_reconciliation(*, date_from: Any, date_to: Any) -> D
         .aggregate(total=Sum("amount_untaxed"))["total"]
     )
     return total if total is not None else Decimal(0)
+
+
+def get_outstanding_amount_for_partner(tenant: Tenant, partner_id: UUID) -> Decimal:
+    """Encours commercial d'un tiers, en MGA (L4, CRM-2).
+
+    Passe-plat vers `services.orders.outstanding_amount_for_partner`, seule
+    definition d'encours du depot (RG-SAL-4) : commandes engagees mais pas
+    encore facturees. Elle vivait dans le corps de `confirm_order` — la
+    fiche societe ne pouvait donc pas l'afficher sans la recopier, et une
+    regle de calcul recopiee est une regle qui divergera.
+
+    Retourne `Decimal(0)` — jamais `None` — quand le tiers n'a aucune
+    commande engagee : contrairement a un chiffre d'affaires absent, un
+    encours nul est une information exacte et affichable telle quelle."""
+    from apps.sales.services.orders import outstanding_amount_for_partner
+
+    return outstanding_amount_for_partner(tenant, partner_id)
 
 
 def list_quotations_for_partner(partner_id: Any, *, limit: int = 20) -> list[dict[str, Any]]:

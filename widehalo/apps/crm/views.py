@@ -20,7 +20,11 @@ from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmLead, CrmLostReason, CrmPipeline, CrmStage, CrmTeam
 from apps.crm.services.activities import lead_timeline, log_activity
 from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
-from apps.crm.services.leads import add_lead_line, create_lead_quick
+from apps.crm.services.leads import (
+    add_lead_line,
+    convert_lead_to_partner,
+    create_lead_quick,
+)
 from apps.crm.services.pipeline import move_lead_to_stage
 from apps.crm.services.pipelines import resolve_default_pipeline
 from apps.crm.services.scoping import scope_leads_for_user
@@ -29,7 +33,9 @@ from apps.crm.services.scoring import compute_lead_score, whatsapp_contact_link
 COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="name", label="Nom"),
-    Column(key="stage", label="Etape"),
+    # `search_key` : `stage` est une FK — la chercher directement levait
+    # `FieldError` et rendait 500 des la premiere frappe (L4).
+    Column(key="stage", label="Etape", search_key="stage__name"),
     Column(key="expected_revenue_mga", label="Montant attendu (MGA)", searchable=False),
 ]
 
@@ -77,8 +83,18 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
                     get_object_or_404(CrmLostReason, id=lost_reason_id) if lost_reason_id else None
                 )
                 move_lead_to_stage(
-                    lead, stage, lost_reason=lost_reason, comment=request.POST.get("comment", "")
+                    lead,
+                    stage,
+                    lost_reason=lost_reason,
+                    comment=request.POST.get("comment", ""),
+                    moved_by=user,
                 )
+            elif action == "convert":
+                # CRM-3 : la conversion doit etre ATTEIGNABLE, pas seulement
+                # ecrite. Un service de conversion qu'aucun ecran n'appelle
+                # serait le meme motif que ceux que ce chantier corrige
+                # depuis le debut.
+                convert_lead_to_partner(lead)
             elif action == "log_activity":
                 log_activity(
                     lead,
@@ -120,6 +136,102 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
             "lines": lead.lines.all(),
             "score": compute_lead_score(lead),
             "whatsapp_link": whatsapp_contact_link(lead),
+            # L4 (CRM-1) : fil de discussion sur l'opportunite. La garde de
+            # perimetre correspondante est enregistree par
+            # `services.chatter_registration` — sans elle, le repli par
+            # defaut serait la permission de MODELE `crm.view_crmlead`, que
+            # tout commercial porte.
+            "chatter_app_label": lead._meta.app_label,
+            "chatter_model": lead._meta.model_name,
+            "chatter_object_id": str(lead.id),
+            "error": error,
+        },
+    )
+
+
+@login_required
+def lead_kanban(request: HttpRequest) -> HttpResponse:
+    """CRM-1 — le pipeline en colonnes, avec glisser-deposer.
+
+    **Ce que le critere demandait, et qui n'existait pas.** « Depuis le
+    PIPELINE, deplacer une opportunite d'une colonne a l'autre met a jour
+    son etape, inscrit la transition dans le chatter et dans le journal
+    d'audit, sans rechargement complet de la page. » Le changement d'etape
+    se faisait par un `<select>` depuis la FICHE, jamais depuis un
+    pipeline — aucun kanban n'existait dans `apps/crm` ni dans
+    `templates/crm`, alors que `Sortable.min.js` etait vendorise et
+    utilise par `mrp` et `projects`.
+
+    Patron repris tel quel de `mrp.views.work_order_kanban` (colonnes,
+    poignee de 44 px, `requestSubmit()` pour rester intercepte par
+    `offline_queue.js`), y compris sa DOCTRINE : le glisser-deposer est
+    une amelioration cosmetique, le formulaire reste le seul chemin
+    accessible au clavier et au lecteur d'ecran — SortableJS n'a aucun
+    support clavier natif.
+
+    **Perimetre RG-CRM-5 applique**, comme `lead_list` et `lead_detail` :
+    un commercial ne voit dans son pipeline que ses propres opportunites.
+    Un kanban qui afficherait tout le pipeline du tenant rouvrirait sur un
+    ecran la faille refermee sur l'API aux bloquants (4/4)."""
+    user = cast(User, request.user)
+    error = None
+
+    if request.method == "POST":
+        lead = get_object_or_404(
+            scope_leads_for_user(CrmLead.objects.filter(is_active=True), user),
+            id=request.POST.get("lead_id"),
+        )
+        stage = get_object_or_404(CrmStage, id=request.POST.get("stage_id"))
+        lost_reason_id = request.POST.get("lost_reason_id")
+        lost_reason = (
+            get_object_or_404(CrmLostReason, id=lost_reason_id) if lost_reason_id else None
+        )
+        try:
+            move_lead_to_stage(
+                lead,
+                stage,
+                lost_reason=lost_reason,
+                comment=request.POST.get("comment", ""),
+                moved_by=user,
+            )
+        except ValidationError as exc:
+            error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+        else:
+            return redirect("crm:kanban")
+
+    leads = (
+        scope_leads_for_user(CrmLead.objects.filter(is_active=True), user)
+        .select_related("stage", "pipeline")
+        .order_by("-expected_revenue_mga")
+    )
+    pipeline = resolve_default_pipeline(resolve_tenant(request))
+    stages = list(pipeline.stages.order_by("sequence")) if pipeline is not None else []
+
+    cards_by_stage: dict[str, list[CrmLead]] = {}
+    for lead in leads:
+        cards_by_stage.setdefault(str(lead.stage_id), []).append(lead)
+
+    # Chaque colonne connait l'etape SUIVANTE : c'est elle qui rend le
+    # depot legal (meme regle que `mrp`, ou seul un depot vers la colonne
+    # n+1 soumet le formulaire). Une opportunite ne saute pas d'etape.
+    columns = []
+    for index, stage in enumerate(stages):
+        next_stage = stages[index + 1] if index + 1 < len(stages) else None
+        columns.append(
+            {
+                "stage": stage,
+                "next_stage": next_stage,
+                "cards": cards_by_stage.get(str(stage.id), []),
+            }
+        )
+
+    return render(
+        request,
+        "crm/kanban.html",
+        {
+            "columns": columns,
+            "lost_reasons": CrmLostReason.objects.all(),
+            "has_pipeline": pipeline is not None,
             "error": error,
         },
     )

@@ -117,6 +117,50 @@ def find_partner_by_name(tenant: Tenant, name: str) -> ResolutionResult:
     return ResolutionResult(confidence=ResolutionConfidence.UNRESOLVED, entity_id=None)
 
 
+def create_partner_with_contact_from_source(
+    tenant: Tenant,
+    *,
+    name: str,
+    role: str,
+    contact_name: str = "",
+    email: str = "",
+    phone: str = "",
+    nif: str = "",
+) -> dict[str, Any]:
+    """Cree une societe et, si un nom de contact est fourni, son contact
+    principal — en une seule passe (L4, CRM-3).
+
+    Point d'integration pour un module qui detient deja les coordonnees
+    d'un prospect et veut les materialiser en tiers, sans jamais importer
+    `apps.partners.models` (regle de couplage n1). Premier appelant :
+    `crm.services.leads.convert_lead_to_partner`.
+
+    **Compose deux services existants** (`onboarding.create_partner`,
+    `contacts.create_contact`) plutot que de reecrire leur logique : la
+    detection de doublon de NIF et la sequence de reference restent celles
+    de `create_partner`, y compris l'alerte de doublon qu'elle publie.
+
+    Retourne des primitives — `{"partner_id", "contact_id"}` — jamais un
+    objet `Partner`. `contact_id` est `None` quand aucun `contact_name`
+    n'est fourni : une societe sans interlocuteur nomme est un cas normal,
+    pas une erreur a signaler."""
+    from apps.partners.services.contacts import create_contact
+    from apps.partners.services.onboarding import create_partner
+
+    partner = create_partner(tenant=tenant, name=name, roles=[role], nif=nif)
+    contact_id: UUID | None = None
+    if contact_name:
+        contact = create_contact(
+            partner=partner,
+            full_name=contact_name,
+            email=email,
+            phone=phone,
+            is_primary=True,
+        )
+        contact_id = contact.id
+    return {"partner_id": partner.id, "contact_id": contact_id}
+
+
 def ensure_default_partner(tenant: Tenant, role: str) -> UUID:
     """Enveloppe publique de `apps.partners.services.defaults.
     ensure_default_partner` — seule surface autorisee pour un autre module

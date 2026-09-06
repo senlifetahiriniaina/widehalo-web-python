@@ -265,6 +265,42 @@ def ensure_incoterm_for_export(order: SalesOrder) -> None:
         )
 
 
+ENGAGED_STATES = (
+    SalesOrder.STATE_CONFIRMED,
+    SalesOrder.STATE_IN_PREPARATION,
+    SalesOrder.STATE_PARTIALLY_DELIVERED,
+    SalesOrder.STATE_DELIVERED,
+)
+
+
+def outstanding_amount_for_partner(
+    tenant: Tenant, partner_id: UUID, *, exclude_order_pk: Any = None
+) -> Decimal:
+    """Encours commercial d'un tiers (RG-SAL-4).
+
+    Somme de `amount_total_mga` des commandes deja ENGAGEES mais pas encore
+    facturees : `confirmed`, `in_preparation`, `partially_delivered`,
+    `delivered`. Une commande facturee sort de cet encours — elle bascule
+    en creance comptable, suivie par `accounting` et non par `sales`.
+
+    **Extraite du corps de `confirm_order` par L4 (CRM-2).** C'etait la
+    seule definition d'encours ecrite du depot, et elle etait enfouie dans
+    une fonction de transition : la fiche societe ne pouvait pas
+    l'afficher sans la recopier — et une regle de calcul recopiee est une
+    regle qui divergera. Republiee dans `services.public` pour `partners`,
+    jamais dupliquee.
+
+    Depuis L5, `amount_total_mga` est un TTC : l'encours l'est donc aussi,
+    ce qui est le sens attendu (ce qu'un client doit)."""
+    queryset = SalesOrder.objects.filter(
+        tenant=tenant, partner_id=partner_id, state__in=ENGAGED_STATES
+    )
+    if exclude_order_pk is not None:
+        queryset = queryset.exclude(pk=exclude_order_pk)
+    total: Decimal = queryset.aggregate(total=Sum("amount_total_mga"))["total"] or Decimal(0)
+    return total
+
+
 def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     """RG-SAL-4 : controle de credit a la confirmation. `sales` calcule
     son propre encours (le CDC ne fournit pas de formule exacte, la
@@ -284,17 +320,10 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     normalement."""
     ensure_incoterm_for_export(order)
 
-    outstanding = SalesOrder.objects.filter(
-        tenant=order.tenant,
-        partner_id=order.partner_id,
-        state__in=[
-            SalesOrder.STATE_CONFIRMED,
-            SalesOrder.STATE_IN_PREPARATION,
-            SalesOrder.STATE_PARTIALLY_DELIVERED,
-            SalesOrder.STATE_DELIVERED,
-        ],
-    ).exclude(pk=order.pk).aggregate(total=Sum("amount_total_mga"))["total"] or Decimal(0)
-    outstanding_amount_mga = outstanding + order.amount_total_mga
+    outstanding_amount_mga = (
+        outstanding_amount_for_partner(order.tenant, order.partner_id, exclude_order_pk=order.pk)
+        + order.amount_total_mga
+    )
 
     if is_over_credit_limit(order.partner_id, outstanding_amount_mga):
         reason = _("Plafond de crédit depasse")

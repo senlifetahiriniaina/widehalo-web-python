@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{{ pipeline.name }} — WideHalo{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -11,6 +11,24 @@
     <h1>{{ pipeline.name }}</h1>
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% comment %}
+    CRM-4 (L4) — le « N » du critère, éditable. Il vivait en constante de
+    module (`_STAGNANT_WINDOW_DAYS = 21`) : aucun tenant ne pouvait
+    l'ajuster sans une livraison, alors qu'un cycle de vente long et un
+    cycle court n'ont pas la même notion de « en retard ». Porté par le
+    pipeline, parce que c'est lui qui décrit le cycle.
+  {% endcomment %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_stagnation">
+    <div class="form-field">
+      <label for="stagnant_after_days">{% trans "Relance en retard au-delà de (jours)" %}</label>
+      <input id="stagnant_after_days" type="number" min="1" name="stagnant_after_days"
+             value="{{ pipeline.stagnant_after_days|unlocalize }}">
+    </div>
+    <c-button variant="secondary" type="submit">{% trans "Enregistrer le délai" %}</c-button>
+  </form>
 
   <table class="smart-table">
     <thead>

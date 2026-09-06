@@ -65,6 +65,21 @@ class Column:
     label: str
     searchable: bool = True
     format: str | None = None
+    # Chemin de recherche, quand il differe du chemin d'AFFICHAGE (L4).
+    #
+    # `_apply_search` construit un `__icontains` sur `key`. Quand `key`
+    # designe une RELATION, PostgreSQL n'a rien a comparer et Django leve
+    # `FieldError: Unsupported lookup 'icontains' for ForeignKey` — soit un
+    # 500 des la premiere frappe dans la barre de recherche. C'etait le cas
+    # de la colonne « Etape » de la liste des opportunites : la recherche y
+    # etait inutilisable, et rien ne l'exercait.
+    #
+    # `search_key` laisse afficher la relation (`stage`, dont le `__str__`
+    # est lisible) tout en cherchant sur une colonne texte (`stage__name`).
+    # Marquer la colonne `searchable=False` aurait aussi supprime le
+    # plantage — au prix d'une recherche par etape qu'un utilisateur
+    # attend legitimement.
+    search_key: str | None = None
 
 
 @dataclass
@@ -178,7 +193,7 @@ def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) ->
     condition = Q()
     for column in columns:
         if column.searchable:
-            condition |= Q(**{f"{column.key}__icontains": query})
+            condition |= Q(**{f"{column.search_key or column.key}__icontains": query})
     return queryset.filter(condition) if condition else queryset
 
 

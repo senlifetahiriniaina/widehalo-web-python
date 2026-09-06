@@ -18,6 +18,7 @@ class CrmConfig(AppConfig):
         from apps.crm.services.automation_registration import (
             register_actions as register_automation_actions,
         )
+        from apps.crm.services.chatter_registration import register_chatter_guards
         from apps.crm.services.reports_registration import register_reports
 
         register_reports()
@@ -32,3 +33,9 @@ class CrmConfig(AppConfig):
         register_ai_anomaly_checks()
         register_ai_insight_sources()
         register_ai_advisor_rules()
+        # L4 (CRM-1) : garde de perimetre du chatter. Sans elle, le repli
+        # par defaut de `core.views.chatter` est la permission de MODELE
+        # `crm.view_crmlead`, que tout commercial porte — le fil de
+        # discussion de l'opportunite d'un collegue serait lisible et
+        # ecrivable, rouvrant la faille refermee aux bloquants (4/4).
+        register_chatter_guards()

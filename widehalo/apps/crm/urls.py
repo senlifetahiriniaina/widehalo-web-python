@@ -7,6 +7,7 @@ app_name = "crm"
 urlpatterns = [
     path("", views.lead_list, name="list"),
     path("new/", views.lead_create, name="create"),
+    path("kanban/", views.lead_kanban, name="kanban"),
     path("reports/", views_reports.reports_index, name="reports_index"),
     path("reports/pipeline/", views_reports.pipeline_report_download, name="report_pipeline"),
     path("reports/conversion/", views_reports.conversion_report_download, name="report_conversion"),

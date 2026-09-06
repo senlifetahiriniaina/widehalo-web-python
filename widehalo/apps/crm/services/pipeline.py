@@ -22,6 +22,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.models.user import User
+from apps.core.services.chatter import post_message
 from apps.crm.models import CrmLead, CrmLostReason, CrmStage
 
 
@@ -31,7 +33,22 @@ def move_lead_to_stage(
     *,
     lost_reason: CrmLostReason | None = None,
     comment: str = "",
+    moved_by: User | None = None,
 ) -> CrmLead:
+    """Change l'etape d'une opportunite (RG-CRM-6 pour la perte).
+
+    `moved_by` (L4, CRM-1) : l'auteur du deplacement. Le critere exige que
+    la transition soit inscrite « dans le chatter ET dans le journal
+    d'audit ». Le journal etait deja automatique (`core.audit_signals`
+    ecrit a chaque `save`), le chatter n'etait alimente par aucun service
+    `crm` — le patron de reference est `mrp.services.orders.
+    advance_work_order`, qui poste une note apres avoir change l'etat.
+
+    Optionnel, et le message n'est poste que s'il est fourni : une
+    transition declenchee par un flux automatise (Studio de workflow) n'a
+    pas d'auteur humain, et `ChatterMessage.author` n'accepte pas `None`.
+    Ce cas reste trace par le journal d'audit et par
+    `crm.opportunity_stage_changed`."""
     if lead.stage.is_won or lead.stage.is_lost:
         raise ValidationError(_("Une opportunité gagnée ou perdue ne peut plus changer d'étape."))
     if stage.pipeline_id != lead.pipeline_id:
@@ -52,6 +69,20 @@ def move_lead_to_stage(
     lead.save(
         update_fields=["stage", "probability", "lost_reason", "lost_comment", "lost_at", "won_at"]
     )
+
+    if moved_by is not None:
+        # Apres la persistance, jamais avant : un message de chatter qui
+        # relaterait une transition ensuite refusee serait un faux dans le
+        # fil commercial. Meme ordre que `advance_work_order`.
+        note = _("Étape : %(stage)s") % {"stage": stage.name}
+        if stage.is_lost and lead.lost_reason_id is not None:
+            note = _("Perdue — %(reason)s : %(comment)s") % {
+                "reason": lead.lost_reason.name,
+                "comment": lead.lost_comment,
+            }
+        elif stage.is_won:
+            note = _("Gagnée — étape %(stage)s") % {"stage": stage.name}
+        post_message(lead, author=moved_by, body=str(note), is_note=True)
 
     from apps.core.events import publish_event
 

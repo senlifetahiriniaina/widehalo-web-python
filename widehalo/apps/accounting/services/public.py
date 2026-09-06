@@ -1426,6 +1426,33 @@ def list_accounts_for_warehouse(tenant: Tenant) -> list[dict[str, Any]]:
     ]
 
 
+def get_partner_account_balance(tenant: Tenant, partner_id: UUID) -> Decimal:
+    """Solde comptable d'un tiers, en MGA (L4, CRM-2).
+
+    Somme `debit - credit` des lignes d'ecritures PUBLIEES portant ce
+    `partner_id`, tous comptes confondus. Positif = le tiers DOIT (creance
+    client) ; negatif = on lui doit (dette fournisseur). Un meme tiers
+    pouvant etre client ET fournisseur, le solde net est la seule reponse
+    juste a « ou en est-on avec lui ».
+
+    **Etat `posted` uniquement** : un brouillon n'est pas une creance, et
+    l'inclure ferait afficher a la fiche societe un solde qu'aucun etat
+    comptable ne confirme. Meme discipline que
+    `get_stock_account_balance` ci-dessous, dont ce calcul reprend la
+    forme.
+
+    Le contrat public de ce module exposait jusqu'ici le grand livre du
+    tiers ligne a ligne (`list_ledger_entries_for_partner`) mais AUCUN
+    agregat : la fiche societe pouvait montrer cent ecritures sans jamais
+    dire ou en etait le compte. C'est le manque que CRM-2 nomme."""
+    totals = AccMoveLine.objects.filter(
+        tenant=tenant,
+        partner_id=partner_id,
+        move__state=AccMove.STATE_POSTED,
+    ).aggregate(debit=Sum("debit"), credit=Sum("credit"))
+    return (totals["debit"] or Decimal(0)) - (totals["credit"] or Decimal(0))
+
+
 def get_stock_account_balance(tenant: Tenant, *, at_date: dt.date) -> Decimal:
     """STK-12 (L12) : solde du compte de stock a une date, pour rapprochement
     avec la valeur de stock rejouee (`stocks.services.valuation_replay`).

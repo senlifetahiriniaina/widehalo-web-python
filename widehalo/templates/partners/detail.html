@@ -17,6 +17,47 @@
         <h1>{{ partner.name }}</h1>
       </div>
 
+      {% comment %}
+        CRM-2 (L4) — resume commercial, EN TETE et hors de tout onglet : le
+        critere exige « sans navigation supplementaire ». Devis et commandes
+        n'etaient visibles qu'apres un clic sur l'onglet du role « client »,
+        et ni l'encours ni le solde comptable n'existaient nulle part.
+
+        Encours et solde sont deux chiffres DIFFERENTS : l'encours est
+        commercial (commandes engagees, pas encore facturees), le solde est
+        comptable (ecritures publiees). Une commande facturee quitte le
+        premier pour entrer dans le second — d'ou la note qui les separe,
+        sans quoi on serait tente de les additionner.
+      {% endcomment %}
+      <section class="panel" aria-label="{% trans 'Résumé commercial' %}">
+        <div class="panel-body">
+          <p>
+            <strong>{% trans "Encours commercial" %}:</strong>
+            {{ commercial_summary.outstanding_mga }} MGA
+            &nbsp;·&nbsp;
+            <strong>{% trans "Solde comptable" %}:</strong>
+            {{ commercial_summary.account_balance_mga }} MGA
+          </p>
+          <p class="hint">
+            {% trans "L'encours couvre les commandes engagées non encore facturées ; le solde comptable, les écritures publiées. Une commande facturée passe du premier au second : ces deux montants ne s'additionnent pas." %}
+          </p>
+
+          <h2 style="font-size:1rem;">{% trans "Trois derniers documents de vente" %}</h2>
+          {% if commercial_summary.recent_orders or commercial_summary.recent_quotations %}
+            <ul>
+              {% for row in commercial_summary.recent_orders %}
+                <li>{% trans "Commande" %} {{ row.reference }} — {{ row.date }} — {{ row.state }} — {{ row.total }} MGA</li>
+              {% endfor %}
+              {% for row in commercial_summary.recent_quotations %}
+                <li>{% trans "Devis" %} {{ row.reference }} — {{ row.date }} — {{ row.state }} — {{ row.total }} MGA</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="hint">{% trans "Aucun document de vente pour ce tiers." %}</p>
+          {% endif %}
+        </div>
+      </section>
+
       <div class="tab-strip" role="tablist">
         <button type="button" role="tab" @click="select('general')" :aria-selected="isActive('general')">
           {% trans "Général" %}

@@ -24,11 +24,6 @@ horodatage de changement d'etape qui n'est pas trace."""
 
 from __future__ import annotations
 
-import datetime as dt
-
-from django.db.models import Max
-from django.utils import timezone
-
 from apps.core.services.anomaly_registry import (
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
@@ -36,30 +31,20 @@ from apps.core.services.anomaly_registry import (
     register_anomaly_check,
 )
 
-_STAGNANT_WINDOW_DAYS = 21
-
 
 def _check_stagnant_opportunities(tenant_id: str) -> list[AnomalyCandidate]:
-    from apps.crm.models import CrmLead
+    """Opportunites sans activite depuis plus de N jours.
 
-    now = timezone.now()
-    cutoff = now - dt.timedelta(days=_STAGNANT_WINDOW_DAYS)
-
-    leads = (
-        CrmLead.objects.filter(tenant_id=tenant_id, is_active=True)
-        .filter(won_at__isnull=True, lost_at__isnull=True)
-        .select_related("stage")
-        .annotate(last_activity_at=Max("activities__created_at"))
-    )
+    **N est desormais parametrable** (CRM-4, L4) : il vient de
+    `CrmPipeline.stagnant_after_days`, et non plus d'une constante de
+    module que seule une livraison pouvait changer. Le seuil est lu PAR
+    PIPELINE — deux cycles de vente de duree differente cohabitent dans un
+    meme tenant."""
+    from apps.crm.services.stagnation import stagnant_leads
 
     candidates: list[AnomalyCandidate] = []
-    for lead in leads:
-        reference_date = lead.last_activity_at or lead.created_at
-        if reference_date > cutoff:
-            continue
-
-        days_stagnant = (now - reference_date).days
-        severity = SEVERITY_HIGH if days_stagnant >= _STAGNANT_WINDOW_DAYS * 2 else SEVERITY_MEDIUM
+    for lead, days_stagnant, window in stagnant_leads(tenant_id):
+        severity = SEVERITY_HIGH if days_stagnant >= window * 2 else SEVERITY_MEDIUM
         candidates.append(
             AnomalyCandidate(
                 content_type_label="crm.crmlead",

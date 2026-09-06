@@ -49,7 +49,21 @@ def config_pipeline_detail(request: HttpRequest, pipeline_id: str) -> HttpRespon
     pipeline = get_object_or_404(CrmPipeline, id=pipeline_id, tenant=tenant)
     error = None
 
-    if request.method == "POST":
+    if request.method == "POST" and request.POST.get("action") == "set_stagnation":
+        # CRM-4 : le « N paramétrable » du critère. Sans cette porte, le
+        # champ existerait en base et resterait inatteignable — le motif
+        # exact que ce chantier corrige depuis le début.
+        try:
+            days = int(request.POST.get("stagnant_after_days") or 0)
+        except ValueError:
+            error = str(_("Le délai de relance doit être un nombre de jours."))
+        else:
+            if days <= 0:
+                error = str(_("Le délai de relance doit être strictement positif."))
+            else:
+                pipeline.stagnant_after_days = days
+                pipeline.save(update_fields=["stagnant_after_days"])
+    elif request.method == "POST":
         try:
             CrmStage.objects.create(
                 tenant=tenant,

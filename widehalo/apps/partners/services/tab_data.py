@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from apps.accounting.services.public import list_ledger_entries_for_partner
+from apps.accounting.services.public import (
+    get_partner_account_balance,
+    list_ledger_entries_for_partner,
+)
 from apps.catalog.services.public import list_supplier_products
 from apps.financing.services.public import (
     list_credocs_for_bank_partner,
@@ -23,8 +26,45 @@ from apps.mrp.services.public import (
 from apps.partners.models import Partner
 from apps.partners.services.accounts import get_partner_account_assignments
 from apps.purchase.services.public import list_orders_for_partner as list_purchase_orders
+from apps.sales.services.public import (
+    get_outstanding_amount_for_partner,
+    list_quotations_for_partner,
+)
 from apps.sales.services.public import list_orders_for_partner as list_sales_orders
-from apps.sales.services.public import list_quotations_for_partner
+
+RECENT_SALES_DOCUMENT_COUNT = 3
+
+
+def build_commercial_summary(partner: Partner) -> dict[str, Any]:
+    """CRM-2 (L4) — encours, solde comptable et trois derniers documents de
+    vente, **sans navigation supplementaire**.
+
+    Le critere insiste sur ce dernier point, et c'est ce qui manquait le
+    plus : la fiche affichait bien devis et commandes, mais dans l'onglet
+    du role « client », donc APRES un clic — et vingt par vingt, sans
+    limite. Ni l'encours ni le solde comptable n'existaient nulle part sur
+    la fiche : aucun des deux n'avait de gap public, et l'encours n'etait
+    meme pas une fonction (il vivait dans le corps de
+    `sales.services.orders.confirm_order`).
+
+    Ce resume est calcule pour TOUT partenaire, pas seulement pour un
+    client : un fournisseur peut porter un solde comptable, et le montrer
+    n'est jamais faux. Les documents de vente, eux, restent vides s'il n'y
+    en a pas.
+
+    Le solde et l'encours sont deux chiffres DIFFERENTS et le resteront :
+    l'encours est commercial (commandes engagees, pas encore facturees), le
+    solde est comptable (ecritures publiees). Une commande facturee quitte
+    le premier pour entrer dans le second. Les afficher cote a cote sans le
+    dire inviterait a les additionner."""
+    return {
+        "outstanding_mga": get_outstanding_amount_for_partner(partner.tenant, partner.id),
+        "account_balance_mga": get_partner_account_balance(partner.tenant, partner.id),
+        "recent_quotations": list_quotations_for_partner(
+            partner.id, limit=RECENT_SALES_DOCUMENT_COUNT
+        ),
+        "recent_orders": list_sales_orders(partner.id, limit=RECENT_SALES_DOCUMENT_COUNT),
+    }
 
 
 def build_role_tab_data(partner: Partner) -> dict[str, dict[str, Any]]:

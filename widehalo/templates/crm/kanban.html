@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Pipeline (kanban)" %} — WideHalo{% endblock %}
+{% block extra_head %}
+  {% comment %}
+    Bibliotheque de tri/glisser-deposer VENDORISEE localement (jamais un
+    CDN, meme discipline que Drawflow/htmx/Alpine.js) — SortableJS 1.15.7,
+    licence MIT. Licence complete : static/vendor/sortablejs/LICENSE.
+    Meme chargement que templates/mrp/kanban.html, dont ce gabarit reprend
+    le patron entier.
+  {% endcomment %}
+  <script src="{% static 'vendor/sortablejs/Sortable.min.js' %}" defer></script>
+  <style>
+    .kanban-column { min-height: 4rem; }
+    .kanban-column.kanban-legal-target {
+      outline: 3px dashed var(--accent-brand, #6366f1);
+      outline-offset: 2px;
+      background: var(--success-bg, #f0fdf4);
+      border-radius: 6px;
+    }
+    .kanban-handle {
+      min-height: 44px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: .5rem;
+      border-radius: 4px;
+      background: var(--surface-muted, #f0f0f0);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .kanban-column .card.sortable-ghost { opacity: .4; }
+  </style>
+{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Pipeline (kanban)" %}</h1>
+  </div>
+  <p><a href="{% url 'crm:list' %}">{% trans "Liste des opportunités" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if not has_pipeline %}
+    <c-empty-state
+      title="{% trans 'Aucun pipeline configuré' %}"
+      body="{% trans 'Un pipeline et ses étapes définissent les colonnes de ce tableau. Créez-en un pour commencer à suivre vos opportunités.' %}"
+      action_url="{% url 'crm:config_pipelines' %}"
+      action_label="{% trans 'Configurer un pipeline' %}" />
+  {% else %}
+    <p class="hint">
+      {% trans "Glissez une carte par sa poignée vers la colonne suivante pour faire avancer l'opportunité (la transition est inscrite au fil de discussion et au journal d'audit) — ou utilisez le bouton, toujours disponible." %}
+    </p>
+
+    <div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
+      {% for column in columns %}
+        <div style="flex:0 0 16rem;">
+          <h2 style="font-size:1rem;">{{ column.stage.name }}</h2>
+          <div class="kanban-column" data-col-index="{{ forloop.counter0 }}">
+            {% for lead in column.cards %}
+              <div class="card" data-lead-id="{{ lead.id }}" style="margin-bottom:.5rem;">
+                <div class="kanban-handle" aria-hidden="true">⠿</div>
+                <p><a href="{% url 'crm:detail' lead_id=lead.id %}">{{ lead.name }}</a></p>
+                <p class="hint">{{ lead.reference }} — {{ lead.expected_revenue_mga }} MGA</p>
+                {% if column.next_stage %}
+                  {% comment %}
+                    Le bouton est le chemin ACCESSIBLE ; le glisser-deposer
+                    soumet exactement ce formulaire-ci. Une etape « perdue »
+                    exige motif et commentaire (RG-CRM-6) : elle n'est donc
+                    jamais atteignable par simple depot, et le gabarit
+                    renvoie vers la fiche.
+                  {% endcomment %}
+                  {% if column.next_stage.is_lost or column.next_stage.requires_reason %}
+                    <p class="hint">
+                      <a href="{% url 'crm:detail' lead_id=lead.id %}">{% trans "Motif requis — passer par la fiche" %}</a>
+                    </p>
+                  {% else %}
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                      <input type="hidden" name="stage_id" value="{{ column.next_stage.id }}">
+                      <c-button variant="secondary" type="submit">
+                        {% blocktrans with stage=column.next_stage.name %}Passer à {{ stage }}{% endblocktrans %}
+                      </c-button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </div>
+            {% empty %}
+              <p class="hint">{% trans "Aucune opportunité." %}</p>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <script>
+      // Le glisser-deposer est une AMELIORATION cosmetique posee par-dessus
+      // le bouton existant, jamais un remplacement — SortableJS n'a aucun
+      // support clavier natif, le bouton reste le seul chemin accessible au
+      // clavier et au lecteur d'ecran. Le serveur ne connait pas la notion
+      // de « colonne cible » : la carte porte l'etape suivante dans son
+      // propre formulaire, et un depot legal le soumet EXACTEMENT comme un
+      // clic. `form.requestSubmit()` et jamais `form.submit()`, pour rester
+      // intercepte par offline_queue.js en reseau degrade.
+      document.addEventListener("DOMContentLoaded", function () {
+        if (typeof Sortable === "undefined") {
+          return;
+        }
+        var columns = document.querySelectorAll(".kanban-column");
+        var clearLegalTarget = function () {
+          document.querySelectorAll(".kanban-legal-target").forEach(function (el) {
+            el.classList.remove("kanban-legal-target");
+          });
+        };
+        columns.forEach(function (column) {
+          // eslint-disable-next-line no-new
+          new Sortable(column, {
+            group: "crm-kanban",
+            handle: ".kanban-handle",
+            animation: 150,
+            ghostClass: "sortable-ghost",
+            onStart: function (evt) {
+              var fromIndex = parseInt(evt.from.getAttribute("data-col-index"), 10);
+              var nextColumn = document.querySelector(
+                '.kanban-column[data-col-index="' + (fromIndex + 1) + '"]'
+              );
+              if (nextColumn) {
+                nextColumn.classList.add("kanban-legal-target");
+              }
+            },
+            onEnd: function (evt) {
+              clearLegalTarget();
+              var fromIndex = parseInt(evt.from.getAttribute("data-col-index"), 10);
+              var toIndex = parseInt(evt.to.getAttribute("data-col-index"), 10);
+              if (toIndex !== fromIndex + 1) {
+                // Depot illegal (mauvaise colonne, ou reordonnancement dans
+                // la meme colonne — sans signification cote serveur) :
+                // Sortable a deja deplace le DOM, on le remet en place sans
+                // jamais soumettre.
+                var originalColumn = document.querySelector(
+                  '.kanban-column[data-col-index="' + fromIndex + '"]'
+                );
+                if (originalColumn) {
+                  var refNode = originalColumn.children[evt.oldIndex] || null;
+                  originalColumn.insertBefore(evt.item, refNode);
+                }
+                return;
+              }
+              var form = evt.item.querySelector("form");
+              if (form) {
+                form.requestSubmit();
+              }
+            },
+          });
+        });
+      });
+    </script>
+  {% endif %}
+{% endblock %}

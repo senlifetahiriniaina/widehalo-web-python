@@ -1,0 +1,41 @@
+{% comment %}
+CRM-5 (L4) — etat vide PEDAGOGIQUE, generique a tout le produit.
+
+Le critere : « L'ecran pipeline vide affiche un etat vide pedagogique
+proposant la creation d'une opportunite et l'import d'un fichier, jamais
+un tableau vide sans message. » Le depot n'avait aucun composant de ce
+genre : `templates/components/_smart_table.html` retombait sur une
+cellule « Aucun resultat. », et chaque module qui voulait mieux le
+reecrivait a la main.
+
+Un tableau vide ne dit pas si l'utilisateur n'a rien, s'il a mal filtre,
+ou si le module n'est pas configure — et il ne dit jamais quoi faire
+ensuite. Ce composant impose les trois : ce qui est vide, pourquoi, et
+l'action suivante.
+
+`action_url`/`action_label` : action PRINCIPALE (creation). `import_url`/
+`import_label` : la seconde voie du critere, optionnelle — tous les
+ecrans n'ont pas d'import.
+
+Usage :
+  <c-empty-state
+    title="Aucune opportunité"
+    body="Créez votre première opportunité, ou importez un fichier."
+    action_url="/crm/new/" action_label="Nouvelle opportunité"
+    import_url="/crm/import/" import_label="Importer un fichier" />
+{% endcomment %}
+<c-vars title="" body="" action_url="" action_label="" import_url="" import_label="" />
+
+<div class="wh-empty-state" role="status" style="text-align:center; padding:2rem 1rem;">
+  {% if title %}<h2 style="margin-bottom:.5rem;">{{ title }}</h2>{% endif %}
+  {% if body %}<p class="hint" style="max-width:36rem; margin:0 auto 1rem;">{{ body }}</p>{% endif %}
+  {{ slot }}
+  <div style="display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap;">
+    {% if action_url and action_label %}
+      <a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>
+    {% endif %}
+    {% if import_url and import_label %}
+      <a class="btn" href="{{ import_url }}">{{ import_label }}</a>
+    {% endif %}
+  </div>
+</div>

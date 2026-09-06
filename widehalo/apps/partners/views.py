@@ -35,7 +35,7 @@ from apps.partners.services.contacts import (
 )
 from apps.partners.services.merge import merge_partners
 from apps.partners.services.onboarding import create_partner
-from apps.partners.services.tab_data import build_role_tab_data
+from apps.partners.services.tab_data import build_commercial_summary, build_role_tab_data
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -113,6 +113,11 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
     # serveur — toute la fiche est rendue en un seul chargement de page,
     # le basculement entre onglets reste purement client-side (Alpine).
     role_tabs = build_role_tab_data(partner)
+    # CRM-2 (L4) : encours, solde comptable et trois derniers documents,
+    # rendus en tete de fiche — le critere exige « sans navigation
+    # supplementaire », et devis/commandes vivaient jusqu'ici derriere
+    # l'onglet du role « client ».
+    commercial_summary = build_commercial_summary(partner)
     role_labels = dict(Partner.ROLE_CHOICES)
     contacts_by_role = {role: list_contacts(partner, role=role) for role in partner.roles}
     general_contacts = list_contacts(partner)
@@ -128,6 +133,7 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
             "documents": documents,
             "chat_channel_id": chat_channel_id,
             "role_tabs": role_tabs,
+            "commercial_summary": commercial_summary,
             "role_labels": role_labels,
             "role_choices": Partner.ROLE_CHOICES,
             "contacts_by_role": contacts_by_role,

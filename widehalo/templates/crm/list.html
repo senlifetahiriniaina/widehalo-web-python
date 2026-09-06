@@ -6,7 +6,29 @@
   <div class="page-head">
     <h1>{% trans "Opportunités" %}</h1>
   </div>
-  <p><a href="{% url 'crm:create' %}" class="btn btn-primary">{% trans "Nouvelle opportunité" %}</a></p>
-  <p><a href="{% url 'crm:reports_index' %}">{% trans "Rapports" %}</a></p>
-  {% include "components/_smart_table.html" %}
+  <p>
+    <a href="{% url 'crm:create' %}" class="btn btn-primary">{% trans "Nouvelle opportunité" %}</a>
+    <a href="{% url 'crm:kanban' %}">{% trans "Pipeline (kanban)" %}</a>
+    <a href="{% url 'crm:reports_index' %}">{% trans "Rapports" %}</a>
+  </p>
+
+  {% comment %}
+    CRM-5 (L4) — etat vide PEDAGOGIQUE.
+
+    La condition distingue les deux vides, et c'est tout l'interet : sans
+    recherche active et sans aucune ligne, l'utilisateur n'a rien et il faut
+    lui dire quoi faire ; avec une recherche, il a filtre trop fin et le
+    tableau (qui affiche « Aucun resultat. » et conserve le champ de
+    recherche) est la bonne reponse. Un etat vide qui remplacerait aussi le
+    second cacherait la barre de recherche a qui veut la corriger.
+  {% endcomment %}
+  {% if not query and page_obj.paginator.count == 0 %}
+    <c-empty-state
+      title="{% trans 'Aucune opportunité pour l’instant' %}"
+      body="{% trans 'Une opportunité suit une affaire de sa qualification à sa conclusion : montant attendu, étape, activités de relance. Créez la première, puis suivez-la depuis le pipeline.' %}"
+      action_url="{% url 'crm:create' %}"
+      action_label="{% trans 'Nouvelle opportunité' %}" />
+  {% else %}
+    {% include "components/_smart_table.html" %}
+  {% endif %}
 {% endblock %}

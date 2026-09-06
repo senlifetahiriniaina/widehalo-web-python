@@ -15,6 +15,19 @@ from apps.core.models.base import BaseModel, ReferenceMixin
 class CrmPipeline(BaseModel):
     name = models.CharField(max_length=100)
     is_default = models.BooleanField(default=False)
+    # CRM-4 (L4) : le « N » du critere — « une opportunite sans activite
+    # planifiee depuis plus de N jours (N PARAMETRABLE) apparait dans la
+    # tuile relances en retard ». N vivait jusqu'ici en constante de module
+    # (`services/ai_anomaly_registration._STAGNANT_WINDOW_DAYS = 21`) :
+    # aucun tenant ne pouvait l'ajuster sans une livraison, alors qu'un
+    # cycle de vente long (equipement industriel) et un cycle court
+    # (consommable) n'ont pas la meme notion de « en retard ».
+    #
+    # Porte par le PIPELINE et non par le tenant : c'est le pipeline qui
+    # decrit un cycle de vente, et un meme tenant peut en exploiter
+    # plusieurs. Defaut 21, valeur qui etait en dur — aucun comportement
+    # existant ne change a la migration.
+    stagnant_after_days = models.PositiveSmallIntegerField(default=21)
 
     class Meta:
         db_table = "crm_pipeline"

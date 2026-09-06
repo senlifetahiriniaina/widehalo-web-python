@@ -184,13 +184,14 @@ def launchpad(request: HttpRequest) -> HttpResponse:
     test_launchpad_shows_only_role_visible_apps` avant ce correctif."""
     from apps.accounting.services.public import count_unpaid_customer_invoices
     from apps.core.context_processors import visible_app_labels_for
-    from apps.crm.services.public import count_open_opportunities
+    from apps.crm.services.public import count_open_opportunities, count_overdue_follow_ups
     from apps.sales.services.public import count_orders_pending_confirmation
 
     user = cast(User, request.user)
     visible = visible_app_labels_for(user)
+    current_tenant = resolve_tenant(request)
     unread_notifications = Notification.objects.filter(
-        user=user, tenant_id=resolve_tenant(request).id, read_at__isnull=True
+        user=user, tenant_id=current_tenant.id, read_at__isnull=True
     ).count()
     kpis = []
     if "accounting" in visible:
@@ -209,6 +210,22 @@ def launchpad(request: HttpRequest) -> HttpResponse:
                 "value": count_open_opportunities(),
                 "href": "/crm/",
                 "tone": "neutral",
+            }
+        )
+    if "crm" in visible:
+        # CRM-4 : la tuile « relances en retard » que le critere nomme, et
+        # qui n'existait pas — la matiere vivait dans le detecteur
+        # d'anomalies du copilote, sans jamais atteindre le launchpad.
+        # Gardee par `visible`, comme les autres : la docstring de cette
+        # vue rappelle qu'une regression RBAC reelle a deja ete corrigee
+        # ici.
+        overdue = count_overdue_follow_ups(str(current_tenant.id))
+        kpis.append(
+            {
+                "label": _("Relances en retard"),
+                "value": overdue,
+                "href": "/crm/",
+                "tone": "warning" if overdue else "success",
             }
         )
     if "sales" in visible:

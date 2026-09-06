@@ -9,6 +9,20 @@
   <div class="workflow-banner">
     <strong>{% trans "Étape" %}:</strong> {{ lead.stage.name }}
     <strong>{% trans "Score" %}:</strong> {{ score }}
+    {% comment %}
+      CRM-3 (L4) — la conversion, atteignable depuis la fiche. Elle cree la
+      societe et son contact a partir des coordonnees DEJA saisies sur la
+      piste (nom, contact, e-mail, telephone) : aucun champ n'est
+      redemande, et le formulaire ne porte donc aucune saisie.
+      Une piste deja rattachee n'affiche plus le bouton.
+    {% endcomment %}
+    {% if not lead.partner_id %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="convert">
+        <c-button variant="secondary" type="submit">{% trans "Convertir en société" %}</c-button>
+      </form>
+    {% endif %}
     {% if whatsapp_link %}<a href="{{ whatsapp_link }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     <form method="post">
@@ -104,4 +118,17 @@
       </form>
     </div>
   </div>
+
+  {% comment %}
+    L4 (CRM-1) — le fil de discussion, exige par le critere au meme titre
+    que le glisser-deposer : « inscrit la transition dans le chatter ET
+    dans le journal d'audit ». Le journal etait deja automatique
+    (`core.audit_signals`), le chatter n'etait cable sur AUCUN objet CRM.
+  {% endcomment %}
+  <section class="panel" style="margin-top: var(--spacing-lg);">
+    <div class="panel-head"><h2>{% trans "Fil de discussion" %}</h2></div>
+    <div class="panel-body">
+      <c-chatter app_label="{{ chatter_app_label }}" model="{{ chatter_model }}" object_id="{{ chatter_object_id }}" />
+    </div>
+  </section>
 {% endblock %}

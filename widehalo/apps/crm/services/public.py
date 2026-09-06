@@ -68,3 +68,18 @@ def count_open_opportunities() -> int:
     par `CrmLead.objects` (RLS), aucun parametre `tenant` necessaire.
     Utilise par le tableau de bord transversal (chantier UX6)."""
     return CrmLead.objects.filter(stage__is_won=False, stage__is_lost=False).count()
+
+
+def count_overdue_follow_ups(tenant_id: str) -> int:
+    """CRM-4 — nombre d'opportunites sans activite depuis plus de N jours,
+    pour la tuile « relances en retard » du launchpad.
+
+    `tenant_id` explicite, contrairement a `count_open_opportunities`
+    ci-dessus : le calcul passe par `services.stagnation`, qui filtre sur
+    `tenant_id` pour rester identique au detecteur d'anomalies du copilote.
+    Deux comptages differents de la meme population feraient diverger la
+    tuile et la liste du copilote — c'est precisement ce que BI-1 interdit
+    ailleurs dans ce produit."""
+    from apps.crm.services.stagnation import count_stagnant_leads
+
+    return count_stagnant_leads(tenant_id)
