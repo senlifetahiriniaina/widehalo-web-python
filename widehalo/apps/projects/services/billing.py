@@ -75,7 +75,10 @@ from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from apps.accounting.services.public import create_customer_invoice_from_source
+from apps.accounting.services.public import (
+    create_customer_invoice_from_source,
+    default_sale_tax_lines,
+)
 from apps.core.models.user import User
 from apps.projects.models import PrjInvoicingRecord, PrjProject, PrjTask, PrjTimeEntry
 from apps.projects.services.evm import compute_evm_snapshot
@@ -106,11 +109,20 @@ def _create_invoice_and_record(
     cf. docstring de `create_customer_invoice_from_source`)."""
     partner_id = _ensure_client_partner(project)
     billed_date = date or timezone.now().date()
+    # L17 : la TVA de vente, au taux par defaut du tenant a la date de
+    # facturation. `sales` etait le SEUL ecrivain de `tax_lines` : un tenant
+    # assujetti qui facturait une regie ou un forfait projet emettait donc
+    # encore une facture sans TVA, et son PDF affichait « TVA : 0 ».
+    # Liste vide pour un tenant non assujetti — l'ecriture est alors
+    # exactement celle d'avant ce lot.
     invoice_id = create_customer_invoice_from_source(
         tenant=project.tenant,
         partner_id=partner_id,
         date=billed_date,
         income_lines=[{"account_id": None, "amount": amount, "label": label}],
+        tax_lines=default_sale_tax_lines(
+            project.tenant, date=billed_date, untaxed_amount=amount, label=label
+        ),
     )
     if invoice_id is None:
         raise ValidationError(

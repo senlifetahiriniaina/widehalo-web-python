@@ -607,6 +607,89 @@ def create_stock_movement_entry_from_source(
     return move_id
 
 
+def is_vat_liable(tenant: Tenant) -> bool:
+    """Ce tenant collecte-t-il la TVA ? (L17)
+
+    Facade publique de `services.taxes.vat_applicable`, pour les modules
+    qui n'ont pas le droit d'importer ce module interne (regle de couplage
+    n1) : `sales`, `pos`, et le processeur de contexte de `core` qui expose
+    la reponse aux gabarits.
+
+    **Pourquoi elle etait necessaire.** `vat_applicable` etait correcte
+    depuis L5 et n'avait qu'un consommateur — ce fichier. AUCUNE surface
+    d'affichage ne la lisait : les gabarits conditionnaient leur ligne de
+    TVA sur `amount_tax`, c'est-a-dire sur un MONTANT et non sur un
+    REGIME. Ils masquaient donc la meme ligne pour un tenant non assujetti
+    (normal) et pour un tenant assujetti dont personne n'a configure
+    d'`AccTax` (un gap de configuration) — deux situations qui n'appellent
+    pas le meme document, ni le meme diagnostic."""
+    return vat_applicable(tenant)
+
+
+def legal_document_tax_context(tenant: Tenant) -> dict[str, Any]:
+    """Les deux cles que tout document legal CHIFFRE doit poser (L17).
+
+    `render_to_string` sans requete ne passe par aucun processeur de
+    contexte : chaque generateur de PDF doit donc fournir ces valeurs
+    lui-meme. Les regrouper ici evite que le prochain document legal
+    reinvente la regle — ou l'oublie, ce qui est exactement ce qui s'est
+    produit entre la facture, le devis et la confirmation de commande, dont
+    aucun ne masquait les memes lignes.
+
+    A ne PAS poser sur un document sans montants (bon de livraison) : une
+    mention de non-assujettissement sur un document qui ne chiffre rien est
+    du bruit, et le `{% if %}` du socle la laisse alors tomber."""
+    from apps.accounting.services.legal_mentions import mandatory_vat_mention
+
+    return {
+        "is_vat_liable": vat_applicable(tenant),
+        "mandatory_vat_mention": mandatory_vat_mention(tenant),
+    }
+
+
+def default_sale_tax_lines(
+    tenant: Tenant,
+    *,
+    date: dt.date,
+    untaxed_amount: Decimal,
+    label: str = "",
+) -> list[dict[str, Any]]:
+    """`tax_lines` a joindre a une facture client au taux de vente par
+    defaut du tenant (L17).
+
+    **Pour les modules qui facturent sans selecteur de taxe par ligne.**
+    `sales` fige un taux PAR LIGNE (`SalesOrderLine.tax_rate`) parce qu'un
+    devis se negocie ligne a ligne ; `projects` et `logistics`, eux,
+    facturent un montant unique (une regie, un forfait, une refacturation
+    de fret) et n'ont aucun endroit ou porter un taux. Recalculer au taux
+    du jour de la facturation est exact pour eux : le montant n'a pas ete
+    accepte par le client des semaines plus tot sous un autre taux.
+
+    C'est la meme simplification assumee que le POS (un seul taux de vente
+    par defaut, jamais une matrice par produit) — et la meme raison :
+    inventer ici un choix de taux fabriquerait une regle fiscale que ni le
+    cahier ni `AccTax` ne portent.
+
+    Liste VIDE — jamais une ligne a zero — quand aucune taxe ne s'applique
+    (tenant non assujetti, ou aucune `AccTax` de vente valide a cette
+    date) : `create_customer_invoice_from_source` ignore les montants nuls,
+    mais une liste vide dit la meme chose plus clairement."""
+    tax = get_default_sale_tax(tenant, on_date=date)
+    if tax is None:
+        return []
+    amount = (untaxed_amount * tax["rate"] / Decimal(100)).quantize(Decimal("0.0001"))
+    if not amount:
+        return []
+    return [
+        {
+            "tax_id": tax["id"],
+            "amount": amount,
+            "base": untaxed_amount,
+            "label": label,
+        }
+    ]
+
+
 def get_default_sale_tax(
     tenant: Tenant, *, on_date: dt.date | None = None
 ) -> dict[str, Any] | None:

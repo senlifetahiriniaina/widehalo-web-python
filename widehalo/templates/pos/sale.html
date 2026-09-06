@@ -92,9 +92,20 @@
           </template>
         </tbody>
       </table>
-      <p>{% trans "Sous-total HT" %} : <span x-text="amountUntaxed().toFixed(2)"></span> MGA</p>
-      <p>{% trans "TVA" %} : <span x-text="amountTax().toFixed(2)"></span> MGA</p>
-      <p><strong>{% trans "Total TTC" %} : <span x-text="amountTotal().toFixed(2)"></span> MGA</strong></p>
+      {% comment %}
+        L17 — le REGIME, jamais le montant. Ces trois lignes etaient
+        inconditionnelles : un tenant a l'impot synthetique voyait
+        « TVA : 0 » sur le ticket REMIS AU CLIENT et sur l'ecran de caisse.
+        Le gabarit `sales` avait d'ailleurs copie sa ventilation depuis ce
+        ticket-ci, c'est-a-dire depuis la surface non corrigee.
+      {% endcomment %}
+      {% if tenant_is_vat_liable %}
+        <p>{% trans "Sous-total HT" %} : <span x-text="amountUntaxed().toFixed(2)"></span> MGA</p>
+        <p>{% trans "TVA" %} : <span x-text="amountTax().toFixed(2)"></span> MGA</p>
+        <p><strong>{% trans "Total TTC" %} : <span x-text="amountTotal().toFixed(2)"></span> MGA</strong></p>
+      {% else %}
+        <p><strong>{% trans "Total" %} : <span x-text="amountTotal().toFixed(2)"></span> MGA</strong></p>
+      {% endif %}
 
       <h2>{% trans "Règlement" %}</h2>
       <template x-for="method in paymentMethods" :key="method.id">

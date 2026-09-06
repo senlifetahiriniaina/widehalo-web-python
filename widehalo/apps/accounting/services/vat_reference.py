@@ -114,3 +114,45 @@ def diverging_sale_taxes(
             }
         )
     return rows
+
+
+VAT_LIABILITY_THRESHOLD_CODE = "tva.seuil_assujettissement"
+
+
+def resolve_vat_liability_thresholds(
+    tenant: Tenant, *, at_date: dt.date | None = None
+) -> dict[str, Decimal] | None:
+    """Les deux bornes d'assujettissement a la TVA, a la date donnee (L17).
+
+    `{"seuil_mga": Decimal, "plancher_option_mga": Decimal}` : au-dela du
+    seuil l'assujettissement est obligatoire, entre le plancher et le seuil
+    il est OPTIONNEL (`Tenant.vat_opted_in`, Loi de finances 2026), en deca
+    du plancher c'est le regime de l'impot synthetique.
+
+    Les deux bornes voyagent ensemble parce qu'elles n'ont de sens
+    qu'ensemble : « 400 M » ne dit rien sans « et l'option ouverte a partir
+    de 200 M ». C'est aussi pourquoi le parametre reglementaire les porte
+    dans un seul dictionnaire plutot qu'en deux codes qu'un jeu de donnees
+    pourrait desynchroniser.
+
+    Renvoie `None` — jamais une exception — si le parametre n'est pas
+    resolvable a cette date ou si sa forme n'est pas celle attendue : un
+    appelant de LECTURE (l'ecran de configuration fiscale) ne doit pas
+    tomber parce qu'une migration d'amorcage n'a pas ete rejouee, il doit
+    simplement ne rien affirmer."""
+    at_date = at_date or timezone.now().date()
+    try:
+        value, _version = get_parameter_with_version(VAT_LIABILITY_THRESHOLD_CODE, at_date, tenant)
+    except RegulatoryParameter.DoesNotExist:
+        return None
+    if not isinstance(value, dict):
+        return None
+    try:
+        return {
+            "seuil_mga": Decimal(str(value["seuil_mga"])),
+            "plancher_option_mga": Decimal(str(value["plancher_option_mga"])),
+        }
+    except (KeyError, ArithmeticError, TypeError, ValueError):
+        # Un parametre saisi a la main peut porter n'importe quelle forme.
+        # Mieux vaut ne rien afficher qu'un seuil invente.
+        return None

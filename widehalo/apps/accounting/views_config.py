@@ -27,7 +27,9 @@ from apps.accounting.models import (
     AccTenantDefaultAccount,
 )
 from apps.accounting.services.default_accounts import resolve_default_account
+from apps.accounting.services.legal_mentions import mandatory_vat_mention
 from apps.accounting.services.taxes import vat_applicable
+from apps.core.models.tenant import Tenant
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -224,6 +226,149 @@ def config_default_accounts(request: HttpRequest) -> HttpResponse:
         "accounting/config_default_accounts.html",
         {"rows": rows, "accounts": accounts, "error": error},
     )
+
+
+@login_required
+def config_fiscal(request: HttpRequest) -> HttpResponse:
+    """L17 — l'ecran de configuration fiscale que le produit promettait.
+
+    **Trois champs joignables uniquement par `/admin/` jusqu'ici.**
+    `Tenant.fiscal_regime`, `Tenant.vat_opted_in` et `Tenant.legal_mentions`
+    n'etaient ecrits par AUCUNE surface du produit : ni l'onboarding, ni
+    `create_tenant`, ni `apply_country_defaults`, ni l'ecran « Profil de
+    l'entreprise » (qui ne traite qu'adresse, telephone, e-mail et logo).
+    Consequence : **tout tenant nait `reel_avec_tva`**, y compris une
+    entreprise a l'impot synthetique, et la seule facon de le corriger
+    passait par le formulaire d'administration Django, reserve au
+    superutilisateur.
+
+    La docstring de `vat_opted_in` annonce depuis l'origine « un futur ecran
+    de configuration fiscale (module accounting) [pour] guider ce choix
+    une fois le CA reel connu ». C'est celui-ci.
+
+    **Il SIGNALE, il ne decide jamais.** Le chiffre d'affaires reel est
+    affiche face au seuil d'assujettissement, et un ecart est nomme — mais
+    le regime n'est jamais change d'office. Un basculement automatique
+    reecrirait la qualification fiscale d'une societe sur la foi d'un
+    agregat interne, alors que le regime resulte d'une declaration a
+    l'administration : c'est au comptable de trancher, avec le chiffre sous
+    les yeux."""
+    tenant = resolve_tenant(request)
+    error = None
+    saved = False
+
+    if request.method == "POST":
+        regime = request.POST.get("fiscal_regime", "")
+        if regime not in dict(Tenant.FISCAL_REGIME_CHOICES):
+            error = _("Régime fiscal inconnu.")
+        else:
+            tenant.fiscal_regime = regime
+            tenant.vat_opted_in = bool(request.POST.get("vat_opted_in"))
+            tenant.legal_mentions = request.POST.get("legal_mentions", "")
+            tenant.save(update_fields=["fiscal_regime", "vat_opted_in", "legal_mentions"])
+            saved = True
+
+    return render(
+        request,
+        "accounting/config_fiscal.html",
+        {
+            "tenant": tenant,
+            "regime_choices": Tenant.FISCAL_REGIME_CHOICES,
+            "is_vat_liable": vat_applicable(tenant),
+            "mandatory_vat_mention": mandatory_vat_mention(tenant),
+            "error": error,
+            "saved": saved,
+            **_vat_threshold_context(tenant),
+        },
+    )
+
+
+def _vat_threshold_context(tenant: Tenant) -> dict[str, object]:
+    """Chiffre d'affaires reel face au seuil legal — ou rien du tout.
+
+    Trois choses peuvent manquer, et aucune n'est une erreur : le parametre
+    `tva.seuil_assujettissement` (une instance dont les migrations n'ont pas
+    ete rejouees), le chiffre d'affaires (un tenant neuf), ou les deux. Dans
+    ces cas l'ecran reste utilisable et se contente de ne rien affirmer —
+    afficher « CA : 0 Ar, en dessous du seuil » a un tenant qui n'a
+    simplement rien saisi serait une conclusion tiree du vide."""
+    from apps.accounting.services.vat_reference import resolve_vat_liability_thresholds
+
+    thresholds = resolve_vat_liability_thresholds(tenant)
+    if thresholds is None:
+        return {"vat_thresholds": None, "annual_revenue_mga": None, "regime_hint": ""}
+
+    revenue = _trailing_year_revenue(tenant)
+    hint = ""
+    if revenue is not None:
+        seuil, plancher = thresholds["seuil_mga"], thresholds["plancher_option_mga"]
+        if revenue >= seuil and tenant.fiscal_regime != Tenant.FISCAL_REGIME_REAL_WITH_VAT:
+            hint = _(
+                "Le chiffre d'affaires des douze derniers mois dépasse le seuil "
+                "d'assujettissement : le régime déclaré ne correspond peut-être plus."
+            )
+        elif plancher <= revenue < seuil and not tenant.vat_opted_in:
+            hint = _(
+                "Le chiffre d'affaires se situe dans la tranche où l'assujettissement "
+                "à la TVA est optionnel (Loi de finances 2026) : l'option n'est pas exercée."
+            )
+        elif revenue < plancher and tenant.fiscal_regime != Tenant.FISCAL_REGIME_SYNTHETIC:
+            hint = _(
+                "Le chiffre d'affaires est inférieur au plancher : le régime de l'impôt "
+                "synthétique pourrait s'appliquer."
+            )
+    return {
+        "vat_thresholds": thresholds,
+        "annual_revenue_mga": revenue,
+        "regime_hint": hint,
+    }
+
+
+def _trailing_year_revenue(tenant: Tenant) -> Decimal | None:
+    """Chiffre d'affaires des douze derniers mois, LU DANS LES LIVRES.
+
+    Somme des credits nets des comptes de PRODUIT sur les ecritures
+    publiees. Deux raisons de le prendre ici plutot que dans `sales` :
+
+    - **la regle de couplage n1 l'impose** : `accounting` ne peut pas
+      dependre de `sales`, qui est en aval. Le garde-fou
+      `test_module_boundaries` a d'ailleurs refuse le premier jet de cet
+      ecran, qui appelait `sales.services.public.get_revenue_summary` ;
+    - **c'est le bon chiffre** : un seuil d'assujettissement se compare au
+      chiffre d'affaires COMPTABLE, celui que l'administration lira dans la
+      liasse — pas au cumul des commandes du module de vente, qui inclut
+      des documents non encore factures et exclut tout produit qui n'est
+      pas passe par `sales` (facturation projet, refacturation de fret,
+      caisse).
+
+    Meme forme de calcul que `public.get_stock_account_balance` : etat
+    `posted` uniquement, `debit`/`credit` nets, jamais un champ
+    denormalise.
+
+    `None` — et non `Decimal(0)` — quand aucune ecriture de produit
+    n'existe : « aucune vente enregistree » et « un chiffre d'affaires
+    nul » n'appellent pas le meme commentaire a l'ecran, et le second
+    serait une conclusion tiree du vide sur un tenant qui vient d'etre
+    cree."""
+    from datetime import timedelta
+
+    from django.db.models import Sum
+    from django.utils import timezone
+
+    from apps.accounting.models import AccMove, AccMoveLine
+
+    today = timezone.now().date()
+    aggregate = AccMoveLine.objects.filter(
+        tenant=tenant,
+        account__type=AccAccount.TYPE_INCOME,
+        move__state=AccMove.STATE_POSTED,
+        move__date__gte=today - timedelta(days=365),
+        move__date__lte=today,
+    ).aggregate(credit=Sum("credit"), debit=Sum("debit"))
+    if aggregate["credit"] is None and aggregate["debit"] is None:
+        return None
+    revenue = (aggregate["credit"] or Decimal(0)) - (aggregate["debit"] or Decimal(0))
+    return revenue
 
 
 @login_required

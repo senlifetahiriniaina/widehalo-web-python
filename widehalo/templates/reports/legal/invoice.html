@@ -34,11 +34,28 @@
     </tbody>
   </table>
 
+  {% comment %}
+    L17 — la ventilation est conditionnee par le REGIME du tenant
+    (`is_vat_liable`, pose par `reports.invoice_pdf`), jamais par le montant
+    de TVA. Deduire le regime d'un total nul confondrait « ce tenant ne
+    collecte pas de TVA » et « ce tenant est assujetti mais aucune AccTax
+    n'est configuree » : le premier merite un montant unique, le second une
+    facture a TVA nulle qu'un comptable doit pouvoir remarquer.
+
+    Un non-assujetti voit donc UN SEUL montant : ni « Total HT », ni
+    « Total TTC » — ces libelles opposent deux montants qui sont le meme —
+    et surtout aucune ligne « TVA : 0 », qui affirmerait qu'une taxe existe
+    et vaut zero la ou elle ne s'applique pas.
+  {% endcomment %}
   <table class="report-table">
     <tbody>
-      <tr><td>{% trans "Total HT / Subtotal excl. tax" %}</td><td>{{ total_untaxed }}</td></tr>
-      <tr><td>{% trans "TVA / VAT" %}</td><td>{{ total_tax }}</td></tr>
-      <tr><td><strong>{% trans "Total TTC / Total incl. tax" %}</strong></td><td><strong>{{ total_incl_tax }}</strong></td></tr>
+      {% if is_vat_liable %}
+        <tr><td>{% trans "Total HT / Subtotal excl. tax" %}</td><td>{{ total_untaxed }}</td></tr>
+        <tr><td>{% trans "TVA / VAT" %}</td><td>{{ total_tax }}</td></tr>
+        <tr><td><strong>{% trans "Total TTC / Total incl. tax" %}</strong></td><td><strong>{{ total_incl_tax }}</strong></td></tr>
+      {% else %}
+        <tr><td><strong>{% trans "Total / Total" %}</strong></td><td><strong>{{ total_incl_tax }}</strong></td></tr>
+      {% endif %}
     </tbody>
   </table>
 

@@ -65,7 +65,15 @@
           <tr><th>{% trans "Excédent brut d'exploitation" %}</th><td x-text="fmt(indicators.excedent_brut)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.excedent_brut)"></td></tr>
           <tr><th>{% trans "Résultat net" %}</th><td x-text="fmt(indicators.resultat_net)"></td><td x-text="ecartText(indicators.ecarts && indicators.ecarts.resultat_net)"></td></tr>
           <tr><th>{% trans "Seuil de rentabilité" %}</th><td x-text="indicators.seuil_rentabilite !== null && indicators.seuil_rentabilite !== undefined ? fmt(indicators.seuil_rentabilite) : '—'"></td><td></td></tr>
-          <tr><th>{% trans "TVA nette projetée" %}</th><td x-text="fmt(indicators.tva_nette_projetee)"></td><td></td></tr>
+          {% comment %}
+            L17 — un tenant non assujetti ne collecte ni ne deduit de TVA :
+            lui afficher une « TVA nette projetee » a zero suggere une taxe
+            qui ne s'applique pas. Le moteur calcule bien la ligne (taux de
+            reference nul), elle n'est simplement pas montree.
+          {% endcomment %}
+          {% if tenant_is_vat_liable %}
+            <tr><th>{% trans "TVA nette projetée" %}</th><td x-text="fmt(indicators.tva_nette_projetee)"></td><td></td></tr>
+          {% endif %}
         </tbody>
       </table>
       <p class="text-muted">{% trans "Un scénario n'est pas un budget : aucune écriture ni document n'est créé ou modifié par ce module." %}</p>

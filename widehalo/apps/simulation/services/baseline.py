@@ -98,14 +98,37 @@ def build_baseline(
         assert statement_rows is not None
         raw = {key: _poste(statement_rows, label) for key, label in _STATEMENT_LABELS.items()}
 
-    try:
-        tva_taux_raw, tva_version = get_parameter_with_version(TVA_REGULATORY_CODE, as_of, tenant)
-    except RegulatoryParameter.DoesNotExist as exc:
-        raise ValidationError(
-            f"Aucun paramètre réglementaire '{TVA_REGULATORY_CODE}' valide au {as_of} — "
-            "impossible de construire le socle de simulation sans taux de TVA de référence."
-        ) from exc
-    tva_taux_ref = Decimal(str(tva_taux_raw))
+    # L17 — un tenant NON ASSUJETTI n'a pas besoin d'un taux de TVA pour
+    # construire un socle, et lui en exiger un l'empechait purement et
+    # simplement de simuler. La garde ci-dessous contredisait frontalement
+    # `accounting.services.vat_reference.resolve_reference_vat_rate`, qui
+    # pose depuis L3 qu'« un tenant peut legitimement n'avoir aucun
+    # referentiel de TVA (regime synthetique) ». Deux modules affirmaient
+    # l'inverse l'un de l'autre ; c'est celui qui LEVE qui avait tort.
+    #
+    # Le taux reste EXIGE d'un tenant assujetti : pour lui, l'absence de
+    # parametre est bien un gap de configuration, et le socle serait faux
+    # sans lui.
+    from apps.accounting.services.public import is_vat_liable
+
+    tva_version = None
+    if is_vat_liable(tenant):
+        try:
+            tva_taux_raw, tva_version = get_parameter_with_version(
+                TVA_REGULATORY_CODE, as_of, tenant
+            )
+        except RegulatoryParameter.DoesNotExist as exc:
+            raise ValidationError(
+                f"Aucun paramètre réglementaire '{TVA_REGULATORY_CODE}' valide au {as_of} — "
+                "impossible de construire le socle de simulation sans taux de TVA de référence."
+            ) from exc
+        tva_taux_ref = Decimal(str(tva_taux_raw))
+    else:
+        # Zero, et non « pas de valeur » : le moteur multiplie ce taux sans
+        # conditionnelle, et un `None` y produirait un TypeError a chaque
+        # simulation. Un taux nul donne une TVA nette projetee nulle, ce qui
+        # est exactement la realite d'un tenant non assujetti.
+        tva_taux_ref = Decimal(0)
 
     treasury_summary = get_treasury_forecast_summary(tenant, as_of_date=as_of, horizon_days=91)
     starting_cash_mga = treasury_summary["starting_cash_mga"]
@@ -132,7 +155,13 @@ def build_baseline(
         period_start=period_start,
         period_end=as_of,
         as_of_date=as_of,
-        regulatory_param_version={TVA_REGULATORY_CODE: tva_version},
+        # Dictionnaire VIDE quand aucun parametre reglementaire n'est entre
+        # dans ce socle (tenant non assujetti), plutot que `{code: None}` :
+        # « aucun parametre utilise » et « parametre utilise, version
+        # inconnue » ne disent pas la meme chose a qui relira ce socle.
+        regulatory_param_version=(
+            {TVA_REGULATORY_CODE: tva_version} if tva_version is not None else {}
+        ),
         data=data,
         open_items_total_count=len(raw_items),
         open_items_included_count=len(included_items),

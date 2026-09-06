@@ -120,7 +120,33 @@ def tenant(request: HttpRequest) -> dict[str, Tenant | None]:
     session necessaire ici. Retourne toujours `None` proprement (jamais
     d'exception) pour un visiteur anonyme ou avant creation de la premiere
     societe."""
-    return {"current_tenant": Tenant.objects.first()}
+    current = Tenant.objects.first()
+    return {
+        "current_tenant": current,
+        # L17 — le REGIME, jamais un montant. Les gabarits qui doivent
+        # decider de montrer ou non une ventilation HT/TVA/TTC lisaient
+        # jusqu'ici `amount_tax` : ils confondaient donc « ce tenant ne
+        # collecte pas de TVA » (normal, RG-ACC-5) et « ce tenant est
+        # assujetti mais personne n'a configure d'AccTax » (un gap de
+        # configuration). Un document legal ne se deduit pas d'un total a
+        # zero.
+        #
+        # Import local : `core` ne depend d'aucune app metier au niveau
+        # module (regle de couplage n1) ; ce processeur est le seul point
+        # ou il consulte la surface publique d'`accounting`. `True` par
+        # defaut hors tenant (visiteur anonyme, avant creation de la
+        # premiere societe) : c'est le regime par defaut d'un tenant neuf,
+        # et aucun document legal n'est rendu dans ce cas.
+        "tenant_is_vat_liable": _is_vat_liable(current),
+    }
+
+
+def _is_vat_liable(current: Tenant | None) -> bool:
+    if current is None:
+        return True
+    from apps.accounting.services.public import is_vat_liable
+
+    return is_vat_liable(current)
 
 
 def visible_app_labels_for(user: Any) -> frozenset[str]:

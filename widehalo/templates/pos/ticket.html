@@ -91,9 +91,20 @@ première commande l'imprimante, la seconde l'aperçu écran.
 
   <div class="totals">
     <table>
-      <tr><td>{% trans "Sous-total HT" %}</td><td class="num">{{ order.amount_untaxed }}</td></tr>
-      <tr><td>{% trans "TVA" %}</td><td class="num">{{ order.amount_tax }}</td></tr>
-      <tr class="grand"><td>{% trans "TOTAL TTC" %}</td><td class="num">{{ order.amount_total }} MGA</td></tr>
+      {% comment %}
+        L17 — le REGIME, jamais le montant. Ces trois lignes etaient
+        inconditionnelles : un tenant a l'impot synthetique voyait
+        « TVA : 0 » sur le ticket REMIS AU CLIENT et sur l'ecran de caisse.
+        Le gabarit `sales` avait d'ailleurs copie sa ventilation depuis ce
+        ticket-ci, c'est-a-dire depuis la surface non corrigee.
+      {% endcomment %}
+      {% if tenant_is_vat_liable %}
+        <tr><td>{% trans "Sous-total HT" %}</td><td class="num">{{ order.amount_untaxed }}</td></tr>
+        <tr><td>{% trans "TVA" %}</td><td class="num">{{ order.amount_tax }}</td></tr>
+        <tr class="grand"><td>{% trans "TOTAL TTC" %}</td><td class="num">{{ order.amount_total }} MGA</td></tr>
+      {% else %}
+        <tr class="grand"><td>{% trans "TOTAL" %}</td><td class="num">{{ order.amount_total }} MGA</td></tr>
+      {% endif %}
     </table>
   </div>
 

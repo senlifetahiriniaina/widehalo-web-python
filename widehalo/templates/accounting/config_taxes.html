@@ -18,7 +18,7 @@
     {% endcomment %}
     <p class="form-error">
       {% trans "Ce tenant n'est pas assujetti à la TVA : aucune taxe n'est proposée ni appliquée (RG-ACC-5). Les taxes ci-dessous, si elles existent, restent sans effet." %}
-      <a href="{% url 'accounting:config_index' %}">{% trans "Changer le régime fiscal" %}</a>
+      <a href="{% url 'accounting:config_fiscal' %}">{% trans "Changer le régime fiscal" %}</a>
     </p>
   {% endif %}
 

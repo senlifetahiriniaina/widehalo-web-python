@@ -70,6 +70,7 @@ def test_the_rendered_html_carries_every_legal_mention() -> None:
     compresse ne prouverait rien."""
     from django.template.loader import render_to_string
 
+    from apps.accounting.services.public import legal_document_tax_context
     from apps.core.services.branding import get_tenant_logo_data_uri
     from apps.partners.services.public import get_partner_display_name
 
@@ -93,6 +94,13 @@ def test_the_rendered_html_carries_every_legal_mention() -> None:
                 "partner_name": get_partner_display_name(move.partner_id),
                 "tenant": tenant,
                 "tenant_logo_data_uri": get_tenant_logo_data_uri(tenant),
+                # L17 : le gabarit conditionne desormais la ventilation
+                # HT/TVA/TTC sur le REGIME du tenant. Le contexte est
+                # construit par la MEME fonction que la production
+                # (`legal_document_tax_context`) plutot que recopie a la
+                # main : c'est ce qui empeche ce test et l'ecran reel de
+                # diverger a la prochaine cle ajoutee.
+                **legal_document_tax_context(tenant),
             },
         )
 

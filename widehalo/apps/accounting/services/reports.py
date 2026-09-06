@@ -1299,6 +1299,7 @@ def invoice_pdf(invoice: AccMove) -> bytes:
     from django.template.loader import render_to_string
     from weasyprint import HTML
 
+    from apps.accounting.services.public import legal_document_tax_context
     from apps.core.services.branding import get_tenant_logo_data_uri
     from apps.core.utils.formatting import format_mga
     from apps.partners.services.public import get_partner_display_name
@@ -1345,6 +1346,11 @@ def invoice_pdf(invoice: AccMove) -> bytes:
             ),
             "tenant": invoice.tenant,
             "tenant_logo_data_uri": get_tenant_logo_data_uri(invoice.tenant),
+            # L17 : `is_vat_liable` + `mandatory_vat_mention`. Le gabarit
+            # conditionne la ventilation HT/TVA/TTC sur le REGIME, jamais sur
+            # `total_tax` — un total nul ne distingue pas un non-assujetti
+            # d'un assujetti sans AccTax configuree.
+            **legal_document_tax_context(invoice.tenant),
         },
     )
     result: bytes = HTML(string=html).write_pdf()

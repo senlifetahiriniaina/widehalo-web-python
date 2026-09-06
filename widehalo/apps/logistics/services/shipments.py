@@ -13,7 +13,10 @@ from uuid import UUID
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
-from apps.accounting.services.public import create_customer_invoice_from_source
+from apps.accounting.services.public import (
+    create_customer_invoice_from_source,
+    default_sale_tax_lines,
+)
 from apps.core.services.workflow import attempt_transition
 from apps.logistics.models import LogServiceProvider, LogShipment, LogShipmentLeg
 
@@ -170,15 +173,23 @@ def refactor_freight_to_customer(
     shipment.freight_billed_to_customer_mga = billed_amount
     shipment.save(update_fields=["freight_billed_to_customer_mga"])
 
+    billed_date = date or dt.date.today()
+    label = f"Refacturation fret — {shipment.reference or shipment.id}"
+    # L17 : cf. `projects.services.billing` — meme defaut, meme correctif.
+    # Une refacturation de fret a un client assujetti porte une TVA ; elle
+    # n'en portait aucune, `sales` etant le seul ecrivain de `tax_lines`.
     return create_customer_invoice_from_source(
         tenant=shipment.tenant,
         partner_id=partner_id,
-        date=date or dt.date.today(),
+        date=billed_date,
         income_lines=[
             {
                 "account_id": None,
                 "amount": billed_amount,
-                "label": f"Refacturation fret — {shipment.reference or shipment.id}",
+                "label": label,
             }
         ],
+        tax_lines=default_sale_tax_lines(
+            shipment.tenant, date=billed_date, untaxed_amount=billed_amount, label=label
+        ),
     )

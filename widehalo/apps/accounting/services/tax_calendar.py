@@ -139,6 +139,24 @@ def _default_entries(year: int) -> list[dict[str, Any]]:
     ]
 
 
+# Echeances qui ne concernent pas tous les regimes. Le critere de chacune
+# est celui de la garde deja ecrite dans le service qui produit la
+# declaration correspondante — jamais une seconde liste a maintenir.
+_REGIME_RESTRICTED = frozenset({AccTaxCalendar.DECLARATION_TVA, AccTaxCalendar.DECLARATION_IRCM})
+
+
+def _applies_to(tenant: Tenant, entry: dict[str, Any]) -> bool:
+    from apps.accounting.services.ircm import _REAL_REGIMES
+    from apps.accounting.services.taxes import vat_applicable
+
+    if entry["declaration_type"] == AccTaxCalendar.DECLARATION_TVA:
+        # Meme reponse que celle qui decide si une TVA est collectee :
+        # une declaration de TVA sans TVA a declarer n'a pas d'objet.
+        return vat_applicable(tenant)
+    # IRCM : `generate_ircm_declaration` refuse un tenant synthetique.
+    return tenant.fiscal_regime in _REAL_REGIMES
+
+
 def seed_default_tax_calendar(tenant: Tenant, *, year: int | None = None) -> list[AccTaxCalendar]:
     """Peuple le calendrier fiscal par defaut (11 types de declaration, cf.
     `AccTaxCalendar.DECLARATION_TYPE_CHOICES`) pour l'annee donnee (annee
@@ -147,10 +165,27 @@ def seed_default_tax_calendar(tenant: Tenant, *, year: int | None = None) -> lis
     Chaque ligne est creee avec `is_recurring_template=True` : c'est un
     point de depart que le tenant peut ensuite dupliquer/ajuster periode
     apres periode, jamais une regle de recurrence appliquee
-    automatiquement."""
+    automatiquement.
+
+    **Filtrage par regime (L17).** La version precedente posait les onze
+    echeances a TOUT tenant sans jamais lire `fiscal_regime`. Un tenant a
+    l'impot synthetique recevait donc une echeance « TVA — declaration
+    mensuelle » au 15 de chaque mois alors qu'il n'en collecte aucune, et
+    une echeance IRCM que `services.ircm.generate_ircm_declaration` lui
+    REFUSE explicitement (`ValidationError` : « l'IRCM n'est applicable
+    qu'aux entreprises au regime reel »). Le calendrier promettait une
+    declaration que le produit refuse de produire — une echeance fiscale
+    inventee est pire qu'une echeance manquante : elle envoie un comptable
+    a un rendez-vous qui n'existe pas.
+
+    Les echeances retirees le sont sur le meme critere que les gardes deja
+    ecrites dans `services.ircm` et `services.tax_returns`, jamais sur une
+    liste recopiee."""
     year = year or dt.date.today().year
     created: list[AccTaxCalendar] = []
     for entry in _default_entries(year):
+        if entry["declaration_type"] in _REGIME_RESTRICTED and not _applies_to(tenant, entry):
+            continue
         obj, was_created = AccTaxCalendar.objects.get_or_create(
             tenant=tenant,
             declaration_type=entry["declaration_type"],

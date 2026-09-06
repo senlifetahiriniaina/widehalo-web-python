@@ -53,6 +53,18 @@
     </div>
   </header>
   <main>{% block content %}{% endblock %}</main>
+  {% comment %}
+    L17 — mention de non-assujettissement, rendue par le SOCLE pour couvrir
+    d'un coup facture, devis, confirmation de commande et bon de livraison.
+    Elle est derivee du regime fiscal (`accounting.services.legal_mentions.
+    mandatory_vat_mention`), pas saisie : un tenant qui oublie de l'ecrire
+    emettrait sinon des documents incomplets sans que rien ne le signale.
+    Vide pour un tenant assujetti. Les mentions LIBRES du tenant
+    (`legal_mentions`) restent rendues par chaque document, en plus.
+  {% endcomment %}
+  {% if mandatory_vat_mention %}
+    <p class="report-legal-mention" style="font-size:9pt;margin-top:8pt;">{{ mandatory_vat_mention }}</p>
+  {% endif %}
   <footer class="report-footer">{% block footer %}{% if tenant %}{{ tenant.name }}{% if tenant.address %} — {{ tenant.address }}{% endif %}{% if tenant.phone %} — {{ tenant.phone }}{% endif %}{% if tenant.email %} — {{ tenant.email }}{% endif %}{% else %}WideHalo{% endif %}{% endblock %}</footer>
 </body>
 </html>

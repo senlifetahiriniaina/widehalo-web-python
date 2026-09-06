@@ -36,7 +36,11 @@ from uuid import UUID
 
 from django.db.models import Sum
 
-from apps.accounting.services.public import get_default_sale_tax, get_sale_tax
+from apps.accounting.services.public import (
+    get_default_sale_tax,
+    get_sale_tax,
+    is_vat_liable,
+)
 from apps.core.models.tenant import Tenant
 
 logger = logging.getLogger(__name__)
@@ -56,30 +60,36 @@ def resolve_line_tax(
     « aujourd'hui » : une commande saisie avec retard doit porter le taux
     en vigueur a sa date, pas celui du jour de la saisie.
 
-    Retourne `(None, Decimal(0))` quand aucune taxe ne s'applique. Deux
-    causes tres differentes se rejoignent ici, et une seule est normale :
-    un tenant NON ASSUJETTI (RG-ACC-5, `get_default_sale_tax` retourne
-    `None` par construction) vend legitimement sans TVA et ne merite aucun
-    bruit ; un tenant assujette qui n'a simplement configure aucune
-    `AccTax` vend a 0 % par accident, et c'est un gap de configuration qui
-    doit se voir. On ne peut pas les distinguer depuis `sales` sans lui
-    faire connaitre le regime fiscal, donc le repli est JOURNALISE dans les
-    deux cas plutot que silencieux (meme discipline que les replis de
-    `mrp.services.orders`) : un journal de trop vaut mieux qu'une TVA
-    manquante et invisible."""
+    Retourne `(None, Decimal(0))` quand aucune taxe ne s'applique. **Deux
+    causes tres differentes se rejoignent ici, et une seule est normale** :
+
+    - un tenant NON ASSUJETTI (RG-ACC-5) vend legitimement sans TVA — rien
+      a signaler, et surtout rien a journaliser : ecrire une ligne de
+      journal a chaque ligne de chaque devis d'un tenant synthetique
+      noierait le signal utile sous du bruit permanent ;
+    - un tenant ASSUJETTI qui n'a configure aucune `AccTax` valide a cette
+      date vend a 0 % par accident. C'est un gap de configuration, il doit
+      se voir, et c'est un `warning` — pas un `info`.
+
+    L5 les confondait faute de pouvoir lire le regime fiscal depuis
+    `sales`. `accounting.services.public.is_vat_liable` (L17) le permet
+    sans violer la regle de couplage n1, et le repli redevient ce qu'il
+    aurait toujours du etre : silencieux quand il est normal, bruyant quand
+    il ne l'est pas."""
     if tax_id is not None:
         tax: dict[str, Any] | None = get_sale_tax(tenant, tax_id)
     else:
         tax = get_default_sale_tax(tenant, on_date=on_date)
     if tax is None:
-        logger.info(
-            "Aucune taxe de vente applicable au tenant %s le %s (tax_id=%s) : ligne a 0 %%. "
-            "Normal pour un tenant non assujetti (RG-ACC-5) ; sinon, aucune AccTax de vente "
-            "n'est configuree.",
-            tenant.pk,
-            on_date,
-            tax_id,
-        )
+        if is_vat_liable(tenant):
+            logger.warning(
+                "Tenant %s assujetti a la TVA, mais aucune taxe de vente applicable le %s "
+                "(tax_id=%s) : la ligne part a 0 %%. Configurer une AccTax de vente valide "
+                "a cette date.",
+                tenant.pk,
+                on_date,
+                tax_id,
+            )
         return None, Decimal(0)
     rate: Decimal = tax["rate"]
     resolved_id: UUID = tax["id"]

@@ -75,6 +75,7 @@ def quotation_pdf(quotation: SalesQuotation) -> bytes:
     from django.template.loader import render_to_string
     from weasyprint import HTML
 
+    from apps.accounting.services.public import legal_document_tax_context
     from apps.core.services.branding import get_tenant_logo_data_uri
 
     html = render_to_string(
@@ -83,6 +84,12 @@ def quotation_pdf(quotation: SalesQuotation) -> bytes:
             "quotation": quotation,
             "tenant": quotation.tenant,
             "tenant_logo_data_uri": get_tenant_logo_data_uri(quotation.tenant),
+            # L17 : le REGIME, pas le montant. Ce document masquait « Total
+            # HT » et « TVA » quand `amount_tax` etait nul mais imprimait
+            # quand meme « Total TTC » — un montant explicitement etiquete
+            # toutes taxes comprises sur un document sans taxe. Et l'ecran
+            # HTML du meme document faisait l'inverse.
+            **legal_document_tax_context(quotation.tenant),
         },
     )
     result: bytes = HTML(string=html).write_pdf()
@@ -94,6 +101,7 @@ def order_confirmation_pdf(order: SalesOrder) -> bytes:
     from django.template.loader import render_to_string
     from weasyprint import HTML
 
+    from apps.accounting.services.public import legal_document_tax_context
     from apps.core.services.branding import get_tenant_logo_data_uri
 
     html = render_to_string(
@@ -102,6 +110,12 @@ def order_confirmation_pdf(order: SalesOrder) -> bytes:
             "order": order,
             "tenant": order.tenant,
             "tenant_logo_data_uri": get_tenant_logo_data_uri(order.tenant),
+            # L17 : le REGIME, pas le montant. Ce document masquait « Total
+            # HT » et « TVA » quand `amount_tax` etait nul mais imprimait
+            # quand meme « Total TTC » — un montant explicitement etiquete
+            # toutes taxes comprises sur un document sans taxe. Et l'ecran
+            # HTML du meme document faisait l'inverse.
+            **legal_document_tax_context(order.tenant),
         },
     )
     result: bytes = HTML(string=html).write_pdf()

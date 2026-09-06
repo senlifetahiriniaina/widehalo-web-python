@@ -56,6 +56,15 @@ def clone_tenant_to_sandbox(source: Tenant, expires_in_days: int = DEFAULT_EXPIR
         base_currency=source.base_currency,
         default_language=source.default_language,
         timezone=source.timezone,
+        # L17 : le REGIME FISCAL suit le tenant cloné. Sans ces trois lignes,
+        # le bac à sable d'une entreprise à l'impôt synthétique était un
+        # tenant assujetti à la TVA (`fiscal_regime` a pour défaut
+        # `reel_avec_tva`) : on y essayait donc une configuration, une
+        # facture ou une migration sur un régime qui n'est pas celui de la
+        # société — soit exactement ce qu'un bac à sable est censé éviter.
+        fiscal_regime=source.fiscal_regime,
+        vat_opted_in=source.vat_opted_in,
+        legal_mentions=source.legal_mentions,
         is_sandbox=True,
         sandbox_source=source,
         sandbox_expires_at=timezone.now() + timedelta(days=expires_in_days),

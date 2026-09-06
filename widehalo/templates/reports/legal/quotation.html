@@ -27,9 +27,20 @@
       {% endfor %}
     </tbody>
   </table>
-  {% if quotation.amount_tax %}
+  {% comment %}
+    L17 — conditionne par le REGIME du tenant, pas par le montant de TVA.
+    La version precedente masquait « Total HT » et « TVA » quand
+    `amount_tax` etait nul, mais imprimait quand meme « Total TTC » : un
+    montant explicitement etiquete toutes taxes comprises sur un document
+    sans taxe. L'ecran HTML du meme document faisait l'inverse (il gardait
+    « Total HT » et masquait la TVA) — les deux surfaces du meme devis ne
+    cachaient pas les memes lignes.
+  {% endcomment %}
+  {% if is_vat_liable %}
     <p>Total HT / Subtotal excl. tax : {{ quotation.amount_untaxed }} {{ quotation.currency }}</p>
     <p>TVA / VAT : {{ quotation.amount_tax }} {{ quotation.currency }}</p>
+    <p><strong>Total TTC / Total incl. tax : {{ quotation.amount_total }} {{ quotation.currency }}</strong></p>
+  {% else %}
+    <p><strong>Total / Total : {{ quotation.amount_total }} {{ quotation.currency }}</strong></p>
   {% endif %}
-  <p><strong>Total TTC / Total incl. tax : {{ quotation.amount_total }} {{ quotation.currency }}</strong></p>
 {% endblock %}

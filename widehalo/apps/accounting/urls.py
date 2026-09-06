@@ -33,6 +33,7 @@ urlpatterns = [
         views_config.config_default_accounts,
         name="config_default_accounts",
     ),
+    path("config/fiscal/", views_config.config_fiscal, name="config_fiscal"),
     path("config/taxes/", views_config.config_taxes, name="config_taxes"),
     path(
         "config/payment-terms/",

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load l10n %}
+{% block title %}{% trans "Configuration fiscale" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Régime fiscal" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Régime fiscal" %}</h1>
+  </div>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if saved %}<p class="form-success">{% trans "Régime enregistré." %}</p>{% endif %}
+
+  {% comment %}
+    L17 — l'écran que la docstring de `Tenant.vat_opted_in` annonçait depuis
+    l'origine. Les trois champs édités ici n'étaient écrits par aucune
+    surface du produit : tout tenant naissait « réel, avec TVA », y compris
+    une entreprise à l'impôt synthétique, et seul l'administration Django
+    permettait de le corriger.
+  {% endcomment %}
+
+  {% if vat_thresholds %}
+    <div class="wh-panel">
+      <h2>{% trans "Chiffre d'affaires et seuils" %}</h2>
+      <p>
+        {% trans "Seuil d'assujettissement" %} :
+        <strong>{{ vat_thresholds.seuil_mga|unlocalize }} MGA</strong> —
+        {% trans "option ouverte à partir de" %}
+        <strong>{{ vat_thresholds.plancher_option_mga|unlocalize }} MGA</strong>
+      </p>
+      {% if annual_revenue_mga %}
+        <p>{% trans "Chiffre d'affaires des 12 derniers mois" %} :
+           <strong>{{ annual_revenue_mga|unlocalize }} MGA</strong></p>
+      {% else %}
+        <p><em>{% trans "Aucune vente enregistrée sur les 12 derniers mois : aucun rapprochement possible." %}</em></p>
+      {% endif %}
+      {% if regime_hint %}<p class="form-error">{{ regime_hint }}</p>{% endif %}
+      <p><em>{% trans "Ces seuils sont des paramètres réglementaires à faire valider par un expert-comptable OECFM avant tout usage en production." %}</em></p>
+    </div>
+  {% else %}
+    <p><em>{% trans "Seuils d'assujettissement non paramétrés : le rapprochement avec le chiffre d'affaires n'est pas affiché." %}</em></p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="fiscal_regime">{% trans "Régime fiscal" %}</label>
+      <select id="fiscal_regime" name="fiscal_regime">
+        {% for code, label in regime_choices %}
+          <option value="{{ code }}" {% if tenant.fiscal_regime == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="vat_opted_in">
+        <input id="vat_opted_in" type="checkbox" name="vat_opted_in" {% if tenant.vat_opted_in %}checked{% endif %}>
+        {% trans "Option pour l'assujettissement à la TVA (tranche 200–400 M Ar, Loi de finances 2026)" %}
+      </label>
+      <p><em>{% trans "Sans effet sur le régime synthétique, où l'impôt forfaitaire remplace la TVA." %}</em></p>
+    </div>
+    <div class="form-field">
+      <label for="legal_mentions">{% trans "Mentions légales des documents" %}</label>
+      <textarea id="legal_mentions" name="legal_mentions" rows="4">{{ tenant.legal_mentions }}</textarea>
+      <p><em>{% trans "Mentions libres (escompte, pénalités de retard, conditions de règlement). La mention de non-assujettissement, elle, est ajoutée automatiquement d'après le régime." %}</em></p>
+    </div>
+    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+  </form>
+
+  <h2>{% trans "Ce que portent vos documents aujourd'hui" %}</h2>
+  {% if is_vat_liable %}
+    <p>{% trans "Assujetti : les devis, commandes et factures ventilent Total HT, TVA et Total TTC." %}</p>
+  {% else %}
+    <p>{% trans "Non assujetti : les devis, commandes et factures portent un montant unique, sans ligne de TVA." %}</p>
+    <p><strong>{{ mandatory_vat_mention }}</strong></p>
+  {% endif %}
+{% endblock %}
