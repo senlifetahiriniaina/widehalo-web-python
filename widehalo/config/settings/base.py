@@ -441,9 +441,32 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # entierement de la surface d'API publique du bloc B) exigeront un SECOND
 # relevement au demarrage de la Phase 4. Ce n'est pas un oubli : le
 # perimetre assume de celui-ci est D10 + L0 + Vague 1.
-BUDGET_MAX_MODELS = 415
-BUDGET_MAX_ENDPOINTS = 800
-BUDGET_MAX_SCREENS = 320
+#
+# SECOND RELEVEMENT — demarrage de la Phase 4 (Vague 2). C'est celui que le
+# paragraphe ci-dessus annoncait, et il arrive au moment prevu : la Vague 1
+# est close, la Vague 2 (34 sprints) n'a pas commence. **Decision explicite
+# actee avec l'utilisateur** (meme precedent que chaque relevement
+# precedent) : +25 % sur les trois plafonds — 415 -> 519 modeles,
+# 800 -> 1 000 endpoints, 320 -> 400 ecrans.
+#
+# Consommation reelle au moment du relevement, mesuree et non estimee :
+# 305/415 modeles (73 %), 589/800 endpoints (74 %), 252/320 ecrans (79 %).
+#
+# CE QUE +25 % COUVRE, ET CE QU'IL NE COUVRE PAS. Rapporte aux projections
+# du cahier Phase 4 (430 modeles / 1 210 endpoints / 278 ecrans) :
+#   - modeles  : 519 > 430  — couvert, avec de la marge ;
+#   - ecrans   : 400 > 278  — couvert largement ;
+#   - endpoints: 1 000 < 1 210 — **NON COUVERT**, il manque 210.
+# L'ecart vient presque entierement de la surface d'API publique du Bloc B
+# (S7-S9), deja identifie comme tel lors du premier relevement. Le plafond
+# des endpoints redeviendra donc bloquant EN COURS de Vague 2, au Bloc B,
+# et non a son demarrage — le dire ici plutot que de le decouvrir a ce
+# moment-la est tout l'interet d'un budget. Un relevement a 1 250
+# (+56 % depuis 800) couvrirait la projection ; il n'est pas applique,
+# faute de decision en ce sens.
+BUDGET_MAX_MODELS = 519
+BUDGET_MAX_ENDPOINTS = 1000
+BUDGET_MAX_SCREENS = 400
 # BI-3 (L9) : budget de RAPPORTS, verifie en CI.
 #
 # Le critere demande de reconstruire « les rapports retenus a l'issue de la
