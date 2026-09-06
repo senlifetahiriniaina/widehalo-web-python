@@ -283,9 +283,21 @@ class FlwSchedule(BaseModel):
     operation = models.CharField(max_length=32)
     frequency = models.CharField(max_length=16, choices=FREQUENCY_CHOICES)
     hour = models.PositiveSmallIntegerField(default=2)
-    # Report sur jour ouvre : le calendrier des jours feries malgaches vit
-    # dans `apps.core` depuis la Phase 2 (L2-3) — jamais une liste de dates
-    # recopiee ici.
+    # Report sur jour ouvre : jamais une liste de dates recopiee ici (une
+    # garde CI l'interdit, `tests/architecture/test_no_hardcoded_holidays.py`).
+    #
+    # ATTENTION, point a trancher en S5 : le calendrier des jours feries
+    # malgaches vit dans `apps.forecast` (`ForHoliday`,
+    # `services/calendar.py`), PAS dans `apps.core` — une premiere redaction
+    # de ce commentaire l'affirmait, a tort. La difference est bloquante et
+    # non cosmetique : `flows` ne declare que `core` en dependance, et la
+    # regle de couplage n°1 interdit d'importer `apps.forecast.services.
+    # calendar` (qui n'est pas un `services/public.py`). S5 devra donc
+    # arbitrer — exposer le calendrier dans le contrat public de `forecast`
+    # et declarer la dependance, ou le remonter dans `core`. Il existe par
+    # ailleurs une SECONDE source de feries (`core.CountryDefaultsProfile.
+    # holidays`), appauvrie (pas de jours mobiles, pas de portee tenant) :
+    # s'en servir creerait deux verites, ce que ce depot refuse ailleurs.
     skip_public_holidays = models.BooleanField(default=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
     last_run_at = models.DateTimeField(null=True, blank=True)
@@ -398,9 +410,32 @@ class FlwExchange(BaseModel):
     document_type = models.CharField(max_length=64, blank=True)
     document_id = models.UUIDField(null=True, blank=True)
     correlation_key = models.CharField(max_length=128, blank=True, db_index=True)
-    # Clef d'idempotence SORTANTE, calculee en S4 sur (piece, liaison, rang
-    # de tentative). Unique par tenant : rejouer transmet la meme clef, donc
-    # ne cree pas de doublon chez le tiers (FLX-4).
+    # Clef d'idempotence SORTANTE, calculee en S4.
+    #
+    # **Le mot « rejeu » recouvre DEUX choses, et les confondre rend FLX-4
+    # inapplicable.** L'arbitrage est pose ici, une fois, parce que la
+    # contrainte d'unicite ci-dessous en depend :
+    #
+    # - le REESSAI TECHNIQUE (S3) : le reseau a coupe, on renvoie LE MEME
+    #   echange. Meme clef, obligatoirement — c'est exactement le cas que
+    #   FLX-4 decrit (« un rejeu transmet la meme cle et ne cree aucun
+    #   doublon chez un tiers qui la respecte »). La clef est donc calculee
+    #   sur (piece, liaison) et NE CHANGE PAS d'une tentative a l'autre ;
+    #   `attempt` compte les tentatives, il n'entre pas dans la clef.
+    #
+    # - le REJEU SUPERVISE (S4) : un humain, apres diagnostic, decide de
+    #   resoumettre. C'est une SOUMISSION NOUVELLE, portee par un nouvel
+    #   echange relie au precedent par `correlation_key`. Lui donner la
+    #   meme clef ferait ignorer la resoumission par le tiers — l'inverse
+    #   exact de ce que l'exploitant demande.
+    #
+    # La contrainte `uniq_flw_exchange_idempotency_key` est ce qui rend cet
+    # arbitrage opposable : deux echanges ne peuvent pas partager une clef,
+    # donc un successeur porte forcement la sienne. Une premiere redaction
+    # de ce commentaire disait « rejouer transmet la meme clef » sans
+    # distinguer les deux cas — elle contredisait la doctrine du successeur
+    # posee dans `services/exchange.py`, et aucune des deux lectures
+    # n'aurait pu etre implementee sans violer l'autre.
     idempotency_key = models.CharField(max_length=128, blank=True)
 
     payload_fingerprint = models.CharField(max_length=64, blank=True)
@@ -412,6 +447,27 @@ class FlwExchange(BaseModel):
     result_message = models.TextField(blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     settled_at = models.DateTimeField(null=True, blank=True)
+
+    # COUT IMPUTE — oublie par le sprint S1, ajoute ici.
+    #
+    # Le cahier ne le presente pas comme un detail : c'est sa decision
+    # structurante n°6, « tout echange porte un cout impute et un plafond
+    # opposable », et §13.2 le liste explicitement parmi les attributs de
+    # l'echange. Sans ce champ, le plafond transverse annonce pour la
+    # Phase 4 n'aurait rien a compter, et l'arbitrage H26 (bascule de
+    # l'unite de cout de la messagerie, du au sprint S3) n'aurait aucun
+    # endroit ou atterrir.
+    #
+    # `None` et non zero par defaut : « cout non encore impute » et « cout
+    # nul » sont deux choses differentes. Une soumission fiscale gratuite
+    # vaut zero ; un echange prepare dont le tarif n'est pas encore connu
+    # vaut `None`. Les confondre ferait mentir tout total.
+    #
+    # Aucun tarif n'est ecrit ici ni ailleurs dans le code : « les grilles
+    # rejoignent la table de parametres versionnes livree en Phase 1 »
+    # (cahier, meme decision). Ce champ porte le montant IMPUTE, resultat
+    # d'une grille, jamais la grille elle-meme.
+    cost_ariary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     # Cle de partition, cf. decision 3 de la docstring de module : posee des
     # la conception pour que la bascule en table partitionnee soit une

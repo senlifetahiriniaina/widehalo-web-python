@@ -13,6 +13,7 @@ from apps.analytics.models import (
     AnDimArticle,
     AnDimTemps,
     AnDimTiers,
+    AnFactEchange,
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
@@ -147,6 +148,25 @@ class AnFactMouvementStockFactory(factory.django.DjangoModelFactory):
     qty = Decimal("1")
     unit_cost_mga = Decimal("1000")
     value_mga = Decimal("1000")
+
+
+class AnFactEchangeFactory(factory.django.DjangoModelFactory):
+    """Fait d'echange (Phase 4, S2). Une seule dimension liee — le temps :
+    c'est le point de controle du sprint, et le brancher a `AnDimTiers`
+    ici contredirait la conception (un echange s'adresse a un tiers
+    TECHNIQUE, jamais a un partenaire commercial)."""
+
+    class Meta:
+        model = AnFactEchange
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_exchange_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    connecteur_code = "dgi"
+    connecteur_famille = "fiscal"
+    direction = "sortant"
+    operation = "OP1"
+    etat = "prepare"
 
 
 class AnFactReceptionFactory(factory.django.DjangoModelFactory):

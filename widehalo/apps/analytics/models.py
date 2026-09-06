@@ -503,6 +503,68 @@ class AnFactPaie(BaseModel):
         return f"{self.payslip_reference} — {self.employee_id}"
 
 
+class AnFactEchange(BaseModel):
+    """Grain = `flows.FlwExchange`. Point de controle du sprint S2 (Phase 4,
+    bloc A) : « le modele dimensionnel de la Phase 2 accueille le fait
+    d'echange SANS REPRISE des dimensions conformes ».
+
+    C'est une preuve, pas une commodite. Si accueillir un domaine aussi
+    different du precedent — des flux vers des tiers, la ou les huit autres
+    faits portent des ventes, des ecritures et des mouvements — avait exige
+    de toucher a `AnDimTemps`, `AnDimTiers` ou `AnDimArticle`, cela aurait
+    signifie que les dimensions n'etaient pas conformes mais taillees pour
+    leurs premiers usages. Ce fait n'ajoute donc AUCUNE dimension : il
+    reutilise `AnDimTemps` telle quelle, et porte le reste en dimensions
+    degenerees. Meme demonstration que `AnFactMouvementStock` pour FOR-11.
+
+    Pas de `dim_tiers` : un echange s'adresse a un TIERS TECHNIQUE
+    (administration fiscale, agregateur de paiement, banque), jamais a un
+    partenaire commercial du referentiel. Y brancher `AnDimTiers` melangerait
+    deux populations qui n'ont rien a voir et fausserait tout comptage par
+    client. L'absence est ici une decision, pas un oubli — meme motif que
+    `AnFactMouvementStock`, qui n'en porte pas non plus.
+
+    Aucune cle etrangere vers `flows` : l'entrepot ne depend d'aucun module
+    metier (regle etablie en Phase 2), et `flows` ne depend d'aucun module
+    metier non plus. `source_exchange_id` est un UUID nu, comme
+    `source_line_id` ailleurs dans ce fichier."""
+
+    source_exchange_id = models.UUIDField()
+    dim_temps = models.ForeignKey(AnDimTemps, on_delete=models.PROTECT, related_name="echanges")
+    # Dimensions degenerees : portees par le fait lui-meme, faute de
+    # cardinalite justifiant une table (meme raisonnement que `compte_*` sur
+    # `AnFactEcriture`). Douze connecteurs au plafond ne font pas une
+    # dimension.
+    connecteur_code = models.CharField(max_length=64, blank=True)
+    connecteur_famille = models.CharField(max_length=16, blank=True)
+    liaison_nom = models.CharField(max_length=150, blank=True)
+    direction = models.CharField(max_length=8, blank=True)
+    operation = models.CharField(max_length=32, blank=True)
+    etat = models.CharField(max_length=24, blank=True)
+    code_resultat = models.CharField(max_length=64, blank=True)
+    # Mesures. `duree_reglement_s` est nul tant que le tiers n'a pas
+    # tranche — jamais zero, qui se confondrait avec un verdict instantane.
+    tentatives = models.PositiveSmallIntegerField(default=0)
+    duree_reglement_s = models.PositiveIntegerField(null=True, blank=True)
+    octets = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "an_fact_echange"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_exchange_id"], name="uniq_an_fact_echange"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["dim_temps"]),
+            models.Index(fields=["connecteur_code"]),
+            models.Index(fields=["etat"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.connecteur_code} {self.operation} [{self.etat}]"
+
+
 class AnWarehouseState(BaseModel):
     """Singleton par tenant : verrou de rafraîchissement + jalons
     (watermarks) `updated_at` par source, condition du rafraîchissement
