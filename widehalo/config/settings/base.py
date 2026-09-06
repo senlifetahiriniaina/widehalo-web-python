@@ -210,6 +210,48 @@ CACHES = {
     }
 }
 
+# --- Hub de flux : bornes d'execution de la vidange (Phase 4, S3) ---
+#
+# Le cahier demande un « delai maximal par appel » (§11) et une file
+# « isolee » pour que « un tiers lent » ne rende pas l'ERP inutilisable
+# (§7.6). Ces deux bornes sont ce qui rend cette promesse vraie ICI,
+# c'est-a-dire avec la configuration reelle de ce depot.
+#
+# `FLOWS_MAX_PASS_SECONDS` DOIT rester inferieur a `Q_CLUSTER["timeout"]`
+# ci-dessous : une passe de vidange s'execute dans une tache Django-Q, et
+# Django-Q tue toute tache qui depasse son `timeout`. Une passe tuee en
+# plein vol laisse les echanges dans l'etat ou elle les a trouves — donc
+# une passe plus longue que le timeout ne vidange RIEN, indefiniment, en
+# silence. La garde `tests/architecture/test_flows_queue_budget.py`
+# verifie cette inegalite plutot que de compter sur la relecture.
+FLOWS_MAX_CALL_SECONDS = 20
+FLOWS_MAX_PASS_SECONDS = 40
+
+# La « troisieme file de worker, dediee aux echanges, isolee des deux
+# existantes » (§7.6). Deux precisions s'imposent avant de la regler.
+#
+# **Les deux files existantes n'existent pas.** La Phase 2 annoncait un
+# dedoublement en « une file pour les taches longues planifiees, une pour
+# les taches courtes interactives », et la Phase 3 ecrit que « les deux
+# files de worker introduites en Phase 2 suffisent ». Ce depot n'en a
+# jamais eu qu'UNE : un seul `Q_CLUSTER`, un seul service `worker` dans
+# les deux fichiers de composition. La troisieme file serait donc la
+# seconde.
+#
+# **Le risque, lui, est bien reel ici.** Deux workers en tout : deux
+# passes de vidange bloquees sur une plateforme fiscale en difficulte
+# suffisent a arreter toutes les taches de fond de l'ERP.
+#
+# Vide par defaut, et ce defaut est un choix de securite : le
+# planificateur de Django-Q n'execute une tache que si son cluster
+# correspond au sien, donc une commande liee a `widehalo-flux` alors
+# qu'aucun worker ne porte ce nom n'est executee par PERSONNE, sans la
+# moindre erreur. Activer l'isolation suppose donc de deployer d'abord le
+# service correspondant (`docker-compose.prod.yml`, service
+# `worker-flux`), et `manage.py sync_scheduled_commands` le rappelle a
+# chaque synchronisation.
+FLOWS_QUEUE_CLUSTER_NAME = env.str("FLOWS_QUEUE_CLUSTER_NAME", default="")
+
 Q_CLUSTER = {
     "name": "widehalo",
     "redis": REDIS_URL,

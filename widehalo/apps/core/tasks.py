@@ -103,6 +103,11 @@ def sync_schedules() -> dict[str, int]:
                 "schedule_type": schedule_type_by_frequency[entry.frequency],
                 "repeats": -1,
                 "next_run": next_run,
+                # Vide -> `None`, et c'est ce qui garde le comportement
+                # historique : le planificateur du cluster par defaut ne
+                # prend les planifications non attribuees QUE parce
+                # qu'elles sont nulles, pas vides.
+                "cluster": entry.cluster or None,
             },
         )
         created += int(was_created)

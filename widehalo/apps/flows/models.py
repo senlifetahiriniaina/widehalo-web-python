@@ -104,6 +104,24 @@ class FlwConnector(BaseModel):
     # operation ne se la verra jamais confier.
     supported_operations = models.JSONField(default=list, blank=True)
     is_enabled = models.BooleanField(default=False)
+    # « Parallelisme borne par adaptateur pour ne pas declencher les
+    # limitations de debit du tiers » (cahier §11). Le plafond vit sur le
+    # CONNECTEUR et non sur la liaison : la limitation de debit est celle
+    # du tiers, elle est donc la meme pour toutes les liaisons qui
+    # l'appellent — deux liaisons d'un meme tenant vers la meme
+    # plateforme partagent son quota, elles ne l'additionnent pas. C'est
+    # exactement l'inverse du disjoncteur, qui est par liaison parce que
+    # deux destinations peuvent tomber independamment.
+    #
+    # Ce que ce plafond borne AUJOURD'HUI, dit sans embellir : la vidange
+    # est sequentielle (une boucle, un worker), il n'y a donc aucun
+    # parallelisme a borner. Le plafond borne la TAILLE DE RAFALE d'une
+    # passe — ce qui est la protection reellement utile contre la
+    # limitation de debit d'un tiers, et ce qui restera le bon reglage le
+    # jour ou la vidange deviendra parallele. Nommer le champ
+    # « max_in_flight » plutot que « max_par_passe » est deliberé : c'est
+    # la semantique cible, et elle n'oblige a rien renommer ensuite.
+    max_in_flight = models.PositiveSmallIntegerField(default=20)
 
     class Meta:
         db_table = "flw_connector"
@@ -188,7 +206,31 @@ class FlwLink(BaseModel):
     C'est la liaison qui est activee ou suspendue, pas le connecteur : sur
     une instance multi-societes, deux tenants branches sur le meme
     adaptateur ont deux enrolements, deux identifiants et deux etats
-    independants. Suspendre le connecteur les couperait tous les deux."""
+    independants. Suspendre le connecteur les couperait tous les deux.
+
+    **La liaison porte l'axe A5 du cahier — la politique d'echec — et
+    l'etat du disjoncteur (S3).** Le cahier decrit le disjoncteur de deux
+    manieres qui ne sont pas equivalentes : « par connecteur et par
+    tenant » (§11 et §14.1, en prose d'option) et « sur une liaison »
+    (critere FLX-3 et dictionnaire §13.2). La contrainte
+    `uniq_flw_link_name_per_connector` porte sur `(tenant, connector,
+    name)` : un tenant peut donc tenir PLUSIEURS liaisons sur un meme
+    connecteur — un point d'essai et un point de production, deux comptes
+    chez un agregateur. Les deux grains different donc reellement, et
+    c'est le grain FIN qui est retenu : le critere fait foi, et l'axe A5
+    le rend obligatoire puisqu'il place le SEUIL lui-meme sur la liaison.
+    Un disjoncteur plus grossier que son propre seuil serait
+    inapplicable — et couper la production parce que le point d'essai
+    repond mal serait exactement la panne que ce mecanisme existe pour
+    eviter.
+
+    **Pourquoi des colonnes et non le `settings` JSON deja present.** Le
+    cahier ecrit que les sept axes sont « limitatifs » et qu'« un filtre
+    non declare est refuse a l'enregistrement ». Un JSON accepte
+    n'importe quelle clef, ne se valide pas, ne s'indexe pas et ne se
+    migre pas : y loger A5 rendrait la politique d'echec invisible a
+    toute verification. Le `settings` reste pour ce qui appartient a
+    l'adaptateur, jamais pour ce que le cahier a nomme."""
 
     STATE_DRAFT = "brouillon"
     STATE_ACTIVE = "active"
@@ -197,6 +239,31 @@ class FlwLink(BaseModel):
         (STATE_DRAFT, _("Brouillon")),
         (STATE_ACTIVE, _("Active")),
         (STATE_SUSPENDED, _("Suspendue")),
+    ]
+
+    #: Axe A5, dernier reglage : « comportement au-dela : mise en attente
+    #: ou abandon trace ». Deux valeurs, parce que le cahier en nomme
+    #: deux — et parce qu'elles repondent a deux situations opposees. Une
+    #: soumission fiscale obligatoire doit ATTENDRE que la plateforme
+    #: revienne ; une notification de confort n'a plus d'interet trois
+    #: jours plus tard et doit etre abandonnee, en le disant.
+    EXHAUSTED_HOLD = "mise_en_attente"
+    EXHAUSTED_ABANDON = "abandon_trace"
+    EXHAUSTED_CHOICES = [
+        (EXHAUSTED_HOLD, _("Mise en attente")),
+        (EXHAUSTED_ABANDON, _("Abandon tracé")),
+    ]
+
+    #: Trois etats, dont le troisieme est ce qui distingue un disjoncteur
+    #: d'un simple interrupteur : apres la periode d'essai, on laisse
+    #: passer UN appel pour savoir si le tiers est revenu.
+    BREAKER_CLOSED = "ferme"
+    BREAKER_OPEN = "ouvert"
+    BREAKER_HALF_OPEN = "demi_ouvert"
+    BREAKER_CHOICES = [
+        (BREAKER_CLOSED, _("Fermé")),
+        (BREAKER_OPEN, _("Ouvert")),
+        (BREAKER_HALF_OPEN, _("Demi-ouvert")),
     ]
 
     connector = models.ForeignKey(FlwConnector, on_delete=models.PROTECT, related_name="links")
@@ -210,6 +277,44 @@ class FlwLink(BaseModel):
     # panne dont personne ne retrouve la cause trois semaines plus tard.
     suspended_reason = models.TextField(blank=True)
     settings = models.JSONField(default=dict, blank=True)
+
+    # --- Axe A5 du cahier (§4.3) : la politique d'echec, reglee par le
+    # client, dans les bornes que l'editeur pose. Cinq reglages, ni plus
+    # ni moins : « nombre de tentatives, espacement, seuil de
+    # disjoncteur, destinataire de l'alerte, comportement au-dela ».
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    # Espacement de BASE. Le cahier demande un « reessai avec espacement
+    # croissant » (§6) : la croissance est geometrique et vit dans le
+    # service, ce champ n'en porte que le premier terme. Le stocker sous
+    # forme de table de delais aurait rendu le reglage client
+    # ininterpretable — « 300, 900, 3600 » ne se saisit pas dans un
+    # formulaire lu par un comptable.
+    retry_backoff_seconds = models.PositiveIntegerField(default=300)
+    breaker_threshold = models.PositiveSmallIntegerField(default=5)
+    # Le glossaire du cahier definit le disjoncteur comme se refermant
+    # « apres une periode d'essai ». Sans cette duree, un disjoncteur qui
+    # s'ouvre une fois coupe la liaison pour toujours et il faut un
+    # humain pour la rouvrir : ce serait une panne de plus, pas une
+    # protection.
+    breaker_cooldown_seconds = models.PositiveIntegerField(default=900)
+    alert_recipient = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    on_attempts_exhausted = models.CharField(
+        max_length=16, choices=EXHAUSTED_CHOICES, default=EXHAUSTED_HOLD
+    )
+
+    # --- Etat du disjoncteur (S3), ecrit par la machine, jamais par le
+    # client. Il vit ici plutot que dans une table a part parce que le
+    # dictionnaire du cahier en fait un attribut LU sur l'incident
+    # (« etat du disjoncteur ») : une seule source de verite, affichee
+    # ailleurs, plutot que deux qui divergent.
+    breaker_state = models.CharField(max_length=12, choices=BREAKER_CHOICES, default=BREAKER_CLOSED)
+    # « N echecs CONSECUTIFS » : un succes remet ce compteur a zero. Un
+    # compteur cumulatif ouvrirait le disjoncteur sur une liaison qui
+    # marche, au bout d'assez de mois.
+    consecutive_failures = models.PositiveSmallIntegerField(default=0)
+    breaker_opened_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "flw_link"
@@ -556,3 +661,152 @@ class FlwPayload(BaseModel):
 
     def __str__(self) -> str:
         return f"charge utile de {self.exchange_id} ({self.byte_size} o)"
+
+
+#: Les deux etats ou un incident est encore VIVANT. Definis au niveau
+#: MODULE, et pas seulement sur la classe, pour une raison de langage
+#: qu'il vaut mieux ecrire que redecouvrir : un corps de `class Meta`
+#: imbrique ne voit PAS le namespace de la classe qui l'englobe (les
+#: portees de classe ne sont pas des portees englobantes en Python), si
+#: bien que `condition=Q(state__in=LIVE_STATES)` y leverait `NameError` a
+#: l'import du modele. Une seule definition, referencee des deux cotes —
+#: recopier le couple de chaines dans la contrainte reintroduirait
+#: exactement la divergence que `LIVE_STATES` existe pour empecher.
+_INCIDENT_STATE_OPEN = "ouvert"
+_INCIDENT_STATE_ACKNOWLEDGED = "pris_en_charge"
+_INCIDENT_LIVE_STATES = (_INCIDENT_STATE_OPEN, _INCIDENT_STATE_ACKNOWLEDGED)
+
+
+class FlwIncident(BaseModel):
+    """Incident : le REGROUPEMENT des echecs repetes sur une liaison (S3).
+
+    Le dictionnaire du cahier (§13.2) le definit mot pour mot ainsi :
+    « Regroupement d'echecs repetes sur une liaison : famille d'erreur,
+    premiere et derniere occurrence, etat du disjoncteur, action de reprise
+    proposee. » Et le critere FLX-3 en tire la seule chose qui compte
+    vraiment : « un incident UNIQUE est cree — pas un incident par
+    tentative ».
+
+    **Le grain de regroupement est (liaison, famille), pas la liaison
+    seule.** Le dictionnaire fait porter UNE famille a l'incident, et §10.3
+    associe a chaque famille « une action de reprise unique et
+    comprehensible ». Deux causes differentes sur la meme liaison — un
+    jeton expire et une plateforme injoignable — n'ont pas la meme reprise
+    : les fondre en un incident rendrait « action de reprise proposee »
+    faux dans un cas sur deux. Le disjoncteur, lui, reste par LIAISON : il
+    existe pour cesser de marteler un tiers, et le motif du martelage ne
+    change rien a l'urgence de s'arreter.
+
+    **Six familles, et c'est ferme.** §10.3 : « Chaque adaptateur doit
+    traduire les erreurs du tiers dans un jeu ferme de six familles [...]
+    Un adaptateur qui remonte une septieme famille ne passe pas la
+    recette. » C'est verifie en integration continue
+    (`tests/architecture/test_flows_error_families.py`), parce qu'une
+    enumeration qu'on peut allonger sans que rien ne proteste redevient du
+    texte libre en deux sprints — et le texte libre est precisement ce que
+    §10.3 interdit, puisqu'il rendrait la console de flux illisible.
+
+    **L'action de reprise n'est PAS une colonne.** Elle est derivee de la
+    famille (`services.incidents.RECOVERY_ACTIONS`). Stockee, elle
+    divergerait : une ligne ecrite en janvier garderait le libelle de
+    janvier apres correction du texte, et deux incidents de la meme
+    famille proposeraient deux reprises differentes. C'est la meme
+    discipline que le cahier pose pour l'ecran de consentement — « le
+    texte des categories est genere depuis la declaration de l'adaptateur,
+    jamais redige a la main — sinon il devient faux a la premiere
+    evolution ».
+
+    **Pas de `ReferenceMixin`.** Meme motif ecrit que `AiAnomaly` : un
+    incident est un enregistrement de suivi ouvert par un worker, pas un
+    document numerote qu'un utilisateur cree. Lui attribuer une reference
+    imposerait un `select_for_update` sur la sequence a l'interieur meme
+    de la boucle de vidange — un point de contention sur le chemin le plus
+    contendu. Si la console de flux (bloc H) a besoin d'un numero lisible
+    par le support, c'est la qu'il faudra l'ajouter, et ce commentaire est
+    l'endroit ou le relire."""
+
+    #: Les six familles de §10.3, dans l'ordre du cahier. Le libelle est
+    #: celui du cahier, pas une reformulation : c'est ce que l'utilisateur
+    #: lira dans la console, et le cahier a choisi des mots comprehensibles
+    #: par un comptable plutot que par un developpeur.
+    FAMILY_CREDENTIALS = "identifiants"
+    FAMILY_INVALID_DATA = "donnee_invalide"
+    FAMILY_REJECTED = "refus_tiers"
+    FAMILY_UNAVAILABLE = "tiers_indisponible"
+    FAMILY_CAP_REACHED = "plafond_atteint"
+    FAMILY_EDITOR = "anomalie_editeur"
+    FAMILY_CHOICES = [
+        (FAMILY_CREDENTIALS, _("Identifiants à renouveler")),
+        (FAMILY_INVALID_DATA, _("Donnée manquante ou invalide dans la pièce")),
+        (FAMILY_REJECTED, _("Refus motivé par le tiers")),
+        (FAMILY_UNAVAILABLE, _("Tiers indisponible")),
+        (FAMILY_CAP_REACHED, _("Plafond atteint")),
+        (FAMILY_EDITOR, _("Anomalie à signaler à l'éditeur")),
+    ]
+
+    #: Deux etats ouverts et un ferme. « Pris en charge » existe parce que
+    #: l'indicateur de pilotage du cahier mesure « la part des echanges en
+    #: incident NON TRAITES sous 48 h » : sans etat intermediaire, un
+    #: incident sur lequel quelqu'un travaille compterait comme non traite,
+    #: et l'indicateur mesurerait la duree de la panne du tiers plutot que
+    #: la reactivite du support.
+    STATE_OPEN = _INCIDENT_STATE_OPEN
+    STATE_ACKNOWLEDGED = _INCIDENT_STATE_ACKNOWLEDGED
+    STATE_RESOLVED = "resolu"
+    STATE_CHOICES = [
+        (STATE_OPEN, _("Ouvert")),
+        (STATE_ACKNOWLEDGED, _("Pris en charge")),
+        (STATE_RESOLVED, _("Résolu")),
+    ]
+    #: Les etats ou l'incident est encore VIVANT — donc ceux ou un echec de
+    #: plus incremente au lieu de creer. Une liste nommee plutot que deux
+    #: `Q` recopies : c'est elle qui porte le critere FLX-3, et un critere
+    #: recopie a deux endroits finit par ne plus l'etre qu'a un seul.
+    LIVE_STATES = _INCIDENT_LIVE_STATES
+
+    link = models.ForeignKey(FlwLink, on_delete=models.CASCADE, related_name="incidents")
+    family = models.CharField(max_length=24, choices=FAMILY_CHOICES)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_OPEN)
+    # « Premiere et derniere occurrence » du dictionnaire. `created_at`
+    # d'un `BaseModel` donnerait deja la premiere ; le champ est explicite
+    # quand meme, parce que la lecture qui compte est « depuis combien de
+    # temps ca dure » et qu'elle ne doit pas dependre d'un champ technique
+    # qu'une reprise de donnees pourrait reecrire.
+    first_seen_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField()
+    # Le compteur qui rend FLX-3 verifiable : c'est LUI qui monte quand un
+    # incident par tentative aurait cree une ligne. Patron
+    # `Document.reference_count`, seul precedent de « une ligne, N
+    # occurrences » du depot.
+    occurrence_count = models.PositiveIntegerField(default=1)
+    # « Le message d'origine reste consultable pour le diagnostic, replie »
+    # (§10.3). Le DERNIER, pas tous : conserver l'historique complet des
+    # messages ferait de l'incident un second journal a cote du registre
+    # d'echange, qui est deja la trace ligne par ligne.
+    last_result_code = models.CharField(max_length=64, blank=True)
+    last_result_message = models.TextField(blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "flw_incident"
+        constraints = [
+            # FLX-3, en BASE et pas seulement en service. Le critere dit
+            # « un incident unique » : un service peut etre contourne par
+            # une commande, un import ou un second worker, une contrainte
+            # non. Contrainte PARTIELLE sur les etats vivants — une fois
+            # resolu, un incident ne doit plus bloquer l'ouverture du
+            # suivant, sans quoi une liaison reparee puis retombee en
+            # panne resterait muette pour toujours.
+            models.UniqueConstraint(
+                fields=["tenant", "link", "family"],
+                condition=models.Q(state__in=_INCIDENT_LIVE_STATES),
+                name="uniq_flw_incident_vivant_par_liaison_famille",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["tenant", "state"], name="idx_flw_incident_state"),
+        ]
+        ordering = ["-last_seen_at"]
+
+    def __str__(self) -> str:
+        return f"{self.get_family_display()} sur {self.link_id} (×{self.occurrence_count})"

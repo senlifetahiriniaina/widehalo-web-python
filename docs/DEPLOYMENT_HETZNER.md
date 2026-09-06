@@ -380,6 +380,45 @@ Depuis L0-3, la cadence est **déclarée par chaque module** dans son
 aussi, sous peine de planifications dupliquées). C'est le conteneur `worker`
 (`python manage.py qcluster`) qui les exécute ensuite aux heures dites.
 
+### Le second worker, dédié au hub de flux
+
+Depuis la Phase 4 (S3), `docker-compose.prod.yml` déclare un **deuxième**
+conteneur de traitement, `worker-flux`, qui ne consomme que la file du hub de
+flux. Le motif est celui du cahier (§7.6) : un tiers lent immobilise un worker
+sans consommer de ressource, et `worker` n'en a que deux — deux vidanges
+bloquées sur une plateforme fiscale en difficulté suffiraient à arrêter
+**toutes** les tâches de fond (sauvegardes, relances, rapports).
+
+L'isolation est physique et non conventionnelle : `Q_CLUSTER_NAME` change la
+clé de liste Redis lue par ce conteneur (`django_q:widehalo-flux:q`), et
+l'ordonnanceur de chaque cluster ne prend que les tâches qui lui sont
+attribuées.
+
+**Deux réglages, et il faut les deux :**
+
+| Où | Réglage | Effet |
+|---|---|---|
+| service `web` | `FLOWS_QUEUE_CLUSTER_NAME=widehalo-flux` | `sync_scheduled_commands` attribue la vidange à ce cluster |
+| service `worker-flux` | `Q_CLUSTER_NAME=widehalo-flux` | ce conteneur consomme cette file et accepte ces tâches |
+
+Les deux sont dans `docker-compose.prod.yml`, volontairement dans le même
+fichier : **déployer une moitié sans l'autre arrête la file de sortie sans la
+moindre erreur.** Si le nom applicatif désigne un cluster qu'aucun conteneur ne
+porte, la vidange n'est exécutée par personne — aucune exception, aucune tâche
+en échec, aucune ligne de journal. `sync_scheduled_commands` avertit
+explicitement à chaque synchronisation, et une garde d'architecture
+(`tests/architecture/test_flows_worker_service.py`) vérifie que les deux
+valeurs du fichier restent identiques.
+
+Sur un déploiement qui ne veut pas de cette séparation, laisser
+`FLOWS_QUEUE_CLUSTER_NAME` vide : la vidange revient sur le cluster partagé,
+et `worker-flux` peut ne pas être démarré. Vérifier après déploiement :
+
+```bash
+docker compose -f docker-compose.prod.yml ps worker-flux
+docker compose -f docker-compose.prod.yml exec web python manage.py sync_scheduled_commands --list
+```
+
 Contrôler ce qui est réellement planifié, sans rien écrire :
 
 ```bash

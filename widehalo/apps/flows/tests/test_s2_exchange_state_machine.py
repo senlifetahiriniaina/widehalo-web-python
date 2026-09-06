@@ -100,7 +100,7 @@ def test_awaiting_verdict_carries_a_relance_deadline_not_an_expiry(setup) -> Non
         transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
         transition_exchange(exchange, to_state=FlwExchange.STATE_SENT)
         transition_exchange(
-            exchange, to_state=FlwExchange.STATE_AWAITING_VERDICT, relance_due_at=hier
+            exchange, to_state=FlwExchange.STATE_AWAITING_VERDICT, next_action_at=hier
         )
 
         due = exchanges_due_for_relance(tenant)
@@ -114,18 +114,24 @@ def test_awaiting_verdict_carries_a_relance_deadline_not_an_expiry(setup) -> Non
         assert exchange.settled_at is None
 
 
-def test_a_relance_deadline_is_refused_on_any_other_state(setup) -> None:
-    """Une échéance de relance posée sur un autre état serait une erreur
+def test_a_deadline_is_refused_on_a_state_that_is_not_a_waiting_state(setup) -> None:
+    """Une échéance posée sur un état qui n'attend rien serait une erreur
     d'appel silencieuse : l'appelant croirait avoir programmé quelque
-    chose. Refusé plutôt qu'absorbé."""
+    chose. Refusé plutôt qu'absorbé.
+
+    S3 a élargi le contrat de deux à trois états d'attente — le verdict et
+    le réessai en portent une, `en_file` non. Ce test garde donc la BORNE,
+    pas la liste : `en_file` est un état où l'échange attend un worker, pas
+    une échéance, et lui en poser une programmerait quelque chose que rien
+    ne lit."""
     tenant, link = setup
     with use_tenant(tenant.id):
         exchange = _prepare(tenant, link)
-        with pytest.raises(ValidationError, match="relance"):
+        with pytest.raises(ValidationError, match="échéance"):
             transition_exchange(
                 exchange,
                 to_state=FlwExchange.STATE_QUEUED,
-                relance_due_at=timezone.now(),
+                next_action_at=timezone.now(),
             )
 
 

@@ -110,6 +110,20 @@ class ScheduledCommand:
     frequency: str
     hour: int = 2
     description: str = ""
+    #: Nom du cluster Django-Q qui doit executer cette commande. Vide =
+    #: le cluster par defaut, c'est-a-dire le comportement de toutes les
+    #: commandes ecrites jusqu'ici.
+    #:
+    #: **Le renseigner a un effet operationnel, pas seulement technique.**
+    #: Le planificateur de Django-Q ne prend une planification que si son
+    #: `cluster` correspond au sien (`scheduler.py`, filtre
+    #: `Q(cluster__isnull=True) | Q(cluster=CLUSTER_NAME)`, la premiere
+    #: branche etant reservee au cluster par defaut). Une commande liee a
+    #: un cluster qui ne tourne pas n'est donc executee par PERSONNE, et
+    #: sans la moindre erreur : c'est pourquoi
+    #: `sync_scheduled_commands` avertit explicitement, et pourquoi le
+    #: reglage est vide par defaut.
+    cluster: str = ""
 
     @property
     def cadence(self) -> str:
@@ -133,6 +147,7 @@ def register_scheduled_command(
     frequency: str,
     hour: int = 2,
     description: str = "",
+    cluster: str = "",
 ) -> None:
     """Declare une commande periodique. Idempotent : un meme `code`
     re-enregistre remplace l'entree (utile au rechargement en developpement)."""
@@ -148,6 +163,7 @@ def register_scheduled_command(
         frequency=frequency,
         hour=hour,
         description=description,
+        cluster=cluster,
     )
 
 

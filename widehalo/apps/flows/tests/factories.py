@@ -24,6 +24,7 @@ from apps.flows.models import (
     FlwConnector,
     FlwCredential,
     FlwExchange,
+    FlwIncident,
     FlwLink,
     FlwMapping,
     FlwPayload,
@@ -110,3 +111,15 @@ class FlwPayloadFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     exchange = factory.SubFactory(FlwExchangeFactory, tenant=factory.SelfAttribute("..tenant"))
     body = '{"exemple": true}'
+
+
+class FlwIncidentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = FlwIncident
+
+    tenant = factory.SubFactory(TenantFactory)
+    link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
+    family = FlwIncident.FAMILY_UNAVAILABLE
+    state = FlwIncident.STATE_OPEN
+    first_seen_at = factory.LazyFunction(lambda: dt.datetime.now(tz=dt.UTC))
+    last_seen_at = factory.LazyFunction(lambda: dt.datetime.now(tz=dt.UTC))

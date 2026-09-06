@@ -204,13 +204,30 @@ def prepare_exchange(
 # --- Transition ----------------------------------------------------------------
 
 
+#: Les seuls etats qui portent une echeance. Deux, depuis S3, et ils ne
+#: veulent pas dire la meme chose : `ATTENTE_VERDICT` porte l'echeance a
+#: laquelle on REDEMANDERA au tiers (invariant 2 — cet etat n'expire
+#: jamais), `A_REESSAYER` celle a laquelle on RENVERRA apres un echec
+#: technique. La colonne est la meme parce que la question l'est —
+#: « quand agit-on de nouveau sur cet echange ? » — et c'est ce qui permet
+#: a une seule passe de vidange de les traiter ensemble, dans l'ordre de
+#: leur anciennete plutot que dans l'ordre du code.
+#:
+#: Ce que l'echeance ne fait ni dans un cas ni dans l'autre : provoquer une
+#: transition par le seul ecoulement du temps. Elle DESIGNE, un appelant
+#: decide. C'est l'invariant 2, et il vaut aussi pour le reessai.
+STATES_CARRYING_A_DEADLINE = frozenset(
+    {FlwExchange.STATE_AWAITING_VERDICT, FlwExchange.STATE_TO_RETRY}
+)
+
+
 def transition_exchange(
     exchange: FlwExchange,
     *,
     to_state: str,
     result_code: str = "",
     result_message: str = "",
-    relance_due_at: Any = None,
+    next_action_at: Any = None,
 ) -> FlwExchange:
     """Fait avancer un echange, ou refuse.
 
@@ -218,9 +235,16 @@ def transition_exchange(
     demande : une transition refusee sans bruit laisserait l'appelant croire
     que l'echange a avance, et le registre dirait autre chose que le code.
 
-    `relance_due_at` n'a de sens que pour `ATTENTE_VERDICT` (invariant 2).
-    Le passer ailleurs est une erreur d'appel, signalee comme telle plutot
-    qu'absorbee."""
+    `next_action_at` n'a de sens que pour les etats d'attente
+    (`STATES_CARRYING_A_DEADLINE`). Le passer ailleurs est une erreur
+    d'appel, signalee comme telle plutot qu'absorbee.
+
+    **Le parametre s'appelait `relance_due_at` en S2 et a ete elargi ici.**
+    S2 ne connaissait qu'une attente, celle du verdict ; S3 en ajoute une
+    seconde, celle du reessai, et le nom d'origine aurait fait passer un
+    espacement de reessai pour une relance aupres du tiers — deux choses que
+    la console devra distinguer. Elargir la porte plutot que d'en percer une
+    seconde evite d'avoir deux colonnes d'echeance qui se contredisent."""
     if is_terminal(exchange.state):
         raise ValidationError(
             _(
@@ -233,8 +257,14 @@ def transition_exchange(
         raise ValidationError(
             _("Transition refusée : %(from)s -> %(to)s.") % {"from": exchange.state, "to": to_state}
         )
-    if relance_due_at is not None and to_state != FlwExchange.STATE_AWAITING_VERDICT:
-        raise ValidationError(_("Une échéance de relance ne s'applique qu'à l'attente de verdict."))
+    if next_action_at is not None and to_state not in STATES_CARRYING_A_DEADLINE:
+        raise ValidationError(
+            _(
+                "Une échéance ne s'applique qu'à un état d'attente "
+                "(relance de verdict ou réessai) : %(state)s n'en est pas un."
+            )
+            % {"state": to_state}
+        )
 
     now = timezone.now()
     fields = ["state"]
@@ -244,12 +274,17 @@ def transition_exchange(
         exchange.sent_at = now
         exchange.attempt += 1
         fields += ["sent_at", "attempt"]
-    elif to_state == FlwExchange.STATE_AWAITING_VERDICT:
-        # Invariant 2 : une ECHEANCE DE RELANCE, jamais une expiration.
-        # `next_attempt_at` porte la date a laquelle on REDEMANDERA ; rien
-        # ne fera basculer cet echange en echec au seul motif du temps
-        # ecoule.
-        exchange.next_attempt_at = relance_due_at
+    elif to_state in STATES_CARRYING_A_DEADLINE:
+        # Invariant 2 : une ECHEANCE D'ACTION, jamais une expiration.
+        # `next_attempt_at` porte la date a laquelle on REDEMANDERA (verdict)
+        # ou RENVERRA (reessai) ; rien ne fera basculer cet echange en echec
+        # au seul motif du temps ecoule.
+        #
+        # `None` est une valeur SIGNIFIANTE sur `A_REESSAYER` : c'est la
+        # « mise en attente » de l'axe A5, un echange dont les tentatives
+        # sont epuisees et qui attend une decision humaine. La vidange
+        # l'ecarte explicitement.
+        exchange.next_attempt_at = next_action_at
         fields.append("next_attempt_at")
     elif to_state in TERMINAL_STATES:
         exchange.settled_at = now
@@ -287,6 +322,7 @@ def exchanges_due_for_relance(tenant: Tenant, *, now: Any = None) -> list[FlwExc
 
 __all__ = [
     "INCIDENT_WORTHY_STATES",
+    "STATES_CARRYING_A_DEADLINE",
     "TERMINAL_STATES",
     "allowed_targets",
     "exchanges_due_for_relance",

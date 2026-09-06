@@ -69,3 +69,20 @@ class Command(BaseCommand):
                 f"{result['deleted']} supprimée(s)."
             )
         )
+
+        # Une commande liée à un cluster dédié n'est exécutée QUE par un
+        # worker portant ce nom : le planificateur de Django-Q filtre sur
+        # `cluster`, et une planification orpheline de cluster ne produit
+        # aucune erreur — elle ne s'exécute simplement jamais. C'est le
+        # seul moment du déploiement où quelqu'un peut encore s'en
+        # apercevoir.
+        dediees = [entry for entry in entries if entry.cluster]
+        if dediees:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Commande(s) liée(s) à un cluster dédié — elles ne s'exécuteront "
+                    "que si un worker porte ce nom (Q_CLUSTER_NAME) :"
+                )
+            )
+            for entry in dediees:
+                self.stdout.write(f"  {entry.code} -> cluster « {entry.cluster} »")

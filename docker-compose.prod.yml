@@ -79,6 +79,16 @@ services:
     # via .env, jamais ce fichier de production.
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
+      # La file dediee du hub de flux (Phase 4 §7.6). Reglee ICI, dans le
+      # meme fichier que le service `worker-flux` qui la consomme, parce
+      # que les deux moities n'ont de sens qu'ensemble : ce nom decide a
+      # quel cluster `sync_scheduled_commands` attribue la vidange, et le
+      # service plus bas est le seul a porter ce nom. Les separer — le
+      # reglage dans .env, le service ici — ferait qu'une moitie deployee
+      # sans l'autre arrete la file SANS AUCUNE ERREUR.
+      # `tests/architecture/test_flows_worker_service.py` verifie que les
+      # deux valeurs de ce fichier restent identiques.
+      FLOWS_QUEUE_CLUSTER_NAME: widehalo-flux
     depends_on:
       db:
         condition: service_healthy
@@ -124,6 +134,42 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # La troisieme file du cahier (Phase 4 §7.6) : un worker DEDIE aux
+  # echanges du hub de flux, isole du worker general.
+  #
+  # Le motif, ecrit parce qu'il est le seul argument qui compte : un tiers
+  # lent immobilise un worker sans consommer de ressource, et le service
+  # `worker` ci-dessus n'en a que deux. Deux passes de vidange bloquees sur
+  # une plateforme fiscale en difficulte suffisent a arreter toutes les
+  # taches de fond de l'ERP — sauvegardes, relances, rapports.
+  #
+  # `Q_CLUSTER_NAME` change la clef de liste Redis lue par ce worker
+  # (`django_q:widehalo-flux:q`) : l'isolation est physique, pas
+  # conventionnelle. Le planificateur de chaque cluster ne prend que les
+  # planifications qui lui sont attribuees, et le cluster par defaut est
+  # seul a prendre celles qui ne le sont pas.
+  #
+  # DEUX REGLAGES, ET IL FAUT LES DEUX. Sans `FLOWS_QUEUE_CLUSTER_NAME`
+  # cote application, la commande reste sur le cluster partage et ce
+  # worker tourne a vide. Sans ce service, la commande liee au cluster
+  # `widehalo-flux` n'est executee par personne — et sans aucune erreur.
+  # `manage.py sync_scheduled_commands` avertit dans le second cas.
+  worker-flux:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python manage.py qcluster
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      Q_CLUSTER_NAME: widehalo-flux
     depends_on:
       db:
         condition: service_healthy
