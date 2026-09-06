@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from apps.whatsapp.models import WaConversation
 from apps.whatsapp.services.consent import get_or_create_conversation
-from apps.whatsapp.services.templates import get_approved_template
+from apps.whatsapp.services.templates import get_approved_template, render_body
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -71,22 +71,58 @@ def _open_chatter_channel(tenant: Tenant, conversation: WaConversation) -> None:
 
 
 def _maybe_send_intent_menu(tenant: Tenant, conversation: WaConversation) -> None:
-    """WA-8 : premiere prise de contact -> propose le menu borne. Une
+    """WA-8 : premiere prise de contact -> propose le menu borne.
+
+    **Contournement assume et documente du point d'entree gouverne.** Une
     reponse au sein de la fenetre de service (WA-3) reste une reponse au
-    client, jamais une sollicitation marketing — n'exige donc PAS le
-    consentement WA-1/WA-2 (qui protege les envois BUSINESS-initiated,
-    cf. docstring `services/messaging.py`), mais reste soumise a la meme
-    exigence de modele APPROUVE."""
+    client, jamais une sollicitation marketing : elle n'exige donc PAS le
+    consentement WA-1/WA-2, qui protege les envois BUSINESS-initiated
+    (cf. docstring `services/messaging.py`). C'est la seule voie du depot
+    qui envoie hors de `send_governed_template_message`, et elle figure a
+    ce titre dans la liste d'exception motivee de
+    `tests/architecture/test_whatsapp_single_send_path.py`. Elle reste
+    soumise a l'exigence de modele APPROUVE.
+
+    **Ce que L10 corrige ici.** L'exemption portait sur le consentement ;
+    elle avait ete etendue en pratique a la TRACABILITE, ce que rien ne
+    justifiait. Ce message partait reellement au client sans creer aucune
+    ligne `WhatsAppMessage` : invisible du journal des echanges (WA-4
+    exige « envoi journalise avec modele, destinataire, statut, categorie
+    et cout impute »), invisible de l'ecran de conversation, et compte pour
+    zero au plafond de cout comme a la limite de frequence par
+    destinataire (WA-5) — un client pouvait donc recevoir ce menu sans
+    qu'aucun compteur ne le voie passer. Ne pas exiger un consentement
+    n'est pas une raison de ne pas ecrire ce qu'on a envoye."""
     if conversation.intent_state != WaConversation.INTENT_NONE:
         return
     template = get_approved_template(tenant, MENU_TEMPLATE_CODE)
     if template is None:
         return
+    from apps.core.models.notification import WhatsAppMessage
     from apps.core.services.whatsapp import get_whatsapp_client
 
-    get_whatsapp_client().send_template(conversation.phone_number, template.code, {"body": []})
+    result = get_whatsapp_client().send_template(
+        conversation.phone_number, template.code, {"body": []}
+    )
+    WhatsAppMessage.objects.create(
+        tenant_id=tenant.id,
+        direction=WhatsAppMessage.DIRECTION_OUTBOUND,
+        phone_number=conversation.phone_number,
+        template_name=template.code,
+        provider_message_id=result.provider_message_id,
+        status=(
+            WhatsAppMessage.STATUS_SENT
+            if result.status == "sent"
+            else WhatsAppMessage.STATUS_FAILED
+        ),
+        conversation_id=conversation.id,
+        category=template.category,
+        cost_ariary=template.estimated_cost_ariary,
+        body=render_body(template, {}),
+    )
     conversation.intent_state = WaConversation.INTENT_MENU_SENT
-    conversation.save(update_fields=["intent_state", "updated_at"])
+    conversation.last_outbound_at = timezone.now()
+    conversation.save(update_fields=["intent_state", "last_outbound_at", "updated_at"])
 
 
 def _apply_intent_choice(conversation: WaConversation, body: str) -> None:

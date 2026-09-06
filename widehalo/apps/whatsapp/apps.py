@@ -16,3 +16,12 @@ class WhatsappConfig(AppConfig):
         )
 
         register_ai_data_query_tools()
+
+        # L0-3/WA-7 (L10) : la file d'envoi a enfin un declencheur
+        # automatique. Avant ce lot, `apps/whatsapp/` n'avait aucune
+        # commande de gestion et le registre d'ordonnancement aucune
+        # entree WhatsApp — « repris automatiquement » reposait sur un
+        # bouton.
+        from apps.whatsapp.services.scheduling_registration import register_scheduled_commands
+
+        register_scheduled_commands()

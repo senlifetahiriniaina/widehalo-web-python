@@ -109,6 +109,16 @@ class WhatsAppMessage(models.Model):
     # n'en a pas, cf. audit WA-7).
     retry_count = models.PositiveIntegerField(default=0)
     next_retry_at = models.DateTimeField(null=True, blank=True)
+    # WA-7 (L10) : POURQUOI un message n'est pas parti. Sans ce champ, un
+    # message refuse par un garde-fou de gouvernance (consentement revoque
+    # entre la mise en file et l'envoi, modele desapprouve entre-temps,
+    # plafond atteint) et un message tombe sur une panne reseau portaient
+    # tous deux le meme `status=failed` et rien d'autre — indiscernables a
+    # l'ecran comme au journal, alors que l'un est un fonctionnement
+    # correct de la gouvernance et l'autre une panne a reprendre. La file
+    # de `apps.whatsapp.services.messaging` distingue d'ailleurs les deux
+    # dans son traitement : seule la seconde entre dans le cycle de reprise.
+    error_message = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

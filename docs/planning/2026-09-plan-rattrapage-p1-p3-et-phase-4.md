@@ -208,7 +208,9 @@ catalogue des 91 rapports hérités, avec pour chacun sa requête ou sa définit
 d'origine et un jeu de données de référence — sans quoi le « rapprochement à l'ariary
 près » n'a pas de terme de comparaison.
 
-Reste donc de la Vague 1 : **L10**, plus **le reliquat de L5** — SAL-8 est
+| **L10** — WhatsApp | ✅ livré, 4 critères | Le plan avait raison sur l'essentiel, y compris sur ce qu'il fallait **corriger dans nos propres documents** : ce que le lot bloquant avait décrit comme un « routage par tenant » n'était qu'un `WHATSAPP_DEFAULT_TENANT_ID` unique pour tout le déploiement, le webhook n'ayant jamais lu le `phone_number_id` de Meta. Plutôt que de me contenter de corriger l'énoncé, j'ai livré le routage réel : résolution par entrée depuis les métadonnées Meta, contrainte d'unicité du numéro, repli explicite et compté (`routed_by_phone_number_id`) — un déploiement multi-sociétés mal configuré ressemblerait sinon exactement à un déploiement correct. WA-7 : la file n'existait pas du tout (envoi synchrone dans le thread HTTP, `STATUS_PENDING` jamais émis, reprise sans déclencheur — deux appelants, un endpoint et un bouton) ; `apps/whatsapp/` n'avait aucun répertoire `management/`, ce que la garde d'ordonnancement ne pouvait pas signaler puisqu'elle ne voit que les commandes présentes sur disque. WA-5 : la limite par destinataire n'existait pas ; elle ne se déduit pas du plafond de coût, cent messages à un seul numéro coûtant autant que cent messages à cent numéros. WA-1 : garde de non-contournement avec liste d'exception motivée (3 entrées) et auto-test du détecteur. Défaut trouvé en chemin, absent de l'audit : le menu d'intentions WA-8 partait au client **sans créer aucune ligne de journal** — son exemption portait sur le consentement, elle avait été étendue en silence à la traçabilité. |
+
+Reste donc de la Vague 1 : **le reliquat de L5** — SAL-8 est
 clos (bloquants 1/3) et la TVA l'est aussi (bloquants 3/3), mais **SAL-6** (test de
 concurrence sur la numérotation) et **SAL-7** (autosave de brouillon de devis) restent
 entiers : ni l'un ni l'autre n'a été touché par les trois lots de bloquants.

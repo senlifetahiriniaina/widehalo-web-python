@@ -12,6 +12,12 @@ urlpatterns = [
     path("messages/retry/", views.messages_retry, name="messages_retry"),
     path("config/", views.config, name="config"),
     path("config/cost-cap/", views.cost_cap_update, name="cost_cap_update"),
+    path(
+        "config/recipient-limit/",
+        views.recipient_limit_update,
+        name="recipient_limit_update",
+    ),
+    path("config/phone-number/", views.phone_number_update, name="phone_number_update"),
     path("templates/new/", views.template_create, name="template_create"),
     path("templates/<uuid:template_id>/submit/", views.template_submit, name="template_submit"),
     path("templates/<uuid:template_id>/approve/", views.template_approve, name="template_approve"),

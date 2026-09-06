@@ -86,6 +86,42 @@ class Tenant(models.Model):
     )
     whatsapp_cost_cap_hard_stop = models.BooleanField(default=True)
     whatsapp_cost_alert_threshold_pct = models.PositiveSmallIntegerField(default=80)
+    # WA-5, seconde jambe (L10) : « limite de frequence PAR DESTINATAIRE ».
+    # Le plafond mensuel ci-dessus protege la facture du tenant ; il ne
+    # protege pas UNE personne. Un tenant au plafond large peut envoyer
+    # cent messages au meme numero dans la journee sans qu'aucun compteur
+    # ne s'y oppose — c'est le scenario anti-boucle que ce critere vise
+    # (un automate qui se declenche en rafale, un import de campagne qui
+    # contient dix fois le meme numero). Le plafond de cout ne l'attrape
+    # pas : cent messages a un seul destinataire coutent autant que cent
+    # messages a cent destinataires.
+    #
+    # `None` = aucune limite configuree, meme discipline que le plafond de
+    # cout ci-dessus : l'absence de configuration ne bloque jamais, elle
+    # n'autorise pas non plus implicitement l'illimite — elle attend une
+    # decision. La valeur par defaut retenue (10/jour/destinataire) est une
+    # decision de conception PRISE ICI, non specifiee au cadrage : assez
+    # haute pour ne gener aucun usage legitime (relance, confirmation,
+    # notification de livraison), assez basse pour arreter une boucle.
+    whatsapp_max_messages_per_recipient_per_day = models.PositiveSmallIntegerField(
+        null=True, blank=True, default=10
+    )
+    # WA-10 (L10) : le numero WhatsApp Business de CE tenant, tel que Meta
+    # l'identifie (`phone_number_id`). C'est ce qui rend le routage
+    # multi-societes reel.
+    #
+    # Ce qui existait avant : un `WHATSAPP_PHONE_NUMBER_ID` unique pour tout
+    # le deploiement, plus un `WHATSAPP_DEFAULT_TENANT_ID` auquel TOUT
+    # message entrant etait attribue. Le webhook n'inspectait jamais le
+    # `phone_number_id` de l'entree Meta. Sur une instance multi-societes,
+    # les messages des clients de la societe B atterrissaient donc dans le
+    # fil de la societe A — et le lot precedent decrivait cela comme un
+    # « routage par tenant », ce qu'il n'etait pas.
+    #
+    # Vide = ce tenant n'a pas de numero propre ; le webhook retombe alors
+    # sur `WHATSAPP_DEFAULT_TENANT_ID`, comportement historique conserve
+    # pour les deploiements mono-societe qui n'ont rien a router.
+    whatsapp_phone_number_id = models.CharField(max_length=64, blank=True, default="")
 
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(
@@ -102,6 +138,18 @@ class Tenant(models.Model):
         db_table = "core_tenant"
         verbose_name = _("société")
         verbose_name_plural = _("sociétés")
+        constraints = [
+            # Deux societes ne peuvent pas revendiquer le meme numero Meta :
+            # le webhook ne saurait pas a laquelle livrer, et choisirait en
+            # silence. La condition exclut la chaine vide, qui signifie
+            # « pas de numero propre » et vaut pour autant de tenants qu'on
+            # veut (cf. commentaire du champ).
+            models.UniqueConstraint(
+                fields=["whatsapp_phone_number_id"],
+                condition=~models.Q(whatsapp_phone_number_id=""),
+                name="uniq_tenant_whatsapp_phone_number_id",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"

@@ -177,13 +177,38 @@ notamment, nécessite des identifiants Meta Cloud API — cf. `README.md`/le
 plan du projet).
 
 > **Si vous activez WhatsApp, renseignez aussi `WHATSAPP_DEFAULT_TENANT_ID`**
-> (L10). Sans lui, le webhook gouverné répond `{"governed": false}` pour
-> chaque message reçu : aucune conversation n'est créée, aucun canal de
-> discussion ouvert, aucun menu d'intentions envoyé, aucun consentement mis à
-> jour — y compris un « STOP ». Le module serait installé, monté, et inerte.
-> Le numéro WhatsApp étant global à l'instance, une seule instance ne dessert
-> qu'un tenant en entrée : c'est une limite connue du routage entrant, que
-> cette variable rend explicite plutôt que silencieuse.
+> (L10). Sans lui, et sans numéro rattaché à une société (ci-dessous), le
+> webhook gouverné répond `{"governed": false}` pour chaque message reçu :
+> aucune conversation n'est créée, aucun canal de discussion ouvert, aucun
+> menu d'intentions envoyé, aucun consentement mis à jour — y compris un
+> « STOP ». Le module serait installé, monté, et inerte.
+
+> **Instance multi-sociétés : rattachez le numéro Meta à chaque société.**
+> `WHATSAPP_DEFAULT_TENANT_ID` est un **repli**, pas un routage : tout
+> message reçu y était attribué, quel que soit le numéro qui l'avait reçu.
+> Sur une instance partagée, les messages des clients d'une société
+> tombaient donc dans le fil d'une autre. Depuis L10, le webhook lit le
+> `phone_number_id` que Meta transmet et le résout vers la société qui le
+> déclare — champ **« Numéro WhatsApp Business de cette société »** de
+> `/whatsapp/config/`, à renseigner **pour chaque société** disposant de son
+> propre numéro. Deux sociétés ne peuvent pas déclarer le même numéro (le
+> webhook ne saurait pas à laquelle livrer) : la base le refuse.
+>
+> La réponse du webhook porte `routed_by_phone_number_id` : c'est le nombre
+> d'entrées effectivement routées par leur numéro. **S'il reste à 0 sur une
+> instance multi-sociétés, le routage n'a pas lieu** et tout retombe sur la
+> société par défaut — un déploiement mal configuré ressemblerait sinon
+> exactement à un déploiement correct.
+
+> **Une commande périodique nouvelle : `run_whatsapp_queue` (WA-7).** Les
+> envois WhatsApp ne partent plus dans le thread de la requête HTTP : ils
+> sont mis en file, puis envoyés par cette commande, qui relance aussi les
+> échecs avec son backoff 5 min / 30 min / 2 h. Elle est déclarée au
+> registre d'ordonnancement à cadence **horaire** et appliquée par
+> `manage.py sync_scheduled_commands` (cf. §9 bis). **Si elle n'est pas
+> planifiée, aucun message WhatsApp ne part** — la file se remplit et rien
+> ne la vide. C'est le seul changement de ce lot qui exige une action
+> d'exploitation.
 
 > **Migration obligatoire — l'ancienne URL de webhook a été retirée.**
 > Jusqu'aux bloquants (4/4), deux URL acceptaient les messages entrants :

@@ -22,7 +22,10 @@ from apps.core.services.permissions import require_permission
 from apps.whatsapp.models import WaConversation, WaMessageTemplate
 from apps.whatsapp.services.consent import grant_consent, revoke_consent
 from apps.whatsapp.services.inbound import handle_inbound_message
-from apps.whatsapp.services.messaging import retry_failed_messages, send_governed_template_message
+from apps.whatsapp.services.messaging import (
+    queue_governed_template_message,
+    retry_failed_messages,
+)
 from apps.whatsapp.services.templates import (
     approve_template,
     create_template,
@@ -186,7 +189,8 @@ def revoke_consent_endpoint(request: Any, payload: ConsentIn) -> dict[str, Any]:
 def send_message_endpoint(request: Any, payload: SendMessageIn) -> dict[str, Any]:
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     try:
-        message = send_governed_template_message(
+        # WA-7 (L10) : mise en file — cf. `apps/whatsapp/views.py`.
+        message = queue_governed_template_message(
             tenant,
             phone_number=payload.phone_number,
             template_code=payload.template_code,
@@ -232,22 +236,44 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
     `apps.core.tenant_context.activate_tenant`) n'est donc JAMAIS actif
     par defaut ici, contrairement a une requete web normale — sans
     l'activer explicitement, toute ecriture sur `WaConversation`/
-    `ChatChannel` (proteges par RLS) echouerait."""
+    `ChatChannel` (proteges par RLS) echouerait.
+
+    **WA-10 (L10) : le routage par tenant est desormais reel.** Il ne
+    l'etait pas. Le lot precedent decrivait comme « routage par tenant »
+    ce qui n'etait qu'un `WHATSAPP_DEFAULT_TENANT_ID` unique pour tout le
+    deploiement : ce webhook n'inspectait jamais le `phone_number_id` que
+    Meta place dans `changes[].value.metadata`, si bien que sur une
+    instance multi-societes, les messages ecrits par les clients de la
+    societe B tombaient dans le fil de la societe A. La resolution se fait
+    maintenant PAR ENTREE — une meme livraison Meta peut porter des
+    entrees de plusieurs numeros — et le tenant par defaut ne sert plus
+    que de repli, pour les deploiements mono-societe qui n'ont rien a
+    router."""
     from apps.core.services.notifications import record_inbound_whatsapp_message
     from apps.core.tenant_context import activate_tenant
 
-    tenant = None
-    tenant_id = getattr(settings, "WHATSAPP_DEFAULT_TENANT_ID", "")
-    if tenant_id:
-        tenant = Tenant.objects.filter(id=tenant_id).first()
+    default_tenant = None
+    default_tenant_id = getattr(settings, "WHATSAPP_DEFAULT_TENANT_ID", "")
+    if default_tenant_id:
+        default_tenant = Tenant.objects.filter(id=default_tenant_id).first()
 
     body = json.loads(request.body or b"{}")
     entries = body.get("entry", [])
     processed = 0
+    routed = 0
 
     for entry in entries:
         for change in entry.get("changes", []):
-            for message in change.get("value", {}).get("messages", []):
+            value = change.get("value", {})
+            phone_number_id = str(value.get("metadata", {}).get("phone_number_id", "") or "")
+            tenant = None
+            if phone_number_id:
+                tenant = Tenant.objects.filter(whatsapp_phone_number_id=phone_number_id).first()
+            if tenant is not None:
+                routed += 1
+            else:
+                tenant = default_tenant
+            for message in value.get("messages", []):
                 phone_number = message.get("from", "")
                 text = message.get("text", {}).get("body", "")
                 # L10 : le tenant est resolu quelques lignes plus haut — le
@@ -264,4 +290,13 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
                         handle_inbound_message(tenant, phone_number=phone_number, body=text)
                 processed += 1
 
-    return {"status": "ok", "processed": processed, "governed": tenant is not None}
+    # `routed` distingue « livre au bon tenant parce que son numero a ete
+    # reconnu » de « livre au tenant par defaut faute de mieux ». Sans
+    # cette distinction, un deploiement multi-societes mal configure
+    # ressemblerait exactement a un deploiement correct.
+    return {
+        "status": "ok",
+        "processed": processed,
+        "governed": default_tenant is not None or routed > 0,
+        "routed_by_phone_number_id": routed,
+    }

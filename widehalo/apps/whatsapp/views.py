@@ -18,7 +18,10 @@ from apps.core.models.notification import WhatsAppMessage
 from apps.core.views.tenant_web import resolve_tenant
 from apps.whatsapp.models import WaConversation, WaMessageTemplate
 from apps.whatsapp.services.consent import grant_consent, revoke_consent
-from apps.whatsapp.services.messaging import retry_failed_messages, send_governed_template_message
+from apps.whatsapp.services.messaging import (
+    queue_governed_template_message,
+    retry_failed_messages,
+)
 from apps.whatsapp.services.templates import (
     approve_template,
     create_template,
@@ -100,7 +103,11 @@ def send_message(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     phone_number = request.POST.get("phone_number", "")
     try:
-        send_governed_template_message(
+        # WA-7 (L10) : MISE EN FILE, plus envoi synchrone. Les garde-fous
+        # sont appliques tout de suite — un refus reste immediat et
+        # affiche — mais un canal indisponible ne fait plus perdre le
+        # message : il part au prochain passage de `run_whatsapp_queue`.
+        queue_governed_template_message(
             tenant,
             phone_number=phone_number,
             template_code=request.POST.get("template_code", ""),
@@ -157,6 +164,46 @@ def cost_cap_update(request: HttpRequest) -> HttpResponse:
         tenant.save(
             update_fields=["whatsapp_monthly_cost_cap_ariary", "whatsapp_cost_cap_hard_stop"]
         )
+    return redirect("/whatsapp/config/")
+
+
+@login_required
+def recipient_limit_update(request: HttpRequest) -> HttpResponse:
+    """WA-5, seconde jambe : la limite de frequence par destinataire devient
+    reglable depuis le produit. Sans cet ecran elle ne serait editable que
+    par `/admin/` — c'est-a-dire, en pratique, jamais reglee, comme le
+    regime fiscal l'etait avant L17."""
+    if request.method != "POST" or not request.user.has_perm("whatsapp.change_wamessagetemplate"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    raw = request.POST.get("max_messages_per_recipient_per_day", "").strip()
+    with contextlib.suppress(ValueError):
+        tenant.whatsapp_max_messages_per_recipient_per_day = int(raw) if raw else None
+        tenant.full_clean()
+        tenant.save(update_fields=["whatsapp_max_messages_per_recipient_per_day"])
+    return redirect("/whatsapp/config/")
+
+
+@login_required
+def phone_number_update(request: HttpRequest) -> HttpResponse:
+    """WA-10 : rattache un numero WhatsApp Business a CETTE societe.
+
+    `full_clean()` avant `save()` n'est pas decoratif ici : c'est lui qui
+    fait remonter la contrainte d'unicite (`uniq_tenant_whatsapp_phone_
+    number_id`) comme une erreur affichable plutot qu'une `IntegrityError`
+    500. Deux societes qui revendiquent le meme numero, c'est un webhook
+    qui choisirait en silence a laquelle livrer."""
+    if request.method != "POST" or not request.user.has_perm("whatsapp.change_wamessagetemplate"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    tenant.whatsapp_phone_number_id = request.POST.get("whatsapp_phone_number_id", "").strip()
+    try:
+        tenant.full_clean()
+    except ValidationError as exc:
+        from urllib.parse import quote
+
+        return redirect(f"/whatsapp/config/?error={quote(_error_message(exc))}")
+    tenant.save(update_fields=["whatsapp_phone_number_id"])
     return redirect("/whatsapp/config/")
 
 

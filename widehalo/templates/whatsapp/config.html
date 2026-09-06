@@ -21,6 +21,49 @@
   {% endif %}
 </div>
 
+{% comment %}
+  WA-5, seconde jambe (L10). Le plafond ci-dessus protege la FACTURE de la
+  societe ; celui-ci protege UNE PERSONNE. Les deux sont affiches
+  separement parce qu'ils ne repondent pas a la meme question : cent
+  messages adresses au meme numero coutent exactement autant que cent
+  messages adresses a cent numeros, et le plafond de cout ne distingue
+  donc pas le second cas du premier.
+{% endcomment %}
+<div class="wh-panel">
+  <h2>{% trans "Limite de fréquence par destinataire" %}</h2>
+  <p class="help-text">{% trans "Nombre maximal de messages qu'un même numéro peut recevoir sur 24 heures glissantes. Protège une personne d'un envoi en boucle — ce que le plafond de coût ci-dessus ne voit pas, cent messages à un seul numéro coûtant autant que cent messages à cent numéros." %}</p>
+  {% if can_manage %}
+    <form method="post" action="{% url 'whatsapp:recipient_limit_update' %}">
+      {% csrf_token %}
+      <input type="number" min="1" name="max_messages_per_recipient_per_day" placeholder="{% trans "Messages/24 h/destinataire, vide = aucune limite" %}" value="{{ tenant.whatsapp_max_messages_per_recipient_per_day|unlocalize|default:"" }}">
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% else %}
+    <p>{% if tenant.whatsapp_max_messages_per_recipient_per_day %}{{ tenant.whatsapp_max_messages_per_recipient_per_day }} {% trans "par 24 h" %}{% else %}{% trans "Aucune limite configurée" %}{% endif %}</p>
+  {% endif %}
+</div>
+
+{% comment %}
+  WA-10 (L10) : « vers qui » sortent les donnees. Jusqu'ici cet ecran ne
+  pouvait pas repondre a cette question — un seul numero WhatsApp Business
+  valait pour tout le deploiement, et le webhook attribuait TOUT message
+  entrant a un tenant par defaut unique. Sur une instance multi-societes,
+  les messages des clients d'une societe tombaient dans le fil d'une autre.
+{% endcomment %}
+<div class="wh-panel">
+  <h2>{% trans "Numéro WhatsApp Business de cette société" %}</h2>
+  <p class="help-text">{% trans "Identifiant du numéro tel que Meta le transmet (phone_number_id). C'est lui qui achemine les messages entrants vers cette société plutôt qu'une autre. Laissé vide, les messages reçus retombent sur la société par défaut du déploiement — acceptable pour une instance mono-société, jamais pour une instance partagée." %}</p>
+  {% if can_manage %}
+    <form method="post" action="{% url 'whatsapp:phone_number_update' %}">
+      {% csrf_token %}
+      <input type="text" name="whatsapp_phone_number_id" placeholder="{% trans "phone_number_id Meta" %}" value="{{ tenant.whatsapp_phone_number_id }}">
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% else %}
+    <p>{{ tenant.whatsapp_phone_number_id|default:_("Aucun numéro propre — repli sur la société par défaut") }}</p>
+  {% endif %}
+</div>
+
 <div class="wh-panel">
   <h2>{% trans "Bibliothèque de modèles" %}</h2>
   {% if can_manage %}
