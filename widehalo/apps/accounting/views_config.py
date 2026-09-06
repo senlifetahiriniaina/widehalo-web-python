@@ -27,6 +27,7 @@ from apps.accounting.models import (
     AccTenantDefaultAccount,
 )
 from apps.accounting.services.default_accounts import resolve_default_account
+from apps.accounting.services.taxes import vat_applicable
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -227,11 +228,38 @@ def config_default_accounts(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def config_taxes(request: HttpRequest) -> HttpResponse:
+    """Ecran de parametrage des taxes.
+
+    **Volet « proposee » de RG-ACC-5, ferme ici (bloquants 4/4).** La regle
+    dit « sur un tenant au regime synthetique, aucune AccTax n'est PROPOSEE
+    ni APPLIQUEE ». Seul le volet « appliquee » etait tenu, et uniquement
+    par trois surfaces de LECTURE (`applicable_taxes`,
+    `public.get_default_sale_tax`, `public.get_sale_tax`). Cet ecran, lui,
+    creait une `AccTax` sur un tenant non assujetti sans le moindre
+    avertissement — et le modele ne porte la regle qu'en commentaire, sans
+    `clean()` ni contrainte. Un tenant synthetique pouvait donc se
+    constituer un jeu de taxes que le produit refuserait ensuite
+    d'appliquer : une configuration sans effet, et rien pour le dire.
+
+    Le refus est cote POST, jamais seulement dans le gabarit : masquer un
+    formulaire n'empeche personne de poster.
+
+    Les taxes DEJA enregistrees restent affichees, avec la banniere de
+    non-assujettissement. Les faire disparaitre d'un ecran de configuration
+    ressemblerait a une perte de donnees, alors qu'elles existent bel et
+    bien en base — elles ne sont simplement jamais appliquees."""
     tenant = resolve_tenant(request)
     accounts = AccAccount.objects.filter(tenant=tenant, is_active=True)
+    is_vat_liable = vat_applicable(tenant)
     error = None
 
-    if request.method == "POST":
+    if request.method == "POST" and not is_vat_liable:
+        error = _(
+            "Ce tenant n'est pas assujetti à la TVA : aucune taxe ne peut être "
+            "enregistrée (RG-ACC-5). Le régime se change à l'écran de configuration "
+            "fiscale."
+        )
+    elif request.method == "POST":
         try:
             collected_id = request.POST.get("account_collected_id") or None
             deductible_id = request.POST.get("account_deductible_id") or None
@@ -268,6 +296,7 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
             "taxes": taxes,
             "accounts": accounts,
             "type_choices": AccTax.TYPE_CHOICES,
+            "is_vat_liable": is_vat_liable,
             "error": error,
         },
     )

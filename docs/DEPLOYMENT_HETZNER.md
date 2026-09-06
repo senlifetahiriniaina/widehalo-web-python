@@ -185,6 +185,21 @@ plan du projet).
 > qu'un tenant en entrée : c'est une limite connue du routage entrant, que
 > cette variable rend explicite plutôt que silencieuse.
 
+> **Migration obligatoire — l'ancienne URL de webhook a été retirée.**
+> Jusqu'aux bloquants (4/4), deux URL acceptaient les messages entrants :
+> `/api/v1/whatsapp/webhook` (gouvernée) et `/api/v1/notifications/whatsapp/webhook`
+> (historique, conservée « par compatibilité ascendante »). La seconde
+> enregistrait les messages **sans tenant** — donc invisibles de tous les
+> écrans — et n'y traitait ni « STOP », ni le menu d'intentions, ni la
+> progression de conversation : elle réintroduisait intégralement un défaut
+> réparé à côté. Elle n'existe plus.
+>
+> **Si votre configuration Meta pointe encore l'ancienne URL, repointez-la sur
+> `https://<votre-domaine>/api/v1/whatsapp/webhook`** (la poignée de main de
+> vérification `hub.challenge` y est identique). Sans ce changement, Meta
+> recevra des 404 et les messages entrants seront perdus. Une instance qui
+> n'a jamais configuré l'ancienne URL n'a rien à faire.
+
 ## 7. Démarrer le déploiement
 
 ```bash

@@ -128,10 +128,35 @@ def create_lead_endpoint(request, payload: LeadIn):
     return _serialize_lead(lead)
 
 
+def _scoped_lead(request, lead_id: str) -> CrmLead:
+    """Le lead, VU A TRAVERS le perimetre RG-CRM-5 de l'appelant.
+
+    Correctif d'un manque reel (bloquants 4/4) : la vue web `views.
+    lead_detail` repasse par `scope_leads_for_user` — et le commente en
+    quinze lignes — tandis que QUATRE endpoints de ce fichier faisaient
+    `get_object_or_404(CrmLead, id=lead_id)` tout court. `list_leads`
+    ci-dessus, lui, scopait correctement : la regle etait donc tenue sur
+    une surface et oubliee sur l'autre, exactement le motif deja rencontre
+    entre `applicable_taxes` et `get_default_sale_tax`.
+
+    Consequence avant ce correctif : tout porteur de `crm.change_crmlead`
+    dans le tenant — un commercial ne voyant que ses propres opportunites a
+    l'ecran comme a la liste d'API — pouvait, par simple connaissance de
+    l'UUID, deplacer l'opportunite d'un collegue, la marquer gagnee ou
+    perdue, y ajouter une activite ou forcer une remise. L'isolation entre
+    TENANTS n'etait pas en cause (elle tient par RLS) ; c'est le perimetre
+    INTERNE, celui que RG-CRM-5 definit, qui ne l'etait pas.
+
+    404 et non 403, comme la vue web et comme les bulletins de paie
+    (RG-PAY-9) : ne jamais laisser deviner l'existence de l'enregistrement
+    d'autrui."""
+    return get_object_or_404(scope_leads_for_user(CrmLead.objects.all(), request.auth), id=lead_id)
+
+
 @router.post("/crm/leads/{lead_id}/move-stage")
 @require_permission("crm.change_crmlead")
 def move_lead_stage_endpoint(request, lead_id: str, payload: MoveStageIn):
-    lead = get_object_or_404(CrmLead, id=lead_id)
+    lead = _scoped_lead(request, lead_id)
     stage = get_object_or_404(CrmStage, id=payload.stage_id)
     lost_reason = (
         get_object_or_404(CrmLostReason, id=payload.lost_reason_id)
@@ -148,7 +173,7 @@ def move_lead_stage_endpoint(request, lead_id: str, payload: MoveStageIn):
 @router.post("/crm/leads/{lead_id}/lines/{line_id}/enforce-discount")
 @require_permission("crm.change_crmlead")
 def enforce_discount_endpoint(request, lead_id: str, line_id: str):
-    lead = get_object_or_404(CrmLead, id=lead_id)
+    lead = _scoped_lead(request, lead_id)
     line = get_object_or_404(lead.lines, id=line_id)
     try:
         enforce_discount_threshold(line, requested_by=request.auth)
@@ -160,7 +185,7 @@ def enforce_discount_endpoint(request, lead_id: str, line_id: str):
 @router.get("/crm/leads/{lead_id}/activities")
 @require_permission("crm.view_crmactivity")
 def list_lead_activities(request, lead_id: str):
-    lead = get_object_or_404(CrmLead, id=lead_id)
+    lead = _scoped_lead(request, lead_id)
     return {
         "results": [
             {
@@ -178,7 +203,7 @@ def list_lead_activities(request, lead_id: str):
 @router.post("/crm/leads/{lead_id}/activities")
 @require_permission("crm.add_crmactivity")
 def create_lead_activity_endpoint(request, lead_id: str, payload: ActivityIn):
-    lead = get_object_or_404(CrmLead, id=lead_id)
+    lead = _scoped_lead(request, lead_id)
     activity = log_activity(
         lead,
         activity_type=payload.activity_type,
@@ -192,7 +217,14 @@ def create_lead_activity_endpoint(request, lead_id: str, payload: ActivityIn):
 @router.post("/crm/activities/{activity_id}/complete")
 @require_permission("crm.change_crmactivity")
 def complete_activity_endpoint(request, activity_id: str):
-    activity = get_object_or_404(CrmActivity, id=activity_id)
+    # Meme perimetre, par le lead porteur : une activite n'existe jamais
+    # seule (`CrmActivity.lead`, FK non nulle).
+    activity = get_object_or_404(
+        CrmActivity.objects.filter(
+            lead__in=scope_leads_for_user(CrmLead.objects.all(), request.auth)
+        ),
+        id=activity_id,
+    )
     completed = complete_activity(activity)
     return {"id": str(completed.id), "done_at": completed.done_at}
 

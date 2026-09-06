@@ -10,6 +10,17 @@
     <h1>{% trans "Taxes" %}</h1>
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if not is_vat_liable %}
+    {% comment %}
+      RG-ACC-5, volet « proposee ». Le refus reel est cote POST (cf.
+      `views_config.config_taxes`) : cacher le formulaire ne protege
+      personne, l'expliquer evite qu'on cherche pourquoi.
+    {% endcomment %}
+    <p class="form-error">
+      {% trans "Ce tenant n'est pas assujetti à la TVA : aucune taxe n'est proposée ni appliquée (RG-ACC-5). Les taxes ci-dessous, si elles existent, restent sans effet." %}
+      <a href="{% url 'accounting:config_index' %}">{% trans "Changer le régime fiscal" %}</a>
+    </p>
+  {% endif %}
 
   <table class="smart-table">
     <thead>
@@ -36,6 +47,7 @@
     </tbody>
   </table>
 
+  {% if is_vat_liable %}
   <h2>{% trans "Nouvelle taxe" %}</h2>
   <form method="post">
     {% csrf_token %}
@@ -93,4 +105,5 @@
     </div>
     <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
   </form>
+  {% endif %}
 {% endblock %}

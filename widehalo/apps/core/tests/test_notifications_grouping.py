@@ -106,33 +106,18 @@ def test_notify_role_returns_empty_list_when_no_member_of_this_role(user_and_ten
     assert notifications == []
 
 
-def test_inbound_whatsapp_webhook_records_a_message(client) -> None:
-    import json
-
-    payload = {
-        "entry": [
-            {
-                "changes": [
-                    {
-                        "value": {
-                            "messages": [
-                                {
-                                    "from": "+261340000000",
-                                    "text": {"body": "Bonjour"},
-                                    "id": "wamid.abc",
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-    response = client.post(
-        "/api/v1/notifications/whatsapp/webhook",
-        data=json.dumps(payload),
-        content_type="application/json",
-    )
-    assert response.status_code == 200
-    assert response.json()["processed"] == 1
-    assert WhatsAppMessage.objects.filter(provider_message_id="wamid.abc").exists()
+# `test_inbound_whatsapp_webhook_records_a_message` vivait ici, et postait sur
+# `/api/v1/notifications/whatsapp/webhook` — le webhook HISTORIQUE, retire aux
+# bloquants (4/4) parce qu'il enregistrait les messages entrants sans tenant,
+# donc invisibles de tous les ecrans.
+#
+# Il n'est pas simplement supprime : il asserait le defaut. Il ne creait AUCUN
+# tenant et verifiait malgre tout qu'un `WhatsAppMessage` etait ecrit — c'est
+# exactement le comportement qu'on a ferme. Le remplacer par le meme test sur
+# la route gouvernee aurait reconduit l'angle mort (il ne regardait pas
+# `tenant_id`).
+#
+# La couverture est reprise, en plus complet, par
+# `apps/whatsapp/tests/test_bloquant4_historic_webhook_removed.py` : l'ancienne
+# route repond 404 sans rien ecrire, la nouvelle repond et ecrit AVEC son
+# tenant.
