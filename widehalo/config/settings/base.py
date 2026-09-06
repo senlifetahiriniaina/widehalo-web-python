@@ -452,20 +452,33 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 # Consommation reelle au moment du relevement, mesuree et non estimee :
 # 305/415 modeles (73 %), 589/800 endpoints (74 %), 252/320 ecrans (79 %).
 #
-# CE QUE +25 % COUVRE, ET CE QU'IL NE COUVRE PAS. Rapporte aux projections
-# du cahier Phase 4 (430 modeles / 1 210 endpoints / 278 ecrans) :
+# CE QUE +25 % COUVRAIT, ET CE QU'IL NE COUVRAIT PAS. Rapporte aux
+# projections du cahier Phase 4 (430 modeles / 1 210 endpoints /
+# 278 ecrans) :
 #   - modeles  : 519 > 430  — couvert, avec de la marge ;
 #   - ecrans   : 400 > 278  — couvert largement ;
-#   - endpoints: 1 000 < 1 210 — **NON COUVERT**, il manque 210.
+#   - endpoints: 1 000 < 1 210 — NON couvert, il manquait 210.
 # L'ecart vient presque entierement de la surface d'API publique du Bloc B
-# (S7-S9), deja identifie comme tel lors du premier relevement. Le plafond
-# des endpoints redeviendra donc bloquant EN COURS de Vague 2, au Bloc B,
-# et non a son demarrage — le dire ici plutot que de le decouvrir a ce
-# moment-la est tout l'interet d'un budget. Un relevement a 1 250
-# (+56 % depuis 800) couvrirait la projection ; il n'est pas applique,
-# faute de decision en ce sens.
+# (S7-S9), deja identifie comme tel lors du premier relevement. A 1 000, le
+# plafond des endpoints serait redevenu bloquant EN COURS de Vague 2, a ce
+# bloc precis et non a son demarrage — c'est-a-dire en pleine construction,
+# la situation exacte rencontree a 240/240 ecrans avant D10.
+#
+# **Decision explicite actee avec l'utilisateur, dans la foulee du +25 %** :
+# +500 endpoints supplementaires, 1 000 -> 1 500. La projection Phase 4 est
+# donc couverte (1 500 > 1 210) avec 290 de marge, et le Bloc B ne
+# demandera pas de troisieme arbitrage en cours de route. C'est le meme
+# raisonnement que le relevement des ecrans a l'etape ST8 : mieux vaut un
+# plafond decide une fois, en connaissance des projections, qu'un plafond
+# releve sous la contrainte au moment ou il bloque.
+#
+# Ce que ce plafond reste : une limite DECIDEE, pas une autorisation de
+# croitre. 589 endpoints aujourd'hui pour 1 500 autorises n'est pas un
+# objectif a atteindre — les budgets nouveaux annonces par le cahier
+# (12 adaptateurs, 80 operations publiques) restent a poser, et ce sont eux
+# qui borneront la surface d'API la ou ce compteur global ne le fait pas.
 BUDGET_MAX_MODELS = 519
-BUDGET_MAX_ENDPOINTS = 1000
+BUDGET_MAX_ENDPOINTS = 1500
 BUDGET_MAX_SCREENS = 400
 # BI-3 (L9) : budget de RAPPORTS, verifie en CI.
 #
