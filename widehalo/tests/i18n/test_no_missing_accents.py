@@ -98,3 +98,41 @@ def test_no_auto_correctable_missing_accents_remain() -> None:
         "fixtures de reference) — corriger a la source (jamais dans ce test) :\n"
         + "\n".join(f"  {word} -> {fix}" for word, fix in sorted(auto_fix.items()))
     )
+
+
+def test_the_proper_noun_exclusion_actually_excludes() -> None:
+    """Auto-test de `PROPER_NOUNS`. Sans lui, l'exclusion pourrait ne rien
+    exclure (une faute de frappe dans l'entrée suffit) et « Meta » serait
+    de nouveau proposé à la correction — en CI seulement, puisque cette
+    garde est ignorée là où aspell manque.
+
+    On vérifie les DEUX sens : le mot exclu ne remonte pas, et un mot
+    comparable qui n'est PAS dans la liste remonte bien. Sans la seconde
+    moitié, une exclusion qui avalerait tout serait indiscernable d'une
+    exclusion correcte."""
+    from tests.i18n._accent_utils import PROPER_NOUNS
+
+    assert "Meta" in PROPER_NOUNS
+
+    auto_fix, ambiguous = compute_auto_fix_dictionary({"Meta", "referentiel"})
+    assert "Meta" not in auto_fix
+    assert "Meta" not in ambiguous
+    assert auto_fix.get("referentiel") == "référentiel", (
+        "L'exclusion des noms propres avale des mots qu'elle ne devrait pas : "
+        "la garde ne protège plus rien."
+    )
+
+
+def test_the_proper_noun_list_has_no_obsolete_entry() -> None:
+    """Une exception qui survit au texte qui la justifiait devient une
+    permission tacite : elle autoriserait plus tard un vrai mot français
+    homographe sans que personne ne rejoue la décision. Même discipline que
+    la liste d'exception de `test_whatsapp_single_send_path`."""
+    from tests.i18n._accent_utils import PROPER_NOUNS
+
+    words = _current_state_words()
+    unused = sorted(noun for noun in PROPER_NOUNS if noun not in words)
+    assert not unused, (
+        f"Nom(s) propre(s) exempté(s) mais absent(s) du texte utilisateur : {unused}. "
+        "Retirer l'entrée plutôt que de la garder « au cas où »."
+    )

@@ -195,6 +195,10 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
         head, _, rest = line.partition(":")
         tokens = head.split()
         original_word = tokens[1]
+        # Un nom propre n'est ni `auto_fix` ni `ambiguous` : il est HORS
+        # SUJET pour ce mecanisme, pas un cas difficile a arbitrer.
+        if original_word in PROPER_NOUNS:
+            continue
         suggestions = rest.strip().split(", ") if rest else []
         matches = [s for s in suggestions if strip_accents(s).lower() == original_word.lower()]
         if len(matches) == 1:
@@ -202,6 +206,26 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
         elif len(matches) > 1:
             ambiguous[original_word] = matches
     return auto_fix, ambiguous
+
+
+# Noms PROPRES a ne jamais accentuer, quoi qu'en dise aspell.
+#
+# La garde ne sait pas distinguer un mot francais d'une marque : aspell
+# propose « Meta » -> « Méta », une seule suggestion, donc un `auto_fix`
+# « certain » — et il a tort, `Meta` etant le nom de l'entreprise qui
+# exploite WhatsApp Business. Le texte utilisateur cite ce nom la ou il
+# faut nommer le fournisseur (ecran de configuration WhatsApp, WA-10), et
+# l'ecrire « Méta » serait une faute, pas une correction.
+#
+# Trouve par la CI, pas ici : ce garde-fou est IGNORE quand aspell manque,
+# ce qui est le cas de l'environnement de developpement par defaut. Une
+# garde ignoree en local et bloquante en CI ne se decouvre qu'apres coup.
+#
+# Discipline d'ajout, identique a `MANUAL_OVERRIDES` : une entree ici est
+# un nom propre verifie, jamais un moyen commode de faire taire un mot
+# qu'on n'a pas envie de corriger. `WhatsApp` n'y figure pas — aspell ne le
+# propose pas a la correction, l'y mettre serait du bruit.
+PROPER_NOUNS: frozenset[str] = frozenset({"Meta"})
 
 
 # Corrections manuelles pour les cas ou plusieurs restaurations d'accents

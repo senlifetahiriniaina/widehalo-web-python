@@ -158,7 +158,7 @@ def ensure_suspense_account(tenant: Tenant) -> AccAccount:
         or framework.suspense_account_class is None
     ):
         raise ValidationError(
-            _("Aucun compte d'attente n'est defini par le referentiel comptable de ce tenant.")
+            _("Aucun compte d'attente n'est défini par le référentiel comptable de ce tenant.")
         )
     code = framework.suspense_account_code
     account_class = framework.suspense_account_class

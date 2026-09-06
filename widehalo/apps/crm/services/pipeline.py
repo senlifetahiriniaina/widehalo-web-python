@@ -75,9 +75,15 @@ def move_lead_to_stage(
         # relaterait une transition ensuite refusee serait un faux dans le
         # fil commercial. Meme ordre que `advance_work_order`.
         note = _("Étape : %(stage)s") % {"stage": stage.name}
-        if stage.is_lost and lead.lost_reason_id is not None:
+        # Liaison locale plutot qu'un test sur `lost_reason_id` : ce dernier
+        # ne dit rien a l'analyse de types de la nullite de `lost_reason`
+        # lui-meme (mypy le signalait, `union-attr`), et il forcerait un
+        # second acces a la cle etrangere. Ici l'objet vient d'etre affecte
+        # quelques lignes plus haut, il est donc deja en cache.
+        lost_reason_used = lead.lost_reason if stage.is_lost else None
+        if lost_reason_used is not None:
             note = _("Perdue — %(reason)s : %(comment)s") % {
-                "reason": lead.lost_reason.name,
+                "reason": lost_reason_used.name,
                 "comment": lead.lost_comment,
             }
         elif stage.is_won:

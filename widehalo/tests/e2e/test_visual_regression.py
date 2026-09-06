@@ -22,7 +22,30 @@ Fonctionnement : sans baseline sur disque, un test ECRIT la reference
 (`__snapshots__/<nom>.png`, a committer) et se termine en echec explicite
 pour que l'absence de baseline ne passe jamais inaperçue en CI ; avec une
 baseline presente, il compare et echoue si la proportion de pixels
-differents depasse la tolerance."""
+differents depasse la tolerance.
+
+**Regeneration de `accounting-list.png` et `catalog-template-create.png`,
+et pourquoi elle etait due.** Ces deux references mesuraient 840 px de haut
+alors que les deux ecrans en rendent 773 — 67 px d'ecart, IDENTIQUE sur
+deux ecrans sans rapport, donc imputable a un element du gabarit commun.
+Cause exacte : le commit « Bloquants (2/3) » a converti en `{% comment %}`
+des commentaires `{# ... #}` MULTI-LIGNES du `<head>` de `base.html`. Django
+ne supprime pas ces commentaires-la (sa regex n'accepte pas les sauts de
+ligne) et leur texte etait rendu tel quel ; un noeud texte dans `<head>`
+force le parseur HTML a ouvrir `<body>`, si bien que ce commentaire
+s'affichait en haut de CHAQUE page et l'allongeait d'autant.
+
+Ces deux references etaient donc des captures DU DEFAUT. Les regenerer
+n'est pas un contournement de la garde : c'est l'etape qui restait a faire
+quand le defaut a ete corrige, et qui a laisse le job `e2e` rouge
+entre-temps.
+
+Deux enseignements pour la suite. D'abord, la tolerance elargie ci-dessous
+n'a JAMAIS pu s'appliquer a ces deux fichiers : la comparaison de
+DIMENSIONS echoue avant tout calcul de ratio. Ensuite, une reference
+visuelle est un instantane du rendu ATTENDU — quand une correction de
+gabarit change legitimement la mise en page, la regenerer fait partie de la
+correction, au meme titre qu'un test a mettre a jour."""
 
 from __future__ import annotations
 
