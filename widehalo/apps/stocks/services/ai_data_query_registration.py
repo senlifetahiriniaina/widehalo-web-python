@@ -41,6 +41,7 @@ def register_ai_data_query_tools() -> None:
         ),
         parameters_schema={"type": "object", "properties": {}, "required": []},
         required_permission="stocks.view_stkmove",
+        verification_route="stocks:index",
         read_only=True,
         function=_tool_stock_state_rows,
     )

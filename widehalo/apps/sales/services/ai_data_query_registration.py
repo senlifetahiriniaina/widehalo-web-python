@@ -80,6 +80,7 @@ def register_ai_data_query_tools() -> None:
             "required": ["date_from", "date_to"],
         },
         required_permission="sales.view_salesorder",
+        verification_route="sales:order_list",
         read_only=True,
         function=_tool_revenue_report,
     )
@@ -94,6 +95,7 @@ def register_ai_data_query_tools() -> None:
         ),
         parameters_schema={"type": "object", "properties": {}, "required": []},
         required_permission="sales.view_salesorder",
+        verification_route="sales:order_list",
         read_only=True,
         function=_tool_margin_report,
     )

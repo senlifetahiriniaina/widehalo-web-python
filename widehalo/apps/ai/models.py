@@ -321,6 +321,20 @@ class AiDataQuery(BaseModel):
     tools_called = models.JSONField(default=list, blank=True)
     answer = models.TextField()
     succeeded = models.BooleanField(default=True)
+    # IA-2 (L7) : « tout appel d'outil est journalise avec l'utilisateur, le
+    # tenant, l'outil, les parametres ET LA DUREE ». Les quatre premiers
+    # etaient portes (tenant/created_by par `BaseModel`, l'outil et ses
+    # arguments par `tools_called`) ; aucun champ de latence n'existait — les
+    # sept migrations du module n'en contiennent pas une occurrence.
+    # `AiRequest` porte bien des estimations de JETONS, mais un volume n'est
+    # pas un temps.
+    #
+    # Mesure de bout en bout de la boucle d'outillage, prise sur
+    # `time.monotonic` et jamais sur l'horloge murale : un ajustement NTP en
+    # cours de requete produirait une duree negative. Reste a 0 pour les
+    # enregistrements anterieurs a ce lot et pour le chemin stub, qui
+    # n'appelle aucun fournisseur.
+    duration_ms = models.PositiveIntegerField(default=0)
     provider_backend = models.CharField(max_length=32, default="stub")
     created_by = models.ForeignKey(
         "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
@@ -332,3 +346,62 @@ class AiDataQuery(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.question[:50]} ({self.provider_backend})"
+
+
+class AiExternalProviderConsent(BaseModel):
+    """IA-9 (L7) : consentement d'un tenant a l'envoi de donnees vers un
+    fournisseur d'IA externe.
+
+    **Le defaut ferme.** Le critere exige que « le repli vers un
+    fournisseur cloud soit desactive par defaut, que son activation
+    affiche explicitement quelles donnees sortiront du serveur, et qu'elle
+    soit journalisee ». Deux tiers etaient tenus par accident : sans
+    `AI_PROVIDER_CONFIG`, `get_ai_provider()` renvoie le stub — donc rien
+    ne sort. Mais l'ACTIVATION etait une variable d'environnement posee au
+    redemarrage : aucun ecran, aucun formulaire, aucun modele, aucune
+    entree d'audit, et pas meme une ligne dans `.env.example`. Personne ne
+    pouvait dire QUAND ni PAR QUI un tenant avait commence a envoyer ses
+    donnees au dehors.
+
+    **Pourquoi par TENANT et non par deploiement.** `AI_PROVIDER_CONFIG`
+    dit QUEL fournisseur l'hebergeur a branche ; il ne dit pas quelle
+    societe accepte que ses chiffres sortent de son serveur. Sur une
+    instance multi-societes, c'est une decision qui appartient a chacune —
+    et le consentement d'une n'engage pas les autres. Un fournisseur
+    configure sans consentement du tenant retombe donc sur le stub, ce qui
+    conserve la garantie « repli-d'abord » du module.
+
+    **C'est le journal lui-meme.** La ligne n'est jamais modifiee en place
+    a la revocation : `revoked_at` est renseigne et une nouvelle ligne est
+    creee a la prochaine acceptation. L'historique se lit donc directement
+    dans la table — meme discipline « versionner par insertion » que
+    `AnMetricDefinition` (BI-9) ou `RegulatoryParameter`. `BaseModel`
+    ajoute par ailleurs l'entree du journal d'audit central
+    (`core.audit_signals`)."""
+
+    # Etiquette du fournisseur au moment de l'acceptation (`AI_PROVIDER_
+    # CONFIG["backend"]`). Figee : changer de fournisseur ne doit PAS
+    # reconduire silencieusement un consentement donne pour un autre.
+    backend = models.CharField(max_length=32)
+    granted_at = models.DateTimeField(auto_now_add=True)
+    granted_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        "core.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Texte EXACT presente a l'utilisateur au moment ou il a accepte,
+    # recopie ici plutot que reference. Un consentement se prouve par ce
+    # qui a ete montre, pas par ce que le code affiche aujourd'hui : si la
+    # liste des donnees sortantes change, les acceptations passees doivent
+    # rester lisibles telles qu'elles ont ete données.
+    disclosure_text = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "ai_external_provider_consent"
+        ordering = ["-granted_at"]
+
+    def __str__(self) -> str:
+        state = "revoque" if self.revoked_at else "actif"
+        return f"{self.backend} ({state})"

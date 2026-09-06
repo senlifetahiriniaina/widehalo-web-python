@@ -103,6 +103,18 @@ class DataQueryTool:
     # un futur tool d'ecriture passer par simple oubli.
     read_only: bool
     function: DataQueryToolFunction
+    # IA-8 (L7) : « chaque reponse chiffree du copilote fournit le lien vers
+    # l'ecran ou l'etat qui permet de verifier le chiffre ». C'est L'OUTIL
+    # qui sait ou son chiffre se recontrole — la passerelle, elle, ne voit
+    # que des lignes de donnees.
+    #
+    # Nom de route Django (`reverse()`-able), jamais une URL en dur : une
+    # URL recopiee survit au deplacement de la vue et devient un lien mort
+    # dans un ecran de verification, c'est-a-dire le contraire de ce que le
+    # critere demande. Chaine vide quand aucun ecran ne recontrole ce chiffre
+    # — l'ecran affiche alors la source sans lien plutot qu'un lien qui ne
+    # menerait nulle part.
+    verification_route: str = ""
 
 
 _REGISTRY: dict[str, DataQueryTool] = {}
@@ -118,6 +130,7 @@ def register_data_query_tool(
     required_permission: str,
     read_only: bool,
     function: DataQueryToolFunction,
+    verification_route: str = "",
 ) -> None:
     """Appele depuis `apps.py::ready()` de chaque module metier. Idempotent
     (un meme `code` re-enregistre remplace simplement l'entree).
@@ -139,6 +152,7 @@ def register_data_query_tool(
         required_permission=required_permission,
         read_only=read_only,
         function=function,
+        verification_route=verification_route,
     )
 
 

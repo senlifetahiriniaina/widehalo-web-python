@@ -18,7 +18,7 @@
       <p>{{ result.answer }}</p>
       <p><small>
         {% if result.succeeded %}{% trans "Analyse terminée." %}
-        {% else %}{% trans "Analyse incomplète (fournisseur IA non configure, budget épuisé, ou erreur)." %}
+        {% else %}{% trans "Analyse incomplète — le message ci-dessus en donne la raison." %}
         {% endif %}
       </small></p>
       {% if tool_sources %}
@@ -27,7 +27,19 @@
           <ul>
             {% for source in tool_sources %}
               <li>
-                <strong>{{ source.label }}</strong>
+                {% comment %}
+                  IA-8 (L7) — le LIEN, pas seulement le nom. Ce bloc nommait
+                  la source en `<strong>` : il disait d'ou venait le chiffre
+                  sans permettre de le recontroler, alors que le critere
+                  demande « le lien vers l'ecran qui permet de verifier ».
+                  Repli sur le nom seul quand l'outil ne declare aucun ecran
+                  de verification, ou que sa route a disparu.
+                {% endcomment %}
+                {% if source.verification_url %}
+                  <a href="{{ source.verification_url }}">{{ source.label }}</a>
+                {% else %}
+                  <strong>{{ source.label }}</strong>
+                {% endif %}
                 {% if source.module %}<small>({{ source.module }})</small>{% endif %}
               </li>
             {% endfor %}

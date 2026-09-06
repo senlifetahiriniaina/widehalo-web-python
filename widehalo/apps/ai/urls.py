@@ -14,4 +14,9 @@ urlpatterns = [
     path("insights/", views.insights_list, name="insights_list"),
     path("recommendations/", views.recommendations_screen, name="recommendations_screen"),
     path("data-query/", views.data_query_screen, name="data_query_screen"),
+    path(
+        "provider-consent/",
+        views.external_provider_consent,
+        name="external_provider_consent",
+    ),
 ]

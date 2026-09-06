@@ -8,6 +8,7 @@ fournisseur de repli, jamais un appel reseau facture en plus »."""
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from django.conf import settings
@@ -25,6 +26,8 @@ from apps.core.services.ai_assistant import AIProvider, StubAIProvider, get_ai_p
 # exacte : suffisante pour un suivi de budget indicatif, jamais une
 # facturation au centime pres.
 _WORDS_PER_TOKEN = 0.75
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_tokens(text: str) -> int:
@@ -82,13 +85,38 @@ def _resolve_backend_label(provider: AIProvider) -> str:
 
 def get_budget_gated_provider(tenant: Tenant) -> AIProvider:
     """Point d'entree unique pour toute fonction IA de ce depot (AI2-AI7).
-    Renvoie le fournisseur reellement configure SAUF si le budget mensuel
-    du tenant est epuise et `hard_stop=True`, auquel cas `StubAIProvider`
-    est renvoye sans jamais instancier/appeler le connecteur reel — la
-    garantie « fallback-first » de ce chantier."""
+
+    Renvoie `StubAIProvider` — sans jamais instancier ni appeler le
+    connecteur reel — dans deux cas :
+
+    1. le budget mensuel du tenant est epuise et `hard_stop=True` (garantie
+       « repli-d'abord » de ce chantier) ;
+    2. **le tenant n'a pas consenti a l'envoi de ses donnees vers CE
+       fournisseur** (IA-9, L7). Un fournisseur configure cote deploiement
+       dit ce que l'hebergeur a branche ; il ne dit pas quelle societe
+       accepte que ses chiffres sortent de son serveur. Sur une instance
+       multi-societes, le consentement d'une n'engage pas les autres.
+
+    Le second garde fait de la garantie « repli-d'abord » une garantie de
+    confidentialite : par defaut, aucune donnee ne sort."""
     if not check_budget(tenant):
         return StubAIProvider()
-    return get_ai_provider()
+    provider = get_ai_provider()
+    if isinstance(provider, StubAIProvider):
+        return provider
+    # Import local : `usage_budget` est importe par la passerelle, qui est
+    # elle-meme importee par `apps.ai.models` en cascade — un import de
+    # module creerait un cycle.
+    from apps.ai.services.external_consent import has_active_consent
+
+    if not has_active_consent(tenant, backend=_resolve_backend_label(provider)):
+        logger.info(
+            "Fournisseur IA externe configure mais non consenti par le tenant %s — "
+            "repli sur le stub, aucune donnee ne sort (IA-9).",
+            tenant.pk,
+        )
+        return StubAIProvider()
+    return provider
 
 
 def record_request(

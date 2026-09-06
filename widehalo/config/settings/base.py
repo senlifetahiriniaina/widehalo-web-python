@@ -481,7 +481,26 @@ BUDGET_MAX_SCREENS = 320
 # _resolve_backend_label`) — un seul fournisseur est actif a la fois
 # (celui configure dans `AI_PROVIDER_CONFIG`), il n'y a pas ici de chaine
 # de repli automatique multi-fournisseurs.
-AI_PROVIDER_CONFIG: dict[str, str] = {}
+# **Construit depuis l'environnement (L7)**, et non plus un dictionnaire vide
+# en dur. Tel quel, `AI_PROVIDER_CONFIG = {}` etait inconfigurable autrement
+# qu'en MODIFIANT CE FICHIER : aucune variable d'environnement ne l'alimentait,
+# et `.env.example` n'en soufflait mot. Le connecteur etait ecrit, teste et
+# documente — et hors de portee d'un exploitant. Meme motif que les parametres
+# reglementaires semes nulle part (L3, L17).
+#
+# Les cles absentes ne sont PAS mises a `""` : `get_ai_provider()` exige
+# `base_url` ET `api_key` non vides et retombe sur le stub sinon, donc un
+# dictionnaire partiel se comporte exactement comme un dictionnaire vide.
+AI_PROVIDER_CONFIG: dict[str, str] = {
+    key: value
+    for key, value in {
+        "backend": env.str("AI_PROVIDER_BACKEND", default=""),
+        "base_url": env.str("AI_PROVIDER_BASE_URL", default=""),
+        "api_key": env.str("AI_PROVIDER_API_KEY", default=""),
+        "model": env.str("AI_PROVIDER_MODEL", default=""),
+    }.items()
+    if value
+}
 
 # §5.11 reporting, RPT-6 (test d'acceptance n°4, generation asynchrone) :
 # au-dela de ce nombre de secondes ESTIME (cf. `apps.reporting.services.

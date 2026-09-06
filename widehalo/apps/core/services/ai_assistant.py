@@ -86,6 +86,18 @@ class AIProviderError(Exception):
     echec reseau dans `apps.purchase.services.price_watch`)."""
 
 
+class AIProviderTimeoutError(AIProviderError):
+    """Le fournisseur n'a pas repondu dans le delai imparti (IA-7, L7).
+
+    Sous-classe d'`AIProviderError` — tout appelant qui capture deja le
+    parent continue de fonctionner sans changement. Elle existe pour que
+    ceux qui le VEULENT puissent distinguer « le fournisseur met trop de
+    temps » de « le fournisseur est mal configure » ou « le budget est
+    epuise » : le critere IA-7 exige « au-dela du seuil, une reponse
+    d'attente EXPLICITE », et une phrase unique couvrant trois causes ne
+    dit a l'utilisateur ni ce qui se passe, ni s'il doit reessayer."""
+
+
 class AIProvider(Protocol):
     """Interface d'un fournisseur d'assistance IA generique — un seul
     point d'appel (`complete`), independant de tout module metier."""
@@ -189,6 +201,14 @@ class OpenAICompatibleAIProvider:
             payload = response.json()
             content = payload["choices"][0]["message"]["content"]
             return str(content)
+        except requests.Timeout as exc:
+            logger.warning(
+                "Delai depasse (%ss) sur le connecteur IA (%s) : %s",
+                _DEFAULT_TIMEOUT_SECONDS,
+                self.base_url,
+                exc,
+            )
+            raise AIProviderTimeoutError(str(exc)) from exc
         except requests.RequestException as exc:
             logger.warning("Echec reseau du connecteur IA (%s) : %s", self.base_url, exc)
             raise AIProviderError(str(exc)) from exc
@@ -257,6 +277,14 @@ class OpenAICompatibleAIProvider:
                 for raw in raw_tool_calls
             ]
             return ToolCallResult(content=content, tool_calls=tool_calls)
+        except requests.Timeout as exc:
+            logger.warning(
+                "Delai depasse (%ss) sur le connecteur IA (%s) : %s",
+                _DEFAULT_TIMEOUT_SECONDS,
+                self.base_url,
+                exc,
+            )
+            raise AIProviderTimeoutError(str(exc)) from exc
         except requests.RequestException as exc:
             logger.warning("Echec reseau du connecteur IA (%s) : %s", self.base_url, exc)
             raise AIProviderError(str(exc)) from exc

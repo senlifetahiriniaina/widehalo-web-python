@@ -94,6 +94,7 @@ def register_ai_data_query_tools() -> None:
             "required": [],
         },
         required_permission="helpdesk.view_hlpticket",
+        verification_route="helpdesk:list",
         read_only=True,
         function=_tool_ticket_summary,
     )
@@ -115,6 +116,7 @@ def register_ai_data_query_tools() -> None:
             "required": ["query"],
         },
         required_permission="helpdesk.view_hlpkbarticle",
+        verification_route="helpdesk:list",
         read_only=True,
         function=_tool_search_kb,
     )

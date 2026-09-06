@@ -8,6 +8,7 @@ import factory
 from apps.ai.models import (
     AiAnomaly,
     AiDataQuery,
+    AiExternalProviderConsent,
     AiInsight,
     AiRecommendation,
     AiRequest,
@@ -93,3 +94,19 @@ class AiDataQueryFactory(factory.django.DjangoModelFactory):
     answer = "Reponse de test (factory)."
     succeeded = True
     provider_backend = "stub"
+
+
+class AiExternalProviderConsentFactory(factory.django.DjangoModelFactory):
+    """IA-9 (L7) — factory de test T1.
+
+    `revoked_at` reste nul : la factory produit un consentement ACTIF, qui
+    est l'etat interessant par defaut. Une revocation se fabrique en
+    appelant `services.external_consent.revoke_consent`, jamais en posant
+    le champ a la main — c'est elle qui horodate et impute."""
+
+    class Meta:
+        model = AiExternalProviderConsent
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    backend = "mistral"
+    disclosure_text = "Question, catalogue de rapports, lignes de resultat."

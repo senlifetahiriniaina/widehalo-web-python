@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Fournisseur IA externe" %} — WideHalo{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Fournisseur IA externe" %}</h1>
+  </div>
+
+  {% comment %}
+    IA-9 (L7) — « le repli vers un fournisseur cloud est désactivé par
+    défaut ; son activation affiche explicitement quelles données sortiront
+    du serveur et est journalisée ».
+
+    L'ordre de la page n'est pas indifférent : ce qui sort est énoncé AVANT
+    le bouton, jamais après ni derrière un lien. Un consentement obtenu
+    sans avoir montré la contrepartie n'en est pas un.
+  {% endcomment %}
+
+  {% if not provider_is_configured %}
+    <p><strong>{% trans "Aucun fournisseur externe n'est configuré sur ce serveur." %}</strong></p>
+    <p class="hint">
+      {% trans "Le copilote fonctionne en mode local : il répond de façon dégradée et aucune donnée ne quitte le serveur. Rien à accepter tant qu'un fournisseur n'est pas branché par l'hébergeur." %}
+    </p>
+  {% else %}
+    <p>{% trans "Fournisseur configuré" %} : <strong>{{ backend }}</strong></p>
+
+    <section class="panel">
+      <div class="panel-head"><h2>{% trans "Ce qui quitte le serveur" %}</h2></div>
+      <div class="panel-body">
+        <ul>
+          {% for line in disclosure %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    {% if consent %}
+      <p>
+        <strong>{% trans "Envoi autorisé" %}</strong> —
+        {% trans "accepté le" %} {{ consent.granted_at }}
+        {% if consent.granted_by %}{% trans "par" %} {{ consent.granted_by }}{% endif %}
+      </p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="revoke">
+        <c-button variant="danger" type="submit">{% trans "Révoquer l'autorisation" %}</c-button>
+      </form>
+      <p class="hint">
+        {% trans "Après révocation, le copilote repasse immédiatement en mode local : plus aucune donnée ne sort, sans redémarrage." %}
+      </p>
+    {% else %}
+      <p><strong>{% trans "Envoi non autorisé — aucune donnée ne sort aujourd'hui." %}</strong></p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="grant">
+        <c-button variant="primary" type="submit">{% trans "J'autorise l'envoi des données décrites ci-dessus" %}</c-button>
+      </form>
+    {% endif %}
+  {% endif %}
+
+  {% if history %}
+    <h2>{% trans "Historique" %}</h2>
+    {% comment %}
+      L'historique se lit directement dans la table : une révocation ne
+      modifie jamais la ligne d'origine, elle la date. Même discipline
+      « versionner par insertion » que le dictionnaire d'indicateurs.
+    {% endcomment %}
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>{% trans "Fournisseur" %}</th>
+          <th>{% trans "Accepté le" %}</th>
+          <th>{% trans "Par" %}</th>
+          <th>{% trans "Révoqué le" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in history %}
+          <tr>
+            <td>{{ row.backend }}</td>
+            <td>{{ row.granted_at }}</td>
+            <td>{{ row.granted_by|default:"—" }}</td>
+            <td>{{ row.revoked_at|default:"—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

@@ -56,13 +56,19 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from apps.ai.models import AiDataQuery, AiRequest
 from apps.ai.services.usage_budget import estimate_tokens, get_budget_gated_provider, record_request
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.services.ai_assistant import AIProviderError, StubAIProvider, ToolDefinition
+from apps.core.services.ai_assistant import (
+    AIProviderError,
+    AIProviderTimeoutError,
+    StubAIProvider,
+    ToolDefinition,
+)
 from apps.core.services.data_query_tool_registry import DataQueryTool, list_data_query_tools
 
 logger = logging.getLogger(__name__)
@@ -75,6 +81,19 @@ _MAX_TOOL_ROUND_TRIPS = 3
 
 _UNABLE_TO_COMPLETE_FR = (
     "Impossible de terminer l'analyse demandee pour le moment — reessayez plus tard."
+)
+
+# IA-7 (L7) : « au-dela du seuil, l'utilisateur recoit une reponse d'ATTENTE
+# EXPLICITE plutot qu'une page bloquee ». Le message ci-dessus couvrait
+# indistinctement trois causes tres differentes — fournisseur non configure,
+# budget epuise, panne — et l'ecran y ajoutait meme « (fournisseur IA non
+# configure, budget epuise, ou erreur) », c'est-a-dire trois hypotheses et
+# aucune reponse. Un depassement de delai n'appelle pas la meme conduite :
+# le service fonctionne, il est lent, et reessayer a du sens.
+_TIMED_OUT_FR = (
+    "L'analyse prend plus de temps que prevu et a ete interrompue au bout de "
+    "30 secondes. Le service repond, mais la question demande trop de calculs : "
+    "reessayez, ou posez-la sur une periode plus courte."
 )
 
 
@@ -134,23 +153,57 @@ def _run_tool_calling_loop(
     user: User,
     provider: Any,
     tools: list[DataQueryTool],
-) -> tuple[str, list[dict[str, Any]]]:
+    tools_called: list[dict[str, Any]],
+) -> tuple[str, bool]:
     """Boucle bornee a `_MAX_TOOL_ROUND_TRIPS` (cf. docstring de module).
-    Renvoie `(answer, tools_called)` — degrade toujours proprement, jamais
-    d'exception propagee a l'appelant (`ask()` capture neanmoins
-    `AIProviderError` autour de cet appel par prudence, cf. plus bas)."""
+    Renvoie `(answer, succeeded)`.
+
+    **`tools_called` appartient a l'APPELANT** (IA-2, L7), et c'est le
+    coeur du correctif. Cette liste n'enregistre que des tools REELLEMENT
+    executes — l'`append` a lieu apres `tool.function(...)`, jamais avant.
+    Elle etait auparavant une variable locale renvoyee dans le tuple :
+    quand le fournisseur tombait au 2e tour, l'exception remontait a
+    `ask()`, dont le gestionnaire faisait `tools_called = []` et
+    DETRUISAIT la trace. Un outil avait lu le chiffre d'affaires du tenant,
+    et l'audit disait qu'aucun outil n'avait ete appele — l'inverse exact
+    de ce que promet la docstring d'`AiDataQuery.tools_called` (« trace
+    exacte [...] de chaque tool effectivement appele »).
+
+    La faire posseder par l'appelant, et l'alimenter EN PLACE, rend la
+    perte structurellement impossible : aucun chemin d'exception ne peut
+    plus reaffecter ce que la boucle a deja consigne.
+
+    La docstring precedente affirmait « jamais d'exception propagee a
+    l'appelant » alors que l'appel au fournisseur n'etait entoure d'aucun
+    `try` — elle decrivait une intention, pas le code. C'est desormais
+    vrai : une panne du fournisseur retourne `succeeded=False` avec ce qui
+    a pu etre obtenu, elle ne remonte plus."""
     tools_by_code = {tool.code: tool for tool in tools}
     tool_definitions = [_to_tool_definition(tool) for tool in tools]
     messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
-    tools_called: list[dict[str, Any]] = []
     last_content: str | None = None
 
     for _round_trip in range(_MAX_TOOL_ROUND_TRIPS):
-        result = provider.complete_with_tools(messages, tool_definitions)
+        try:
+            result = provider.complete_with_tools(messages, tool_definitions)
+        except AIProviderTimeoutError:
+            logger.warning(
+                "Delai depasse apres %d tool(s) deja execute(s) — reponse d'attente "
+                "explicite, la trace des tools est conservee.",
+                len(tools_called),
+            )
+            return _TIMED_OUT_FR, False
+        except AIProviderError:
+            logger.warning(
+                "Fournisseur IA indisponible apres %d tool(s) deja execute(s) — reponse "
+                "degradee, la trace des tools est conservee.",
+                len(tools_called),
+            )
+            return _UNABLE_TO_COMPLETE_FR, False
         if result.content:
             last_content = result.content
         if not result.tool_calls:
-            return last_content or _UNABLE_TO_COMPLETE_FR, tools_called
+            return last_content or _UNABLE_TO_COMPLETE_FR, True
 
         messages.append(
             {
@@ -225,7 +278,7 @@ def _run_tool_calling_loop(
     # Borne atteinte : degrade proprement vers le dernier contenu textuel
     # disponible plutot que de continuer indefiniment (cf. docstring de
     # module) — jamais une exception pour ce seul depassement de borne.
-    return last_content or _UNABLE_TO_COMPLETE_FR, tools_called
+    return last_content or _UNABLE_TO_COMPLETE_FR, True
 
 
 def ask(question: str, *, tenant: Tenant, user: User, locale: str) -> AiDataQuery:
@@ -257,14 +310,27 @@ def ask(question: str, *, tenant: Tenant, user: User, locale: str) -> AiDataQuer
         return record
 
     tools = _filtered_tools_for_user(user)
+    # La liste appartient a CET appelant : la boucle l'alimente en place, de
+    # sorte qu'aucun chemin d'echec ne puisse effacer la trace des tools
+    # deja executes (cf. docstring de `_run_tool_calling_loop`).
+    tools_called: list[dict[str, Any]] = []
+    started = time.monotonic()
     try:
-        answer, tools_called = _run_tool_calling_loop(
-            question=question, tenant=tenant, user=user, provider=provider, tools=tools
+        answer, succeeded = _run_tool_calling_loop(
+            question=question,
+            tenant=tenant,
+            user=user,
+            provider=provider,
+            tools=tools,
+            tools_called=tools_called,
         )
-        succeeded = True
     except AIProviderError:
-        answer, tools_called = _UNABLE_TO_COMPLETE_FR, []
-        succeeded = False
+        # Dernier recours : la boucle ne propage plus les pannes du
+        # fournisseur, mais un appelant en aval pourrait. `tools_called`
+        # n'est PAS reinitialise — c'est precisement ce qui detruisait la
+        # trace.
+        answer, succeeded = _UNABLE_TO_COMPLETE_FR, False
+    duration_ms = int((time.monotonic() - started) * 1000)
 
     record = AiDataQuery.objects.create(
         tenant=tenant,
@@ -272,6 +338,7 @@ def ask(question: str, *, tenant: Tenant, user: User, locale: str) -> AiDataQuer
         tools_called=tools_called,
         answer=answer,
         succeeded=succeeded,
+        duration_ms=duration_ms,
         provider_backend=_resolve_backend_label(provider),
         created_by=user,
     )

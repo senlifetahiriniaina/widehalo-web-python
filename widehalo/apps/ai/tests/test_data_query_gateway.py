@@ -255,4 +255,9 @@ def test_provider_error_degrades_cleanly_never_raises(
         record = ask("Question ?", tenant=tenant, user=user_with_sales_permission, locale="fr")
 
     assert record.succeeded is False
+    # `[]` est CORRECT ici, et uniquement ici : ce fournisseur echoue au
+    # PREMIER appel, donc aucun tool n'a jamais ete execute. Ce test ne
+    # distingue pas « aucun outil » de « outils executes puis perdus » —
+    # c'est `test_l7_ai_criteria.py` qui fait cette distinction, et c'est
+    # elle qui a revele que le gestionnaire d'exception detruisait la trace.
     assert record.tools_called == []
