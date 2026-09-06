@@ -10,8 +10,23 @@
     <h1>{% trans "Nouveau devis" %}</h1>
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <form method="post" x-data="lineItems()">
+  {% comment %}
+    SAL-7 — le brouillon est sauvegarde a chaque frappe (cf.
+    `static/js/ui_patterns.js`). `data-submit-failed` distingue « le POST a
+    echoue, cette page est un re-rendu » de « nouvelle saisie » : sans lui,
+    le brouillon d'un devis DEJA cree reviendrait au prochain « Nouveau
+    devis », et surtout la saisie perdue par une erreur de validation ne
+    serait pas restauree — cette vue re-rend le formulaire vide.
+  {% endcomment %}
+  <form method="post" x-data="lineItems('quotation')" data-submit-failed="{% if error %}true{% else %}false{% endif %}">
     {% csrf_token %}
+    <template x-if="draftRestored">
+      <p class="hint" role="status">
+        {% trans "Brouillon restauré : la saisie précédente n'avait pas été enregistrée." %}
+        <button type="button" class="btn btn-link" @click="discardDraft()">{% trans "Repartir de zéro" %}</button>
+      </p>
+    </template>
+
     {% include "components/_partner_picker.html" with field_id="partner_id" display_id="partner_id_display" %}
     <div class="form-field">
       <label for="contact">{% trans "Contact" %}</label>

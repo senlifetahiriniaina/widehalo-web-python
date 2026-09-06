@@ -299,7 +299,17 @@ def test_quotation_create_screen_renders_reference_payment_term_and_incoterm_fie
     assert 'name="reference"' in content
     assert 'name="payment_term_id"' in content
     assert 'name="incoterm"' in content
-    assert 'x-data="lineItems()"' in content
+    # SAL-7 (L5) : le composant porte desormais une CLE DE BROUILLON. Elle
+    # n'est pas cosmetique — c'est elle qui separe le brouillon du devis de
+    # celui de la commande de vente, les deux ecrans partageant
+    # `lineItems()`. Une cle commune ferait apparaitre les lignes d'un devis
+    # dans une commande, d'ou l'assertion sur la valeur exacte plutot que
+    # sur la simple presence du composant.
+    assert "x-data=\"lineItems('quotation')\"" in content
+    # Et l'etat d'erreur, que le composant lit pour distinguer « le POST a
+    # echoue, restaurer la saisie » de « nouvelle saisie, jeter le brouillon
+    # d'un devis deja enregistre ».
+    assert "data-submit-failed=" in content
     assert "variant_id_' + index" in content
 
 

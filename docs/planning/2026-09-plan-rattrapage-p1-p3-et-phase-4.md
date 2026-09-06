@@ -210,10 +210,27 @@ près » n'a pas de terme de comparaison.
 
 | **L10** — WhatsApp | ✅ livré, 4 critères | Le plan avait raison sur l'essentiel, y compris sur ce qu'il fallait **corriger dans nos propres documents** : ce que le lot bloquant avait décrit comme un « routage par tenant » n'était qu'un `WHATSAPP_DEFAULT_TENANT_ID` unique pour tout le déploiement, le webhook n'ayant jamais lu le `phone_number_id` de Meta. Plutôt que de me contenter de corriger l'énoncé, j'ai livré le routage réel : résolution par entrée depuis les métadonnées Meta, contrainte d'unicité du numéro, repli explicite et compté (`routed_by_phone_number_id`) — un déploiement multi-sociétés mal configuré ressemblerait sinon exactement à un déploiement correct. WA-7 : la file n'existait pas du tout (envoi synchrone dans le thread HTTP, `STATUS_PENDING` jamais émis, reprise sans déclencheur — deux appelants, un endpoint et un bouton) ; `apps/whatsapp/` n'avait aucun répertoire `management/`, ce que la garde d'ordonnancement ne pouvait pas signaler puisqu'elle ne voit que les commandes présentes sur disque. WA-5 : la limite par destinataire n'existait pas ; elle ne se déduit pas du plafond de coût, cent messages à un seul numéro coûtant autant que cent messages à cent numéros. WA-1 : garde de non-contournement avec liste d'exception motivée (3 entrées) et auto-test du détecteur. Défaut trouvé en chemin, absent de l'audit : le menu d'intentions WA-8 partait au client **sans créer aucune ligne de journal** — son exemption portait sur le consentement, elle avait été étendue en silence à la traçabilité. |
 
-Reste donc de la Vague 1 : **le reliquat de L5** — SAL-8 est
-clos (bloquants 1/3) et la TVA l'est aussi (bloquants 3/3), mais **SAL-6** (test de
-concurrence sur la numérotation) et **SAL-7** (autosave de brouillon de devis) restent
-entiers : ni l'un ni l'autre n'a été touché par les trois lots de bloquants.
+| **L5 (reliquat)** — SAL-6 et SAL-7 | ✅ livré | Le plan visait juste sur les deux, y compris sur le fait que **l'audit citait une preuve fausse** pour SAL-6 (`migrations/0005_*` est l'immuabilité RG-ACC-2, pas une numérotation par trigger — aucune migration à trigger du dépôt ne numérote quoi que ce soit). Et il avait raison sur le point qui rend le test intéressant plutôt que décoratif : `select_for_update()` ne peut pas verrouiller une ligne inexistante, donc la première génération d'un triplet n'est protégée que par le `unique_together`. Les deux régimes sont exercés séparément. Premier test de concurrence du dépôt (il y en avait zéro). Sur SAL-7, un défaut que le plan ne mentionnait pas et qui touche plus d'utilisateurs que la panne réseau : la vue re-rend le formulaire **vide** après une erreur de validation — le brouillon répare les deux cas d'un coup. |
+
+**Ce que la falsification a trouvé dans mon propre travail sur ce lot**, et qui mérite
+d'être écrit parce que c'est un motif récurrent : mon test « la bannière de brouillon
+restauré est affichée » assertait `"Brouillon restauré" in page.content()`. Or la bannière
+vit dans un `<template x-if>`, et **le contenu d'un `<template>` figure dans le HTML
+sérialisé même quand Alpine ne le rend pas** : l'assertion était vraie dans tous les cas.
+Elle a été démasquée par son test frère — celui qui exige l'*absence* de bannière — qui
+échouait pour cette même raison. Trois autres défauts réels de mon implémentation ont été
+trouvés par ces tests avant toute relecture : `$el` d'Alpine, résolu au moment de l'accès,
+désignait le *bouton* et non le formulaire quand `discardDraft()` était appelé depuis le
+`<template x-if>` (le nettoyage ne trouvait rien) ; le `$watch` d'Alpine étant asynchrone,
+« Repartir de zéro » réécrivait un brouillon juste après l'avoir effacé ; et la marque
+« soumis » était écrasée par l'événement `change` que le navigateur émet sur le champ qui
+perd le focus à la soumission — le devis enregistré serait revenu comme brouillon, prêt à
+être saisi deux fois.
+
+La Vague 1 est close. Restent les 34 sprints de la Vague 2 (Phase 4), et les deux points
+explicitement non fermés : **BI-3** (catalogue hérité absent du dépôt, cf. ci-dessus) et
+le **coût réellement facturé par Meta** (WA-10, jamais récupéré : l'estimation portée par
+le modèle de message reste une estimation).
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 

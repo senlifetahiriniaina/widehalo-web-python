@@ -150,12 +150,202 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
-  Alpine.data("lineItems", () => ({
+  /* SAL-7 — brouillon de devis/commande sauvegarde automatiquement.
+   *
+   * Avant ce lot, `lines` ne vivait qu'en memoire Alpine et `init()`
+   * repartait d'une ligne vierge a CHAQUE chargement : une fermeture
+   * d'onglet, un rechargement, une coupure, et vingt lignes saisies a la
+   * main etaient perdues. `offline_queue.js` ne couvre pas ce cas — il
+   * n'intercepte qu'a la SOUMISSION, et seulement hors ligne.
+   *
+   * Il y avait pire, et en ligne : la vue `quotation_create` re-rend le
+   * formulaire VIDE apres une erreur de validation (aucun `value=` dans le
+   * gabarit, `lines` reinitialise). Une simple date mal saisie faisait donc
+   * deja tout perdre, sans aucune panne. Le brouillon repare les deux.
+   *
+   * `draftKey` separe les brouillons du devis et de la commande : les deux
+   * ecrans partagent ce composant, un compteur commun melangerait les
+   * lignes de l'un dans l'autre. Sans cle, aucune persistance — le
+   * composant reste utilisable ailleurs sans effet de bord.
+   */
+  Alpine.data("lineItems", (draftKey) => ({
     lines: [],
     _nextKey: 0,
+    draftRestored: false,
+    _draftKey: draftKey ? "wh-draft-" + draftKey : "",
+
+    _root: null,
+    _suppressPersist: false,
+
     init() {
-      this.addLine();
+      /* `$el` est une magie Alpine resolue AU MOMENT DE L'ACCES : appelee
+       * depuis un `@click` situe dans un `<template x-if>` (la banniere de
+       * brouillon restaure), `this.$el` designe le BOUTON, pas le
+       * formulaire. `discardDraft()` ne nettoyait donc rien — les lignes
+       * semblaient videes, mais par la reinitialisation de `lines`, tandis
+       * que les champs d'en-tete gardaient leur valeur. Un test e2e l'a
+       * trouve ; la racine est desormais capturee une fois ici, ou `$el`
+       * designe bien le formulaire. */
+      this._root = this.$el;
+      const draft = this._readDraft();
+      /* Distinguer « le POST precedent a echoue » de « il a reussi ».
+       * En cas de succes le navigateur part vers la fiche : cette page
+       * n'est pas rechargee, et le brouillon marque `submitted` doit etre
+       * jete au prochain « Nouveau devis ». En cas d'echec le serveur
+       * re-rend CETTE page avec une erreur : le brouillon doit alors etre
+       * restaure, c'est precisement le travail que la vue perdait. Le
+       * gabarit expose l'etat d'erreur via `data-submit-failed`. */
+      const submitFailed = this._root.dataset.submitFailed === "true";
+      if (draft && draft.submitted && !submitFailed) {
+        this._clearDraft();
+      } else if (draft && Array.isArray(draft.lines) && draft.lines.length) {
+        this.lines = draft.lines;
+        this._nextKey = this.lines.length;
+        this.lines.forEach((line, index) => { line.key = index; });
+        this._restoreFields(draft.fields || {});
+        this.draftRestored = true;
+      }
+      if (!this.lines.length) this.addLine();
+
+      if (this._draftKey) {
+        this.$watch("lines", () => this._writeDraft(false));
+        /* Les champs d'en-tete ne sont pas geres par Alpine : on ecoute
+         * l'evenement de saisie du formulaire plutot que de les declarer
+         * un par un, ce qui obligerait a modifier ce composant a chaque
+         * champ ajoute au gabarit. */
+        this._root.addEventListener("input", () => this._writeDraft(false));
+        this._root.addEventListener("change", () => this._writeDraft(false));
+        this._root.addEventListener("submit", () => this._writeDraft(true));
+      }
     },
+
+    /* Les champs a NE PAS persister, et pourquoi :
+     *  - `csrfmiddlewaretoken` : lie a la session, rejoue plus tard il
+     *    serait invalide, et l'ecrire dans le stockage du navigateur
+     *    serait sortir un secret de session sans raison ;
+     *  - `q` : la boite de recherche du selecteur de tiers. La restaurer
+     *    afficherait un texte de recherche sans relancer la recherche —
+     *    un ecran qui ment sur son etat. */
+    _skippedFields: ["csrfmiddlewaretoken", "q"],
+
+    _isLineField(element) {
+      /* Les champs de ligne sont deja portes par `lines`. Les dupliquer
+       * dans `fields` les ferait diverger a la restauration : `_restore
+       * Fields` ecrirait dans le DOM des valeurs qu'Alpine vient de
+       * re-rendre depuis `lines`.
+       *
+       * Le test les detecte par leur POSITION (dans la table des lignes)
+       * et non par un prefixe de nom : les noms reels sont `description_0`,
+       * `qty_0`, `unit_price_0`, `variant_id_0` — un filtre par prefixe
+       * devrait les enumerer tous et casserait au premier champ ajoute. */
+      return Boolean(element.closest(".line-items-table"));
+    },
+
+    _formFields() {
+      const fields = {};
+      const elements = this._root.querySelectorAll("input[name], select[name], textarea[name]");
+      elements.forEach((element) => {
+        if (!element.name || this._skippedFields.indexOf(element.name) !== -1) return;
+        if (this._isLineField(element)) return;
+        fields[element.name] = element.value;
+      });
+      /* Le nom du tiers choisi vit dans un `<span>`, pas dans un champ :
+       * le formulaire ne soumet que son UUID. Restaurer l'UUID sans le nom
+       * donnerait un brouillon qui s'enregistre correctement mais qui
+       * affiche un client vide — l'utilisateur croirait devoir le
+       * re-choisir, et le re-choisirait peut-etre autre. */
+      const display = this._root.querySelector(".wh-partner-picker-display");
+      if (display) fields["__partner_display"] = display.textContent.trim();
+      return fields;
+    },
+
+    _restoreFields(fields) {
+      Object.keys(fields).forEach((name) => {
+        if (name === "__partner_display") {
+          const display = this._root.querySelector(".wh-partner-picker-display");
+          if (display) display.textContent = fields[name];
+          return;
+        }
+        const element = this._root.querySelector("[name='" + name + "']");
+        if (element && !this._isLineField(element)) {
+          element.value = fields[name];
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+    },
+
+    _readDraft() {
+      if (!this._draftKey) return null;
+      try {
+        const raw = window.localStorage.getItem(this._draftKey);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        /* Navigation privee ou stockage indisponible : pas de brouillon,
+         * jamais une page cassee. Meme tolerance que `offline_queue.js`. */
+        return null;
+      }
+    },
+
+    _writeDraft(submitted) {
+      if (!this._draftKey || this._suppressPersist) return;
+      try {
+        window.localStorage.setItem(
+          this._draftKey,
+          JSON.stringify({
+            lines: this.lines,
+            fields: this._formFields(),
+            submitted: Boolean(submitted),
+            saved_at: Date.now(),
+          })
+        );
+      } catch (e) {
+        /* Quota depasse : le brouillon ne persiste pas cette fois-ci. On
+         * n'affiche rien — contrairement a `offline_queue.js`, ou l'echec
+         * signifiait une soumission perdue, ici la saisie en cours reste
+         * intacte a l'ecran. Alerter sur chaque frappe serait du bruit. */
+      }
+    },
+
+    _clearDraft() {
+      if (!this._draftKey) return;
+      try {
+        window.localStorage.removeItem(this._draftKey);
+      } catch (e) {
+        /* idem */
+      }
+    },
+
+    discardDraft() {
+      /* « Repartir de zero » doit ne RIEN laisser derriere. Sans ce
+       * verrou, la reinitialisation de `lines` juste en dessous declenche
+       * le `$watch`, qui reecrit aussitot un brouillon (vide, donc inerte
+       * a la restauration — mais la cle survit, et une cle qui survit a un
+       * effacement demande est une promesse non tenue). */
+      this._suppressPersist = true;
+      this.lines = [];
+      this._nextKey = 0;
+      this.addLine();
+      this.draftRestored = false;
+      this._root.querySelectorAll("input[name], select[name], textarea[name]").forEach((element) => {
+        if (!element.name || element.name === "csrfmiddlewaretoken") return;
+        /* Les champs de ligne sont deja remis a zero par la
+         * reinitialisation de `lines` juste au-dessus, qu'Alpine re-rend. */
+        if (this._isLineField(element)) return;
+        if (element.tagName === "SELECT") element.selectedIndex = 0;
+        else element.value = "";
+      });
+      const display = this._root.querySelector(".wh-partner-picker-display");
+      if (display) display.textContent = "";
+      /* Le `$watch` d'Alpine est ASYNCHRONE : il s'execute au tick suivant.
+       * Lever le verrou et effacer ici, de facon synchrone, laissait le
+       * watch reecrire un brouillon juste apres — la cle survivait a
+       * l'effacement demande. On attend donc que la reactivite ait fini. */
+      this.$nextTick(() => {
+        this._suppressPersist = false;
+        this._clearDraft();
+      });
+    },
+
     _makeLine() {
       return { key: this._nextKey++, variant_id: "", description: "", qty: "1", unit_price: "" };
     },
