@@ -98,6 +98,10 @@ _FACTORY_MODULES = [
     # exécuté dans le même run que les tests dédiés de ces deux modules).
     "apps.pos.tests.factories",
     "apps.simulation.tests.factories",
+    # Phase 4, bloc A (S1) : hub de flux. Le registre d'echange porte des
+    # donnees de tenant comme n'importe quelle entite metier — il entre
+    # donc dans l'export et le bac a sable au meme titre.
+    "apps.flows.tests.factories",
     # `analytics` (chantier fondations Phase 2, cahier §12) : ajouté dès la
     # livraison de ce module, pas en rattrapage — cf. le commentaire
     # ci-dessus sur `pos`/`simulation`.

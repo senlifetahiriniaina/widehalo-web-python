@@ -68,6 +68,10 @@ INSTALLED_APPS = [
     "apps.forecast",
     "apps.whatsapp",
     "apps.quality",
+    # Phase 4, bloc A : hub de flux. Aucune dependance metier — cf.
+    # `apps/flows/module.py` pour le motif (le sens de la dependance est
+    # inverse : ce sont les modules metier qui declareront `flows`).
+    "apps.flows",
 ]
 
 MIDDLEWARE = [
@@ -480,6 +484,26 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 BUDGET_MAX_MODELS = 519
 BUDGET_MAX_ENDPOINTS = 1500
 BUDGET_MAX_SCREENS = 400
+# --- Deux budgets NOUVEAUX, poses au sprint S1 de la Phase 4 (cahier
+# §11.1). Ils ne remplacent pas les trois ci-dessus : ils bornent deux
+# surfaces que les compteurs globaux ne voient pas.
+#
+# ADAPTATEURS — « le plus important de la phase » (cahier). Un catalogue de
+# connecteurs derive exactement comme un catalogue de rapports : chaque
+# client apporte son cas particulier, personne ne retire jamais rien, et au
+# bout de deux ans l'entretien consomme toute la capacite d'un developpeur
+# seul. Le plafond force a repondre par l'API publique plutot que par un
+# adaptateur de plus, y compris a un client important — c'est la seule
+# regle qui tient cette ligne. Douze, soit neuf familles retenues plus
+# trois places de manoeuvre (second agregateur de paiement, second pays de
+# conformite, passerelle de carte).
+BUDGET_MAX_ADAPTERS = 12
+# OPERATIONS PUBLIQUES — surface exposee aux tiers, declaree et versionnee.
+# Plafonnee SEPAREMENT des endpoints internes parce qu'elle a un cout que
+# ceux-ci n'ont pas : une operation publiee ne se retire plus, elle se
+# deprecie sur plusieurs versions. La diluer dans les 1 500 endpoints
+# internes reviendrait a ne pas la borner du tout.
+BUDGET_MAX_PUBLIC_OPERATIONS = 80
 # BI-3 (L9) : budget de RAPPORTS, verifie en CI.
 #
 # Le critere demande de reconstruire « les rapports retenus a l'issue de la

@@ -200,7 +200,24 @@ def compute_auto_fix_dictionary(words: set[str]) -> tuple[dict[str, str], dict[s
         if original_word in PROPER_NOUNS:
             continue
         suggestions = rest.strip().split(", ") if rest else []
-        matches = [s for s in suggestions if strip_accents(s).lower() == original_word.lower()]
+        matches = [
+            s
+            for s in suggestions
+            if strip_accents(s).lower() == original_word.lower()
+            # ... ET qui restaure REELLEMENT un accent. Une suggestion qui ne
+            # differe de l'original que par la CASSE n'en restaure aucun :
+            # aspell proposait « d'API » -> « d'api », classe comme une
+            # correction certaine parce que `strip_accents("d'api").lower()`
+            # vaut bien `"d'API".lower()`. L'appliquer aurait DEGRADE le
+            # texte (« Clé d'API » devenant « Clé d'api »), et le meme piege
+            # attend tout sigle francais : d'ONU, d'OTAN, d'UE.
+            #
+            # Le test est exact plutot qu'heuristique : si la suggestion
+            # egale l'original a la casse pres, alors elle ne porte aucun
+            # accent que l'original n'ait deja — abaisser la casse ne retire
+            # jamais un accent.
+            and s.lower() != original_word.lower()
+        ]
         if len(matches) == 1:
             auto_fix[original_word] = matches[0]
         elif len(matches) > 1:

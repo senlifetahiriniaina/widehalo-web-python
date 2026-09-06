@@ -136,3 +136,24 @@ def test_the_proper_noun_list_has_no_obsolete_entry() -> None:
         f"Nom(s) propre(s) exempté(s) mais absent(s) du texte utilisateur : {unused}. "
         "Retirer l'entrée plutôt que de la garder « au cas où »."
     )
+
+
+def test_a_case_only_suggestion_is_never_an_auto_fix() -> None:
+    """Une suggestion qui ne diffère de l'original que par la CASSE ne
+    restaure aucun accent — et l'appliquer dégraderait le texte.
+
+    Trouvé en livrant S1 : aspell proposait « d'API » → « d'api », classé
+    comme une correction *certaine* parce que `strip_accents("d'api")`
+    égale bien `"d'api"`. « Clé d'API » serait devenu « Clé d'api ». Le
+    même piège attend tout sigle français précédé d'une élision : d'ONU,
+    d'OTAN, d'UE.
+
+    Le remède est dans le DÉTECTEUR, pas dans une liste d'exceptions : y
+    inscrire « d'API » aurait fermé le cas et laissé les autres ouverts."""
+    auto_fix, ambiguous = compute_auto_fix_dictionary({"d'API", "referentiel"})
+
+    assert "d'API" not in auto_fix
+    assert "d'API" not in ambiguous
+    # Et le détecteur continue de voir les vraies fautes : sans cette
+    # moitié, un filtre qui rejetterait tout satisferait aussi la première.
+    assert auto_fix.get("referentiel") == "référentiel"
