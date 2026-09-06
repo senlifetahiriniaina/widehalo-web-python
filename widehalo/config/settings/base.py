@@ -444,6 +444,34 @@ CRM_DISCOUNT_CAP_BY_ROLE = {
 BUDGET_MAX_MODELS = 415
 BUDGET_MAX_ENDPOINTS = 800
 BUDGET_MAX_SCREENS = 320
+# BI-3 (L9) : budget de RAPPORTS, verifie en CI.
+#
+# Le critere demande de reconstruire « les rapports retenus a l'issue de la
+# rationalisation » du catalogue HERITE et de les rapprocher a l'ariary
+# pres. Ce catalogue — 91 rapports du systeme existant du client — n'est
+# pas dans le depot : aucun code ne peut fermer ce critere seul, et
+# fabriquer un arbitrage sur un inventaire qu'on n'a pas serait un faux.
+# Cf. `docs/audit/2026-09-audit-complet-phases-1-4.md`.
+#
+# Ce qui EST faisable, et que le meme paragraphe du cahier demande
+# (H6/P2-R2, « budget de rapports verifie en CI »), l'est ici : le depot
+# compte aujourd'hui 63 rapports REELLEMENT enregistres au registre
+# (`apps/*/services/reports_registration.py` + `apps/bi/apps.py`). A ne pas
+# confondre avec les 84 occurrences de `register_report(` du depot : les 21
+# autres sont des enregistrements de TEST, qui n'existent pas au demarrage
+# de Django — compter les occurrences plutot que le registre gonflerait le
+# constat d'un tiers et donnerait un plafond qui ne mord jamais.
+#
+# Plafond retenu : 80, soit 17 de marge. Volontairement etroit — un budget
+# a 110 (75 % de marge) aurait ete une garde decorative : la derive que le
+# risque P2-R2 decrit (« porter le catalogue tel quel industrialise
+# l'incoherence ») se serait produite en entier avant que la CI ne dise
+# quoi que ce soit. 17 couvre les rapports encore attendus par la Vague 1
+# sans couvrir une reprise silencieuse des 91 rapports herites.
+#
+# Ce plafond borne la derive ; il ne dit rien de la coherence du catalogue
+# — c'est la moitie du risque qu'on peut tenir sans l'inventaire d'origine.
+BUDGET_MAX_REPORTS = 80
 
 # Chantier `projects` : configuration du connecteur IA generique
 # (`apps.core.services.ai_assistant`). Dictionnaire VIDE par defaut — le

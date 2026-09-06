@@ -91,6 +91,35 @@
   </table>
 
 {% else %}
+  {% comment %}
+    BI-4 (L9) — l'etat du rafraichissement, sur le tableau de bord et non
+    plus sur le seul onglet « Journal ». Un chiffre lu sans savoir de quand
+    datent les donnees n'est pas verifiable, et c'est litteralement ce que
+    le critere demande : « visible sur CHAQUE tableau de bord ».
+  {% endcomment %}
+  {% if refresh_summary %}
+    <p class="hint" role="status">
+      {% trans "Données rafraîchies" %} :
+      <strong>{{ refresh_summary.status }}</strong>
+      {% if refresh_summary.started_at %}— {{ refresh_summary.started_at }}{% endif %}
+      {% if refresh_summary.duration_seconds %}— {{ refresh_summary.duration_seconds|floatformat:0 }} {% trans "s" %}{% endif %}
+      {% if refresh_summary.rows_processed %}— {{ refresh_summary.rows_processed }} {% trans "lignes" %}{% endif %}
+      {% if refresh_summary.reconciliation_ok == False %}
+        <span class="badge b-danger">{% trans "Écart de réconciliation" %}</span>
+      {% endif %}
+      {% if refresh_summary.error_message %}
+        <span class="badge b-danger">{{ refresh_summary.error_message }}</span>
+      {% endif %}
+      <a href="?tab=journal">{% trans "Détail" %}</a>
+    </p>
+  {% else %}
+    <p class="hint" role="status">{% trans "Aucun rafraîchissement de l'entrepôt n'a encore eu lieu : les chiffres ci-dessous peuvent être vides ou périmés." %}</p>
+  {% endif %}
+
+  {% if can_manage %}
+    <p><a href="{% url 'bi:dashboard_new' %}" class="btn btn-primary">{% trans "Nouveau tableau de bord" %}</a></p>
+  {% endif %}
+
   {% for board in dashboards %}
     <h2>{{ board.name }}</h2>
     <div class="c-dashboard-grid">
@@ -107,7 +136,20 @@
       {% endfor %}
     </div>
   {% empty %}
-    <p>{% trans "Aucun tableau de bord pour votre rôle. Consultez le catalogue de rapports." %}</p>
+    {% comment %}
+      L9 — cet ecran etait STRUCTURELLEMENT vide : `BiDashboard` n'avait
+      aucun ecrivain de production dans tout le depot, et `dashboards` est
+      l'onglet PAR DEFAUT de `/bi/`. Le premier ecran du module affichait
+      donc ce message a tout le monde, sur toute instance. Il propose
+      desormais l'action qui manquait.
+    {% endcomment %}
+    <c-empty-state
+      title="{% trans 'Aucun tableau de bord' %}"
+      body="{% trans 'Un tableau de bord rassemble les rapports que vous consultez le plus souvent, en une page. Composez-en un, ou parcourez le catalogue.' %}"
+      action_url="{% url 'bi:dashboard_new' %}"
+      action_label="{% trans 'Composer un tableau de bord' %}"
+      import_url="?tab=catalogue"
+      import_label="{% trans 'Parcourir le catalogue' %}" />
   {% endfor %}
 {% endif %}
 {% endblock %}

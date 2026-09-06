@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Nouveau tableau de bord" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'bi:index' %}">{% trans "Décisionnel" %}</a>
+    <span>/</span> {% trans "Nouveau tableau de bord" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Nouveau tableau de bord" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% comment %}
+    L9 — les tuiles se choisissent parmi les rapports PUBLIÉS du tenant,
+    jamais par saisie libre d'un identifiant : c'est ce qui garantit qu'une
+    tuile résout toujours. Le service refuse de toute façon un rapport
+    inconnu ou appartenant à une autre société, mais mieux vaut ne pas le
+    proposer que le refuser après coup.
+  {% endcomment %}
+  {% if reports %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="role_code">{% trans "Rôle destinataire (vide = tableau personnel)" %}</label>
+        <input id="role_code" type="text" name="role_code" placeholder="direction, commercial…">
+      </div>
+      <div class="form-field">
+        <label for="is_shared">
+          <input id="is_shared" type="checkbox" name="is_shared">
+          {% trans "Partagé avec toute la société" %}
+        </label>
+      </div>
+
+      <fieldset>
+        <legend>{% trans "Rapports à afficher" %}</legend>
+        {% for report in reports %}
+          <div class="form-field">
+            <label for="report-{{ report.id }}">
+              <input id="report-{{ report.id }}" type="checkbox" name="report_ids" value="{{ report.id }}">
+              {{ report.name }}
+              {% if report.domaine %}<small>({{ report.domaine }})</small>{% endif %}
+            </label>
+          </div>
+        {% endfor %}
+      </fieldset>
+
+      <c-button variant="primary" type="submit">{% trans "Créer le tableau de bord" %}</c-button>
+    </form>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun rapport publié' %}"
+      body="{% trans 'Un tableau de bord assemble des rapports publiés. Publiez-en au moins un pour pouvoir en composer.' %}"
+      action_url="{% url 'bi:report_new' %}"
+      action_label="{% trans 'Créer un rapport' %}" />
+  {% endif %}
+{% endblock %}

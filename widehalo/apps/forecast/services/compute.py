@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from apps.forecast.models import ForSeriesForecast
 from apps.forecast.services.engine import MODEL_FUNCTIONS, select_model
-from apps.forecast.services.history import load_series_history
+from apps.forecast.services.history import SeriesHistory, load_series_history
 from django.utils import timezone
 
 if TYPE_CHECKING:
@@ -82,4 +82,70 @@ def compute_and_store_forecast(
             },
         )
         results.append(row)
+
+    # FOR-7 (L9) : rapprocher les periodes ECHUES de leur realise.
+    #
+    # `measure_adjustment_contribution` etait ecrite, testee, et appelee
+    # PAR SON SEUL TEST — aucun appelant de production. Consequence
+    # visible : l'onglet « qualite de prevision » filtre sur
+    # `statistical_error_pct__isnull=False` (`forecast/views.py:37-40`), et
+    # comme rien ne renseignait jamais ce champ en exploitation, il restait
+    # VIDE en permanence. Le critere « apport de l'ajustement humain
+    # mesure » etait donc infaisable, pas seulement non mesure.
+    #
+    # Le rapprochement a lieu ICI parce que c'est le seul moment ou les
+    # deux moities sont disponibles ensemble : l'historique reel
+    # fraichement charge, et les previsions passees deja persistees. Un
+    # traitement separe aurait recharge l'un des deux.
+    _reconcile_elapsed_periods(
+        tenant,
+        dimension_type=dimension_type,
+        dimension_value=dimension_value,
+        history=history,
+    )
     return results
+
+
+def _reconcile_elapsed_periods(
+    tenant: Tenant,
+    *,
+    dimension_type: str,
+    dimension_value: str,
+    history: SeriesHistory,
+) -> int:
+    """Mesure l'erreur des previsions dont la periode est desormais echue.
+
+    Une periode est « echue » quand l'historique porte une valeur reelle
+    pour elle — c'est la definition operatoire, et non « la date est
+    passee » : une periode close mais dont les ventes ne sont pas encore
+    consolidees donnerait une erreur calculee contre un realise partiel,
+    c'est-a-dire un chiffre faux presente comme une mesure de qualite.
+
+    Les periodes EXCLUES de l'apprentissage (`history.excluded_periods` —
+    valeurs aberrantes ecartees par le diagnostic de serie) sont ignorees
+    ici aussi : mesurer la qualite d'une prevision contre un realise qu'on
+    a soi-meme juge non representatif ne dirait rien d'utile.
+
+    Idempotent : recalculer une erreur deja mesuree donne la meme valeur.
+    Retourne le nombre de previsions rapprochees."""
+    from apps.forecast.services.adjustments import measure_adjustment_contribution
+
+    actual_by_period = {
+        period: value
+        for period, value in zip(history.full_periods, history.full_values, strict=True)
+        if period not in history.excluded_periods
+    }
+    if not actual_by_period:
+        return 0
+
+    elapsed = ForSeriesForecast.objects.filter(
+        tenant=tenant,
+        dimension_type=dimension_type,
+        dimension_value=dimension_value,
+        period__in=list(actual_by_period),
+    )
+    measured = 0
+    for forecast in elapsed:
+        measure_adjustment_contribution(forecast, actual_value=actual_by_period[forecast.period])
+        measured += 1
+    return measured

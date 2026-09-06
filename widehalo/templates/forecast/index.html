@@ -38,6 +38,22 @@
 {% elif tab == "tresorerie" %}
   <div class="wh-panel">
     <p>{% trans "Délai moyen de règlement retenu" %} : {{ projection.assumption_avg_delay_days }} {% trans "jours" %}</p>
+    {% comment %}
+      FOR-9 (L9) — dire SUR QUOI repose la projection, pas seulement combien
+      de jours. « 47 jours » ne veut pas dire la meme chose selon qu'il
+      s'agit du delai propre a chaque client (le critere tenu au sens
+      strict) ou d'une moyenne unique appliquee a tous (un repli). Le
+      service calculait deja `assumption_basis` ; aucune surface ne le
+      lisait — c'est-a-dire que le lecteur voyait le meme chiffre dans les
+      deux regimes, sans moyen de les distinguer.
+    {% endcomment %}
+    <p class="help-text">
+      {% if projection.assumption_basis == "par_client" %}
+        {% trans "Base : le délai propre à chaque client, appliqué à sa propre prévision." %}
+      {% else %}
+        {% trans "Base : un délai unique appliqué à tous les clients, pondéré par le poids réel de chacun dans les règlements observés — faute de prévision ventilée par client." %}
+      {% endif %}
+    </p>
     <p class="help-text">{{ projection.assumption_note }}</p>
   </div>
   <table class="smart-table">

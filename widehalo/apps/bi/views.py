@@ -27,6 +27,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
 
@@ -36,6 +37,7 @@ from apps.analytics.services.public import (
     list_published_metrics,
 )
 from apps.bi.models import BiDashboard, BiDiffusionLog, BiReport
+from apps.bi.services.dashboards import create_dashboard
 from apps.bi.services.diffusion import compute_next_run_at
 from apps.bi.services.export import REPORT_CODE
 from apps.bi.services.query import drill_down, run_report
@@ -49,12 +51,21 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         return HttpResponse(status=403)
     tenant = resolve_tenant(request)
     tab = request.GET.get("tab", "dashboards")
-    context = {"tab": tab, "can_manage": request.user.has_perm("bi.add_bireport")}
+    context = {
+        "tab": tab,
+        "can_manage": request.user.has_perm("bi.add_bireport"),
+        # BI-4 (L9) : « etat du rafraichissement visible sur CHAQUE tableau
+        # de bord ». `get_latest_refresh_summary` n'avait qu'un appelant —
+        # la branche « journal » ci-dessous — alors que sa propre docstring
+        # cite le critere mot pour mot. La fonction etait prete ; c'est le
+        # point d'appel qui manquait. Un chiffre lu sur un tableau de bord
+        # sans savoir de quand datent les donnees n'est pas verifiable.
+        "refresh_summary": get_latest_refresh_summary(tenant),
+    }
 
     if tab == "catalogue":
         context["reports"] = BiReport.objects.filter(tenant=tenant, is_published=True)
     elif tab == "journal":
-        context["refresh_summary"] = get_latest_refresh_summary(tenant)
         context["diffusion_logs"] = list(
             BiDiffusionLog.objects.filter(tenant=tenant)
             .select_related("report")
@@ -121,6 +132,56 @@ def report_new(request: HttpRequest) -> HttpResponse:
         except (json.JSONDecodeError, ValidationError) as exc:
             error = str(exc)
     return render(request, "bi/report_detail.html", {"report": None, "error": error})
+
+
+@login_required
+def dashboard_new(request: HttpRequest) -> HttpResponse:
+    """L9 — composer un tableau de bord. La voie d'ECRITURE qui manquait.
+
+    `BiDashboard` n'avait AUCUN ecrivain de production : ni vue, ni API, ni
+    commande, ni fixture, ni admin. L'onglet par defaut de `/bi/` etant
+    `dashboards`, le premier ecran du module etait structurellement vide
+    sur toute instance — et aucun test n'echouait, puisque aucun test n'en
+    creait.
+
+    Les tuiles sont choisies parmi les rapports PUBLIES du tenant : c'est
+    ce qui garantit qu'une tuile resout toujours. Un formulaire libre
+    d'UUID aurait laisse composer un tableau pointant vers rien, ou vers
+    le rapport d'une autre societe — `services.dashboards` refuse les
+    deux, mais mieux vaut ne pas les proposer."""
+    if not request.user.has_perm("bi.add_bireport"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    error = ""
+
+    if request.method == "POST":
+        try:
+            with activate_tenant(tenant.id):
+                dashboard = create_dashboard(
+                    tenant,
+                    name=request.POST.get("name", ""),
+                    user=request.user,
+                    role_code=request.POST.get("role_code", ""),
+                    is_shared=bool(request.POST.get("is_shared")),
+                    tiles=[
+                        {"report_id": report_id, "position": index, "size": "md"}
+                        for index, report_id in enumerate(request.POST.getlist("report_ids"))
+                    ],
+                )
+            return redirect(f"{reverse('bi:index')}?tab=dashboards#{dashboard.id}")
+        except ValidationError as exc:
+            error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+
+    return render(
+        request,
+        "bi/dashboard_new.html",
+        {
+            "reports": BiReport.objects.filter(tenant=tenant, is_published=True).order_by(
+                "domaine", "name"
+            ),
+            "error": error,
+        },
+    )
 
 
 @login_required

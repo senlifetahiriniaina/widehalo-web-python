@@ -281,8 +281,11 @@ def get_partner_payment_behavior(tenant: Tenant) -> list[dict[str, Any]]:
     indicateur statistique réel et propre à chaque client, jamais un délai
     théorique unique appliqué à tous.
 
-    Retourne ``[{"partner_id", "nom", "avg_delay_days"}, ...]`` — un client
-    sans encaissement observé est absent (pas de délai inventé à 0)."""
+    Retourne ``[{"partner_id", "nom", "avg_delay_days", "sales_count"}, ...]``
+    — un client sans encaissement observé est absent (pas de délai inventé
+    à 0). `sales_count` est le nombre de ventes observées : il permet à
+    l'appelant de pondérer plutôt que de traiter tous les clients à
+    égalité (FOR-9)."""
 
     def _avg_ordinal_by_tiers(dates_by_tiers: dict[Any, list[dt.date]]) -> dict[Any, float]:
         return {
@@ -319,6 +322,12 @@ def get_partner_payment_behavior(tenant: Tenant) -> list[dict[str, Any]]:
                 "partner_id": tiers.partner_id,
                 "nom": tiers.nom,
                 "avg_delay_days": max(round(encaissement_avg - vente_avg), 0),
+                # FOR-9 (L9) : le POIDS du client, pour que `forecast` puisse
+                # ponderer. Sans lui, un client d'une facture pesait autant
+                # qu'un client de cinq cents dans le delai moyen — et la
+                # « moyenne des delais observes » disait surtout combien le
+                # tenant a de petits clients.
+                "sales_count": len(ventes_dates[dim_tiers_id]),
             }
         )
     return results

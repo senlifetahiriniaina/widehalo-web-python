@@ -188,7 +188,27 @@ Les deux moitiés doivent donc être traitées ensemble. Réserve écrite dans
 
 | **L7** — IA | ✅ livré | Le bloquant était plus grave que « une trace incomplète » : **l'audit affirmait le contraire de ce qui s'était passé**. Un outil exécuté, ayant réellement lu les données du tenant, laissait `tools_called=[]` dès que le fournisseur tombait au tour suivant — et un test existant assertait ce comportement, avec un fournisseur qui échouait au *premier* appel, cas où `[]` est correct. Corrigé structurellement plutôt que ponctuellement : la liste appartient à l'appelant et la boucle l'alimente en place, la perte devient impossible. Deux découvertes hors critères : la docstring de la boucle promettait « jamais d'exception propagée » alors qu'aucun `try` n'entourait l'appel au fournisseur ; et **`AI_PROVIDER_CONFIG` était un dictionnaire vide en dur**, alimenté par aucune variable d'environnement — un exploitant ne pouvait brancher aucun fournisseur sans modifier le code source. Deux de mes propres assertions se sont révélées **creuses** à la falsification (`duration_ms >= 0`, toujours vraie ; un `href="/crm/"` satisfait par le menu latéral) : corrigées, et c'est exactement ce à quoi sert la discipline. |
 
-Reste donc de la Vague 1 : **L9, L10**, plus **le reliquat de L5** — SAL-8 est
+| **L9** — BI et Forecast | ✅ livré, **4 critères sur 5** | Le bloquant n'était dans aucune ligne de l'audit : **l'onglet par défaut de `/bi/` était structurellement vide sur toute instance**. `BiDashboard` avait six occurrences dans le dépôt et pas un seul écrivain — pas d'`objects.create`, pas de route d'écriture, pas de commande, pas de fixture, pas d'admin, et une `BiDashboardFactory` définie puis jamais utilisée. Aucun test n'échouait parce qu'aucun test n'en créait : la forme la plus pure du motif que cette vague traque. Les quatre critères codables sont fermés (BI-4, FOR-7, FOR-9, FOR-10) ; **BI-3 reste ❌ par décision, avec son motif écrit** (cf. ci-dessous). Deux corrections du plan lui-même, qui visait à côté sur ces deux points : (1) FOR-9 n'était pas un problème de formule mais de **dimension lue** — les séries étaient filtrées sur `DIMENSION_CANAL`, qui ne porte aucun client, si bien qu'une meilleure moyenne n'aurait rien pondéré ; (2) le budget de rapports a d'abord été posé à 110 sur un décompte faux de 85 rapports — le registre en contient **63**, les 85 étant des occurrences de `register_report(` dont un quart vivent dans des tests. Un plafond à 110 pour 63 rapports n'aurait jamais mordu : c'est une garde décorative, pas un budget. Ramené à 80. Enfin, la falsification a fait son travail une fois de plus : le test BI-4 était **vert à tort** — il assertait la présence du mot « rafraîchissement », que la branche « aucun rafraîchissement n'a encore eu lieu » du gabarit contient aussi, et la fixture ne créait aucune exécution. Il assertait donc le message d'ABSENCE. Réécrit sur les quatre faits que le critère nomme, il rougit désormais sur chacun des quatre. |
+
+**BI-3 — ce qui n'est pas fermé, et pourquoi.** Le critère demande de reconstruire
+« les rapports retenus à l'issue de la rationalisation » du catalogue **hérité** — les
+91 rapports du système existant du client — et de les rapprocher à l'ariary près de
+leur version d'origine. Ce catalogue n'est pas dans le dépôt, et aucun document
+d'arbitrage ne s'y trouve non plus. Fabriquer un arbitrage « conserver / fusionner /
+paramétrer / supprimer » sur un inventaire qu'on n'a jamais vu produirait un livrable
+faux, et un vert fabriqué coûte plus cher qu'un rouge assumé : il fait croire le
+travail fait. **Ce que la décision du maître d'ouvrage demande est donc de le remonter,
+pas de le simuler.** Ce qui a été livré à la place est ce que le même paragraphe du
+cahier demande (H6, risque P2-R2 « porter le catalogue tel quel industrialise
+l'incohérence ») : un budget de rapports vérifié en CI, plus l'exigence que chaque
+rapport enregistré déclare son module, son libellé et sa permission — un inventaire
+exploitable, qui manquait justement pour rationaliser. Il borne la dérive ; il ne dit
+rien de la cohérence. **Ce qu'il faut du maître d'ouvrage pour fermer BI-3 :** le
+catalogue des 91 rapports hérités, avec pour chacun sa requête ou sa définition
+d'origine et un jeu de données de référence — sans quoi le « rapprochement à l'ariary
+près » n'a pas de terme de comparaison.
+
+Reste donc de la Vague 1 : **L10**, plus **le reliquat de L5** — SAL-8 est
 clos (bloquants 1/3) et la TVA l'est aussi (bloquants 3/3), mais **SAL-6** (test de
 concurrence sur la numérotation) et **SAL-7** (autosave de brouillon de devis) restent
 entiers : ni l'un ni l'autre n'a été touché par les trois lots de bloquants.

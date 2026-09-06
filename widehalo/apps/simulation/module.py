@@ -14,6 +14,14 @@ MODULE = ModuleSpec(
     # reel" — le CA POS retombe deja en comptabilite a la cloture de
     # session via `accounting`, deja compte dans le compte de resultat, pas
     # besoin d'un second chemin direct vers `pos`).
-    dependencies=("core", "sales", "accounting"),
+    # "forecast" : FOR-10 (L9) — le socle doit porter la VERSION et la DATE
+    # de la prevision publiee qui l'alimente, pas un chiffre anonyme
+    # (`forecast.services.public.get_latest_published_forecast`), jamais
+    # `apps.forecast.models`. Meme motif exact que `strategy` (budget
+    # previsionnel), qui declare cette dependance depuis son propre
+    # chantier : deux socles chiffres a partir de previsions dont on ne
+    # peut plus dire de quelle publication elles viennent, c'est un chiffre
+    # invalidable en comite.
+    dependencies=("core", "sales", "accounting", "forecast"),
     verbose_name="Simulation financière",
 )

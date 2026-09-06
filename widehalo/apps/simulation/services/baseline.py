@@ -150,6 +150,44 @@ def build_baseline(
         for item in included_items
     ]
 
+    # FOR-10 (L9) : « la prevision PUBLIEE est disponible comme scenario de
+    # reference dans la simulation financiere, AVEC SA VERSION ET SA DATE ».
+    #
+    # Le patron existait deja — dans un AUTRE module :
+    # `strategy.services.budget.create_budget_from_forecast_publication`
+    # importe la meme facade en import local et conserve version et date
+    # dans `source_reference`. C'est litteralement ce que FOR-10 demande,
+    # applique a `strategy` et jamais a `simulation` : `baseline.py`
+    # n'avait aucune reference a `apps.forecast`. La tresorerie injectee
+    # ci-dessus est la projection COMPTABLE a 91 jours, pas une prevision.
+    #
+    # Import local : `simulation` ne declare pas `forecast` au niveau
+    # module, meme discipline que `strategy`.
+    from apps.forecast.services.public import get_latest_published_forecast
+
+    publication = get_latest_published_forecast(tenant)
+    if publication is not None:
+        # La VERSION et la DATE sont dans le socle, pas seulement les
+        # chiffres : un scenario rejoue six mois plus tard doit pouvoir
+        # dire sur quelle prevision il s'appuyait, et une prevision
+        # republiee depuis ne doit pas se substituer silencieusement a
+        # celle qui a servi.
+        data["forecast_publication"] = {
+            "version": publication["version"],
+            "published_at": publication["published_at"].isoformat(),
+            "period_start": publication["period_start"].isoformat(),
+            "period_end": publication["period_end"].isoformat(),
+            "entries": [
+                {
+                    "dimension_type": entry["dimension_type"],
+                    "dimension_value": entry["dimension_value"],
+                    "period": str(entry["period"]),
+                    "value": str(entry["value"]),
+                }
+                for entry in publication["snapshot"]
+            ],
+        }
+
     return SimBaseline.objects.create(
         tenant=tenant,
         period_start=period_start,

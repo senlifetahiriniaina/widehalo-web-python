@@ -6,6 +6,7 @@ app_name = "bi"
 
 urlpatterns = [
     path("", views.dashboard, name="index"),
+    path("dashboards/new/", views.dashboard_new, name="dashboard_new"),
     path("reports/new/", views.report_new, name="report_new"),
     path("reports/<uuid:report_id>/", views.report_detail, name="report_detail"),
     path("reports/<uuid:report_id>/drill-down/", views.report_drill_down, name="report_drill_down"),

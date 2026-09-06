@@ -27,35 +27,100 @@ if TYPE_CHECKING:
 _DEFAULT_DELAY_DAYS = 30
 
 
-def project_twelve_month_cash_inflows(tenant: Tenant) -> dict[str, Any]:
-    """Projette les encaissements des 12 prochains mois à partir des
-    prévisions de ventes publiées/calculées (`ForSeriesForecast` dont
-    `dimension_type="canal"`), décalées d'un délai moyen. Sans
-    ventilation par client dans la série "canal" (agrégat global), le
-    délai retenu est la MOYENNE des délais observés tous clients confondus
-    — hypothèse affichée explicitement (cahier), pas un délai unique
-    caché."""
-    behavior = get_partner_payment_behavior(tenant)
-    avg_delay_days = (
-        round(sum(b["avg_delay_days"] for b in behavior) / len(behavior))
-        if behavior
-        else _DEFAULT_DELAY_DAYS
+def _weighted_average_delay(behavior: list[dict[str, Any]]) -> int:
+    """Delai moyen PONDERE par le poids de chaque client.
+
+    La moyenne non ponderee donnait le meme poids a un client d'une
+    facture et a un client de cinq cents. Le poids retenu est le nombre de
+    ventes observees (`sales_count` quand l'entrepot le fournit), a defaut
+    un poids egal — auquel cas on retombe sur l'ancienne moyenne, ce qui
+    est le comportement correct : sans information de poids, ponderer
+    reviendrait a en inventer une."""
+    if not behavior:
+        return _DEFAULT_DELAY_DAYS
+    weights = [float(row.get("sales_count") or 1) for row in behavior]
+    total_weight = sum(weights)
+    if not total_weight:
+        return _DEFAULT_DELAY_DAYS
+    return round(
+        sum(float(row["avg_delay_days"]) * w for row, w in zip(behavior, weights, strict=True))
+        / total_weight
     )
 
-    sales_forecasts = ForSeriesForecast.objects.filter(
-        tenant=tenant, dimension_type=ForSeriesForecast.DIMENSION_CANAL
-    ).order_by("period")
+
+def project_twelve_month_cash_inflows(tenant: Tenant) -> dict[str, Any]:
+    """Projette les encaissements des 12 prochains mois a partir des
+    previsions de ventes, decalees du delai de reglement OBSERVE.
+
+    **FOR-9, et ce que le blocage etait reellement (L9).** La version
+    precedente ecrasait en une MOYENNE NON PONDEREE les delais par client
+    que `get_partner_payment_behavior` fournit deja individuellement :
+    un client avec une facture pesait autant qu'un client avec cinq cents.
+    Mais le blocage n'etait pas la formule — c'etait la DIMENSION LUE. Les
+    previsions consommees etaient filtrees sur `DIMENSION_CANAL`, un
+    agregat qui ne porte aucun client : il n'y avait rien a quoi rattacher
+    un delai individuel.
+
+    Deux regimes, donc, et le resultat dit lequel s'applique :
+
+    - **des previsions PAR CLIENT existent** (`DIMENSION_CLIENT`) : chacune
+      est decalee du delai propre a SON client. C'est le critere tenu au
+      sens strict ;
+    - **sinon**, repli sur la serie « canal » avec un delai unique — mais
+      PONDERE par le poids reel de chaque client dans les encaissements
+      observes, jamais une moyenne plate. Un repli reste un repli : il est
+      nomme dans `assumption_basis`, pas dissimule.
+
+    Les deux sources ne sont jamais melangees : additionner une prevision
+    par client et une prevision par canal compterait deux fois le meme
+    chiffre d'affaires."""
+    behavior = get_partner_payment_behavior(tenant)
+    delay_by_partner = {str(row["partner_id"]): row["avg_delay_days"] for row in behavior}
+    weighted_delay = _weighted_average_delay(behavior)
+
+    client_forecasts = list(
+        ForSeriesForecast.objects.filter(
+            tenant=tenant, dimension_type=ForSeriesForecast.DIMENSION_CLIENT
+        ).order_by("period")
+    )
+    if client_forecasts:
+        basis = "par_client"
+        rows = [
+            (forecast, delay_by_partner.get(forecast.dimension_value, weighted_delay))
+            for forecast in client_forecasts
+        ]
+        # Delai annonce : celui reellement applique en moyenne, pondere par
+        # les montants prevus — sans quoi l'hypothese affichee ne
+        # correspondrait a aucun des calculs faits.
+        total = sum((f.final_value for f, _ in rows), Decimal(0))
+        avg_delay_days = (
+            round(sum(float(f.final_value) * d for f, d in rows) / float(total))
+            if total
+            else weighted_delay
+        )
+    else:
+        basis = "canal_pondere"
+        avg_delay_days = weighted_delay
+        rows = [
+            (forecast, weighted_delay)
+            for forecast in ForSeriesForecast.objects.filter(
+                tenant=tenant, dimension_type=ForSeriesForecast.DIMENSION_CANAL
+            ).order_by("period")
+        ]
 
     monthly_inflows: dict[dt.date, Decimal] = {}
-    for forecast in sales_forecasts:
-        inflow_period = forecast.period + dt.timedelta(days=avg_delay_days)
-        inflow_month = inflow_period.replace(day=1)
+    for forecast, delay_days in rows:
+        inflow_month = (forecast.period + dt.timedelta(days=delay_days)).replace(day=1)
         monthly_inflows[inflow_month] = (
             monthly_inflows.get(inflow_month, Decimal(0)) + forecast.final_value
         )
 
     return {
         "assumption_avg_delay_days": avg_delay_days,
+        # FOR-9 : dire SUR QUOI repose la projection. « 47 jours » ne veut
+        # pas dire la meme chose selon qu'il s'agit du delai propre a
+        # chaque client ou d'une moyenne appliquee a tous.
+        "assumption_basis": basis,
         "assumption_note": (
             "Décaissements connus/récurrents non projetés dans cette version "
             "(non encore alimentés dans l'entrepôt analytique)."
