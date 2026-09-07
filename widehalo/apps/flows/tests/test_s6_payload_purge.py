@@ -20,14 +20,19 @@ import pytest
 from django.core.management import call_command
 from django.test import override_settings
 
+from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 from apps.core.services.scheduled_commands import list_scheduled_commands
 from apps.core.tests.utils import use_tenant
-from apps.flows.models import FlwExchange, FlwLink, FlwPayload
+from apps.flows.models import FlwConnector, FlwExchange, FlwLink, FlwPayload
 from apps.flows.operations import OP_PUSH_DOCUMENT
 from apps.flows.services.exchange import prepare_exchange, transition_exchange
-from apps.flows.services.payload_purge import purge_expired_payloads
-from apps.flows.tests.factories import FlwLinkFactory
+from apps.flows.services.payload_purge import (
+    PARAMETRE_RETENTION,
+    PARAMETRE_RETENTION_FISCALE,
+    purge_expired_payloads,
+)
+from apps.flows.tests.factories import FlwConnectorFactory, FlwLinkFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -41,8 +46,17 @@ def societe():
 
 @pytest.fixture
 def liaison(societe):
+    """Une liaison ORDINAIRE, donc explicitement NON fiscale.
+
+    `FlwConnectorFactory` déclare `FAMILY_FISCAL` par défaut, et depuis que
+    §9.3 sépare la rétention ordinaire de la rétention réglementaire, cette
+    valeur par défaut ferait passer tous les tests de ce fichier par
+    l'exception fiscale — sans qu'aucun ne le dise. Le piège a été trouvé en
+    écrivant les tests de l'exception : deux d'entre eux ont rougi pour
+    cette raison, et pour aucune autre."""
     with use_tenant(societe.id):
-        return FlwLinkFactory(tenant=societe, state=FlwLink.STATE_ACTIVE)
+        connecteur = FlwConnectorFactory(tenant=societe, family=FlwConnector.FAMILY_COMMERCE)
+        return FlwLinkFactory(tenant=societe, connector=connecteur, state=FlwLink.STATE_ACTIVE)
 
 
 def _echange_tranche(societe, liaison, *, retain_until=None, body=_CORPS):
@@ -121,7 +135,7 @@ def test_the_purge_is_idempotent(societe, liaison) -> None:
 # --- L'arbitrage sur `retain_until` nul ----------------------------------------
 
 
-@override_settings(FLOWS_PAYLOAD_RETENTION_DAYS=365)
+@override_settings(FLOWS_PAYLOAD_RETENTION_DAYS=30)
 def test_a_payload_without_a_date_falls_under_the_default_policy(societe, liaison) -> None:
     """**L'arbitrage, et son motif.** Nul aurait pu signifier « à garder
     pour toujours ». Ce choix aurait rendu la purge inerte dès le premier
@@ -137,7 +151,7 @@ def test_a_payload_without_a_date_falls_under_the_default_policy(societe, liaiso
         assert not FlwPayload.objects.filter(exchange=echange).exists()
 
 
-@override_settings(FLOWS_PAYLOAD_RETENTION_DAYS=365)
+@override_settings(FLOWS_PAYLOAD_RETENTION_DAYS=30)
 def test_a_recent_payload_without_a_date_survives_the_default_policy(societe, liaison) -> None:
     with use_tenant(societe.id):
         echange = _echange_tranche(societe, liaison, retain_until=None)
@@ -230,7 +244,8 @@ def test_one_company_s_purge_never_touches_another_s_payloads(societe, liaison) 
     with use_tenant(societe.id):
         echu = _echange_tranche(societe, liaison, retain_until=dt.date(2020, 1, 1))
     with use_tenant(autre.id):
-        liaison_b = FlwLinkFactory(tenant=autre, state=FlwLink.STATE_ACTIVE)
+        connecteur_b = FlwConnectorFactory(tenant=autre, family=FlwConnector.FAMILY_COMMERCE)
+        liaison_b = FlwLinkFactory(tenant=autre, connector=connecteur_b, state=FlwLink.STATE_ACTIVE)
         garde = _echange_tranche(
             autre, liaison_b, retain_until=dt.date.today() + dt.timedelta(days=30)
         )
@@ -241,3 +256,110 @@ def test_one_company_s_purge_never_touches_another_s_payloads(societe, liaison) 
         assert not FlwPayload.objects.filter(exchange=echu).exists()
     with use_tenant(autre.id):
         assert FlwPayload.objects.filter(exchange=garde).exists()
+
+
+# --- §9.3 : durée COURTE par défaut, exception fiscale en paramètre versionné ---
+
+
+def test_the_default_policy_is_short_not_a_year() -> None:
+    """**Ce qu'un premier jet avait posé de travers.** Le défaut était à un
+    an, ce qui confond la durée de la CHARGE UTILE avec celle de
+    l'ENREGISTREMENT (dix ans pour ce qui touche à la facturation). §9.3
+    désigne exactement cette confusion : « les confondre serait une
+    faute », et fixe le régime — « conservée par défaut sur une durée
+    COURTE, paramétrable, suffisante au diagnostic et au rejeu, puis
+    purgée »."""
+    from django.conf import settings
+
+    assert settings.FLOWS_PAYLOAD_RETENTION_DAYS <= 90, (
+        "« Durée courte » : un défaut de plusieurs mois n'en est pas une, et "
+        "conserverait des données personnelles bien au-delà du diagnostic."
+    )
+
+
+def test_a_fiscal_payload_follows_its_own_regulatory_duration(societe) -> None:
+    """§9.3 : « le document normalisé soumis à un dispositif fiscal et le
+    verdict reçu, dont la conservation relève d'une durée RÉGLEMENTAIRE et
+    non d'un confort d'exploitation », « portées par des paramètres
+    versionnés plutôt que par du code ».
+
+    Le paramètre n'est pas semé — une durée légale se sème avec sa
+    référence, par le lot qui l'établit (bloc C). Ce test pose la valeur
+    lui-même et vérifie que le LECTEUR existe et l'emporte : sans lui, le
+    mécanisme serait une intention."""
+    RegulatoryParameter.objects.create(
+        code=PARAMETRE_RETENTION_FISCALE,
+        value=3650,
+        valid_from=dt.date(2020, 1, 1),
+        legal_reference="Valeur de test — le bloc C sèmera la vraie, avec sa référence.",
+    )
+    with use_tenant(societe.id):
+        fiscal = FlwConnectorFactory(tenant=societe, code="dgi", family=FlwConnector.FAMILY_FISCAL)
+        liaison_fiscale = FlwLinkFactory(
+            tenant=societe, connector=fiscal, state=FlwLink.STATE_ACTIVE
+        )
+        echange = _echange_tranche(societe, liaison_fiscale, retain_until=None)
+        FlwPayload.objects.filter(exchange=echange).update(
+            created_at=dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
+        )
+
+        # Quatre ans, donc bien au-delà des trente jours ordinaires — et
+        # pourtant en deçà des dix ans réglementaires.
+        assert purge_expired_payloads() == 0
+        assert FlwPayload.objects.filter(exchange=echange).exists()
+
+
+def test_the_same_age_on_a_non_fiscal_link_is_purged(societe, liaison) -> None:
+    """Le témoin du test précédent, et le seul qui prouve que l'exception
+    est bien une EXCEPTION. Sans lui, une purge qui ne supprimerait plus
+    rien du tout laisserait le test ci-dessus vert."""
+    RegulatoryParameter.objects.create(
+        code=PARAMETRE_RETENTION_FISCALE,
+        value=3650,
+        valid_from=dt.date(2020, 1, 1),
+    )
+    with use_tenant(societe.id):
+        echange = _echange_tranche(societe, liaison, retain_until=None)
+        FlwPayload.objects.filter(exchange=echange).update(
+            created_at=dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
+        )
+        assert purge_expired_payloads() == 1
+        assert not FlwPayload.objects.filter(exchange=echange).exists()
+
+
+def test_the_versioned_parameter_wins_over_the_django_setting(societe, liaison) -> None:
+    """« Portées par des paramètres versionnés PLUTÔT QUE PAR DU CODE » :
+    une durée qui ne changerait que par un déploiement ne serait pas
+    paramétrée, elle serait codée."""
+    RegulatoryParameter.objects.create(
+        code=PARAMETRE_RETENTION,
+        value=3650,
+        valid_from=dt.date(2020, 1, 1),
+    )
+    with use_tenant(societe.id):
+        echange = _echange_tranche(societe, liaison, retain_until=None)
+        FlwPayload.objects.filter(exchange=echange).update(
+            created_at=dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
+        )
+        assert purge_expired_payloads() == 0
+        assert FlwPayload.objects.filter(exchange=echange).exists()
+
+
+def test_neither_retention_parameter_is_seeded_yet(societe) -> None:
+    """**L'état réel, dit plutôt que supposé.** Les deux durées ne sont
+    semées nulle part, et c'est délibéré : une durée réglementaire se sème
+    avec sa référence légale, par le lot qui l'établit. Les semer maintenant
+    avec une valeur inventée mettrait un chiffre faux sous le verrou de
+    validation OECFM, qui refuserait la mise en production pour une valeur
+    que personne n'a vérifiée.
+
+    Ce test rougira le jour où le bloc C les sèmera — et ce sera le rappel
+    de le retirer, comme le test d'amorçage du registre d'adaptateurs l'a
+    fait au sprint S6."""
+    assert not RegulatoryParameter.objects.filter(
+        code__in=[PARAMETRE_RETENTION, PARAMETRE_RETENTION_FISCALE]
+    ).exists(), (
+        "Une durée de rétention est désormais semée : retirer ce test, et "
+        "vérifier qu'elle porte bien sa référence légale et son statut de "
+        "validation."
+    )

@@ -254,14 +254,28 @@ FLOWS_QUEUE_CLUSTER_NAME = env.str("FLOWS_QUEUE_CLUSTER_NAME", default="")
 
 # FLX-5 (S6) : duree de conservation par DEFAUT d'une charge utile
 # d'echange, appliquee aux lignes qui ne portent pas de `retain_until`
-# explicite. Un an, pour suivre « archivage par exercice » que le cahier
-# nomme dans la meme ligne que la retention propre de la charge utile.
+# explicite.
 #
-# Nul ne veut dire « pour toujours » : une charge utile sans date serait
+# TRENTE jours, parce que le cahier ne laisse pas le choix (§9.3) : « la
+# charge utile est conservee par defaut sur une duree COURTE, parametrable,
+# suffisante au diagnostic et au rejeu, puis purgee ». Un premier jet avait
+# pose un an, ce qui confondait la duree de la CHARGE UTILE avec celle de
+# l'ENREGISTREMENT (dix ans pour ce qui touche a la facturation) — le
+# paragraphe designe justement cette confusion comme « une faute ».
+#
+# Nul ne veut pas dire « pour toujours » : une charge utile sans date serait
 # alors conservee indefiniment par simple oubli de saisie, ce qui est
 # l'inverse de ce a quoi sert une politique de retention. Une date
 # explicite l'emporte toujours, dans les deux sens.
-FLOWS_PAYLOAD_RETENTION_DAYS = env.int("FLOWS_PAYLOAD_RETENTION_DAYS", default=365)
+#
+# Les DEUX EXCEPTIONS de §9.3 — document fiscal soumis et verdict recu — ne
+# passent pas par ce reglage : le cahier les veut « portees par des
+# parametres versionnes plutot que par du code », donc par
+# `core.RegulatoryParameter` (`flux.retention_charge_utile_fiscale`), avec
+# leur reference legale et leur validation. Le lecteur existe
+# (`apps.flows.services.payload_purge`) ; la valeur est semee par le bloc C,
+# qui livre la soumission fiscale.
+FLOWS_PAYLOAD_RETENTION_DAYS = env.int("FLOWS_PAYLOAD_RETENTION_DAYS", default=30)
 
 Q_CLUSTER = {
     "name": "widehalo",

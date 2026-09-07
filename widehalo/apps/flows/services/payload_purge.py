@@ -23,8 +23,31 @@ jamais purgeable aurait rendu la purge inerte des aujourd'hui — personne
 n'ecrit ce champ — et aurait fait d'un oubli de saisie une conservation
 perpetuelle de donnees personnelles. C'est l'inverse de ce a quoi sert une
 politique de retention. Une date EXPLICITE l'emporte donc toujours sur le
-defaut, dans les deux sens : une soumission fiscale se conserve plus
-longtemps, un catalogue publie moins.
+defaut, dans les deux sens.
+
+**La politique par defaut est COURTE, et l'exception est fiscale (§9.3).**
+Le cahier ne laisse pas le choix de la duree : « la charge utile est
+conservee par defaut sur une duree COURTE, parametrable, suffisante au
+diagnostic et au rejeu, puis purgee ». Trente jours, donc, et non l'annee
+qu'un premier jet avait posee sans y regarder — un an n'est pas une duree
+courte, et le confondre avec la duree de conservation de l'ENREGISTREMENT
+(dix ans pour ce qui touche a la facturation) est exactement la faute que
+le paragraphe designe : « les confondre serait une faute ».
+
+Deux exceptions, et le cahier dit aussi comment les porter : « le document
+normalise soumis a un dispositif fiscal et le verdict recu, dont la
+conservation releve d'une duree REGLEMENTAIRE et non d'un confort
+d'exploitation », « portees par des PARAMETRES VERSIONNES plutot que par du
+code ». D'ou la lecture de `core.RegulatoryParameter` plutot qu'un second
+reglage Django.
+
+**Les deux parametres ne sont PAS semes ici, et c'est deliberé.** Une duree
+reglementaire se seme avec sa reference legale, par le lot qui l'etablit —
+le bloc C, qui livre la soumission fiscale. Les semer maintenant avec une
+valeur inventee mettrait une duree legale fausse sous le verrou de
+validation OECFM, qui refuserait alors la mise en production pour un
+chiffre que personne n'a verifie. Le LECTEUR existe et est teste ; c'est la
+VALEUR qui attend son lot.
 
 **La purge n'ecrit AUCUN drapeau sur l'echange, et c'est deliberé.** Le
 modele le pose depuis S1 : « l'absence de ligne suffit, et ajouter un
@@ -42,25 +65,56 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.utils import timezone
 
-from apps.flows.models import FlwPayload
+from apps.core.models.regulatory import RegulatoryParameter
+from apps.core.services.regulatory import get_parameter
+from apps.flows.models import FlwConnector, FlwPayload
+
+if TYPE_CHECKING:
+    from apps.core.models.tenant import Tenant
 
 logger = logging.getLogger(__name__)
 
 
-def default_retention_cutoff(today: dt.date | None = None) -> dt.date:
-    """La date avant laquelle une charge utile SANS `retain_until` est
-    purgeable.
+#: Le parametre versionne qui porte la duree ORDINAIRE, en jours.
+PARAMETRE_RETENTION = "flux.retention_charge_utile"
 
-    Lue dans les reglages plutot que figee : la duree de conservation
-    relève de la gouvernance du client, pas du code. Le defaut d'un an
-    suit « archivage par exercice », que le cahier nomme dans la meme
-    ligne que la retention propre de la charge utile."""
+#: Celui qui porte la duree REGLEMENTAIRE des echanges fiscaux — le
+#: document soumis et le verdict recu (§9.3). Distinct, parce qu'une duree
+#: legale ne se regle pas comme un confort d'exploitation.
+PARAMETRE_RETENTION_FISCALE = "flux.retention_charge_utile_fiscale"
+
+
+def retention_days(*, fiscal: bool, tenant: Tenant | None = None, today: dt.date) -> int:
+    """La duree de conservation applicable, en jours.
+
+    Le parametre versionne l'emporte quand il existe ; sinon le reglage
+    Django. L'ordre n'est pas indifferent : une duree reglementaire doit
+    pouvoir changer par une ligne datee en base, avec sa reference legale
+    et sa validation, jamais par un deploiement.
+
+    Un parametre absent n'est PAS une erreur : le bloc C livrera la valeur
+    fiscale avec sa reference. Tant qu'elle manque, la duree ordinaire
+    s'applique — c'est le repli le plus sur qu'on puisse choisir sans
+    inventer une duree legale."""
+    code = PARAMETRE_RETENTION_FISCALE if fiscal else PARAMETRE_RETENTION
+    try:
+        return int(get_parameter(code, today, tenant))
+    except (RegulatoryParameter.DoesNotExist, TypeError, ValueError):
+        return int(settings.FLOWS_PAYLOAD_RETENTION_DAYS)
+
+
+def default_retention_cutoff(
+    today: dt.date | None = None, *, fiscal: bool = False, tenant: Tenant | None = None
+) -> dt.date:
+    """La date avant laquelle une charge utile SANS `retain_until` est
+    purgeable."""
     jour = today or timezone.localdate()
-    return jour - dt.timedelta(days=settings.FLOWS_PAYLOAD_RETENTION_DAYS)
+    return jour - dt.timedelta(days=retention_days(fiscal=fiscal, tenant=tenant, today=jour))
 
 
 def purge_expired_payloads(*, today: dt.date | None = None) -> int:
@@ -82,21 +136,40 @@ def purge_expired_payloads(*, today: dt.date | None = None) -> int:
     from apps.core.tenant_context import activate_tenant
 
     jour = today or timezone.localdate()
-    defaut = default_retention_cutoff(jour)
     total = 0
-    for tenant_id in Tenant.objects.values_list("id", flat=True):
+    for tenant in Tenant.objects.all():
         try:
-            with activate_tenant(tenant_id):
+            with activate_tenant(tenant.id):
+                ordinaire = default_retention_cutoff(jour, tenant=tenant)
+                fiscale = default_retention_cutoff(jour, fiscal=True, tenant=tenant)
                 echues = FlwPayload.objects.filter(retain_until__lte=jour)
-                sans_date = FlwPayload.objects.filter(
-                    retain_until__isnull=True, created_at__date__lte=defaut
+                # Les deux politiques par defaut sont separees par la
+                # FAMILLE du connecteur, et non par l'operation : §9.3 nomme
+                # « le document normalise soumis a un dispositif fiscal ET
+                # le verdict recu », qui sont deux operations differentes —
+                # une sortante, une entrante — mais toujours la meme
+                # famille de connecteur.
+                sans_date = FlwPayload.objects.filter(retain_until__isnull=True)
+                fiscaux = sans_date.filter(
+                    exchange__link__connector__family=FlwConnector.FAMILY_FISCAL,
+                    created_at__date__lte=fiscale,
                 )
-                total += echues.count() + sans_date.count()
+                autres = sans_date.exclude(
+                    exchange__link__connector__family=FlwConnector.FAMILY_FISCAL
+                ).filter(created_at__date__lte=ordinaire)
+                total += echues.count() + fiscaux.count() + autres.count()
                 echues.delete()
-                sans_date.delete()
+                fiscaux.delete()
+                autres.delete()
         except Exception:  # noqa: BLE001 — une société en échec ne prive pas les suivantes de leur purge, même décision que `reporting.purge_expired_jobs`.
-            logger.exception("Purge des charges utiles en échec pour la société %s", tenant_id)
+            logger.exception("Purge des charges utiles en échec pour la société %s", tenant.id)
     return total
 
 
-__all__ = ["default_retention_cutoff", "purge_expired_payloads"]
+__all__ = [
+    "PARAMETRE_RETENTION",
+    "PARAMETRE_RETENTION_FISCALE",
+    "default_retention_cutoff",
+    "purge_expired_payloads",
+    "retention_days",
+]
