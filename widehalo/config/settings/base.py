@@ -252,6 +252,17 @@ FLOWS_MAX_PASS_SECONDS = 40
 # chaque synchronisation.
 FLOWS_QUEUE_CLUSTER_NAME = env.str("FLOWS_QUEUE_CLUSTER_NAME", default="")
 
+# FLX-5 (S6) : duree de conservation par DEFAUT d'une charge utile
+# d'echange, appliquee aux lignes qui ne portent pas de `retain_until`
+# explicite. Un an, pour suivre « archivage par exercice » que le cahier
+# nomme dans la meme ligne que la retention propre de la charge utile.
+#
+# Nul ne veut dire « pour toujours » : une charge utile sans date serait
+# alors conservee indefiniment par simple oubli de saisie, ce qui est
+# l'inverse de ce a quoi sert une politique de retention. Une date
+# explicite l'emporte toujours, dans les deux sens.
+FLOWS_PAYLOAD_RETENTION_DAYS = env.int("FLOWS_PAYLOAD_RETENTION_DAYS", default=365)
+
 Q_CLUSTER = {
     "name": "widehalo",
     "redis": REDIS_URL,

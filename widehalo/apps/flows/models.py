@@ -669,6 +669,27 @@ class FlwExchange(BaseModel):
         """Cle de partition d'une date : le premier jour de son mois."""
         return value.replace(day=1)
 
+    @property
+    def payload_is_purged(self) -> bool:
+        """FLX-5 : distingue « charge utile PURGEE » de « charge utile
+        JAMAIS ECRITE », sans colonne supplementaire.
+
+        La question se pose des qu'une purge existe, et le premier reflexe
+        serait un `purged_at` sur l'echange. `FlwPayload` explique pourquoi
+        c'est un mauvais reflexe : un drapeau peut contredire la table.
+        La reponse etait deja dans le schema — `payload_fingerprint` n'est
+        pose qu'a la creation, et seulement quand un corps existait. Une
+        empreinte SANS ligne de charge utile est donc une purge ; pas
+        d'empreinte est un echange qui n'a jamais rien porte.
+
+        C'est une DERIVATION et non une seconde source de verite : elle
+        lit la table, elle ne peut donc pas la contredire. Elle coute une
+        requete par appel — a lire sur un queryset annote plutot qu'en
+        boucle sur une console."""
+        if not self.payload_fingerprint:
+            return False
+        return not FlwPayload.objects.filter(exchange_id=self.id).exists()
+
     @staticmethod
     def fingerprint_of(body: str) -> str:
         """Empreinte SHA-256 d'une charge utile.
@@ -715,6 +736,19 @@ class FlwPayload(BaseModel):
     class Meta:
         db_table = "flw_payload"
         ordering = ["-created_at"]
+        indexes = [
+            # La purge de FLX-5 balaye cette table tous les jours, sur deux
+            # chemins : la date explicite, et son absence (politique par
+            # defaut, filtree sur `created_at`). Les trois colonnes dans un
+            # seul index couvrent les deux — sans lui, la purge fait un
+            # parcours complet de la table la plus volumineuse du hub, ce
+            # qui est exactement le « fenetre de purge depassee » que le
+            # cahier redoute.
+            models.Index(
+                fields=["tenant", "retain_until", "created_at"],
+                name="idx_flw_payload_retention",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"charge utile de {self.exchange_id} ({self.byte_size} o)"

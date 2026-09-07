@@ -13,6 +13,7 @@ from __future__ import annotations
 from django.conf import settings
 
 from apps.core.services.scheduled_commands import (
+    FREQUENCY_DAILY,
     FREQUENCY_HOURLY,
     register_scheduled_command,
 )
@@ -53,4 +54,23 @@ def register_scheduled_commands() -> None:
         # un repartiteur quotidien la rendrait inapplicable — une
         # planification horaire ne tournerait qu'une fois par jour.
         cluster=settings.FLOWS_QUEUE_CLUSTER_NAME,
+    )
+    register_scheduled_command(
+        "flows.purge_payloads",
+        command="purge_flows_payloads",
+        module="flows",
+        label="Purge des charges utiles du hub de flux",
+        frequency=FREQUENCY_DAILY,
+        hour=5,
+        description=(
+            "FLX-5. Supprime les charges utiles dont la rétention est échue — la "
+            "date portée par la ligne, ou à défaut la politique de "
+            "`FLOWS_PAYLOAD_RETENTION_DAYS`. L'échange, son empreinte, son "
+            "horodatage et son verdict restent intacts et interrogeables."
+        ),
+        # PAS de `cluster` : la purge n'est pas une vidange. La lier au
+        # worker dédié aux échanges (§7.6) ferait dépendre une obligation de
+        # gouvernance du déploiement d'un cluster optionnel — et une purge
+        # qui ne tourne pas ne se voit pas, contrairement à une file qui
+        # s'allonge.
     )
