@@ -42,6 +42,8 @@ def _adapter_customs_duty_rows(params: dict[str, Any], actor: User | None) -> li
 def register_reports() -> None:
     register_report(
         code="LOG-VEH",
+        owner_role="resp_production",
+        description="Coûts d'exploitation par véhicule : carburant, entretien, immobilisation.",
         module="logistics",
         label="Couts vehicules",
         permission="logistics.view_logvehicle",
@@ -50,6 +52,8 @@ def register_reports() -> None:
     )
     register_report(
         code="LOG-EXP",
+        owner_role="magasinier",
+        description="Expéditions sur une période, avec transporteur, délai et statut de livraison.",
         module="logistics",
         label="Expeditions",
         permission="logistics.view_logshipment",
@@ -58,6 +62,10 @@ def register_reports() -> None:
     )
     register_report(
         code="LOG-DOUANE",
+        owner_role="comptable",
+        description=(
+            "Droits et taxes de douane par dossier d'importation, avec leur base de calcul."
+        ),
         module="logistics",
         label="Droits de douane",
         permission="logistics.view_logcustomsfile",

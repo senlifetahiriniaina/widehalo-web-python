@@ -106,6 +106,8 @@ def _adapter_valuation_layer_rows(
 def register_reports() -> None:
     register_report(
         code="STK-ETAT",
+        owner_role="magasinier",
+        description="Quantités en stock par article et par emplacement, à une date donnée.",
         module="stocks",
         label="Etat des stocks",
         permission="stocks.view_stkmove",
@@ -114,6 +116,10 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-MOUV",
+        owner_role="magasinier",
+        description=(
+            "Mouvements de stock sur une période, entrée et sortie, avec leur pièce d'origine."
+        ),
         module="stocks",
         label="Mouvements de stock",
         permission="stocks.view_stkmove",
@@ -136,6 +142,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-TRAC",
+        owner_role="magasinier",
+        description="Traçabilité amont et aval d'un lot, de la réception à la livraison.",
         module="stocks",
         label="Tracabilite de lot",
         permission="stocks.view_stkmove",
@@ -156,6 +164,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-INV",
+        owner_role="magasinier",
+        description="Feuille d'inventaire à compter, puis écarts constatés après saisie.",
         module="stocks",
         label="Inventaire",
         permission="stocks.view_stkinventory",
@@ -172,6 +182,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-DEF",
+        owner_role="resp_production",
+        description="Défauts relevés au contrôle, par type et par origine.",
         module="stocks",
         label="Analyse des defauts",
         permission="stocks.view_stkdefecttype",
@@ -180,6 +192,10 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-AGE",
+        owner_role="magasinier",
+        description=(
+            "Articles sans mouvement depuis un seuil de jours, candidats à la dépréciation."
+        ),
         module="stocks",
         label="Stock dormant",
         permission="stocks.view_stkmove",
@@ -195,6 +211,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-COHER",
+        owner_role="resp_production",
+        description="Écarts entre consommations théoriques et mouvements réellement enregistrés.",
         module="stocks",
         label="Coherence de production",
         permission="stocks.view_stkmove",
@@ -211,6 +229,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-MES",
+        owner_role="resp_production",
+        description="Écarts entre mesures attendues et mesures relevées, par lot.",
         module="stocks",
         label="Ecarts de mesure",
         permission="stocks.view_stkmove",
@@ -219,6 +239,8 @@ def register_reports() -> None:
     )
     register_report(
         code="STK-VAL",
+        owner_role="comptable",
+        description="Valorisation du stock au coût unitaire moyen pondéré, à une date donnée.",
         module="stocks",
         label="Valorisation des stocks",
         permission="stocks.view_stkmove",

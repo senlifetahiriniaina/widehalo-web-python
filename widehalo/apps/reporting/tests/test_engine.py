@@ -54,6 +54,8 @@ def test_rows_to_bytes_derives_dynamic_fields_when_none_provided() -> None:
 def test_generate_report_sync_produces_done_job_with_file(tenant_and_user) -> None:
     tenant, user = tenant_and_user
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-ENGINE-SYNC",
         module="core",
         label="Sync",
@@ -78,6 +80,8 @@ def test_generate_report_sync_produces_done_job_with_file(tenant_and_user) -> No
 def test_generate_report_marks_job_failed_on_renderer_exception(tenant_and_user) -> None:
     tenant, user = tenant_and_user
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-ENGINE-FAIL",
         module="core",
         label="Fail",
@@ -129,6 +133,8 @@ def test_acceptance_3_large_report_routes_through_async_job_and_notifies(
 
     tenant, user = tenant_and_user
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-ENGINE-ASYNC",
         module="core",
         label="Async",

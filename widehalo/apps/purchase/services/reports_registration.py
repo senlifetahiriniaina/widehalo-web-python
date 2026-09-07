@@ -87,6 +87,8 @@ def _adapter_cri_rows(params: dict[str, Any], actor: User | None) -> list[dict[s
 def register_reports() -> None:
     register_report(
         code="PUR-BC",
+        owner_role="acheteur",
+        description="Bon de commande à adresser au fournisseur, avec conditions et délais.",
         module="purchase",
         label="Bon de commande",
         permission="purchase.view_purorder",
@@ -94,6 +96,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-RFQ",
+        owner_role="acheteur",
+        description="Appel d'offres à adresser aux fournisseurs consultés.",
         module="purchase",
         label="Appel d'offres",
         permission="purchase.view_purrfq",
@@ -109,6 +113,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-COMP",
+        owner_role="acheteur",
+        description="Comparatif des offres reçues sur un appel d'offres, ligne à ligne.",
         module="purchase",
         label="Comparatif fournisseurs",
         permission="purchase.view_purrfq",
@@ -124,6 +130,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-REC",
+        owner_role="magasinier",
+        description="Réceptions sur une période, avec les écarts relevés à la livraison.",
         module="purchase",
         label="Reception",
         permission="purchase.view_purorder",
@@ -132,6 +140,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-ENG",
+        owner_role="controleur_gestion",
+        description="Engagements d'achat en cours, non encore réceptionnés ni facturés.",
         module="purchase",
         label="Engagements d'achat",
         permission="purchase.view_purorder",
@@ -140,6 +150,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-EVAL",
+        owner_role="acheteur",
+        description="Évaluation des fournisseurs sur le délai, la conformité et le prix.",
         module="purchase",
         label="Evaluation fournisseurs",
         permission="purchase.view_purorder",
@@ -157,6 +169,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-RET",
+        owner_role="acheteur",
+        description="Commandes d'achat dont la date de livraison promise est dépassée.",
         module="purchase",
         label="Achats en retard",
         permission="purchase.view_purorder",
@@ -165,6 +179,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PUR-CRI",
+        owner_role="acheteur",
+        description="Incidents fournisseurs sur une période, par motif et par fournisseur.",
         module="purchase",
         label="Incidents fournisseurs",
         permission="purchase.view_purcri",

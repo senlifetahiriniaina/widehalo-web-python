@@ -17,6 +17,8 @@ def _rows(params: dict, actor) -> list[dict]:  # noqa: ANN001
 
 def test_sync_report_definitions_creates_one_row_per_registered_report() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-SYNC",
         module="core",
         label="Test sync",
@@ -34,6 +36,8 @@ def test_sync_report_definitions_creates_one_row_per_registered_report() -> None
 
 def test_sync_report_definitions_does_not_reset_manual_disable() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-DISABLE",
         module="core",
         label="Test disable",

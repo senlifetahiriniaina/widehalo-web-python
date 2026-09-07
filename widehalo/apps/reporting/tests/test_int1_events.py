@@ -29,6 +29,8 @@ def test_generate_report_failure_publishes_job_failed() -> None:
         email="rpt-int1-engine@example.com", password="Str0ngPassw0rd!23"
     )
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-INT1-FAIL",
         module="core",
         label="Fail INT1",

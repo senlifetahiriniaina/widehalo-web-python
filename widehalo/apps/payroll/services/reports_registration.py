@@ -26,6 +26,8 @@ def _adapter_payslip_pdf(params: dict[str, Any], actor: User | None) -> bytes:
 def register_reports() -> None:
     register_report(
         code="PAY-BULL",
+        owner_role="rh",
+        description="Bulletin de paie au format légal, archivé et opposable au salarié.",
         module="payroll",
         label="Bulletin de paie",
         permission="payroll.view_paypayslip",

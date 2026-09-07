@@ -47,6 +47,8 @@ def _adapter_lost_reason_breakdown(
 def register_reports() -> None:
     register_report(
         code="CRM-PIPE",
+        owner_role="resp_commercial",
+        description="Montant et nombre d'opportunités par étape du pipeline, à une date donnée.",
         module="crm",
         label="Repartition du pipeline",
         permission="crm.view_crmpipeline",
@@ -55,6 +57,11 @@ def register_reports() -> None:
     )
     register_report(
         code="CRM-CONV",
+        owner_role="resp_commercial",
+        description=(
+            "Taux de passage d'une étape de pipeline à la suivante, pour situer où les affaires "
+            "se perdent."
+        ),
         module="crm",
         label="Taux de conversion",
         permission="crm.view_crmpipeline",
@@ -62,6 +69,10 @@ def register_reports() -> None:
     )
     register_report(
         code="CRM-ACT",
+        owner_role="resp_commercial",
+        description=(
+            "Volume d'activités commerciales par type, pour mesurer l'effort de prospection."
+        ),
         module="crm",
         label="Activites par type",
         permission="crm.view_crmactivity",
@@ -70,6 +81,8 @@ def register_reports() -> None:
     )
     register_report(
         code="CRM-PERTE",
+        owner_role="resp_commercial",
+        description="Répartition des opportunités perdues par motif déclaré.",
         module="crm",
         label="Motifs de perte",
         # crm.view_crmlead (pas crm.view_crmlostreason) : le rapport agrege

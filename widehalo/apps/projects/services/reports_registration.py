@@ -149,6 +149,8 @@ def _adapter_status_pdf(params: dict[str, Any], actor: User | None) -> bytes:
 def register_reports() -> None:
     register_report(
         code="PRJ-GANTT",
+        owner_role="collaborateur",
+        description="Tâches d'un projet avec leurs dates et leurs dépendances, en liste ordonnée.",
         module="projects",
         label="Gantt (liste des taches)",
         permission="projects.view_prjproject",
@@ -165,6 +167,10 @@ def register_reports() -> None:
     )
     register_report(
         code="PRJ-EVM",
+        owner_role="direction",
+        description=(
+            "Valeur acquise d'un projet : avancement, coût et écarts de délai et de budget."
+        ),
         module="projects",
         label="Valeur acquise (EVM)",
         permission="projects.view_prjproject",
@@ -173,6 +179,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PRJ-STATUS",
+        owner_role="direction",
+        description="État d'avancement d'un projet à une date : jalons, risques et points ouverts.",
         module="projects",
         label="Rapport d'etat de projet",
         permission="projects.view_prjproject",

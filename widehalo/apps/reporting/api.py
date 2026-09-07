@@ -72,6 +72,8 @@ def catalog_endpoint(request):
             "code": report.code,
             "module": report.module,
             "label": report.label,
+            "owner_role": report.owner_role,
+            "description": report.description,
             "supports_pdf": report.supports_pdf(),
             "supports_rows": report.supports_rows(),
             "is_legal_document": report.is_legal_document,

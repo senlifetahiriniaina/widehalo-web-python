@@ -25,6 +25,20 @@ class BiConfig(AppConfig):
             module="bi",
             label="Rapport BI (auto-généré)",
             permission="bi.view_bireport",
+            # Le seul rapport du catalogue dont le propriétaire n'est pas
+            # une fonction métier : c'est un PONT, pas un rapport. Il
+            # exécute le rapport sémantique que l'utilisateur a lui-même
+            # construit (`BiReport`, qui porte SON propre propriétaire et
+            # sa propre description) pour le faire passer par le moteur de
+            # travaux de fond. Lui attribuer un propriétaire métier
+            # laisserait croire qu'une fonction répond de son contenu,
+            # alors que son contenu change à chaque appel.
+            owner_role="admin",
+            description=(
+                "Exécute un rapport BI construit par l'utilisateur, pour le sortir en "
+                "PDF ou en tableur. Son contenu est celui du rapport sémantique "
+                "désigné, jamais une définition figée."
+            ),
             render_rows=render_bi_report_rows,
         )
         register_scheduled_commands()

@@ -114,6 +114,8 @@ def _adapter_analytical_income_statement(
 def register_reports() -> None:
     register_report(
         code="ACC-FAC",
+        owner_role="comptable",
+        description="Facture client au format légal, archivée et immuable une fois émise.",
         module="accounting",
         label="Facture",
         permission="accounting.view_accmove",
@@ -122,6 +124,11 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-BAL",
+        owner_role="comptable",
+        description=(
+            "Soldes débiteurs et créditeurs de tous les comptes sur une période, base de tout "
+            "contrôle comptable."
+        ),
         module="accounting",
         label="Balance generale",
         permission="accounting.view_accaccount",
@@ -130,6 +137,10 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-GL",
+        owner_role="comptable",
+        description=(
+            "Détail chronologique des écritures compte par compte, pièce justificative du solde."
+        ),
         module="accounting",
         label="Grand livre",
         permission="accounting.view_accmove",
@@ -138,6 +149,8 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-JNL",
+        owner_role="comptable",
+        description="Écritures d'un journal sur une période, dans l'ordre de saisie.",
         module="accounting",
         label="Journal",
         permission="accounting.view_accmove",
@@ -146,6 +159,11 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-CR",
+        owner_role="comptable",
+        description=(
+            "Compte de résultat présenté par nature de charges et de produits, conforme au plan "
+            "comptable."
+        ),
         module="accounting",
         label="Compte de resultat par nature",
         permission="accounting.view_accaccount",
@@ -154,6 +172,10 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-CR-FCT",
+        owner_role="controleur_gestion",
+        description=(
+            "Compte de résultat présenté par fonction (production, distribution, administration)."
+        ),
         module="accounting",
         label="Compte de resultat par fonction",
         permission="accounting.view_accaccount",
@@ -162,6 +184,8 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-VCP",
+        owner_role="comptable",
+        description="Variation des capitaux propres entre deux exercices, poste par poste.",
         module="accounting",
         label="Variation des capitaux propres",
         permission="accounting.view_accaccount",
@@ -170,6 +194,10 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-AGE-C",
+        owner_role="comptable",
+        description=(
+            "Créances clients ventilées par ancienneté d'échéance, pour piloter la relance."
+        ),
         module="accounting",
         label="Balance agee clients",
         permission="accounting.view_accmove",
@@ -178,6 +206,11 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-AGE-F",
+        owner_role="comptable",
+        description=(
+            "Dettes fournisseurs ventilées par ancienneté d'échéance, pour ordonnancer les "
+            "règlements."
+        ),
         module="accounting",
         label="Balance agee fournisseurs",
         permission="accounting.view_accmove",
@@ -186,6 +219,10 @@ def register_reports() -> None:
     )
     register_report(
         code="ACC-ANA",
+        owner_role="controleur_gestion",
+        description=(
+            "Compte de résultat éclaté par axe analytique, pour situer la rentabilité par activité."
+        ),
         module="accounting",
         label="Compte de resultat analytique",
         permission="accounting.view_accmove",

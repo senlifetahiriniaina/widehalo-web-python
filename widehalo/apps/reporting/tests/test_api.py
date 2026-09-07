@@ -36,6 +36,8 @@ def test_catalog_endpoint_filters_by_underlying_report_permission() -> None:
     l'ACCES A L'ENDPOINT, pas la visibilite de chaque rapport pris
     individuellement."""
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-VISIBLE-COMPTABLE",
         module="accounting",
         label="Visible comptable",
@@ -43,6 +45,8 @@ def test_catalog_endpoint_filters_by_underlying_report_permission() -> None:
         render_rows=_rows,
     )
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-VISIBLE-RH",
         module="payroll",
         label="Visible RH",
@@ -93,6 +97,8 @@ def _grant(user: User, *, app_label: str, codenames: list[str]) -> None:
 
 def test_generate_endpoint_denies_when_missing_underlying_report_permission() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-API-GEN-DENY",
         module="accounting",
         label="Gen deny",
@@ -116,6 +122,8 @@ def test_generate_endpoint_denies_when_missing_underlying_report_permission() ->
 
 def test_generate_status_and_download_round_trip() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-API-GEN-OK",
         module="reporting",
         label="Gen ok",
@@ -156,6 +164,8 @@ def test_generate_status_and_download_round_trip() -> None:
 
 def test_create_and_toggle_schedule_round_trip() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-API-SCHEDULE",
         module="reporting",
         label="Schedule API",

@@ -93,6 +93,8 @@ def test_the_test_registration_filter_actually_filters() -> None:
         module="core",
         label="Auto-test du detecteur de budget",
         permission="core.view_tenant",
+        owner_role="admin",
+        description="Enregistrement factice servant a l'auto-test du filtre ci-dessus.",
         render_rows=_rows,
     )
     registered = get_registered_report("RPT-BUDGET-SELFTEST")
@@ -108,12 +110,113 @@ def test_the_test_registration_filter_actually_filters() -> None:
 
 def test_every_registered_report_declares_its_owner_module_and_label() -> None:
     """Le volet « catalogue avec domaine, description, proprietaire » du
-    meme sprint : un rapport sans module ni libelle est inexploitable dans
-    un inventaire — et c'est un inventaire exploitable qui manquait pour
-    rationaliser."""
-    incomplete = [
+    cahier (Phase 2, sprint S6).
+
+    **Ce test MENTAIT.** Sa docstring annonçait « domaine, description,
+    propriétaire » et son assertion vérifiait module, libellé et
+    permission — trois champs qui existaient déjà, et dont aucun n'est le
+    propriétaire. `RegisteredReport` n'avait ni `owner_role` ni
+    `description` : le test ne pouvait donc pas vérifier ce qu'il
+    annonçait, et il est resté vert pendant tout ce temps.
+
+    Le domaine, lui, EST `module` — ajouter un second champ qui le
+    duplique aurait été pire que de ne rien faire. C'est écrit ici plutôt
+    que laissé à deviner.
+
+    Le contrôle réel vit désormais dans `register_report`, qui REFUSE un
+    enregistrement incomplet : un refus à l'écriture nomme le rapport
+    fautif au moment où on l'écrit, là où un test dit « il en manque
+    trois » à la fin de la construction. Ce test garde la propriété au
+    niveau du catalogue entier, pour le cas où quelqu'un contournerait le
+    constructeur."""
+    incomplets = [
         report.code
         for report in _delivered_reports()
-        if not report.module or not report.label or not report.permission
+        if not report.module
+        or not report.label
+        or not report.permission
+        or not report.owner_role
+        or not report.description
     ]
-    assert not incomplete, f"Rapport(s) sans module, libelle ou permission : {incomplete}"
+    assert not incomplets, (
+        f"Rapport(s) sans module, libelle, permission, proprietaire ou description : {incomplets}"
+    )
+
+
+def test_the_registry_refuses_an_incomplete_report() -> None:
+    """Auto-test du refus. Sans lui, `register_report` pourrait cesser de
+    controler et le test precedent resterait vert tant que personne
+    n'ajoute de rapport — c'est-a-dire longtemps."""
+    import pytest
+    from apps.core.services.reports_registry import register_report
+
+    def _rows(params, actor):
+        return []
+
+    with pytest.raises(ValueError, match="owner_role"):
+        register_report(
+            code="RPT-SANS-PROPRIETAIRE",
+            module="core",
+            label="Essai",
+            permission="core.view_tenant",
+            owner_role="",
+            description="Une description parfaitement valable et suffisamment longue.",
+            render_rows=_rows,
+        )
+
+    with pytest.raises(ValueError, match="description"):
+        register_report(
+            code="RPT-SANS-DESCRIPTION",
+            module="core",
+            label="Essai",
+            permission="core.view_tenant",
+            owner_role="admin",
+            description="",
+            render_rows=_rows,
+        )
+
+
+def test_an_owner_role_is_a_role_the_repository_actually_knows() -> None:
+    """Un proprietaire designe par un code de role inexistant ne designe
+    personne. La verification se fait contre le referentiel de roles, pas
+    contre une liste recopiee ici — c'est le seul cas ou recopier serait
+    faux, puisque c'est justement l'adherence entre les deux qu'on
+    verifie."""
+    from apps.core.services.rbac_policy import ROLE_APP_PERMISSIONS
+
+    inconnus = {
+        report.code: report.owner_role
+        for report in _delivered_reports()
+        if report.owner_role not in ROLE_APP_PERMISSIONS
+    }
+    assert not inconnus, (
+        f"Proprietaire(s) designant un role inexistant : {inconnus}. "
+        f"Roles connus : {sorted(ROLE_APP_PERMISSIONS)}."
+    )
+
+
+def test_a_description_says_what_the_report_shows_not_what_it_computes() -> None:
+    """Verification grossiere, et c'est assume : elle n'attrape pas une
+    mauvaise phrase, elle attrape une phrase VIDE — le cas ou quelqu'un
+    remplit le champ de trois mots pour faire passer le refus a
+    l'enregistrement.
+
+    Le seuil de quarante caracteres est celui d'une phrase complete. Un
+    libelle recopie (« Balance generale ») n'y arrive pas, et c'est
+    exactement ce qu'on veut ecarter : la description doit ajouter quelque
+    chose au libelle, sinon elle ne sert a rien dans un inventaire."""
+    trop_courtes = {
+        report.code: report.description
+        for report in _delivered_reports()
+        if len(report.description) < 40
+    }
+    assert not trop_courtes, (
+        f"Description(s) trop courtes pour dire ce que le rapport montre : {sorted(trop_courtes)}"
+    )
+
+    recopiees = {
+        report.code
+        for report in _delivered_reports()
+        if report.description.strip().lower() == report.label.strip().lower()
+    }
+    assert not recopiees, f"Description(s) recopiant le libelle : {sorted(recopiees)}"

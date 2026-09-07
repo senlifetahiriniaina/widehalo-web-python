@@ -54,6 +54,8 @@ def test_run_schedule_generates_report_emails_recipients_and_advances_next_run()
     (RPT-7) — verifie generation + envoi e-mail + avancement de
     `next_run_at` pour une frequence `FREQUENCY_WEEKLY`."""
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-SCHEDULE",
         module="core",
         label="Test schedule",
@@ -95,6 +97,8 @@ def test_run_schedule_generates_report_emails_recipients_and_advances_next_run()
 
 def test_run_due_schedules_only_runs_due_and_enabled() -> None:
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-SCHEDULE-DUE",
         module="core",
         label="Test schedule due",
@@ -156,6 +160,8 @@ def test_run_schedule_disables_itself_when_creator_no_longer_has_permission() ->
     continuer a l'executer indefiniment en silence. Aucun rapport n'est
     genere, aucun e-mail envoye, `last_run_at` n'avance pas."""
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-SCHEDULE-NOPERM",
         module="core",
         label="Test schedule sans permission",
@@ -198,6 +204,8 @@ def test_run_schedule_excludes_recipients_who_lost_permission() -> None:
     planification l'a bien conservee et que d'autres destinataires
     restent autorises."""
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-SCHEDULE-RECIP",
         module="core",
         label="Test schedule destinataires",

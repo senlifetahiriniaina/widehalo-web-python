@@ -31,6 +31,8 @@ def sync_report_definitions(tenant: Tenant) -> int:
                 "module": report.module,
                 "label": report.label,
                 "permission": report.permission,
+                "owner_role": report.owner_role,
+                "description": report.description,
                 "supports_pdf": report.supports_pdf(),
                 "supports_rows": report.supports_rows(),
                 "is_legal_document": report.is_legal_document,

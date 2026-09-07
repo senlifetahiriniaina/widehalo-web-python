@@ -19,6 +19,12 @@ class RptDefinition(BaseModel):
     code = models.CharField(max_length=64, db_index=True)
     module = models.CharField(max_length=32)
     label = models.CharField(max_length=200)
+    # Le catalogue que le cahier demande (Phase 2, S6 : « catalogue avec
+    # domaine, description, proprietaire et indicateurs utilises »).
+    # `module` EST le domaine — un second champ qui le duplique aurait ete
+    # pire que rien. Les deux autres manquaient.
+    owner_role = models.CharField(max_length=32, blank=True)
+    description = models.TextField(blank=True)
     permission = models.CharField(max_length=128)
     supports_pdf = models.BooleanField(default=False)
     supports_rows = models.BooleanField(default=False)

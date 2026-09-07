@@ -52,6 +52,8 @@ def setup():
         ],
     )
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-VIEW",
         module="reporting",
         label="Rapport de test ecran",
@@ -73,6 +75,8 @@ def test_catalog_index_lists_accessible_reports(setup) -> None:
 def test_generate_form_denies_without_report_permission(setup) -> None:
     tenant, user = setup
     register_report(
+        owner_role="admin",
+        description="Enregistrement de test, hors catalogue livré.",
         code="RPT-TEST-VIEW-DENY",
         module="accounting",
         label="Non autorise",

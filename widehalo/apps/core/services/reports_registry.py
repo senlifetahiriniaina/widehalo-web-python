@@ -33,6 +33,24 @@ class RegisteredReport:
     module: str
     label: str
     permission: str
+    #: Le PROPRIETAIRE metier du rapport — le role qui repond de sa
+    #: definition, pas celui qui a le droit de le lire (c'est
+    #: `permission`). Les deux different souvent : un bulletin de paie se
+    #: lit par les RH ET la direction, mais une seule fonction repond de ce
+    #: qu'il contient.
+    #:
+    #: Sans proprietaire, la rationalisation d'un catalogue est
+    #: impossible : « faut-il garder ce rapport ? » n'a pas de reponse si
+    #: personne n'est designe pour la donner. C'est le volet que le cahier
+    #: (Phase 2, sprint S6) nomme « catalogue avec domaine, description,
+    #: proprietaire et indicateurs utilises », et dont seul le domaine
+    #: existait — sous le nom de `module`.
+    owner_role: str = ""
+    #: Ce que le rapport MONTRE, en une phrase, et pour qui. Pas ce qu'il
+    #: calcule : un inventaire sert a decider quoi garder, et « somme des
+    #: lignes de mouvement groupees par article » ne permet a personne de
+    #: trancher.
+    description: str = ""
     render_pdf: PdfRenderer | None = None
     render_rows: RowsRenderer | None = None
     # Colonnes pour l'export XLSX/CSV — si vide, `engine.rows_to_bytes`
@@ -57,6 +75,8 @@ def register_report(
     module: str,
     label: str,
     permission: str,
+    owner_role: str,
+    description: str,
     render_pdf: PdfRenderer | None = None,
     render_rows: RowsRenderer | None = None,
     fields: tuple[str, ...] = (),
@@ -68,11 +88,30 @@ def register_report(
     'fantome' inscrit au catalogue sans fonction reelle derriere."""
     if render_pdf is None and render_rows is None:
         raise ValueError(f"report {code!r}: au moins un renderer (pdf ou rows) est requis")
+    # Le proprietaire et la description sont EXIGES a l'enregistrement, pas
+    # verifies apres coup par un test. La difference compte : un test dit
+    # « il en manque trois » a la fin de la construction, ce refus dit
+    # « celui-ci » au moment ou on l'ecrit. Et un catalogue dont trois
+    # entrees sur soixante-trois sont vides n'est plus un catalogue.
+    if not owner_role:
+        raise ValueError(
+            f"report {code!r}: `owner_role` est requis — le role qui REPOND de la "
+            "definition du rapport, pas celui qui a le droit de le lire. Sans lui, "
+            "« faut-il garder ce rapport ? » n'a personne a qui etre posee."
+        )
+    if not description:
+        raise ValueError(
+            f"report {code!r}: `description` est requise — ce que le rapport MONTRE, "
+            "en une phrase, et pour qui. Un inventaire sert a decider quoi garder, et "
+            "un libelle de trois mots ne permet a personne de trancher."
+        )
     _REGISTRY[code] = RegisteredReport(
         code=code,
         module=module,
         label=label,
         permission=permission,
+        owner_role=owner_role,
+        description=description,
         render_pdf=render_pdf,
         render_rows=render_rows,
         fields=fields,

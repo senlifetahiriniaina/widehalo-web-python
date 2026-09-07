@@ -247,6 +247,21 @@ le modèle de message reste une estimation).
 | Ce que S3 ne ferme pas | — | La console, les écrans d'incident et le rejeu supervisé (sprints ultérieurs) ; le `chatter` et le workflow que §13.2 promet à l'incident ne sont pas câblés. Le registre d'adaptateurs est vide jusqu'à S6 : la commande de vidange existe et ne fait rien — mesuré par un test d'amorçage, jamais supposé. La commande est livrée **maintenant** et non à S6, parce que le lot WhatsApp a montré six sprints plus tôt qu'un mécanisme de reprise sans déclencheur automatique n'est pas une file, c'est un bouton. |
 
 
+## 3 quater. Les trois arbitrages, résolus
+
+L'utilisateur a demandé de « proposer les solutions pour H26, BI-3 et S4 pour parvenir à
+une résolution qui soit acceptable, puis faire le nécessaire ». Voici ce qui a été proposé,
+et ce qui a été livré.
+
+| Sujet | Proposition | Livré |
+|---|---|---|
+| **H26** — unité de coût de la messagerie | **Rendre l'arbitrage sans objet plutôt que le trancher.** Le cahier offrait deux branches ; parier sur l'une ou l'autre demandait de deviner ce que le fournisseur facturera dans dix-huit mois. L'unité devient une **donnée** portée par chaque ligne de coût, et son basculement une ligne de plus dans la table de paramètres versionnés — mécanisme qui existait déjà et n'était pas employé. | ✅ Vocabulaire unique dans `core.cost_units` (les deux compteurs le partagent, vérifié par garde) ; paramètre versionné semé à la valeur RÉELLEMENT en vigueur ; règle d'imputation qui dépend de l'unité — sans quoi le champ serait décoratif ; compteur transverse qui renvoie un total QUALIFIÉ, jamais un nombre nu. **Le sprint supplémentaire annoncé au bloc H n'a plus lieu d'être.** |
+| **H26** — ce que l'instruction a fait voir | — | ✅ Trois sur-comptages corrigés : l'imputation ignorait l'unité ; la réponse en fenêtre de service était facturée alors qu'elle est gratuite ; un message refusé par la gouvernance pesait au plafond sans être jamais parti. Plus un seuil d'alerte réglable qui ne déclenchait rien. `conversation_id`, écrit par trois écrivains et lu par personne, devient la clef de la fenêtre de facturation. |
+| **BI-3** — catalogue hérité | **Séparer ce qui est bloqué de ce qui ne l'est pas.** L'arbitrage sur 91 rapports jamais vus ne s'invente pas ; le catalogue interne que le même sprint demande ne dépendait d'aucune information extérieure. | ✅ 63 rapports déclarent propriétaire et description, refusés à l'enregistrement s'ils sont incomplets. Le domaine n'a pas été ajouté : `module` l'est déjà. Lu à l'écran, dans l'API et dans le miroir persistant. La moitié bloquée devient une **demande d'une page** (`2026-09-bi3-demande-catalogue-herite.md`). **BI-3 passe ❌ → 🟡.** |
+| **S4** — idempotence, corrélation, rejeu | Sprint ordinaire, plus trois défauts antérieurs à la Phase 4 vérifiés sur pièces. | ✅ Clé stable entre tentatives et neuve au rejeu supervisé (le cahier §13.4 se contredit ; le critère FLX-4 tranche) ; successeur qui ne réécrit jamais l'original ; estimation qui dit quand son total n'est qu'un plancher. Les trois défauts fermés, plus deux trouvés en chemin. |
+| **S4** — trouvé en falsifiant | — | ✅ **L'unicité des clefs d'idempotence ne mordait pas quand `tenant_id` était nul** : PostgreSQL considère deux NULL comme distincts. L'idempotence n'était donc pas garantie pour les appels sans tenant résolu. Fermé par `nulls_distinct=False`. ✅ **Aucune protection contre le rejeu entrant** — le cahier §8.2 la classe « le défaut le plus coûteux de cette famille » : l'identifiant du fournisseur était stocké et jamais interrogé, et une re-livraison produisait deux lignes ET deux traitements. |
+| **Angle mort RLS** | — | 🟡 **Dix modèles** portent un discriminant de tenant hors du périmètre de `apply_rls`, qui sélectionne sur `issubclass(BaseModel)`. Aucun n'était déclaré comme exception. La garde `test_rls_coverage.py` transforme l'angle mort en décision explicite ; elle ne les met pas sous RLS — plusieurs ne peuvent pas y passer. Une seule entrée n'a **aucune bonne raison** (`ApprovalRule`, vraie clé étrangère non nulle) : correction chiffrée séparément, `id` et `is_active` entrant en collision avec ceux de `BaseModel`. |
+
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
 Seize lots, 51 écarts. L0 et L1 précèdent tout le reste : le premier parce qu'il

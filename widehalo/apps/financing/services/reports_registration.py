@@ -46,6 +46,8 @@ def _adapter_credoc_pdf(params: dict[str, Any], actor: User | None) -> bytes:
 def register_reports() -> None:
     register_report(
         code="FIN-DOSSIER",
+        owner_role="direction",
+        description="Dossier de financement bancaire consolidé, pièces et ratios réunis.",
         module="financing",
         label="Dossier de financement bancaire",
         permission="financing.view_finloanapplication",
@@ -54,6 +56,8 @@ def register_reports() -> None:
     )
     register_report(
         code="FIN-CREDOC",
+        owner_role="direction",
+        description="Demande d'ouverture de crédit documentaire, au format attendu par la banque.",
         module="financing",
         label="Demande d'ouverture de credit documentaire",
         permission="financing.view_fincredoc",

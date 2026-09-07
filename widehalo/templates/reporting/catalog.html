@@ -6,14 +6,15 @@
 <div class="page-head">
   <h1>{% trans "Catalogue des rapports" %}</h1>
 </div>
-  <p>{% trans "Rapports auxquels vous avez accès, tous modules confondus." %}</p>
+  <p>{% trans "Rapports auxquels vous avez accès, tous domaines confondus. Le propriétaire est le rôle qui répond de la définition du rapport, pas celui qui a le droit de le lire." %}</p>
   <p><a href="{% url 'reporting:schedules' %}">{% trans "Gérer les planifications" %}</a></p>
   <table>
     <thead>
       <tr>
         <th>{% trans "Code" %}</th>
-        <th>{% trans "Module" %}</th>
-        <th>{% trans "Libelle" %}</th>
+        <th>{% trans "Domaine" %}</th>
+        <th>{% trans "Libellé" %}</th>
+        <th>{% trans "Propriétaire" %}</th>
         <th>PDF</th>
         <th>XLSX/CSV/JSON</th>
         <th></th>
@@ -24,13 +25,26 @@
         <tr>
           <td>{{ report.code }}</td>
           <td>{{ report.module }}</td>
-          <td>{{ report.label }}</td>
+          {% comment %}
+            La description sous le libellé, et non dans une colonne à elle :
+            un inventaire de soixante-trois lignes se lit en balayant les
+            libellés, et une colonne de phrases rendrait ce balayage
+            impossible. Elle est là pour trancher, pas pour être lue en
+            continu.
+          {% endcomment %}
+          <td>
+            {{ report.label }}
+            {% if report.description %}
+              <br><small class="help-text">{{ report.description }}</small>
+            {% endif %}
+          </td>
+          <td>{{ report.owner_role|default:"—" }}</td>
           <td>{% if report.supports_pdf %}✓{% endif %}</td>
           <td>{% if report.supports_rows %}✓{% endif %}</td>
           <td><a href="{% url 'reporting:generate_form' report.code %}">{% trans "Générer" %}</a></td>
         </tr>
       {% empty %}
-        <tr><td colspan="6">{% trans "Aucun rapport accessible." %}</td></tr>
+        <tr><td colspan="7">{% trans "Aucun rapport accessible." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

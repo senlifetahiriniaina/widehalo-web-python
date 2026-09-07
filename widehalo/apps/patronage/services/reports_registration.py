@@ -49,6 +49,8 @@ def _adapter_version_comparison_report(
 def register_reports() -> None:
     register_report(
         code="PAT-MES",
+        owner_role="resp_production",
+        description="Tableau des mesures d'un modèle, taille par taille.",
         module="patronage",
         label="Tableau de mesures",
         permission="patronage.view_patsizechart",
@@ -58,6 +60,10 @@ def register_reports() -> None:
     )
     register_report(
         code="PAT-CONSO",
+        owner_role="resp_production",
+        description=(
+            "Consommation matière par modèle, comparée au métrage théorique du plan de coupe."
+        ),
         module="patronage",
         label="Consommation matiere",
         permission="patronage.view_patconsumption",
@@ -66,6 +72,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PAT-MARKER",
+        owner_role="resp_production",
+        description="Plan de coupe d'un modèle : placement des pièces et taux de chute.",
         module="patronage",
         label="Plan de coupe",
         permission="patronage.view_patmarker",
@@ -74,6 +82,8 @@ def register_reports() -> None:
     )
     register_report(
         code="PAT-VERS",
+        owner_role="resp_production",
+        description="Comparaison de deux versions d'un patron, différence par différence.",
         module="patronage",
         label="Comparaison de versions",
         permission="patronage.view_patpattern",

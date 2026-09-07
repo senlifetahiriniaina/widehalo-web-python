@@ -83,6 +83,8 @@ def _adapter_forecast_rows(params: dict[str, Any], actor: User | None) -> list[d
 def register_reports() -> None:
     register_report(
         code="SAL-BL",
+        owner_role="magasinier",
+        description="Bon de livraison accompagnant la marchandise, archivé comme pièce légale.",
         module="sales",
         label="Bon de livraison",
         permission="sales.view_salesorder",
@@ -91,6 +93,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-DEVIS",
+        owner_role="commercial",
+        description="Devis à adresser au client, avec sa durée de validité.",
         module="sales",
         label="Devis",
         permission="sales.view_salesquotation",
@@ -98,6 +102,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-BC",
+        owner_role="commercial",
+        description="Confirmation de commande à adresser au client.",
         module="sales",
         label="Confirmation de commande",
         permission="sales.view_salesorder",
@@ -105,6 +111,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-CA",
+        owner_role="resp_commercial",
+        description="Chiffre d'affaires sur une période, ventilé selon l'axe demandé.",
         module="sales",
         label="Chiffre d'affaires",
         permission="sales.view_salesorder",
@@ -112,6 +120,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-MARGE",
+        owner_role="resp_commercial",
+        description="Marge commerciale par commande ou par article, prix de revient déduit.",
         module="sales",
         label="Marge commerciale",
         permission="sales.view_salesorder",
@@ -119,6 +129,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-RET",
+        owner_role="resp_commercial",
+        description="Commandes clients dont la date de livraison promise est dépassée.",
         module="sales",
         label="Commandes en retard",
         permission="sales.view_salesorder",
@@ -127,6 +139,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-OBJ",
+        owner_role="resp_commercial",
+        description="Objectifs commerciaux face au réalisé, par commercial et par période.",
         module="sales",
         label="Objectifs commerciaux",
         permission="sales.view_salestarget",
@@ -135,6 +149,8 @@ def register_reports() -> None:
     )
     register_report(
         code="SAL-PREV",
+        owner_role="resp_commercial",
+        description="Prévisions de vente publiées, avec la version et la date de leur publication.",
         module="sales",
         label="Previsions commerciales",
         permission="sales.view_salesforecast",

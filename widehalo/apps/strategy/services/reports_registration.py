@@ -86,6 +86,8 @@ def _adapter_capacity_outlook_rows(
 def register_reports() -> None:
     register_report(
         code="STRATEGY-BP",
+        owner_role="direction",
+        description="Business plan consolidé : hypothèses, comptes prévisionnels et financement.",
         module="strategy",
         label="Business plan",
         permission="strategy.view_stgobjective",
@@ -93,6 +95,11 @@ def register_reports() -> None:
     )
     register_report(
         code="CAP-90J",
+        owner_role="direction",
+        description=(
+            "Charge de travail engagée sur les quatre-vingt-dix prochains jours, face à la "
+            "capacité disponible."
+        ),
         module="strategy",
         label="Capacite de charge a 90 jours",
         permission="strategy.view_stgobjective",

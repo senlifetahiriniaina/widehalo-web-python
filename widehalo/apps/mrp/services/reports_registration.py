@@ -63,6 +63,10 @@ def _adapter_workload_report(params: dict[str, Any], actor: User | None) -> list
 def register_reports() -> None:
     register_report(
         code="MRP-OF",
+        owner_role="chef_atelier",
+        description=(
+            "Ordre de fabrication à remettre à l'atelier : nomenclature, gamme et quantités."
+        ),
         module="mrp",
         label="Ordre de fabrication",
         permission="mrp.view_mrporder",
@@ -70,6 +74,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-COUT",
+        owner_role="controleur_gestion",
+        description="Coût réel d'un ordre de fabrication, matière, main-d'œuvre et écarts compris.",
         module="mrp",
         label="Cout de production",
         permission="mrp.view_mrporder",
@@ -77,6 +83,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-CRA",
+        owner_role="chef_atelier",
+        description="Compte-rendu d'activité d'un atelier : temps passés et quantités produites.",
         module="mrp",
         label="Compte-rendu d'activite",
         permission="mrp.view_mrpcra",
@@ -85,6 +93,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-CRI",
+        owner_role="chef_atelier",
+        description="Compte-rendu d'incident de production, avec sa cause et l'action engagée.",
         module="mrp",
         label="Compte-rendu d'incident",
         permission="mrp.view_mrpcri",
@@ -93,6 +103,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-EFF",
+        owner_role="resp_production",
+        description="Efficacité par poste de charge : temps utile rapporté au temps ouvert.",
         module="mrp",
         label="Efficacite",
         permission="mrp.view_mrpworkcenter",
@@ -101,6 +113,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-REBUT",
+        owner_role="resp_production",
+        description="Rebuts par motif et par poste, pour situer où la matière se perd.",
         module="mrp",
         label="Rebuts",
         permission="mrp.view_mrpscrap",
@@ -109,6 +123,8 @@ def register_reports() -> None:
     )
     register_report(
         code="MRP-CHARGE",
+        owner_role="resp_production",
+        description="Charge planifiée par atelier face à sa capacité, pour repérer les goulets.",
         module="mrp",
         label="Charge atelier",
         permission="mrp.view_mrpworkshop",

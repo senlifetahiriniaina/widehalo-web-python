@@ -35,6 +35,8 @@ def _adapter_feasibility_study_pdf(params: dict[str, Any], actor: User | None) -
 def register_reports() -> None:
     register_report(
         code="FEA-STUDY",
+        owner_role="direction",
+        description="Synthèse d'une étude de faisabilité : hypothèses, scénarios et conclusion.",
         module="feasibility",
         label="Etude de faisabilite",
         permission="feasibility.view_feastudy",
