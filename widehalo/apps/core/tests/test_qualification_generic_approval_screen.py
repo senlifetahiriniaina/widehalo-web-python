@@ -121,11 +121,18 @@ def qualification_setup():
 def test_generic_pending_approvals_endpoint_surfaces_the_qualification_request(
     qualification_setup,
 ) -> None:
+    """L'en-tete `X-Tenant-Id` n'est pas decoratif : `pending_for_user`
+    filtre desormais sur la societe active, et c'est le middleware qui
+    l'active depuis cet en-tete. Un appel sans en-tete ne renvoie plus
+    rien — ce que verifie
+    `test_wf_tenant_isolation.py::test_outside_any_company_context_nothing_is_returned`.
+    L'endpoint de decision, lui, l'envoyait deja."""
+    tenant = qualification_setup["tenant"]
     client = Client()
     token = _access_token(client, "approver@example.com", "Str0ngPassw0rd!23")
     response = client.get(
         "/api/v1/approvals/pending",
-        **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+        **_headers(token, str(tenant.id)),
     )
 
     assert response.status_code == 200

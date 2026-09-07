@@ -44,25 +44,39 @@ def setup():
 
 
 def test_primary_approver_sees_pending_request_immediately(setup) -> None:
-    _tenant, _author, primary, _backup, request = setup
-    assert request in approvals.pending_for_user(primary)
+    tenant, _author, primary, _backup, request = setup
+    with use_tenant(tenant.id):
+        assert request in approvals.pending_for_user(primary)
 
 
 def test_backup_approver_does_not_see_it_before_escalation_delay(setup) -> None:
-    _tenant, _author, _primary, backup, request = setup
-    assert request not in approvals.pending_for_user(backup)
+    """Absence CONSTATEE DANS LE CONTEXTE DE LA SOCIETE, et c'est tout
+    l'interet du `use_tenant` ici.
+
+    Ce test passait avant la correction d'isolation, et il passait encore
+    apres — mais pour une raison differente : hors contexte, `pending_for_
+    user` ne renvoie plus rien du tout, donc l'absence etait garantie sans
+    rien dire du delai d'escalade. Un test qui affirme une absence est
+    exactement celui qu'un filtrage trop large rend vert par accident."""
+    tenant, _author, primary, backup, request = setup
+    with use_tenant(tenant.id):
+        # Temoin : la requete EST visible pour quelqu'un. Sans lui, ce test
+        # resterait vert si `pending_for_user` renvoyait `none()`.
+        assert request in approvals.pending_for_user(primary)
+        assert request not in approvals.pending_for_user(backup)
 
 
 def test_backup_approver_sees_it_after_escalation_delay(setup) -> None:
-    _tenant, _author, _primary, backup, request = setup
+    tenant, _author, _primary, backup, request = setup
     ApprovalRequest.objects.filter(pk=request.pk).update(
         created_at=timezone.now() - timedelta(hours=25)
     )
-    assert request in approvals.pending_for_user(backup)
+    with use_tenant(tenant.id):
+        assert request in approvals.pending_for_user(backup)
 
 
 def test_delegate_approval_makes_request_visible_to_delegate(setup) -> None:
-    _tenant, author, primary, _backup, request = setup
+    tenant, author, primary, _backup, request = setup
     delegate = User.objects.create_user(email="delegate@example.com", password="Str0ngPassw0rd!23")
     approvals.delegate_approval(
         delegator=author,
@@ -70,4 +84,5 @@ def test_delegate_approval_makes_request_visible_to_delegate(setup) -> None:
         valid_from=timezone.now() - timedelta(hours=1),
         valid_to=timezone.now() + timedelta(hours=1),
     )
-    assert request in approvals.pending_for_user(delegate)
+    with use_tenant(tenant.id):
+        assert request in approvals.pending_for_user(delegate)
