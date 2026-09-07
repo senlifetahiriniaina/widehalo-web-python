@@ -52,31 +52,16 @@ def get_leave_balance_remaining_days(
     return balance.remaining_days if balance else None
 
 
-def get_validated_overtime_hours(
-    tenant: Tenant, employee_id: UUID, *, date_from: dt.date, date_to: dt.date
-) -> Decimal:
-    """Gap prepare pour le futur module Paie : total des heures sup
-    VALIDEES (jamais brouillon) sur une periode, toutes categories de
-    majoration confondues — le detail par categorie reste consultable via
-    l'API `presence` elle-meme si le futur module Paie en a besoin."""
-    total = PrsOvertime.objects.filter(
-        tenant=tenant,
-        employee_id=employee_id,
-        date__gte=date_from,
-        date__lte=date_to,
-        state=PrsOvertime.STATE_VALIDATED,
-    ).aggregate(total=Sum("hours"))["total"]
-    return total if total is not None else Decimal(0)
-
-
 def get_validated_overtime_by_category(
     tenant: Tenant, employee_id: UUID, *, date_from: dt.date, date_to: dt.date
 ) -> dict[str, Decimal]:
-    """Les memes heures, VENTILEES par categorie de majoration.
+    """Heures supplementaires VALIDEES (jamais brouillon) sur une periode,
+    VENTILEES par categorie de majoration.
 
-    **Ce qui manquait, et ce que son absence coutait.** La fonction voisine
-    ne rend qu'un total « toutes categories confondues ». `payroll` n'avait
-    donc rien d'autre a imputer, et son repli mettait TOUT en `h_sup_30`
+    **Ce qui manquait, et ce que son absence coutait.** Cette fonction
+    remplace `get_validated_overtime_hours`, qui ne rendait qu'un total
+    « toutes categories confondues ». `payroll` n'avait donc rien d'autre a
+    imputer, et son repli mettait TOUT en `h_sup_30`
     (majoration 1,30) — y compris les heures d'un jour ferie, dont le
     multiplicateur legal est 2,00. Une heure de ferie etait payee 35 % de
     moins que le du, une heure de dimanche 7 % de moins, une heure de
@@ -86,7 +71,13 @@ def get_validated_overtime_by_category(
     Renvoie un dict de primitives, jamais des objets ORM (regle de couplage
     n°1) : `{"ferie": Decimal("8.00"), "dimanche": Decimal("4.00")}`. Une
     categorie sans heure validee est ABSENTE du dict plutot que presente a
-    zero — un zero explicite se propagerait en ligne de bulletin vide."""
+    zero — un zero explicite se propagerait en ligne de bulletin vide.
+
+    Le total, lui, n'a plus de fonction dediee : il vaut
+    `sum(get_validated_overtime_by_category(...).values())`. En garder une
+    apres que `payroll` a cesse de l'appeler aurait laisse dans le contrat
+    public une fonction sans aucun appelant de production — exactement le
+    motif que ce depot corrige ailleurs."""
     lignes = (
         PrsOvertime.objects.filter(
             tenant=tenant,

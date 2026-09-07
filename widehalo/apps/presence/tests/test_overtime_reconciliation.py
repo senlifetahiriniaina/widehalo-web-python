@@ -12,7 +12,7 @@ from apps.presence.models import PrsOvertime
 from apps.presence.services.attendance import check_in, check_out
 from apps.presence.services.employees import create_employee
 from apps.presence.services.overtime import record_overtime, validate_overtime
-from apps.presence.services.public import get_validated_overtime_hours
+from apps.presence.services.public import get_validated_overtime_by_category
 from apps.presence.services.reconciliation import reconcile_month
 
 pytestmark = pytest.mark.django_db
@@ -36,10 +36,12 @@ def test_record_and_validate_overtime() -> None:
         validated = validate_overtime(overtime, chef)
         assert validated.state == PrsOvertime.STATE_VALIDATED
 
-        total = get_validated_overtime_hours(
+        # Ventilation plutot que total : elle dit AUSSI sous quelle
+        # majoration les heures partiront en paie, ce que le total taisait.
+        ventilation = get_validated_overtime_by_category(
             tenant, employee.id, date_from=dt.date(2026, 3, 1), date_to=dt.date(2026, 3, 31)
         )
-        assert total == Decimal("2")
+        assert ventilation == {PrsOvertime.RATE_H_SUP_30: Decimal("2")}
 
 
 def test_reconcile_month_flags_large_deviation() -> None:

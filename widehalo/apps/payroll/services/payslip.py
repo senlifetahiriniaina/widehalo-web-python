@@ -134,10 +134,11 @@ def simulate_payslip(
     # de moins. La categorie etait pourtant saisie et validee dans `presence` :
     # elle se perdait ici, a la derniere marche.
     #
-    # `get_validated_overtime_hours` (le total) n'est plus lu ici. Le garder
-    # « pour temoin » aurait ete du theatre : les deux fonctions filtrent les
-    # memes lignes, leur somme ne peut pas diverger. Il reste expose pour ses
-    # autres appelants.
+    # Le total « toutes categories confondues » n'est plus lu ici, et il
+    # n'existe plus : apres cette correction il n'avait plus aucun appelant
+    # de production, et le garder « pour temoin » aurait ete du theatre —
+    # les deux lectures filtrent les memes lignes, leur somme ne peut pas
+    # diverger.
     resolved_overtime_hours: dict[str, object] = (
         dict(overtime_hours)
         if overtime_hours

@@ -37,10 +37,13 @@ rattrapage pour les Phases 1 à 3, puis les 34 sprints de la Phase 4 — est dan
    compteurs de modèles/endpoints/écrans ne font foi que ré-exécutés
    (`widehalo/tests/architecture/test_budget.py`, méthode dans
    `docs/planning/ECART_ARCHITECTURE.md` §1). Dernière mesure officielle, le
-   **2026-09-05** : **300 modèles / 576 endpoints / 240 écrans**. Les écrans étaient
-   alors saturés exactement (240/240) ; les trois plafonds ont été relevés de **+33 %**
-   le même jour — **415 / 800 / 320** (`widehalo/config/settings/base.py`, décision
-   commentée sur place). Ce relèvement ne couvre pas la Phase 4 (430 / 1 210 / 278).
+   **2026-09-07** : **315 modèles / 589 endpoints / 252 écrans**, contre des plafonds
+   de **519 / 1 500 / 400** (`widehalo/config/settings/base.py`, chaque relèvement
+   commenté sur place). Aucun plafond n'est proche, et les trois couvrent désormais la
+   projection de la Phase 4 (430 / 1 210 / 278) — ce qui n'était pas le cas des
+   valeurs 415 / 800 / 320 que ce paragraphe affichait encore, deux relèvements en
+   retard. **Le chiffre de ce README a déjà été périmé deux fois : re-mesurer, ne
+   jamais le citer.**
 
 Modules métier sous `widehalo/apps/` : `accounting`, `ai`, `analytics`, `automation`,
 `bi`, `catalog`, `chat`, `crm`, `feasibility`, `financing`, `forecast`, `helpdesk`,

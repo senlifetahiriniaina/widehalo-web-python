@@ -233,7 +233,7 @@ explicitement non fermés : **BI-3** (catalogue hérité absent du dépôt, cf. 
 le **coût réellement facturé par Meta** (WA-10, jamais récupéré : l'estimation portée par
 le modèle de message reste une estimation).
 
-## 3 ter. Phase 4, bloc A — avancement des sprints S1 à S3
+## 3 ter. Phase 4, bloc A — avancement des sprints S1 à S5
 
 | Sprint | État | Écart avec le chiffrage et l'énoncé de ce plan |
 |---|---|---|
@@ -260,7 +260,27 @@ et ce qui a été livré.
 | **BI-3** — catalogue hérité | **Séparer ce qui est bloqué de ce qui ne l'est pas.** L'arbitrage sur 91 rapports jamais vus ne s'invente pas ; le catalogue interne que le même sprint demande ne dépendait d'aucune information extérieure. | ✅ 63 rapports déclarent propriétaire et description, refusés à l'enregistrement s'ils sont incomplets. Le domaine n'a pas été ajouté : `module` l'est déjà. Lu à l'écran, dans l'API et dans le miroir persistant. La moitié bloquée devient une **demande d'une page** (`2026-09-bi3-demande-catalogue-herite.md`). **BI-3 passe ❌ → 🟡.** |
 | **S4** — idempotence, corrélation, rejeu | Sprint ordinaire, plus trois défauts antérieurs à la Phase 4 vérifiés sur pièces. | ✅ Clé stable entre tentatives et neuve au rejeu supervisé (le cahier §13.4 se contredit ; le critère FLX-4 tranche) ; successeur qui ne réécrit jamais l'original ; estimation qui dit quand son total n'est qu'un plancher. Les trois défauts fermés, plus deux trouvés en chemin. |
 | **S4** — trouvé en falsifiant | — | ✅ **L'unicité des clefs d'idempotence ne mordait pas quand `tenant_id` était nul** : PostgreSQL considère deux NULL comme distincts. L'idempotence n'était donc pas garantie pour les appels sans tenant résolu. Fermé par `nulls_distinct=False`. ✅ **Aucune protection contre le rejeu entrant** — le cahier §8.2 la classe « le défaut le plus coûteux de cette famille » : l'identifiant du fournisseur était stocké et jamais interrogé, et une re-livraison produisait deux lignes ET deux traitements. |
-| **Angle mort RLS** | — | 🟡 **Dix modèles** portent un discriminant de tenant hors du périmètre de `apply_rls`, qui sélectionne sur `issubclass(BaseModel)`. Aucun n'était déclaré comme exception. La garde `test_rls_coverage.py` transforme l'angle mort en décision explicite ; elle ne les met pas sous RLS — plusieurs ne peuvent pas y passer. Une seule entrée n'a **aucune bonne raison** (`ApprovalRule`, vraie clé étrangère non nulle) : correction chiffrée séparément, `id` et `is_active` entrant en collision avec ceux de `BaseModel`. |
+| **Angle mort RLS** | — | 🟡 **Dix modèles** portent un discriminant de tenant hors du périmètre de `apply_rls`, qui sélectionne sur `issubclass(BaseModel)`. Aucun n'était déclaré comme exception. La garde `test_rls_coverage.py` transforme l'angle mort en décision explicite ; elle ne les met pas sous RLS — plusieurs ne peuvent pas y passer. Une seule entrée n'avait **aucune bonne raison** (`ApprovalRule`, vraie clé étrangère non nulle). **Dette remboursée depuis** (§3 quinquies) : les deux modèles de validation héritent de `BaseModel` et la liste d'exceptions n'en compte plus que neuf. |
+
+## 3 quinquies. S5, l'isolation de la validation, et les jours fériés
+
+*Suite de §3 ter, écrite après coup pour la même raison : la trace du point de départ
+est ce qui rend le progrès lisible.*
+
+| Sujet | État | Ce qui a été livré, et ce que ça a fait voir |
+|---|---|---|
+| **S5** — correspondances, planification, déclencheurs | ✅ livré | FLX-6 (correspondance refusée à l'enregistrement, jeu fermé de six transformations toutes implémentées), axe A4 (planification adossée au calendrier malgache, `next_run_at` enfin écrit par un répartiteur), FLX-2 (déclencheurs en effet de bord asynchrone). Le calendrier férié remonte de `forecast` vers `core` : `flows` ne peut pas atteindre `forecast` sans violer la règle de couplage n°1. |
+| **Le défaut qui rendait une fonctionnalité inerte** | — | `core/workflows.py` publiait `workflow.transitioned` **sans `tenant_id`**, et `automation/dispatch.py` écarte tout événement qui n'en porte pas : **aucun `AutoFlow` branché sur une transition ne pouvait se déclencher**. Mesuré : 25 des 26 publieurs étaient corrects — un trou unique, au point le plus central. Aucun test ne rougissait, les six tests d'`automation` court-circuitant le vrai publieur. |
+| **Isolation de la validation** — couche 1 | ✅ livré | **Fuite réelle** : `pending_for_user` ne filtrait sur aucune société. Un approbateur voyait et pouvait DÉCIDER les demandes de toute société portant le même rôle. Filtre de service, société prise du contexte actif — un paramètre explicite aurait créé dix occasions de passer la mauvaise valeur. |
+| **Isolation** — couche 2 | ✅ livré | `ApprovalRule` et `ApprovalRequest` sous `BaseModel` (migration `core/0039`). **La mesure corrige l'estimation qui justifiait de reporter** : le motif chiffrait « trois lecteurs », il y en a **17 et 13** — faux d'un facteur six, et minimisant le risque. Trois défauts trouvés en faisant, dont un remplissage de migration qu'aucun test n'exerçait. |
+| **La fixture du bus détruisait tous les abonnés** | ✅ corrigé | `test_event_bus.py` vidait les registres sans les remettre : pour tout le reste de la session pytest, l'abonné générique d'`automation`, celui de `flows` et les vingt-et-un `@subscribe` disparaissaient. **De la non-couverture silencieuse** — un abonné absent ne lève pas. |
+| **Jours fériés et majoration de paie** | ✅ livré | Le calendrier ne portait que **3 des 7 fêtes mobiles**. Et surtout : la majoration d'un férié travaillé (2,00, soit +100 %) **n'arrivait jamais au bulletin** — `presence` n'exposait qu'un total, `payslip.py` imputait tout à `h_sup_30`. Une heure de férié était payée **1,30 au lieu de 2,00**. Corrigé pour les cinq catégories. Les jours d'élection deviennent saisissables à l'écran. |
+| **Reste ouvert et dit** | — | La règle porte sur **toutes** les heures d'un férié travaillé, pas seulement sur les heures supplémentaires déclarées : le bulletin calcule un forfait mensuel de jours sans valorisation par jour. Chiffré séparément. |
+
+**Reste du bloc A : S6 seul** — adaptateur factice couvrant OP1–OP8, garde CI FLX-1,
+purge de charge utile (FLX-5 : la table porte sa date de rétention, **rien ne purge**),
+isolation à deux sociétés sur `flows` (FLX-7, zéro occurrence), garde sur les secrets
+dans les journaux (FLX-8). Le registre d'adaptateurs est **vide en production**.
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
