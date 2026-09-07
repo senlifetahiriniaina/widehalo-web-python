@@ -53,6 +53,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.services.redaction import redact_secrets
 from apps.flows.models import FlwExchange, FlwIncident, FlwLink
 from apps.flows.services.exchange import transition_exchange
 from apps.flows.services.incidents import record_failure
@@ -461,7 +462,10 @@ def _call_adapter(
         outcome = CallOutcome(
             ok=False,
             result_code="exception_adaptateur",
-            result_message=str(exc)[:2000],
+            # Rediger PUIS tronquer : l'inverse couperait un motif en deux
+            # et le laisserait passer a moitie — une moitie de secret reste
+            # un secret pour qui connait l'autre.
+            result_message=redact_secrets(str(exc))[:2000],
             family=FlwIncident.FAMILY_EDITOR,
         )
     return outcome, clock() - before

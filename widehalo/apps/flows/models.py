@@ -172,9 +172,11 @@ class FlwCredential(BaseModel):
       que `LogServiceProvider.webhook_secret` et `PrjGuestAccess.token`
       s'en passent alors que le champ existe (§3.6, ecart aggravant de
       FLX-8) ;
-    - *jamais lue par le copilote* : aucun outil de `data_query` ne sera
-      enregistre sur ce modele, et la garde de redaction des secrets (S6,
-      FLX-8) le verifiera au niveau des journaux.
+    - *jamais lue par le copilote* : aucun outil de `data_query` n'est
+      enregistre sur ce modele, et la redaction de S6 (FLX-8) couvre
+      desormais les journaux — `apps.core.logging_filters.
+      SecretRedactingFormatter`, pose sur chaque gestionnaire et verifie
+      par `tests/architecture/test_secrets_are_never_written_to_a_log.py`.
 
     `secret_hint` existe pour que l'ecran puisse dire QUELQUE CHOSE d'un
     identifiant sans le reveler (« se termine par 4f2a »). Sans lui, un
@@ -722,9 +724,11 @@ class FlwPayload(BaseModel):
     clair ailleurs dans la base (une facture, un catalogue), et le chiffrer
     donnerait l'illusion d'une protection que le reste du schema n'offre
     pas. Les SECRETS, eux, ne transitent jamais par ici — ils vivent dans
-    `FlwCredential`, chiffres, et la garde de redaction de S6 (FLX-8)
-    verifiera qu'aucun motif ressemblant a un secret n'atterrit dans une
-    charge utile ou un journal."""
+    `FlwCredential`, chiffres, et depuis S6 (FLX-8) `prepare_exchange`
+    REDIGE le corps a l'ecriture, dans les termes memes du cahier (§13.2,
+    « redaction des secrets a l'ecriture »). L'empreinte est calculee sur
+    le corps REDIGE : elle prouve ce qui part reellement, et l'inverse
+    prouverait un contenu que personne n'a jamais transmis."""
 
     exchange = models.OneToOneField(FlwExchange, on_delete=models.CASCADE, related_name="payload")
     content_type = models.CharField(max_length=64, default="application/json")

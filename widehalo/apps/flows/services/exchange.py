@@ -47,6 +47,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.services.redaction import redact_secrets
 from apps.flows.models import FlwExchange, FlwPayload
 from apps.flows.operations import is_inbound_operation, validate_operation
 
@@ -220,6 +221,18 @@ def prepare_exchange(
             }
         )
     now = timezone.now()
+    # FLX-8, et le cahier le dit dans ces termes exacts (§13.2, ligne
+    # « charge utile ») : « redaction des secrets A L'ECRITURE ». Redigee
+    # AVANT l'empreinte, jamais apres : l'empreinte doit porter sur ce qui
+    # part reellement chez le tiers, et ce qui part est le corps stocke.
+    # L'empreindre avant redaction prouverait un contenu que personne n'a
+    # jamais transmis.
+    #
+    # Rediger le corps SORTANT n'appauvrit rien de legitime : les
+    # identifiants d'acces au tiers viennent de `FlwCredential`, poses par
+    # l'adaptateur ; un motif de secret dans une piece metier est une fuite,
+    # pas une donnee utile.
+    corps = redact_secrets(body) if body else ""
     exchange = FlwExchange.objects.create(
         tenant=tenant,
         link=link,
@@ -229,16 +242,16 @@ def prepare_exchange(
         document_type=document_type,
         document_id=document_id,
         correlation_key=correlation_key,
-        payload_fingerprint=FlwExchange.fingerprint_of(body) if body else "",
+        payload_fingerprint=FlwExchange.fingerprint_of(corps) if corps else "",
         partition_month=FlwExchange.month_of(now.date()),
     )
-    if body:
+    if corps:
         FlwPayload.objects.create(
             tenant=tenant,
             exchange=exchange,
             content_type=content_type,
-            body=body,
-            byte_size=len(body.encode("utf-8")),
+            body=corps,
+            byte_size=len(corps.encode("utf-8")),
         )
     return exchange
 
@@ -347,7 +360,11 @@ def transition_exchange(
         exchange.result_code = result_code
         fields.append("result_code")
     if result_message:
-        exchange.result_message = result_message
+        # FLX-8, surface « message d'erreur affiche a l'utilisateur ».
+        # Redige ICI, au SEUL point d'ecriture de la colonne, plutot qu'a
+        # chaque appelant : un appelant ajoute demain sans y penser
+        # rouvrirait la fuite, et personne ne le verrait.
+        exchange.result_message = redact_secrets(result_message)
         fields.append("result_message")
 
     exchange.save(update_fields=fields)

@@ -656,9 +656,26 @@ REPORTING_ASYNC_THRESHOLD_SECONDS = 30.0
 # que `sandbox.DEFAULT_EXPIRY_DAYS`) — 7 jours conformement au CDC.
 REPORTING_JOB_RETENTION = timedelta(days=7)
 
+# FLX-8 : « un motif ressemblant a un secret n'apparait dans aucun
+# journal ». Le formateur redige APRES formatage — donc message, arguments
+# ET trace d'exception, qui est la forme sous laquelle un secret arrive
+# reellement dans un journal. Un `logging.Filter` n'aurait vu que le
+# message : il aurait donne l'impression de couvrir la surface en en
+# laissant passer la moitie la plus dangereuse.
+#
+# Sur CHAQUE gestionnaire, et c'est verifie par
+# `tests/architecture/test_secrets_are_never_written_to_a_log.py` : un
+# gestionnaire ajoute plus tard sans formateur rouvrirait la fuite en
+# silence, exactement comme un modele ajoute sans RLS.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "formatters": {
+        "redige": {
+            "()": "apps.core.logging_filters.SecretRedactingFormatter",
+            "format": "%(levelname)s %(name)s %(message)s",
+        }
+    },
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "redige"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }

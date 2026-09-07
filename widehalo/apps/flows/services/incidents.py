@@ -32,6 +32,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.services.redaction import redact_secrets
 from apps.flows.models import FlwIncident
 
 if TYPE_CHECKING:
@@ -140,6 +141,12 @@ def record_failure(
     ferait echouer la passe entiere pour un echec deja gere."""
     moment = now or timezone.now()
     recovery_action(family)  # refuse tout de suite une famille sans reprise
+    # FLX-8, surface « message d'erreur affiche a l'utilisateur ».
+    # `last_result_message` recopie ce que le TIERS a renvoye, et un tiers
+    # qui refuse une authentification renvoie volontiers l'en-tete qu'il a
+    # recu. Redige une fois ici, ou la valeur entre — les deux ecritures qui
+    # suivent la partagent.
+    result_message = redact_secrets(result_message)
 
     existing = live_incident(link, family)
     if existing is None:
