@@ -50,7 +50,7 @@ source FOR-14 plus précis que sa paraphrase dans le plan/l'audit) :
   projetée à la capacité déclarée (`workload_pct`), assemblant enfin les
   deux briques que l'audit identifie comme "disponibles mais non
   assemblées" (capacité `MrpWorkshop.capacity_hours_day` +
-  `apps.forecast.services.calendar.business_days_in_month`, FOR-5).
+  `apps.core.services.calendar.business_days_in_month`, FOR-5).
 - Aucun `ForExceptionalPoint` : ce mécanisme est réservé aux 4
   dimensions de vente existantes (rupture d'appro, promo isolée...),
   hors périmètre de ce sprint (ni le plan ni l'audit ne le demandent) —
@@ -65,7 +65,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from apps.forecast.services.calendar import business_days_in_month
+from apps.core.services.calendar import business_days_in_month
 from apps.forecast.services.engine import MODEL_FUNCTIONS, select_model
 from apps.mrp.services.public import get_workshop_realized_hours_series, list_workshops
 

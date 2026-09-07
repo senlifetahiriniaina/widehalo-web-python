@@ -6,17 +6,8 @@ import datetime as dt
 from decimal import Decimal
 
 import factory
-from apps.forecast.models import ForExceptionalPoint, ForHoliday, ForPublication, ForSeriesForecast
+from apps.forecast.models import ForExceptionalPoint, ForPublication, ForSeriesForecast
 from django.utils import timezone
-
-
-class ForHolidayFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = ForHoliday
-
-    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
-    date = factory.Sequence(lambda n: dt.date(2026, 1, 1) + dt.timedelta(days=n))
-    name = factory.Sequence(lambda n: f"Jour férié {n}")
 
 
 class ForExceptionalPointFactory(factory.django.DjangoModelFactory):

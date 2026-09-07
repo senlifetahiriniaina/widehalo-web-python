@@ -392,18 +392,24 @@ class FlwSchedule(BaseModel):
     # Report sur jour ouvre : jamais une liste de dates recopiee ici (une
     # garde CI l'interdit, `tests/architecture/test_no_hardcoded_holidays.py`).
     #
-    # ATTENTION, point a trancher en S5 : le calendrier des jours feries
-    # malgaches vit dans `apps.forecast` (`ForHoliday`,
-    # `services/calendar.py`), PAS dans `apps.core` — une premiere redaction
-    # de ce commentaire l'affirmait, a tort. La difference est bloquante et
-    # non cosmetique : `flows` ne declare que `core` en dependance, et la
-    # regle de couplage n°1 interdit d'importer `apps.forecast.services.
-    # calendar` (qui n'est pas un `services/public.py`). S5 devra donc
-    # arbitrer — exposer le calendrier dans le contrat public de `forecast`
-    # et declarer la dependance, ou le remonter dans `core`. Il existe par
-    # ailleurs une SECONDE source de feries (`core.CountryDefaultsProfile.
-    # holidays`), appauvrie (pas de jours mobiles, pas de portee tenant) :
-    # s'en servir creerait deux verites, ce que ce depot refuse ailleurs.
+    # TRANCHE EN S5, et dans l'autre sens que ce commentaire ne l'annoncait :
+    # le calendrier est REMONTE dans `core` (`core.Holiday`,
+    # `core/services/calendar.py`) plutot qu'expose par le contrat public de
+    # `forecast`. Un calendrier national est une donnee de reference, comme
+    # `CountryDefaultsProfile` qui vit deja la ; et faire dependre le socle
+    # de connectivite d'un module qui depend lui-meme de sept autres aurait
+    # inverse la hierarchie que la regle de couplage n°1 protege.
+    # `forecast` relit desormais le calendrier depuis `core`, ce qui allege
+    # son couplage au lieu d'alourdir celui de `flows`.
+    #
+    # Le comptage des sources de feries, fait a cette occasion : il y en
+    # avait TROIS, dont deux mortes. `CountryDefaultsProfile.holidays`
+    # (JSONField) n'a aucun lecteur ni aucun ecrivain dans tout le depot ;
+    # `presence/services/calendar.py` (65 lignes, quatre fonctions) n'en a
+    # pas davantage. Elles ne sont pas supprimees ici — la seconde porte une
+    # information que `core.Holiday` n'a pas (la majoration de paie d'un
+    # ferie travaille) — mais le constat est ecrit dans
+    # `docs/planning/2026-09-s5-trois-calendriers-feries.md`.
     skip_public_holidays = models.BooleanField(default=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
     last_run_at = models.DateTimeField(null=True, blank=True)

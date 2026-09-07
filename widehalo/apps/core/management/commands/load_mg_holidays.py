@@ -1,8 +1,8 @@
 """Charge les jours feries malgaches depuis `fixtures/mg_holidays.json`.
 
 **Correctif d'un defaut reel** : la docstring de
-`apps.forecast.services.calendar` renvoyait a cette commande depuis la
-livraison de FOR-5 — et le fichier n'existait pas. `ForHoliday` n'etait donc
+`apps.core.services.calendar` renvoyait a cette commande depuis la
+livraison de FOR-5 — et le fichier n'existait pas. `Holiday` n'etait donc
 peuple par rien d'autre qu'une saisie manuelle : sur une instance neuve,
 `is_business_day` tenait TOUT jour de semaine pour ouvre, et
 `business_days_in_month` surestimait la capacite de production de dix a
@@ -23,10 +23,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.core.management.base import BaseCommand, CommandError
+
+from apps.core.models.calendar import Holiday
 from apps.core.models.tenant import Tenant
 from apps.core.services.scheduled_commands import tenant_step
-from apps.forecast.models import ForHoliday
-from django.core.management.base import BaseCommand, CommandError
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent.parent / "fixtures" / "mg_holidays.json"
 
@@ -36,7 +37,7 @@ def holidays_for_year(year: int) -> list[tuple[dt.date, str]]:
 
     Une collision est possible et n'est pas une anomalie : le 29 mars 2027 et
     le 29 mars 2032 sont a la fois la commemoration de 1947 et le lundi de
-    Paques. La contrainte d'unicite `(tenant, date)` de `ForHoliday` l'exige,
+    Paques. La contrainte d'unicite `(tenant, date)` de `Holiday` l'exige,
     le premier libelle rencontre l'emporte, et la commande le signale plutot
     que d'echouer."""
     data: dict[str, Any] = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -55,8 +56,8 @@ def available_years() -> list[int]:
 
 class Command(BaseCommand):
     help = (
-        "Charge les jours feries malgaches (FOR-5) dans ForHoliday, depuis "
-        "apps/forecast/fixtures/mg_holidays.json. Idempotente ; ne remplace "
+        "Charge les jours feries malgaches (FOR-5) dans Holiday, depuis "
+        "apps/core/fixtures/mg_holidays.json. Idempotente ; ne remplace "
         "jamais une ligne existante."
     )
 
@@ -83,7 +84,7 @@ class Command(BaseCommand):
             raise CommandError(
                 f"Aucune date mobile connue pour {unknown} — la fixture couvre "
                 f"{known[0]}-{known[-1]}. Completer "
-                "`apps/forecast/fixtures/mg_holidays.json` (section « movable ») "
+                "`apps/core/fixtures/mg_holidays.json` (section « movable ») "
                 "plutot que de calculer Paques dans le code."
             )
 
@@ -98,7 +99,7 @@ class Command(BaseCommand):
                 created = skipped = 0
                 for year in years:
                     for date, name in holidays_for_year(year):
-                        _, was_created = ForHoliday.objects.get_or_create(
+                        _, was_created = Holiday.objects.get_or_create(
                             tenant=tenant, date=date, defaults={"name": name}
                         )
                         created += int(was_created)

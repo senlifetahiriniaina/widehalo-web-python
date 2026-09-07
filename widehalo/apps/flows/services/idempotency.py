@@ -55,6 +55,7 @@ def compute_idempotency_key(
     document_id: UUID | None,
     operation: str,
     replay_rank: int = 0,
+    occurrence: str = "",
 ) -> str:
     """La clef transmise au tiers.
 
@@ -74,7 +75,22 @@ def compute_idempotency_key(
     **Une piece nulle est admise** : certaines operations n'en ont pas
     (relever un statut global, recuperer un jeton). La clef reste alors
     stable pour le couple (liaison, operation), ce qui est le comportement
-    voulu — deux relevés simultanes ne doivent pas compter double."""
+    voulu — deux relevés SIMULTANES ne doivent pas compter double.
+
+    **`occurrence`, et le defaut qu'il ferme (S5).** « Simultanes » et
+    « quotidiens » ne sont pas la meme chose, et la premiere redaction de
+    cette fonction ne les distinguait pas : un releve quotidien sans piece
+    produisait chaque jour la MEME clef, donc une `IntegrityError` sur
+    `uniq_flw_exchange_idempotency_key` des le deuxieme jour. Une
+    planification serait morte apres un seul passage, en silence. Le
+    defaut a ete trouve en ecrivant le repartiteur, pas en relisant ce
+    fichier — et `test_s5_scheduling.py::
+    test_two_runs_of_the_same_schedule_do_not_collide` le retiendra.
+
+    `occurrence` designe donc LE PASSAGE : deux passages differents d'une
+    meme planification sont deux echanges legitimes, deux tentatives d'un
+    meme passage n'en font qu'un. Vide pour tout envoi rattache a une
+    piece, ou la piece joue deja ce role."""
     graine = "|".join(
         [
             str(link_id),
@@ -82,6 +98,7 @@ def compute_idempotency_key(
             str(document_id) if document_id else "",
             operation,
             str(replay_rank),
+            occurrence,
         ]
     )
     return hashlib.sha256(graine.encode("utf-8")).hexdigest()[:KEY_LENGTH]
@@ -104,7 +121,9 @@ def compute_correlation_key(*, document_type: str, document_id: UUID | None) -> 
     return f"{document_type}:{document_id}"
 
 
-def assign_keys(exchange: FlwExchange, *, replay_rank: int = 0) -> FlwExchange:
+def assign_keys(
+    exchange: FlwExchange, *, replay_rank: int = 0, occurrence: str = ""
+) -> FlwExchange:
     """Pose les deux clefs sur un echange qui n'en a pas encore.
 
     **Au moment de la MISE EN FILE, pas de la preparation.** Un echange
@@ -126,6 +145,7 @@ def assign_keys(exchange: FlwExchange, *, replay_rank: int = 0) -> FlwExchange:
         document_id=exchange.document_id,
         operation=exchange.operation,
         replay_rank=replay_rank,
+        occurrence=occurrence,
     )
     champs = ["idempotency_key"]
     if not exchange.correlation_key:

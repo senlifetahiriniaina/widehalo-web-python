@@ -1,6 +1,7 @@
 from apps.core.models.audit import AuditLog
 from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
 from apps.core.models.base import BaseModel, ReferenceMixin, TenantManager
+from apps.core.models.calendar import Holiday
 from apps.core.models.chatter import ChatterMessage
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
@@ -31,6 +32,7 @@ __all__ = [
     "BaseModel",
     "ReferenceMixin",
     "TenantManager",
+    "Holiday",
     "AuditLog",
     "TenantBackupSchedule",
     "TenantDataOperation",

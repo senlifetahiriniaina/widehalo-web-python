@@ -452,7 +452,7 @@ def _call_adapter(
     return outcome, clock() - before
 
 
-def queue_exchange(exchange: FlwExchange) -> FlwExchange:
+def queue_exchange(exchange: FlwExchange, *, occurrence: str = "") -> FlwExchange:
     """Met un echange en file, en lui posant ses deux clefs au passage.
 
     **C'est ICI que la clef d'idempotence est calculee, et pas a la
@@ -465,10 +465,15 @@ def queue_exchange(exchange: FlwExchange) -> FlwExchange:
     existe des maintenant parce que sans lui, chaque appelant devrait se
     souvenir de poser les clefs — et le premier qui l'oublierait
     transmettrait au tiers un echange sans protection contre le doublon,
-    sans que rien ne proteste."""
+    sans que rien ne proteste.
+
+    `occurrence` distingue deux PASSAGES d'une meme planification (S5) —
+    sans lui, un releve quotidien sans piece porterait chaque jour la meme
+    clef et la contrainte d'unicite tuerait la planification au deuxieme
+    jour. Vide pour tout envoi rattache a une piece metier."""
     from apps.flows.services.idempotency import assign_keys
 
-    assign_keys(exchange)
+    assign_keys(exchange, occurrence=occurrence)
     return transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
 
 

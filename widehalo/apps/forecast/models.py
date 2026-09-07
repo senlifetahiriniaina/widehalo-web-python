@@ -28,27 +28,6 @@ from apps.core.models.base import BaseModel
 from django.db import models
 
 
-class ForHoliday(BaseModel):
-    """Jour férié malgache (FOR-5 : « calendrier applique jours ouvrés/
-    fériés malgaches lus en table de référence ; un test vérifie qu'aucune
-    date fériée n'est écrite dans le code »). Un jour ouvré = ni samedi/
-    dimanche ni ligne `ForHoliday` — pas de table "tous les jours" (économie
-    de volume), seules les EXCEPTIONS sont stockées."""
-
-    date = models.DateField()
-    name = models.CharField(max_length=120)
-
-    class Meta:
-        db_table = "for_holiday"
-        constraints = [
-            models.UniqueConstraint(fields=["tenant", "date"], name="uniq_for_holiday_date")
-        ]
-        ordering = ["date"]
-
-    def __str__(self) -> str:
-        return f"{self.date.isoformat()} — {self.name}"
-
-
 class ForExceptionalPoint(BaseModel):
     """Point exceptionnel marqué sur l'historique d'une série (FOR-4 :
     « exclus de l'apprentissage sans disparaître de l'historique affiché »)

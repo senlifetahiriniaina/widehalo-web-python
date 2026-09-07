@@ -21,6 +21,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from apps.core.models.audit import AuditLog
 from apps.core.models.backup import TenantBackupSchedule, TenantDataOperation
+from apps.core.models.calendar import Holiday
 from apps.core.models.chatter import ChatterMessage
 from apps.core.models.document import Document
 from apps.core.models.event import EventLog
@@ -220,6 +221,15 @@ class RegulatoryParameterFactory(factory.django.DjangoModelFactory):
     code = factory.Sequence(lambda n: f"PARAM{n}")
     value = factory.LazyFunction(lambda: {"rate": "0.20"})
     valid_from = datetime.date(2026, 1, 1)
+
+
+class HolidayFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Holiday
+
+    tenant = factory.SubFactory(TenantFactory)
+    date = factory.Sequence(lambda n: datetime.date(2026, 1, 1) + datetime.timedelta(days=n))
+    name = factory.Sequence(lambda n: f"Jour férié {n}")
 
 
 class CountryDefaultsProfileFactory(factory.django.DjangoModelFactory):

@@ -12,8 +12,9 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
+from apps.core.models.calendar import Holiday
 from apps.core.views.tenant_web import resolve_tenant
-from apps.forecast.models import ForExceptionalPoint, ForHoliday, ForPublication, ForSeriesForecast
+from apps.forecast.models import ForExceptionalPoint, ForPublication, ForSeriesForecast
 from apps.forecast.services.adjustments import apply_adjustment, revert_adjustment
 from apps.forecast.services.compute import compute_and_store_forecast
 from apps.forecast.services.history import load_series_history
@@ -41,7 +42,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     elif tab == "tresorerie":
         context["projection"] = project_twelve_month_cash_inflows(tenant)
     elif tab == "calendrier":
-        context["holidays"] = ForHoliday.objects.filter(tenant=tenant).order_by("date")
+        context["holidays"] = Holiday.objects.filter(tenant=tenant).order_by("date")
     elif tab == "publications":
         context["publications"] = ForPublication.objects.filter(tenant=tenant).order_by("-version")
     elif tab == "charge_atelier":

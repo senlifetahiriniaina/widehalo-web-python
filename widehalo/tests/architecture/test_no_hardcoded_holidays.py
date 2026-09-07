@@ -3,10 +3,11 @@ malgaches lus en table de reference ; un test verifie qu'aucune date feriee
 n'est ecrite dans le code ».
 
 Le critere nommait ce test ; il n'existait pas. La cible, elle, etait deja
-propre : `apps.forecast.services.calendar` ne code que la regle du week-end
-et lit tout le reste dans `ForHoliday`, `apps.presence.services.calendar`
-passe par `RegulatoryParameter`. La garde rend donc opposable ce que le code
-fait deja — le moment ou une regle coute le moins cher a poser.
+propre : `apps.core.services.calendar` ne code que la regle du week-end
+et lit tout le reste dans `core.Holiday` (remonte de `forecast` en S5),
+`apps.presence.services.calendar` passe par `RegulatoryParameter`. La garde
+rend donc opposable ce que le code fait deja — le moment ou une regle coute
+le moins cher a poser.
 
 Ce qu'elle protege est concret : un jour ferie ecrit en Python est un jour
 ferie que l'exploitant ne peut pas corriger. Le calendrier malgache ajoute
@@ -147,7 +148,7 @@ def test_no_holiday_date_is_written_in_the_code() -> None:
     findings = _all_findings()
     assert not findings, (
         "Date(s) feriee(s) potentiellement ecrite(s) en dur — un jour ferie "
-        "n'existe QUE via une ligne `ForHoliday`, chargeable par "
+        "n'existe QUE via une ligne `core.Holiday`, chargeable par "
         "`manage.py load_mg_holidays` et corrigeable a l'ecran :\n"
         + "\n".join(f"  - {line}" for line in findings)
     )
