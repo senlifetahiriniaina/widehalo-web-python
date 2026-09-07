@@ -58,6 +58,7 @@ from typing import TYPE_CHECKING
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.cost_units import COST_UNIT_CHOICES
 from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel
 
@@ -573,6 +574,36 @@ class FlwExchange(BaseModel):
     # (cahier, meme decision). Ce champ porte le montant IMPUTE, resultat
     # d'une grille, jamais la grille elle-meme.
     cost_ariary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # L'UNITE sous laquelle ce montant a ete tarife — et c'est ce qui rend
+    # l'hypothese H26 du cahier SANS OBJET plutot que tranchee.
+    #
+    # H26 pose : « le passage de la messagerie professionnelle a une
+    # facturation au message est correctement modelisable dans le compteur
+    # existant sans reprise de l'historique », avec pour repli « deux unites
+    # de cout coexistent, avec une date de bascule », au prix d'« un sprint
+    # supplementaire au bloc H ». Le cahier demande de trancher au sprint 3,
+    # « le prendre apres le sprint 6 signifierait reprendre le socle ».
+    #
+    # La branche optimiste est vraie a MOITIE. Vraie : le cout est fige sur
+    # la ligne au moment de l'envoi, donc aucune reprise d'historique n'est
+    # necessaire — les lignes passees gardent le tarif qui leur a ete
+    # impute. Fausse : rien n'enregistre SOUS QUELLE UNITE. Un total sur une
+    # periode a cheval sur une bascule melangerait donc les deux en silence,
+    # et un plafond calcule sur ce total serait faux sans que rien ne le
+    # signale.
+    #
+    # Plutot que de parier sur une branche, on rend l'unite DONNEE. Le cout
+    # est alors un couple (montant, unite), jamais un montant seul. Si la
+    # bascule n'a jamais lieu, l'unite reste constante et rien n'est perdu ;
+    # si elle a lieu, chaque ligne dit deja sous quel regime elle a ete
+    # tarifee et aucun total ne ment. L'arbitrage cesse de conditionner la
+    # conception — c'est-a-dire qu'il cesse d'etre un risque de projet.
+    #
+    # `blank=True` sans `null=True` : la chaine vide accompagne un
+    # `cost_ariary` a `None`, un cout non impute n'ayant pas d'unite. Deux
+    # facons d'ecrire « rien » sur un champ texte rendraient toute requete
+    # ambigue.
+    cost_unit = models.CharField(max_length=16, choices=COST_UNIT_CHOICES, blank=True)
 
     # Cle de partition, cf. decision 3 de la docstring de module : posee des
     # la conception pour que la bascule en table partitionnee soit une

@@ -25,6 +25,7 @@ et le registre d'ordonnancement ne comptait aucune commande WhatsApp."""
 from __future__ import annotations
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
@@ -35,6 +36,7 @@ from apps.core.models.notification import WhatsAppMessage
 from apps.core.services.notifications import send_whatsapp_notification
 from apps.whatsapp.models import WaMessageTemplate
 from apps.whatsapp.services.consent import get_or_create_conversation, has_active_consent
+from apps.whatsapp.services.pricing import impute_cost
 from apps.whatsapp.services.templates import get_approved_template, render_body
 from apps.whatsapp.services.usage import check_budget, check_recipient_rate_limit
 
@@ -124,9 +126,20 @@ def send_governed_template_message(
     message.conversation_id = conversation.id
     message.category = template.category
     message.variables = variables
-    message.cost_ariary = template.estimated_cost_ariary
+    message.cost_ariary, message.cost_unit = impute_cost(
+        tenant, template=template, conversation_id=conversation.id
+    )
     message.body = render_body(template, variables)
-    message.save(update_fields=["conversation_id", "category", "variables", "cost_ariary", "body"])
+    message.save(
+        update_fields=[
+            "conversation_id",
+            "category",
+            "variables",
+            "cost_ariary",
+            "cost_unit",
+            "body",
+        ]
+    )
 
     conversation.last_outbound_at = timezone.now()
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
@@ -173,6 +186,7 @@ def queue_governed_template_message(
         tenant_id=str(tenant.id),
         channel=Notification.CHANNEL_WHATSAPP,
     )
+    cout, unite = impute_cost(tenant, template=template, conversation_id=conversation.id)
     return WhatsAppMessage.objects.create(
         tenant_id=tenant.id,
         notification=notification,
@@ -183,7 +197,8 @@ def queue_governed_template_message(
         conversation_id=conversation.id,
         category=template.category,
         variables=variables,
-        cost_ariary=template.estimated_cost_ariary,
+        cost_ariary=cout,
+        cost_unit=unite,
         body=render_body(template, variables),
     )
 
@@ -223,7 +238,15 @@ def flush_pending_messages(tenant: Tenant) -> list[WhatsAppMessage]:
         except ValidationError as exc:
             message.status = WhatsAppMessage.STATUS_FAILED
             message.error_message = "; ".join(exc.messages)
-            message.save(update_fields=["status", "error_message"])
+            # Le cout impute retombe a ZERO : ce message n'est pas parti et
+            # ne partira jamais — un refus de gouvernance ne passera pas
+            # avec le temps, il n'entre pas dans le cycle de reprise. Le
+            # laisser porter son estimation ferait peser au plafond mensuel
+            # un montant que Meta ne facturera jamais, et bloquerait
+            # d'autant des envois reels. La ligne garde sa trace ; c'est
+            # `error_message` qui dit pourquoi elle vaut zero.
+            message.cost_ariary = Decimal(0)
+            message.save(update_fields=["status", "error_message", "cost_ariary"])
             continue
 
         result = client.send_template(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
+from apps.core.cost_units import COST_UNIT_CHOICES
 from apps.core.db.uuid7 import uuid7
 
 
@@ -101,6 +102,17 @@ class WhatsAppMessage(models.Model):
     category = models.CharField(max_length=16, blank=True)
     variables = models.JSONField(default=dict, blank=True)
     cost_ariary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # L'UNITE sous laquelle ce montant a ete tarife (H26 — cf.
+    # `apps.core.cost_units`, ou le raisonnement complet est ecrit). Sans
+    # elle, un total a cheval sur une bascule d'unite melange deux facons
+    # de compter, reste exact a l'ariary, et devient incomparable a la
+    # periode precedente sans que rien ne le signale.
+    #
+    # `blank=True` sans `null=True` : la chaine vide accompagne un
+    # `cost_ariary` a `None` — un cout non impute n'a pas d'unite. Deux
+    # facons d'ecrire « rien » sur un champ texte rendraient toute requete
+    # ambigue.
+    cost_unit = models.CharField(max_length=16, choices=COST_UNIT_CHOICES, blank=True)
     # WA-7 : « file d'attente avec etat visible et reprise dediee au canal
     # WhatsApp » — `retry_count`/`next_retry_at` rendent cet etat visible
     # directement sur le journal (pas de table de file d'attente separee),
@@ -124,6 +136,31 @@ class WhatsAppMessage(models.Model):
 
     class Meta:
         db_table = "core_whatsapp_message"
+        constraints = [
+            # PROTECTION CONTRE LE REJEU (cahier Phase 4 §8.2), en BASE.
+            #
+            # « Horodatage dans une fenetre courte, identifiant d'evenement
+            # conserve, second passage ignore et journalise comme doublon.
+            # Sans cela, un meme paiement peut etre enregistre deux fois —
+            # c'est le defaut le plus couteux de cette famille. »
+            #
+            # L'identifiant de message du fournisseur etait STOCKE et jamais
+            # interroge : aucun `filter`, aucun `exists`, aucune contrainte.
+            # Or un fournisseur re-livre son webhook tant qu'il ne recoit
+            # pas un 2xx — une reponse lente, un deploiement, une erreur
+            # applicative, et le meme message entrant produisait deux
+            # lignes ET deux traitements.
+            #
+            # Restreinte aux ENTRANTS : c'est la que la re-livraison a lieu.
+            # Les sortants portent l'identifiant rendu par le fournisseur,
+            # vide avec le client de repli (`StubWhatsAppClient`), ce qui
+            # rendrait une contrainte non conditionnelle inapplicable.
+            models.UniqueConstraint(
+                fields=["tenant_id", "provider_message_id"],
+                condition=models.Q(direction="inbound") & ~models.Q(provider_message_id=""),
+                name="uniq_wa_inbound_provider_message_id",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.direction} {self.phone_number} ({self.status})"

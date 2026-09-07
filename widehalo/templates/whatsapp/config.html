@@ -11,6 +11,18 @@
   <h2>{% trans "Plafond de coût mensuel" %}</h2>
   <p>{% trans "Consommé ce mois-ci" %} : {{ current_month_cost }} Ar</p>
   <p>{% trans "Reste disponible" %} : {% if remaining_budget is None %}{% trans "Illimité" %}{% else %}{{ remaining_budget }} Ar{% endif %}</p>
+  <p class="help-text">{% blocktrans with unite=cost_unit_in_force %}Unité de facturation en vigueur : {{ unite }}.{% endblocktrans %}</p>
+  {% comment %}
+    « Alerte à l'approche, pas seulement à l'atteinte » (cahier §10.2) : un
+    plafond atteint un 28 du mois sans avertissement est vécu comme une
+    panne. Le seuil était réglable et ne déclenchait rien — pire qu'absent,
+    puisqu'il donnait le sentiment d'être protégé.
+  {% endcomment %}
+  {% if cost_alert_raised %}
+    <p class="alert alert-warning" role="status">
+      {% blocktrans with pct=cost_alert_threshold_pct %}Seuil d'alerte de {{ pct }} % du plafond mensuel franchi.{% endblocktrans %}
+    </p>
+  {% endif %}
   {% if can_manage %}
     <form method="post" action="{% url 'whatsapp:cost_cap_update' %}">
       {% csrf_token %}

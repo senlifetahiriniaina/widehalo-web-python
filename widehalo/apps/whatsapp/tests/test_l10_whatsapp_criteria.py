@@ -368,9 +368,26 @@ def test_the_intent_menu_is_journalled_like_any_other_send(wa_setup, monkeypatch
         row = outbound.first()
         assert row.template_name == MENU_TEMPLATE_CODE
         assert row.status == WhatsAppMessage.STATUS_SENT
-        # Le coût est imputé (WA-4 « coût imputé », WA-5 : il pèse désormais
-        # au plafond, ce qui n'était pas le cas).
-        assert row.cost_ariary == Decimal("20")
+        # Le coût est imputé — À ZÉRO, et c'est une correction de H26.
+        #
+        # L10 avait raison de rendre ce message traçable : il partait
+        # réellement au client sans laisser de ligne, donc invisible du
+        # journal que WA-4 exige. Mais il l'a fait passer d'un coup de
+        # « aucune trace » à « trace + tarif plein », en sautant l'étape
+        # juste. Une réponse émise DANS la fenêtre de service, à
+        # l'initiative du client, n'est facturée sous AUCUN des deux
+        # régimes — ni à la conversation, ni au message. Elle pesait donc
+        # au plafond mensuel pour un montant que le fournisseur ne facture
+        # pas, et bloquait d'autant des envois réels.
+        #
+        # Zéro et non `None` : « gratuit » est un montant connu, « pas
+        # encore imputé » ne l'est pas. Le champ reste renseigné, ce que
+        # WA-4 exige.
+        assert row.cost_ariary == Decimal(0)
+        assert row.cost_unit != "", (
+            "Un coût imputé sans unité : un total à cheval sur une bascule d'unité "
+            "ne saurait pas ce qu'il compte (H26)."
+        )
         # `WaConversation` est protégée par RLS : la lire hors du contexte
         # tenant renverrait `DoesNotExist` quoi qu'ait fait le code testé.
         conversation = WaConversation.objects.get(phone_number="+261340000009")

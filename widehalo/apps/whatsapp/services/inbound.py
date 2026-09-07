@@ -100,9 +100,24 @@ def _maybe_send_intent_menu(tenant: Tenant, conversation: WaConversation) -> Non
         return
     from apps.core.models.notification import WhatsAppMessage
     from apps.core.services.whatsapp import get_whatsapp_client
+    from apps.whatsapp.services.pricing import impute_cost
 
     result = get_whatsapp_client().send_template(
         conversation.phone_number, template.code, {"body": []}
+    )
+    # GRATUIT, et c'est une correction. L10 avait raison de rendre ce
+    # message tracable — il partait reellement au client sans laisser de
+    # ligne — mais il l'a fait passer d'un coup de « aucune trace » a
+    # « trace + tarif plein », en sautant l'etape juste : une reponse
+    # emise DANS la fenetre de service, a l'initiative du client, n'est
+    # facturee sous AUCUN des deux regimes. Elle pesait donc au plafond
+    # mensuel pour un montant que le tiers ne facture pas, et bloquait
+    # d'autant les envois reels.
+    #
+    # Zero et non `None` : « gratuit » est un montant connu, « pas encore
+    # impute » ne l'est pas. Meme distinction que sur `FlwExchange`.
+    cout, unite = impute_cost(
+        tenant, template=template, conversation_id=conversation.id, is_free_service_reply=True
     )
     WhatsAppMessage.objects.create(
         tenant_id=tenant.id,
@@ -117,7 +132,8 @@ def _maybe_send_intent_menu(tenant: Tenant, conversation: WaConversation) -> Non
         ),
         conversation_id=conversation.id,
         category=template.category,
-        cost_ariary=template.estimated_cost_ariary,
+        cost_ariary=cout,
+        cost_unit=unite,
         body=render_body(template, {}),
     )
     conversation.intent_state = WaConversation.INTENT_MENU_SENT

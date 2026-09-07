@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.cost_units import cost_unit_in_force
 from apps.core.models.notification import WhatsAppMessage
 from apps.core.views.tenant_web import resolve_tenant
 from apps.whatsapp.models import WaConversation, WaMessageTemplate
@@ -28,7 +29,11 @@ from apps.whatsapp.services.templates import (
     reject_template,
     submit_for_review,
 )
-from apps.whatsapp.services.usage import current_month_cost_ariary, remaining_budget_ariary
+from apps.whatsapp.services.usage import (
+    current_month_cost_ariary,
+    is_alert_threshold_exceeded,
+    remaining_budget_ariary,
+)
 
 
 def _error_message(exc: Exception) -> str:
@@ -146,6 +151,22 @@ def config(request: HttpRequest) -> HttpResponse:
         "tenant": tenant,
         "current_month_cost": current_month_cost_ariary(tenant),
         "remaining_budget": remaining_budget_ariary(tenant),
+        # « Alerte a l'approche, pas seulement a l'atteinte » (cahier
+        # §10.2, jauge de plafond) : « un plafond atteint un 28 du mois
+        # sans avertissement est vecu comme une panne ».
+        #
+        # `is_alert_threshold_exceeded` existait, etait testee, et n'avait
+        # AUCUN appelant de production — pendant que
+        # `whatsapp_cost_alert_threshold_pct` etait un champ reglable qui
+        # ne declenchait rien. Un seuil qu'on peut saisir et qui ne fait
+        # rien est pire qu'un seuil absent : il donne le sentiment d'etre
+        # protege.
+        "cost_alert_raised": is_alert_threshold_exceeded(tenant),
+        "cost_alert_threshold_pct": tenant.whatsapp_cost_alert_threshold_pct,
+        # L'unite de cout en vigueur, affichee parce qu'un montant sans
+        # son unite ne veut rien dire des lors que deux unites peuvent
+        # coexister (hypothese H26).
+        "cost_unit_in_force": cost_unit_in_force(tenant=tenant),
         "templates": WaMessageTemplate.objects.filter(tenant=tenant, is_active=True),
     }
     return render(request, "whatsapp/config.html", context)
