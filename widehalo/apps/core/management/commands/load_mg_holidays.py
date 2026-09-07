@@ -32,14 +32,33 @@ from apps.core.services.scheduled_commands import tenant_step
 FIXTURE_PATH = Path(__file__).resolve().parent.parent.parent / "fixtures" / "mg_holidays.json"
 
 
+def collisions_for_year(year: int) -> list[tuple[dt.date, list[str]]]:
+    """Les dates que PLUSIEURS fetes se disputent, avec tous leurs libelles.
+
+    Distinguee du simple rejeu, et ce n'est pas de la cosmetique : jusqu'ici
+    une collision etait fondue dans le compteur « deja present », donc
+    indiscernable d'une seconde execution de la commande. La docstring
+    affirmait pourtant que « la commande le signale ». Elle ne le signalait
+    pas — c'est corrige ici plutot que la phrase.
+
+    Une collision n'est PAS une anomalie. Elle est meme frequente : le
+    29 mars 2027 et le 29 mars 2032 portent a la fois la commemoration de
+    1947 et le lundi de Paques, et le 17 mai 2027 le lundi de Pentecote et
+    l'Aid el-Adha. Elle est sans consequence sur la paie — la majoration
+    porte sur la DATE, jamais sur le libelle."""
+    par_date: dict[dt.date, list[str]] = {}
+    for date, name in holidays_for_year(year):
+        par_date.setdefault(date, []).append(name)
+    return sorted((date, noms) for date, noms in par_date.items() if len(noms) > 1)
+
+
 def holidays_for_year(year: int) -> list[tuple[dt.date, str]]:
     """Dates feriees d'une annee, fixes puis mobiles.
 
-    Une collision est possible et n'est pas une anomalie : le 29 mars 2027 et
-    le 29 mars 2032 sont a la fois la commemoration de 1947 et le lundi de
-    Paques. La contrainte d'unicite `(tenant, date)` de `Holiday` l'exige,
-    le premier libelle rencontre l'emporte, et la commande le signale plutot
-    que d'echouer."""
+    La contrainte d'unicite `(tenant, date)` de `Holiday` n'en garde qu'une
+    par date : le premier libelle dans l'ordre alphabetique l'emporte, et
+    `collisions_for_year` rend les autres visibles plutot que de les
+    perdre."""
     data: dict[str, Any] = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     entries: list[tuple[dt.date, str]] = [
         (dt.date(year, item["month"], item["day"]), item["name"]) for item in data["fixed"]
@@ -110,3 +129,16 @@ class Command(BaseCommand):
                         f"{skipped} deja present(s) sur {years}."
                     )
                 )
+                for year in years:
+                    for date, noms in collisions_for_year(year):
+                        # Signale une seule fois par tenant traite : un
+                        # exploitant qui voit « 2 deja present(s) » sans
+                        # explication ne peut pas savoir s'il relance une
+                        # commande ou s'il perd un libelle.
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"  {date.isoformat()} : {len(noms)} fetes le meme jour "
+                                f"({', '.join(noms)}) — une seule ligne est creee, sous le "
+                                f"libelle « {noms[0]} ». Sans consequence sur la paie."
+                            )
+                        )

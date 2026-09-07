@@ -403,12 +403,12 @@ class FlwSchedule(BaseModel):
     # son couplage au lieu d'alourdir celui de `flows`.
     #
     # Le comptage des sources de feries, fait a cette occasion : il y en
-    # avait TROIS, dont deux mortes. `CountryDefaultsProfile.holidays`
-    # (JSONField) n'a aucun lecteur ni aucun ecrivain dans tout le depot ;
-    # `presence/services/calendar.py` (65 lignes, quatre fonctions) n'en a
-    # pas davantage. Elles ne sont pas supprimees ici — la seconde porte une
-    # information que `core.Holiday` n'a pas (la majoration de paie d'un
-    # ferie travaille) — mais le constat est ecrit dans
+    # avait TROIS, dont deux mortes. Les deux mortes sont desormais
+    # SUPPRIMEES, sur decision du commanditaire :
+    # `CountryDefaultsProfile.holidays` (aucun lecteur, aucun ecrivain) et
+    # `presence/services/calendar.py`, qui annoncait en plus une majoration
+    # de 150 % contredisant les 200 % reellement appliques par la paie.
+    # `core.Holiday` est la source unique. Cf.
     # `docs/planning/2026-09-s5-trois-calendriers-feries.md`.
     skip_public_holidays = models.BooleanField(default=True)
     next_run_at = models.DateTimeField(null=True, blank=True)

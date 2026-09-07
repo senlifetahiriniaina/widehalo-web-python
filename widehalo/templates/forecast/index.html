@@ -68,13 +68,46 @@
   </table>
 
 {% elif tab == "calendrier" %}
+  {% if can_manage_calendar %}
+    {% comment %}
+      Journées électorales, deuil national, correction d'un Aïd : ces dates ne
+      peuvent pas figurer dans une livraison logicielle. Un `{# ... #}` sur
+      plusieurs lignes serait rendu tel quel dans le HTML — une garde du dépôt
+      l'interdit, et elle a rougi sur ce commentaire-ci.
+    {% endcomment %}
+    <form method="post" action="{% url 'forecast:holiday_add' %}" class="stack-inline">
+      {% csrf_token %}
+      <label for="holiday-date">{% trans "Date" %}</label>
+      <input id="holiday-date" type="date" name="date" required>
+      <label for="holiday-name">{% trans "Nom" %}</label>
+      <input id="holiday-name" type="text" name="name" required
+             placeholder="{% trans 'Journée électorale' %}" maxlength="120">
+      <c-button variant="primary" type="submit">{% trans "Déclarer chômé" %}</c-button>
+    </form>
+  {% endif %}
   <table class="smart-table">
-    <thead><tr><th>{% trans "Date" %}</th><th>{% trans "Nom" %}</th></tr></thead>
+    <thead>
+      <tr>
+        <th>{% trans "Date" %}</th><th>{% trans "Nom" %}</th>
+        {% if can_manage_calendar %}<th></th>{% endif %}
+      </tr>
+    </thead>
     <tbody>
       {% for h in holidays %}
-        <tr><td>{{ h.date }}</td><td>{{ h.name }}</td></tr>
+        <tr>
+          <td>{{ h.date }}</td><td>{{ h.name }}</td>
+          {% if can_manage_calendar %}
+            <td>
+              <form method="post" action="{% url 'forecast:holiday_remove' %}">
+                {% csrf_token %}
+                <input type="hidden" name="date" value="{{ h.date|date:'Y-m-d' }}">
+                <c-button variant="ghost" type="submit">{% trans "Retirer" %}</c-button>
+              </form>
+            </td>
+          {% endif %}
+        </tr>
       {% empty %}
-        <tr><td colspan="2">{% trans "Aucun jour férié enregistré." %}</td></tr>
+        <tr><td colspan="3">{% trans "Aucun jour férié enregistré." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

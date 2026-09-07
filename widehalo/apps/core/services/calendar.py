@@ -11,13 +11,28 @@ donnaient pas.
 `tests/architecture/test_no_hardcoded_holidays.py`. Seule la règle du
 week-end (samedi/dimanche) est codée : un jour férié n'existe QUE via une
 ligne `Holiday`, chargée par `manage.py load_mg_holidays` ou saisie à
-l'écran.
+l'écran (onglet « calendrier », `apps/forecast/views.py`).
+
+**La saisie à l'écran n'est pas un confort.** Deux catégories de jours
+chômés ne peuvent pas figurer dans une livraison logicielle :
+
+- **les journées électorales**, dont la date est fixée quelques semaines à
+  l'avance — comme un deuil national ou toute journée chômée décidée en
+  cours d'année ;
+- **les deux Aïd**, dont la date opposable est arrêtée par décret après
+  observation lunaire : le calendrier livré n'en porte qu'une estimation,
+  mesurée à ±1 jour (cf. la réserve du fixture).
+
+Cette phrase promettait un écran qui n'existait pas. Il existe désormais.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from typing import TYPE_CHECKING
+
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext as _
 
 from apps.core.models.calendar import Holiday
 
@@ -74,7 +89,7 @@ def business_day_on_or_after(tenant: Tenant, date: dt.date) -> dt.date:
     finit par oublier à un endroit sur trois."""
     holiday_dates = _holidays_in_window(tenant, date)
     cursor = date
-    for _ in range(MAX_LOOKAHEAD_DAYS):
+    for _jour in range(MAX_LOOKAHEAD_DAYS):
         if is_business_day(tenant, cursor, holiday_dates=holiday_dates):
             return cursor
         cursor += dt.timedelta(days=1)
@@ -101,3 +116,40 @@ def _holidays_in_window(tenant: Tenant, start: dt.date) -> set[dt.date]:
             date__lte=start + dt.timedelta(days=MAX_LOOKAHEAD_DAYS),
         ).values_list("date", flat=True)
     )
+
+
+# --- Écriture : ce que la livraison logicielle ne peut pas connaître --------
+
+
+def declare_holiday(tenant: Tenant, *, date: dt.date, name: str) -> Holiday:
+    """Déclare (ou renomme) un jour chômé pour UNE société.
+
+    Idempotente sur la date, qui est la clef métier : redéclarer le même
+    jour corrige son libellé au lieu de lever sur la contrainte
+    `(tenant, date)`. C'est le comportement qu'un écran de correction doit
+    avoir — un exploitant qui rectifie l'orthographe d'un Aïd ne doit pas
+    avoir à supprimer d'abord.
+
+    Le libellé est obligatoire : une date sans nom serait indéchiffrable
+    six mois plus tard, quand il faudra dire pourquoi la paie a doublé ce
+    jour-là."""
+    libelle = name.strip()
+    if not libelle:
+        raise ValidationError(_("Un jour férié doit porter un nom."))
+    holiday, created = Holiday.objects.get_or_create(
+        tenant=tenant, date=date, defaults={"name": libelle}
+    )
+    if not created and holiday.name != libelle:
+        holiday.name = libelle
+        holiday.save(update_fields=["name"])
+    return holiday
+
+
+def remove_holiday(tenant: Tenant, *, date: dt.date) -> bool:
+    """Retire un jour chômé. `False` si cette date n'en était pas un.
+
+    Utile dans les deux sens : une élection reportée, ou un Aïd estimé qui
+    tombe finalement la veille — on retire la date estimée et on déclare la
+    bonne."""
+    supprimes, _details = Holiday.objects.filter(tenant=tenant, date=date).delete()
+    return bool(supprimes)

@@ -3,11 +3,10 @@ malgaches lus en table de reference ; un test verifie qu'aucune date feriee
 n'est ecrite dans le code ».
 
 Le critere nommait ce test ; il n'existait pas. La cible, elle, etait deja
-propre : `apps.core.services.calendar` ne code que la regle du week-end
-et lit tout le reste dans `core.Holiday` (remonte de `forecast` en S5),
-`apps.presence.services.calendar` passe par `RegulatoryParameter`. La garde
-rend donc opposable ce que le code fait deja — le moment ou une regle coute
-le moins cher a poser.
+propre : `apps.core.services.calendar` ne code que la regle du week-end et
+lit tout le reste dans `core.Holiday` — source UNIQUE depuis la suppression
+des deux calendriers morts. La garde rend donc opposable ce que le code
+fait deja — le moment ou une regle coute le moins cher a poser.
 
 Ce qu'elle protege est concret : un jour ferie ecrit en Python est un jour
 ferie que l'exploitant ne peut pas corriger. Le calendrier malgache ajoute

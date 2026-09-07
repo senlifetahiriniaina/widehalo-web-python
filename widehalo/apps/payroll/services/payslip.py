@@ -121,17 +121,31 @@ def simulate_payslip(
     reference_days = DEFAULT_REFERENCE_DAYS
     worked_days = max(reference_days - unjustified_or_paid_absence_days, Decimal(0))
 
-    overtime_total_hours = presence_public.get_validated_overtime_hours(
-        tenant, employee_id, date_from=date_from, date_to=date_to
-    )
-    # `presence` n'expose que le TOTAL valide (pas la ventilation par
-    # categorie de majoration, cf. docstring `get_validated_overtime_hours`)
-    # — la ventilation reelle fournie par l'appelant (via `payslip.
-    # overtime_hours` pour un bulletin reel, ou saisie directe pour une
-    # simulation) prevaut ; a defaut, tout est impute a la categorie
-    # "h_sup_30" par defaut, disclosed.
+    # La ventilation explicitement fournie par l'appelant prevaut (simulation,
+    # ou bulletin construit a la main). A defaut, elle est LUE dans `presence`
+    # par categorie de majoration.
+    #
+    # **Le repli precedent mettait tout en "h_sup_30", et c'etait un
+    # sous-paiement.** `presence` n'exposait qu'un total « toutes categories
+    # confondues » ; faute de mieux, ce module imputait l'integralite a la
+    # majoration la plus faible (1,30). Une heure de jour ferie, dont le
+    # multiplicateur legal est 2,00, etait donc payee 35 % de moins que le du,
+    # une heure de dimanche (1,40) 7 % de moins, une heure de `h_sup_50` 13 %
+    # de moins. La categorie etait pourtant saisie et validee dans `presence` :
+    # elle se perdait ici, a la derniere marche.
+    #
+    # `get_validated_overtime_hours` (le total) n'est plus lu ici. Le garder
+    # « pour temoin » aurait ete du theatre : les deux fonctions filtrent les
+    # memes lignes, leur somme ne peut pas diverger. Il reste expose pour ses
+    # autres appelants.
     resolved_overtime_hours: dict[str, object] = (
-        dict(overtime_hours) if overtime_hours else {"h_sup_30": overtime_total_hours}
+        dict(overtime_hours)
+        if overtime_hours
+        else dict(
+            presence_public.get_validated_overtime_by_category(
+                tenant, employee_id, date_from=date_from, date_to=date_to
+            )
+        )
     )
 
     hourly_rate = contract.wage_base / (reference_days * HOURS_PER_DAY)

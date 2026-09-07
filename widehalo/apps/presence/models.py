@@ -4,11 +4,13 @@ en nombre de tables plutot que fidele table-par-table a la liste
 `5.9.2` du CDC — chaque ecart est documente a l'endroit precis :
 
 - `prs_public_holiday` (CDC) n'est PAS un modele dedie : les jours feries
-  sont des `core.RegulatoryParameter` verses avec `code=
-  "presence.public_holiday"` (cf. `services/calendar.py`) — reutilisation
-  directe du mecanisme deja construit au Lot 1 etape 10 pour tout
-  bareme/seuil versionne, exactement la nature d'un jour ferie
-  (`is_worked`/`pay_rate_pct` par date).
+  sont ceux de `core.Holiday`, source UNIQUE du depot. Une premiere
+  redaction les logeait dans `core.RegulatoryParameter` avec
+  `code="presence.public_holiday"` et un `pay_rate_pct` par date : ce
+  module n'a jamais eu ni lecteur ni ecrivain, et son taux annonce
+  (150 %) contredisait le multiplicateur reellement applique par la paie
+  (2,00, soit 200 %). Il est supprime. La majoration d'un ferie travaille
+  vit ou elle est lue : `payroll.overtime_multipliers["ferie"]`.
 - `prs_absence_approval` (CDC) n'est PAS un modele dedie : RG-PRS-5
   (circuit a niveaux parametrables) et WF-6 (delegation) reutilisent tels
   quels `core.ApprovalRule`/`ApprovalRequest`/`ApprovalDelegation` (Lot 1

@@ -62,7 +62,50 @@ jours fériés » trouvera deux réponses, dont une fausse. **Proposition :
 suppression du champ**, par migration, une fois la décision confirmée. Aucun
 code n'est à modifier — c'est la définition même d'un champ mort.
 
-## Ce qui décide
+## Décision du commanditaire — les deux sont supprimées
 
-Les deux propositions touchent des données existantes et sortent du
-périmètre du bloc A. Elles sont donc soumises, pas exécutées.
+*Tranché le 7 septembre 2026, en même temps que la règle de paie : un jour
+férié travaillé vaut une prime de 100 %, soit 200 % du taux normal.*
+
+**`presence/services/calendar.py` : supprimé.** La règle confirmée règle du
+même coup le doute qui avait fait reporter : ce module annonçait 150 %, la
+paie applique 2,00. Ce n'était donc pas une information complémentaire mais
+une **valeur fausse**, que personne ne lisait — le pire des deux. La
+majoration vit désormais à un seul endroit, celui où elle est effectivement
+lue : `payroll.overtime_multipliers["ferie"]`.
+
+**`CountryDefaultsProfile.holidays` : supprimé** par la migration
+`core/0040`. Champ sans lecteur, sans écrivain, sans test, et porté par le
+profil PAYS — donc structurellement incapable de représenter une journée
+chômée décidée par une entreprise.
+
+`core.Holiday` est la source unique.
+
+## Ce que la même décision a révélé
+
+En branchant la majoration, un défaut plus coûteux est apparu : **elle
+n'arrivait jamais au bulletin.** `presence` n'exposait qu'un total d'heures
+supplémentaires « toutes catégories confondues », et `payroll` imputait donc
+tout à `h_sup_30` (1,30). Une heure de férié était payée **1,30 au lieu de
+2,00** — 35 % de moins que le dû ; une heure de dimanche 7 % de moins ; une
+heure de `h_sup_50` 13 % de moins. La catégorie était pourtant saisie,
+validée et stockée : elle se perdait à la dernière marche.
+
+Corrigé pour les cinq catégories, sur décision du commanditaire.
+
+## Ce qui reste ouvert, et qui n'est pas mince
+
+La règle dit « si le jour férié est **travaillé** ». Elle porte sur toutes
+les heures de la journée, pas seulement sur des heures supplémentaires
+déclarées.
+
+Le dépôt ne sait pas l'exprimer : `payslip.py` calcule
+`worked_days = reference_days − absences`, un forfait mensuel de jours sans
+valorisation par jour. Un salarié qui fait sa journée normale un 26 juin
+n'a aucune heure supplémentaire à déclarer, et son bulletin est identique à
+celui d'un 25 juin.
+
+Livré : la majoration correcte pour les heures **déclarées** sur un férié —
+tout ce que le modèle sait aujourd'hui exprimer. Non livré : la valorisation
+par jour, qui suppose de reprendre le cœur du bulletin et une validation RH.
+Chiffré séparément plutôt que glissé ici à moitié.

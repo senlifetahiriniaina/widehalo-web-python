@@ -118,7 +118,6 @@ class CountryDefaultsProfile(models.Model):
     vat_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     chart_of_accounts_code = models.CharField(max_length=32, blank=True)
     payment_methods = models.JSONField(default=list, blank=True)
-    holidays = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "core_country_defaults_profile"

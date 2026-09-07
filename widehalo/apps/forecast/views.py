@@ -10,9 +10,11 @@ workbench.html`)."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal, InvalidOperation
 
 from apps.core.models.calendar import Holiday
+from apps.core.services.calendar import declare_holiday, remove_holiday
 from apps.core.views.tenant_web import resolve_tenant
 from apps.forecast.models import ForExceptionalPoint, ForPublication, ForSeriesForecast
 from apps.forecast.services.adjustments import apply_adjustment, revert_adjustment
@@ -43,6 +45,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         context["projection"] = project_twelve_month_cash_inflows(tenant)
     elif tab == "calendrier":
         context["holidays"] = Holiday.objects.filter(tenant=tenant).order_by("date")
+        context["can_manage_calendar"] = request.user.has_perm("core.add_holiday")
     elif tab == "publications":
         context["publications"] = ForPublication.objects.filter(tenant=tenant).order_by("-version")
     elif tab == "charge_atelier":
@@ -150,3 +153,44 @@ def publish_now(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     publish(tenant, user=request.user)
     return redirect("/forecast/?tab=publications")
+
+
+@login_required
+def declare_holiday_view(request: HttpRequest) -> HttpResponse:
+    """Déclare un jour chômé que la livraison logicielle ne pouvait pas
+    connaître : journée électorale, deuil national, ou correction d'un Aïd
+    dont le décret a finalement retenu la veille.
+
+    Vit dans `forecast` parce que l'onglet « calendrier » y vit déjà — le
+    calendrier lui-même est une donnée de `core`, et c'est son service qui
+    écrit. À signaler au commanditaire : « Prévision » n'est pas l'endroit
+    où un RH ira naturellement déclarer une journée électorale ; le
+    déplacement de l'onglet est un choix de produit, pas de technique."""
+    if request.method != "POST" or not request.user.has_perm("core.add_holiday"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    try:
+        date = dt.date.fromisoformat(request.POST.get("date", ""))
+    except ValueError:
+        return HttpResponse(status=400)
+    try:
+        declare_holiday(tenant, date=date, name=request.POST.get("name", ""))
+    except ValidationError:
+        return HttpResponse(status=400)
+    return redirect("/forecast/?tab=calendrier")
+
+
+@login_required
+def remove_holiday_view(request: HttpRequest) -> HttpResponse:
+    """Le pendant. Une élection reportée laisse sinon un jour chômé qui n'a
+    pas eu lieu — et une majoration de 100 % sur une journée travaillée
+    normalement."""
+    if request.method != "POST" or not request.user.has_perm("core.delete_holiday"):
+        return HttpResponse(status=403)
+    tenant = resolve_tenant(request)
+    try:
+        date = dt.date.fromisoformat(request.POST.get("date", ""))
+    except ValueError:
+        return HttpResponse(status=400)
+    remove_holiday(tenant, date=date)
+    return redirect("/forecast/?tab=calendrier")

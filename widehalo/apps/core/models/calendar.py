@@ -15,13 +15,16 @@ l'empêcher. La table est renommée en place (`ALTER TABLE … RENAME`) :
 aucune ligne ne bouge, et `forecast` relit le calendrier depuis `core`, ce
 qui ALLÈGE son couplage au lieu d'alourdir celui de `flows`.
 
-**Ce que cette table ne dit pas.** Elle dit qu'une date n'est pas ouvrée.
-Elle ne dit rien du TAUX auquel un jour férié travaillé se paie — c'est une
-information de paie, portée séparément par
-`apps/presence/services/calendar.py` (`RegulatoryParameter`, code
-`presence.public_holiday`). Les deux ne font pas double emploi : l'une
-donne les dates, l'autre une majoration. Voir `docs/planning/` pour le
-constat mesuré sur ce second calendrier.
+**Source UNIQUE des dates chômées.** Il y en avait trois. Les deux autres
+sont supprimées : `CountryDefaultsProfile.holidays` (aucun lecteur, aucun
+écrivain) et `apps/presence/services/calendar.py`, qui portait en plus une
+valeur fausse — un férié travaillé y valait 150 %, là où la paie applique
+2,00, soit 200 %.
+
+**Ce que cette table ne dit pas, et où c'est dit.** Elle dit qu'une date
+n'est pas ouvrée. Le TAUX auquel un férié travaillé se paie vit là où il
+est lu : `payroll.overtime_multipliers["ferie"] = 2.00` — une majoration de
+100 %, confirmée par le commanditaire. Une seule vérité par question.
 """
 
 from __future__ import annotations

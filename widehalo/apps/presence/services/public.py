@@ -69,6 +69,38 @@ def get_validated_overtime_hours(
     return total if total is not None else Decimal(0)
 
 
+def get_validated_overtime_by_category(
+    tenant: Tenant, employee_id: UUID, *, date_from: dt.date, date_to: dt.date
+) -> dict[str, Decimal]:
+    """Les memes heures, VENTILEES par categorie de majoration.
+
+    **Ce qui manquait, et ce que son absence coutait.** La fonction voisine
+    ne rend qu'un total « toutes categories confondues ». `payroll` n'avait
+    donc rien d'autre a imputer, et son repli mettait TOUT en `h_sup_30`
+    (majoration 1,30) — y compris les heures d'un jour ferie, dont le
+    multiplicateur legal est 2,00. Une heure de ferie etait payee 35 % de
+    moins que le du, une heure de dimanche 7 % de moins, une heure de
+    `h_sup_50` 13 % de moins. La donnee etait pourtant saisie, validee et
+    stockee : elle se perdait a la derniere marche.
+
+    Renvoie un dict de primitives, jamais des objets ORM (regle de couplage
+    n°1) : `{"ferie": Decimal("8.00"), "dimanche": Decimal("4.00")}`. Une
+    categorie sans heure validee est ABSENTE du dict plutot que presente a
+    zero — un zero explicite se propagerait en ligne de bulletin vide."""
+    lignes = (
+        PrsOvertime.objects.filter(
+            tenant=tenant,
+            employee_id=employee_id,
+            date__gte=date_from,
+            date__lte=date_to,
+            state=PrsOvertime.STATE_VALIDATED,
+        )
+        .values("rate_category")
+        .annotate(total=Sum("hours"))
+    )
+    return {ligne["rate_category"]: ligne["total"] for ligne in lignes if ligne["total"]}
+
+
 def get_period_absence_summary(
     tenant: Tenant, employee_id: UUID, *, date_from: dt.date, date_to: dt.date
 ) -> list[dict[str, object]]:

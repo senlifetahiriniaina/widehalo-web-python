@@ -7,12 +7,27 @@
     "",
     "RESERVE, dans la meme discipline que la reserve OECFM portee par le plan",
     "comptable : cette liste est etablie a partir des jours feries usuellement",
-    "chomes a Madagascar et n'a PAS ete validee contre le Journal Officiel. Le",
-    "calendrier legal peut ajouter un jour chome ponctuel (journee electorale,",
-    "deuil national) qui ne figurera jamais ici. Avant tout usage sur lequel",
-    "repose un calcul contractuel (penalites de retard, delais de livraison),",
-    "faire confirmer la liste de l'annee par le service juridique ou les RH, et",
-    "corriger a l'ecran plutot que d'attendre une livraison logicielle.",
+    "chomes a Madagascar et n'a PAS ete validee contre le Journal Officiel.",
+    "",
+    "LES DEUX AID SONT DES ESTIMATIONS, ET L'ECART EST MESURE. Ils suivent le",
+    "calendrier lunaire ; leur date opposable a Madagascar est fixee par decret",
+    "apres observation. Les dates ci-dessous viennent du calendrier hegirien",
+    "TABULAIRE, etalonne sur quatre dates reellement observees en 2024-2025 :",
+    "il est tombe juste une fois sur quatre, et UN JOUR TROP TARD les trois",
+    "autres. Il faut donc les tenir pour approximatives a +/- 1 jour et les",
+    "corriger a l'ecran des la parution du decret — l'ecran de saisie existe",
+    "(onglet calendrier), c'est la voie prevue pour cela.",
+    "",
+    "LES JOURS D'ELECTION sont feries et ne peuvent par construction pas",
+    "figurer ici : leur date est connue quelques semaines a l'avance. Ils se",
+    "saisissent a l'ecran, comme un deuil national ou toute journee chomee",
+    "decidee en cours d'annee.",
+    "",
+    "Paques et la Pentecote tombent toujours un DIMANCHE. Les inscrire ne",
+    "change donc rien au comptage des jours ouvres — mais un dimanche ferie et",
+    "un dimanche ordinaire ne se paient pas pareil (majoration de 100 % pour un",
+    "ferie travaille, contre 40 % pour un dimanche), et sans ces lignes rien ne",
+    "permettrait de les distinguer.",
     "",
     "Le 8 mars (journee internationale des femmes, chomee pour les femmes a",
     "Madagascar) est volontairement ABSENT : il n'est pas chome pour toute la",
@@ -20,70 +35,352 @@
     "calendrier d'entreprise. A trancher avec le maitre d'ouvrage si un tenant",
     "en a besoin.",
     "",
-    "Les dates mobiles (Paques et ses derives) sont enumerees annee par annee",
-    "plutot que calculees : un algorithme de comput pascal dans le code serait",
-    "du code metier de plus a maintenir et a tester, pour une donnee qui tient",
-    "en quelques lignes et qui doit de toute facon etre relue chaque annee."
+    "Les dates derivees de Paques sont enumerees annee par annee plutot que",
+    "calculees : un comput pascal dans le code serait du code metier de plus a",
+    "maintenir et a tester, pour une donnee qui tient en quelques lignes et qui",
+    "doit de toute facon etre relue chaque annee."
   ],
   "fixed": [
-    { "month": 1, "day": 1, "name": "Jour de l'An" },
-    { "month": 3, "day": 29, "name": "Commemoration de l'insurrection de 1947" },
-    { "month": 5, "day": 1, "name": "Fete du Travail" },
-    { "month": 6, "day": 26, "name": "Fete de l'Independance" },
-    { "month": 8, "day": 15, "name": "Assomption" },
-    { "month": 11, "day": 1, "name": "Toussaint" },
-    { "month": 12, "day": 25, "name": "Noel" }
+    {
+      "month": 1,
+      "day": 1,
+      "name": "Jour de l'An"
+    },
+    {
+      "month": 3,
+      "day": 29,
+      "name": "Commemoration de l'insurrection de 1947"
+    },
+    {
+      "month": 5,
+      "day": 1,
+      "name": "Fete du Travail"
+    },
+    {
+      "month": 6,
+      "day": 26,
+      "name": "Fete de l'Independance"
+    },
+    {
+      "month": 8,
+      "day": 15,
+      "name": "Assomption"
+    },
+    {
+      "month": 11,
+      "day": 1,
+      "name": "Toussaint"
+    },
+    {
+      "month": 12,
+      "day": 25,
+      "name": "Noel"
+    }
   ],
   "movable": {
     "2026": [
-      { "date": "2026-04-06", "name": "Lundi de Paques" },
-      { "date": "2026-05-14", "name": "Ascension" },
-      { "date": "2026-05-25", "name": "Lundi de Pentecote" }
+      {
+        "date": "2026-03-20",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2026-04-05",
+        "name": "Paques"
+      },
+      {
+        "date": "2026-04-06",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2026-05-14",
+        "name": "Ascension"
+      },
+      {
+        "date": "2026-05-24",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2026-05-25",
+        "name": "Lundi de Pentecote"
+      },
+      {
+        "date": "2026-05-27",
+        "name": "Aid el-Adha (estime)"
+      }
     ],
     "2027": [
-      { "date": "2027-03-29", "name": "Lundi de Paques" },
-      { "date": "2027-05-06", "name": "Ascension" },
-      { "date": "2027-05-17", "name": "Lundi de Pentecote" }
+      {
+        "date": "2027-03-10",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2027-03-28",
+        "name": "Paques"
+      },
+      {
+        "date": "2027-03-29",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2027-05-06",
+        "name": "Ascension"
+      },
+      {
+        "date": "2027-05-16",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2027-05-17",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2027-05-17",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2028": [
-      { "date": "2028-04-17", "name": "Lundi de Paques" },
-      { "date": "2028-05-25", "name": "Ascension" },
-      { "date": "2028-06-05", "name": "Lundi de Pentecote" }
+      {
+        "date": "2028-02-27",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2028-04-16",
+        "name": "Paques"
+      },
+      {
+        "date": "2028-04-17",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2028-05-05",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2028-05-25",
+        "name": "Ascension"
+      },
+      {
+        "date": "2028-06-04",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2028-06-05",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2029": [
-      { "date": "2029-04-02", "name": "Lundi de Paques" },
-      { "date": "2029-05-10", "name": "Ascension" },
-      { "date": "2029-05-21", "name": "Lundi de Pentecote" }
+      {
+        "date": "2029-02-15",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2029-04-01",
+        "name": "Paques"
+      },
+      {
+        "date": "2029-04-02",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2029-04-24",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2029-05-10",
+        "name": "Ascension"
+      },
+      {
+        "date": "2029-05-20",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2029-05-21",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2030": [
-      { "date": "2030-04-22", "name": "Lundi de Paques" },
-      { "date": "2030-05-30", "name": "Ascension" },
-      { "date": "2030-06-10", "name": "Lundi de Pentecote" }
+      {
+        "date": "2030-02-05",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2030-04-14",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2030-04-21",
+        "name": "Paques"
+      },
+      {
+        "date": "2030-04-22",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2030-05-30",
+        "name": "Ascension"
+      },
+      {
+        "date": "2030-06-09",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2030-06-10",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2031": [
-      { "date": "2031-04-14", "name": "Lundi de Paques" },
-      { "date": "2031-05-22", "name": "Ascension" },
-      { "date": "2031-06-02", "name": "Lundi de Pentecote" }
+      {
+        "date": "2031-01-25",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2031-04-03",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2031-04-13",
+        "name": "Paques"
+      },
+      {
+        "date": "2031-04-14",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2031-05-22",
+        "name": "Ascension"
+      },
+      {
+        "date": "2031-06-01",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2031-06-02",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2032": [
-      { "date": "2032-03-29", "name": "Lundi de Paques" },
-      { "date": "2032-05-06", "name": "Ascension" },
-      { "date": "2032-05-17", "name": "Lundi de Pentecote" }
+      {
+        "date": "2032-01-14",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2032-03-22",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2032-03-28",
+        "name": "Paques"
+      },
+      {
+        "date": "2032-03-29",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2032-05-06",
+        "name": "Ascension"
+      },
+      {
+        "date": "2032-05-16",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2032-05-17",
+        "name": "Lundi de Pentecote"
+      }
     ],
     "2033": [
-      { "date": "2033-04-18", "name": "Lundi de Paques" },
-      { "date": "2033-05-26", "name": "Ascension" },
-      { "date": "2033-06-06", "name": "Lundi de Pentecote" }
+      {
+        "date": "2033-01-03",
+        "name": "Aid el-Fitr (estime)"
+      },
+      {
+        "date": "2033-03-12",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2033-04-17",
+        "name": "Paques"
+      },
+      {
+        "date": "2033-04-18",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2033-05-26",
+        "name": "Ascension"
+      },
+      {
+        "date": "2033-06-05",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2033-06-06",
+        "name": "Lundi de Pentecote"
+      },
+      {
+        "date": "2033-12-23",
+        "name": "Aid el-Fitr (estime)"
+      }
     ],
     "2034": [
-      { "date": "2034-04-10", "name": "Lundi de Paques" },
-      { "date": "2034-05-18", "name": "Ascension" },
-      { "date": "2034-05-29", "name": "Lundi de Pentecote" }
+      {
+        "date": "2034-03-01",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2034-04-09",
+        "name": "Paques"
+      },
+      {
+        "date": "2034-04-10",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2034-05-18",
+        "name": "Ascension"
+      },
+      {
+        "date": "2034-05-28",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2034-05-29",
+        "name": "Lundi de Pentecote"
+      },
+      {
+        "date": "2034-12-12",
+        "name": "Aid el-Fitr (estime)"
+      }
     ],
     "2035": [
-      { "date": "2035-03-26", "name": "Lundi de Paques" },
-      { "date": "2035-05-03", "name": "Ascension" },
-      { "date": "2035-05-14", "name": "Lundi de Pentecote" }
+      {
+        "date": "2035-02-18",
+        "name": "Aid el-Adha (estime)"
+      },
+      {
+        "date": "2035-03-25",
+        "name": "Paques"
+      },
+      {
+        "date": "2035-03-26",
+        "name": "Lundi de Paques"
+      },
+      {
+        "date": "2035-05-03",
+        "name": "Ascension"
+      },
+      {
+        "date": "2035-05-13",
+        "name": "Pentecote"
+      },
+      {
+        "date": "2035-05-14",
+        "name": "Lundi de Pentecote"
+      },
+      {
+        "date": "2035-12-02",
+        "name": "Aid el-Fitr (estime)"
+      }
     ]
   }
 }
