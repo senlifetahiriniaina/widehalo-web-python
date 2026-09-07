@@ -277,10 +277,33 @@ est ce qui rend le progrès lisible.*
 | **Jours fériés et majoration de paie** | ✅ livré | Le calendrier ne portait que **3 des 7 fêtes mobiles**. Et surtout : la majoration d'un férié travaillé (2,00, soit +100 %) **n'arrivait jamais au bulletin** — `presence` n'exposait qu'un total, `payslip.py` imputait tout à `h_sup_30`. Une heure de férié était payée **1,30 au lieu de 2,00**. Corrigé pour les cinq catégories. Les jours d'élection deviennent saisissables à l'écran. |
 | **Reste ouvert et dit** | — | La règle porte sur **toutes** les heures d'un férié travaillé, pas seulement sur les heures supplémentaires déclarées : le bulletin calcule un forfait mensuel de jours sans valorisation par jour. Chiffré séparément. |
 
-**Reste du bloc A : S6 seul** — adaptateur factice couvrant OP1–OP8, garde CI FLX-1,
-purge de charge utile (FLX-5 : la table porte sa date de rétention, **rien ne purge**),
-isolation à deux sociétés sur `flows` (FLX-7, zéro occurrence), garde sur les secrets
-dans les journaux (FLX-8). Le registre d'adaptateurs est **vide en production**.
+## 3 sexies. S6 — le bloc A est fermé
+
+*Le seul sprint du bloc A qui ne construit rien de neuf : il rend éprouvé ce qui était
+construit. Quatre critères passent à ✅ — FLX-1, FLX-5, FLX-7, FLX-8. Le détail
+critère par critère est en §6 octies de l'audit ; ce tableau ne garde que ce qui
+change la suite du plan.*
+
+| Sujet | État | Ce que ça change pour la suite |
+|---|---|---|
+| **Adaptateur de référence** | ✅ livré | 1/12 adaptateurs. Ce n'est **pas** un bouchon qu'on remplacera : c'est le « repli activable par paramètre » que le cahier prévoit pour les deux blocs suspendus à une habilitation externe (§12.3). Les blocs C et D peuvent donc démarrer sans attendre H20–H24, en substituant l'adaptateur réel au sien. |
+| **Vocabulaire OP1–OP8 fermé** | ✅ livré | Chaque adaptateur des blocs C à G se décrira par le **sous-ensemble** d'opérations qu'il implémente, refusé à l'enregistrement s'il en nomme une neuvième. `prepare_exchange` refuse aussi une opération que le connecteur ne déclare pas, et une opération dont le sens contredit celui de l'échange. |
+| **FLX-1, seconde moitié** | ✅ livré | Un échange sans empreinte ne peut plus être émis. Conséquence directe pour les blocs suivants : **tout nouveau chemin de création d'échange devra fournir un corps**, sous peine d'être refusé au passage à `emis`. C'est voulu — un échange qui ne transporte rien n'a rien à prouver. |
+| **`services/mapping.py` était mort** | ✅ corrigé | Livré au S5, zéro appelant de production. Il en a un désormais. À vérifier au même titre pour chaque service livré par les blocs suivants : le module de correspondance a passé un sprint entier juste, testé, documenté et inerte. |
+| **`activate_tenant`** | ✅ corrigé | Défaut de socle, pas de flux. Tout service qui boucle sur les sociétés — il y en a douze — laissait son appelant sans société active, donc lisant du vide en silence. Corrigé pour tout le dépôt. |
+| **Console de flux et écrans d'incident** | ⛔ hors bloc A | Les incidents se créent, **rien ne les affiche**. Ils atterrissent au bloc H (S32–S33), comme prévu. Le `chatter` promis à l'incident par §13.2 n'est pas câblé. |
+
+**Mesure** : 4 538 verts sur arbre figé (référence 4 409), 1/12 adaptateurs, 0/80
+opérations publiques.
+
+**Préalable au bloc B, mesuré pendant S6.** Les 165 des 309 opérations qui rendent un
+500 au lieu d'un 404/422 (`tests/contract/test_openapi_schemathesis.py`, `xfail` non
+strict) ont une cause plus simple que le retypage annoncé : il n'existe **aucun
+gestionnaire d'exception** pour `django.core.exceptions.ValidationError` dans
+`apps/core/errors.py`. Celui de `PermissionDenied` y a été ajouté un jour pour
+exactement la même raison, et son commentaire le dit. Un gestionnaire traite la classe
+entière ; le retypage `UUID`/`Literal` reste utile pour rejeter en amont, mais il
+n'est plus le préalable bloquant.
 
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
