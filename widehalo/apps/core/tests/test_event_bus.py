@@ -17,11 +17,36 @@ def _no_real_sleep(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _clear_handlers():
+    """Vide les registres pour la durée du test, puis LES REMET.
+
+    **La version d'origine ne remettait rien**, et le coût était invisible :
+    `_HANDLERS` et `_WILDCARD_HANDLERS` sont des globales de processus,
+    peuplées UNE SEULE FOIS au démarrage de Django par les `AppConfig.
+    ready()` de chaque module. Les vider sans les restaurer détruisait donc,
+    pour tout le reste de la session pytest, l'abonné générique
+    d'`automation`, celui de `flows`, et les vingt-et-un `@subscribe(...)`
+    du dépôt.
+
+    Rien ne rougissait : un abonné absent ne lève pas, il ne fait
+    simplement rien. Les tests placés après `apps/core/` qui dépendent du
+    bus réel passaient donc en ne testant plus rien — de la NON-COUVERTURE
+    SILENCIEUSE, pas un échec. Le défaut a été mis au jour par le premier
+    test à vérifier explicitement la présence de son abonné
+    (`test_s5_triggers.py`), et non par une relecture.
+
+    Le patron sauvegarde/restaure est déjà celui de
+    `flows/tests/test_s3_queue_command.py::registre_propre`, lui-même écrit
+    après le budget de rapports ordre-dépendant du lot L9. Ce fichier est
+    simplement antérieur à cette discipline."""
+    handlers_sauvegardes = {clef: list(valeur) for clef, valeur in events._HANDLERS.items()}
+    wildcards_sauvegardes = list(events._WILDCARD_HANDLERS)
+
     events._HANDLERS.clear()
     events._WILDCARD_HANDLERS.clear()
     yield
     events._HANDLERS.clear()
-    events._WILDCARD_HANDLERS.clear()
+    events._HANDLERS.update(handlers_sauvegardes)
+    events._WILDCARD_HANDLERS[:] = wildcards_sauvegardes
 
 
 def test_publish_event_triggers_subscribed_handler() -> None:
