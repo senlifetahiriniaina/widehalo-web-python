@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.db.uuid7 import uuid7
+from apps.core.models.base import BaseModel
 
 
 class StateTransitionLog(models.Model):
@@ -34,19 +35,28 @@ class StateTransitionLog(models.Model):
         return f"{self.content_type}#{self.object_id}: {self.from_state} -> {self.to_state}"
 
 
-class ApprovalRule(models.Model):
+class ApprovalRule(BaseModel):
     """Regle d'approbation generique, applicable a n'importe quel modele
     metier futur via content-type — le socle ne connait pas les modeles
-    concrets qui l'utiliseront."""
+    concrets qui l'utiliseront.
 
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    tenant = models.ForeignKey("core.Tenant", on_delete=models.CASCADE)
+    **Passee sous `BaseModel`, donc sous Row-Level Security.** Elle portait
+    depuis toujours une vraie cle etrangere `tenant` non nulle : rien
+    n'empechait cet heritage, sinon qu'elle est anterieure a la discipline.
+    `id` et `is_active` etaient IDENTIQUES a ceux de `BaseModel` — les
+    supprimer ne change rien en base. Seul `on_delete` bouge, de CASCADE a
+    PROTECT, et c'est une correction : supprimer une societe qui a des
+    regles de validation actives ne doit pas les emporter en silence. Les
+    chemins de purge (`services/sandbox.py`, `services/tenant_reset.py`)
+    parcourent deja tous les `BaseModel` — la regle y entre donc
+    automatiquement, au lieu d'etre effacee par la cascade sans passer par
+    eux."""
+
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     condition = models.JSONField(default=dict, blank=True)
     approver_role = models.CharField(max_length=32, blank=True)
     sequence_order = models.PositiveSmallIntegerField(default=1)
-    is_active = models.BooleanField(default=True)
 
     # Cascade de secours : si la demande reste en attente plus longtemps que
     # `escalate_after`, elle devient egalement visible aux roles de
@@ -65,7 +75,25 @@ class ApprovalRule(models.Model):
         return self.name
 
 
-class ApprovalRequest(models.Model):
+class ApprovalRequest(BaseModel):
+    """Demande de validation d'une piece, contre une regle.
+
+    **Elle n'avait AUCUNE colonne de societe.** Son rattachement passait
+    uniquement par `rule.tenant_id` — une jointure, donc quelque chose
+    qu'une requete peut oublier. C'est exactement ce qui s'etait produit :
+    `pending_for_user` ne filtrait sur rien, et un validateur voyait les
+    demandes de toutes les societes de l'instance.
+
+    Le filtre de service a corrige la fuite ; cet heritage pose le filet en
+    dessous. La colonne `tenant` est desormais portee par la ligne
+    elle-meme, la Row-Level Security s'applique, et une requete qui
+    oublierait le filtre ne renvoie plus rien au lieu de tout renvoyer.
+
+    `tenant` et `rule.tenant` doivent toujours coincider — c'est
+    `services/approvals.py::request_approval` qui l'etablit, et la lecture
+    verifie les deux, si bien qu'une divergence rendrait la demande
+    invisible plutot que visible a tort."""
+
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
@@ -75,7 +103,6 @@ class ApprovalRequest(models.Model):
         (STATUS_REJECTED, "Rejetée"),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     rule = models.ForeignKey(ApprovalRule, on_delete=models.CASCADE, related_name="requests")
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.CharField(max_length=64)
@@ -94,7 +121,6 @@ class ApprovalRequest(models.Model):
     )
     decided_at = models.DateTimeField(null=True, blank=True)
     comment = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "core_approval_request"

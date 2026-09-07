@@ -82,18 +82,24 @@ HORS_RLS_MOTIVES: dict[str, str] = {
         "Index de recherche plein texte, alimenté par signaux. Le filtrage par "
         "tenant est appliqué par le service de recherche à chaque requête."
     ),
-    "core.ApprovalRule": (
-        "DETTE RÉELLE, ET SANS BONNE RAISON — la seule de cette liste. Contrairement "
-        "aux autres, elle porte une VRAIE clé étrangère `tenant` non nulle : rien "
-        "n'empêchait de la faire hériter de `BaseModel`, sinon qu'elle est antérieure "
-        "à cette discipline. Aucune fuite atteignable aujourd'hui (les trois lecteurs "
-        "— `crm`, `payroll`, `patronage` — font tous `get_or_create(tenant=tenant, "
-        "...)`), mais le filet manque là où il n'aurait pas dû. La correction n'est "
-        "pas gratuite : `id` et `is_active` entrent en collision avec ceux de "
-        "`BaseModel` et `on_delete` passe de CASCADE à PROTECT — donc une migration "
-        "et une reprise du chemin de purge des bacs à sable. Chiffrée séparément "
-        "plutôt que glissée dans un sprint qui traite d'autre chose."
-    ),
+    # `core.ApprovalRule` figurait ici, seule entrée de la liste dont le
+    # motif disait « DETTE RÉELLE, ET SANS BONNE RAISON ». Elle est REMBOURSÉE :
+    # `ApprovalRule` et `ApprovalRequest` héritent de `BaseModel` depuis la
+    # migration `0039`, donc passent par `TenantManager` et par la policy
+    # PostgreSQL comme tout le reste.
+    #
+    # Deux choses méritent d'être écrites plutôt que perdues.
+    #
+    # 1. Le motif chiffrait « les trois lecteurs — crm, payroll, patronage ».
+    #    La mesure au moment de la correction en donne DIX-SEPT pour
+    #    `ApprovalRule` et TREIZE pour `ApprovalRequest`. L'estimation était
+    #    fausse d'un facteur six, et elle minimisait le risque : plus il y a
+    #    de lecteurs, plus la probabilité qu'un seul oublie son filtre est
+    #    grande. C'est exactement ce qui s'était produit dans
+    #    `pending_for_user`.
+    # 2. La dette a d'abord été fermée côté SERVICE (un filtre explicite),
+    #    puis côté MODÈLE (cet héritage). L'ordre compte : le filtre a arrêté
+    #    la fuite le jour même ; l'héritage empêche la prochaine.
 }
 
 

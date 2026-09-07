@@ -286,7 +286,11 @@ class ApprovalRequestFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = ApprovalRequest
 
-    rule = factory.SubFactory(ApprovalRuleFactory)
+    # La règle HÉRITE de la société de la demande (convention du dépôt) :
+    # sans `SelfAttribute`, la sous-factory créerait sa propre société et la
+    # Row-Level Security rejetterait l'insertion sous le contexte du parent.
+    tenant = factory.SubFactory(TenantFactory)
+    rule = factory.SubFactory(ApprovalRuleFactory, tenant=factory.SelfAttribute("..tenant"))
     content_type = factory.LazyFunction(lambda: ContentType.objects.get_for_model(Tenant))
     object_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     requested_by = factory.SubFactory(UserFactory)

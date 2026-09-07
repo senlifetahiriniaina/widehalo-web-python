@@ -15,7 +15,16 @@ from apps.core.models.workflow import ApprovalDelegation, ApprovalRequest, Appro
 def request_approval(
     obj: Any, rule: ApprovalRule, requested_by: User, comment: str = ""
 ) -> ApprovalRequest:
+    """La societe de la demande est celle de LA REGLE, jamais celle du
+    contexte actif.
+
+    Ce n'est pas une nuance : la regle est l'objet qui decide qui valide, et
+    une demande rattachee a une autre societe que sa regle serait invisible
+    de sa propre lecture (qui verifie les deux). Prendre la societe de la
+    regle rend cette divergence impossible a la CREATION plutot qu'a la
+    lecture."""
     return ApprovalRequest.objects.create(
+        tenant_id=rule.tenant_id,
         rule=rule,
         content_type=ContentType.objects.get_for_model(obj.__class__),
         object_id=str(obj.pk),
@@ -48,10 +57,19 @@ def pending_for_user(user: User) -> QuerySet[ApprovalRequest]:
     ce role. Les groupes Django sont globaux dans ce depot — le seul role
     ne peut donc pas decider ce qu'on voit.
 
-    Rien ne rattrapait l'oubli : `ApprovalRequest` n'a aucune colonne de
-    tenant (sa societe se deduit par `rule.tenant`), il n'y avait donc rien
-    d'evident a filtrer, et ni ce modele ni `ApprovalRule` ne passent par
+    Rien ne rattrapait l'oubli AU MOMENT DE LA CORRECTION :
+    `ApprovalRequest` n'avait aucune colonne de tenant (sa societe se
+    deduisait par `rule.tenant`), il n'y avait donc rien d'evident a
+    filtrer, et ni ce modele ni `ApprovalRule` ne passaient par
     `TenantManager` ou la securite au niveau des lignes.
+
+    **Ce filet existe depuis.** Les deux modeles heritent desormais de
+    `BaseModel` : `objects` filtre sur la societe active, et PostgreSQL
+    refuse les lignes des autres. Le filtre ci-dessous devient donc
+    REDONDANT — et il reste, deliberement. Il porte quelque chose que le
+    manager ne porte pas : la verification que la demande ET SA REGLE
+    appartiennent bien a la meme societe. Une divergence rendrait la
+    demande invisible, jamais visible a tort.
 
     **La societe vient du CONTEXTE ACTIF, jamais d'un parametre ni de
     l'objet.** Les trois options ont ete pesees :

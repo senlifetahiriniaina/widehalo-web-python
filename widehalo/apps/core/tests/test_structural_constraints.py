@@ -33,6 +33,7 @@ from apps.core.models.workflow import ApprovalRequest, ApprovalRule
 from apps.core.tests.factories import (
     ApprovalRuleFactory,
     IdempotencyKeyFactory,
+    TenantFactory,
     UserFactory,
 )
 from apps.core.tests.models import SampleTenantScopedRecord
@@ -158,17 +159,23 @@ def test_deleting_a_group_cascades_its_role_profile() -> None:
 
 
 def test_deleting_an_approval_rule_cascades_its_requests() -> None:
-    rule = ApprovalRuleFactory()
-    request = ApprovalRequest.objects.create(
-        rule=rule,
-        content_type=ContentType.objects.get_for_model(Tenant),
-        object_id=str(uuid.uuid4()),
-        requested_by=UserFactory(),
-    )
-    rule_id = rule.id
-    request_id = request.id
-    ApprovalRule.objects.filter(pk=rule_id).delete()
-    assert not ApprovalRequest.objects.filter(pk=request_id).exists()
+    """Les deux modeles sont sous Row-Level Security depuis la migration
+    0039 : la creation ET la suppression se font dans le contexte de leur
+    societe, comme en production."""
+    societe = TenantFactory()
+    with use_tenant(societe.id):
+        rule = ApprovalRuleFactory(tenant=societe)
+        request = ApprovalRequest.objects.create(
+            tenant=rule.tenant,
+            rule=rule,
+            content_type=ContentType.objects.get_for_model(Tenant),
+            object_id=str(uuid.uuid4()),
+            requested_by=UserFactory(),
+        )
+        rule_id = rule.id
+        request_id = request.id
+        ApprovalRule.objects.filter(pk=rule_id).delete()
+        assert not ApprovalRequest.objects.filter(pk=request_id).exists()
 
 
 # --- on_delete: SET_NULL -----------------------------------------------------
@@ -200,15 +207,19 @@ def test_deleting_a_tenant_sandbox_source_sets_it_to_null_on_sandboxes() -> None
 
 
 def test_deleting_the_decider_sets_approval_request_decided_by_to_null() -> None:
-    rule = ApprovalRuleFactory()
+    societe = TenantFactory()
     decider = UserFactory()
-    request = ApprovalRequest.objects.create(
-        rule=rule,
-        content_type=ContentType.objects.get_for_model(Tenant),
-        object_id=str(uuid.uuid4()),
-        requested_by=UserFactory(),
-        decided_by=decider,
-    )
+    with use_tenant(societe.id):
+        rule = ApprovalRuleFactory(tenant=societe)
+        request = ApprovalRequest.objects.create(
+            tenant=rule.tenant,
+            rule=rule,
+            content_type=ContentType.objects.get_for_model(Tenant),
+            object_id=str(uuid.uuid4()),
+            requested_by=UserFactory(),
+            decided_by=decider,
+        )
     decider.delete()
-    request.refresh_from_db()
+    with use_tenant(rule.tenant_id):
+        request.refresh_from_db()
     assert request.decided_by_id is None

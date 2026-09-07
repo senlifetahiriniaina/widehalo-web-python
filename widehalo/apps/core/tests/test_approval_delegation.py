@@ -68,10 +68,14 @@ def test_backup_approver_does_not_see_it_before_escalation_delay(setup) -> None:
 
 def test_backup_approver_sees_it_after_escalation_delay(setup) -> None:
     tenant, _author, _primary, backup, request = setup
-    ApprovalRequest.objects.filter(pk=request.pk).update(
-        created_at=timezone.now() - timedelta(hours=25)
-    )
     with use_tenant(tenant.id):
+        # DANS le contexte : `ApprovalRequest.objects` passe par
+        # `TenantManager` depuis la migration 0039, et un `update()` hors
+        # contexte porterait sur un queryset vide — zero ligne modifiee, et
+        # une escalade qui ne se declenche jamais.
+        ApprovalRequest.objects.filter(pk=request.pk).update(
+            created_at=timezone.now() - timedelta(hours=25)
+        )
         assert request in approvals.pending_for_user(backup)
 
 

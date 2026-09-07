@@ -1,5 +1,6 @@
 from typing import Any
 
+from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from apps.core.models.workflow import ApprovalRequest
@@ -56,7 +57,20 @@ def pending_approvals(request):
 
 @router.post("/approvals/{request_id}/decide")
 def decide_approval(request, request_id: str, payload: ApprovalDecisionIn):
-    approval_request = ApprovalRequest.objects.get(id=request_id)
+    """404 — jamais 500 — quand la demande n'appartient pas a la societe
+    active.
+
+    `ApprovalRequest.objects` passe par `TenantManager` depuis la migration
+    0039 : une demande d'une AUTRE societe n'existe tout simplement plus
+    pour cette requete, et un `.get()` nu remontait alors un
+    `DoesNotExist` non attrape — c'est-a-dire une erreur 500 la ou la
+    reponse correcte est « cette demande n'existe pas pour vous ».
+
+    Le defaut n'etait pas visible avant : la demande etait trouvee, puis
+    `approvals.decide` refusait proprement (403). Le filet a change la
+    nature de l'echec, pas sa presence — et c'est le test d'isolation qui
+    l'a signale, pas une relecture."""
+    approval_request = get_object_or_404(ApprovalRequest, id=request_id)
     approvals.decide(
         approval_request, request.auth, approved=payload.approved, comment=payload.comment
     )

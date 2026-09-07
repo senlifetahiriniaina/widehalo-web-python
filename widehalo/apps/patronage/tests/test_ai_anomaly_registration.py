@@ -38,6 +38,10 @@ def _create_pending_request(tenant, pattern, requester, *, age_days: int) -> App
         sequence_order=1,
     )
     request = ApprovalRequest.objects.create(
+        # La demande porte sa propre societe depuis la migration 0039 : sans
+        # elle, PostgreSQL refuse la ligne (Row-Level Security). C'est la
+        # societe de LA REGLE, jamais celle du contexte actif.
+        tenant=rule.tenant,
         rule=rule,
         content_type=content_type,
         object_id=str(pattern.id),

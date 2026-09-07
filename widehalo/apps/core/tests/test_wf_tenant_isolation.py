@@ -18,6 +18,16 @@ rôles, et les groupes Django sont globaux dans ce dépôt. Ni l'un ni
 l'autre modèle n'étant sous `TenantManager` ni sous Row-Level Security,
 aucun filet ne rattrapait l'oubli.
 
+**Corrigé en deux couches, et l'ordre a compté.** La couche 1 est le filtre
+de service : elle a arrêté la fuite le jour même, sans migration ni
+changement de signature. La couche 2 fait hériter les deux modèles de
+`BaseModel` (migration `0039`) : la demande porte enfin sa propre société,
+`TenantManager` filtre, et PostgreSQL refuse. La couche 1 seule protégeait
+les lecteurs qu'elle traverse ; la couche 2 protège aussi les trente autres
+sites d'appel mesurés dans le dépôt, dont un — `presence/services/
+absences.py` — cherchait lui aussi une demande sans aucun filtre de
+société.
+
 C'est la même faille que RG-CRM-5, fermée plus tôt dans ce chantier —
 quatre endpoints CRM sans périmètre — mais un cran plus grave : ici on ne
 consulte pas, on décide.
@@ -48,12 +58,21 @@ def deux_societes():
     ct = ContentType.objects.get_for_model(Tenant)
 
     demandeur_b = UserFactory(email="demandeur.b@example.com")
-    regle_b = ApprovalRule.objects.create(
-        tenant=b, content_type=ct, name="Validation B", approver_role="controleur_gestion"
-    )
-    demande_b = ApprovalRequest.objects.create(
-        rule=regle_b, content_type=ct, object_id=str(b.id), requested_by=demandeur_b
-    )
+    # Depuis la couche 2, les deux tables sont sous Row-Level Security :
+    # une insertion hors contexte est refusée par PostgreSQL lui-même
+    # (`new row violates row-level security policy`). La création se fait
+    # donc dans la société propriétaire, comme en production.
+    with use_tenant(b.id):
+        regle_b = ApprovalRule.objects.create(
+            tenant=b, content_type=ct, name="Validation B", approver_role="controleur_gestion"
+        )
+        demande_b = ApprovalRequest.objects.create(
+            tenant=b,
+            rule=regle_b,
+            content_type=ct,
+            object_id=str(b.id),
+            requested_by=demandeur_b,
+        )
 
     comptable_a = UserFactory(email="comptable.a@example.com")
     grant_role(comptable_a, "controleur_gestion")
@@ -94,7 +113,8 @@ def test_an_approver_can_never_decide_another_company_s_request(deux_societes) -
         with pytest.raises(PermissionDenied):
             approvals.decide(demande_b, comptable_a, approved=True)
 
-    demande_b.refresh_from_db()
+    with use_tenant(_societe_b.id):
+        demande_b.refresh_from_db()
     assert demande_b.status == ApprovalRequest.STATUS_PENDING
 
 
@@ -106,12 +126,20 @@ def test_an_approver_still_sees_and_decides_his_own_company_s_requests(deux_soci
     ct = ContentType.objects.get_for_model(Tenant)
 
     demandeur_a = UserFactory(email="demandeur.a@example.com")
-    regle_a = ApprovalRule.objects.create(
-        tenant=societe_a, content_type=ct, name="Validation A", approver_role="controleur_gestion"
-    )
-    demande_a = ApprovalRequest.objects.create(
-        rule=regle_a, content_type=ct, object_id=str(societe_a.id), requested_by=demandeur_a
-    )
+    with use_tenant(societe_a.id):
+        regle_a = ApprovalRule.objects.create(
+            tenant=societe_a,
+            content_type=ct,
+            name="Validation A",
+            approver_role="controleur_gestion",
+        )
+        demande_a = ApprovalRequest.objects.create(
+            tenant=societe_a,
+            rule=regle_a,
+            content_type=ct,
+            object_id=str(societe_a.id),
+            requested_by=demandeur_a,
+        )
 
     with use_tenant(societe_a.id):
         visibles = list(approvals.pending_for_user(comptable_a))
@@ -119,7 +147,8 @@ def test_an_approver_still_sees_and_decides_his_own_company_s_requests(deux_soci
         assert approvals.is_eligible_approver(demande_a, comptable_a)
         approvals.decide(demande_a, comptable_a, approved=True)
 
-    demande_a.refresh_from_db()
+    with use_tenant(societe_a.id):
+        demande_a.refresh_from_db()
     assert demande_a.status == ApprovalRequest.STATUS_APPROVED
 
 
@@ -159,7 +188,8 @@ def test_the_endpoint_refuses_a_request_from_another_company(deux_societes) -> N
         f"Statut {reponse.status_code} : l'endpoint de décision accepte une demande "
         "appartenant à une autre société."
     )
-    demande_b.refresh_from_db()
+    with use_tenant(_societe_b.id):
+        demande_b.refresh_from_db()
     assert demande_b.status == ApprovalRequest.STATUS_PENDING
 
 
@@ -171,13 +201,17 @@ def test_outside_any_company_context_nothing_is_returned(deux_societes) -> None:
     TOUTES les sociétés. C'est le pire des cas possibles : le code
     appelant croirait légitimement travailler sur une seule.
 
-    **Ce qui tient ce comportement, dit exactement.** La falsification a
-    montré que retirer le garde-fou explicite ne change RIEN : sans
-    contexte, `filter(rule__tenant_id=None)` ne remonte aucune ligne,
-    puisque `ApprovalRule.tenant` est non nul. Le refus vient donc du
-    filtre lui-même, pas du `if`. Le garde-fou rend la propriété LISIBLE
-    plutôt qu'accidentelle — et ce test la fige, pour qu'un futur filtre
-    plus permissif ne la perde pas en silence."""
+    **Ce qui tient ce comportement, dit exactement — et cela a changé.**
+    À la couche 1, la falsification avait montré que retirer le garde-fou
+    explicite ne changeait RIEN : sans contexte,
+    `filter(rule__tenant_id=None)` ne remonte aucune ligne, puisque
+    `ApprovalRule.tenant` est non nul. Le refus venait du filtre, pas du
+    `if`.
+
+    Depuis la couche 2, TROIS mécanismes le tiennent : ce `if`, le filtre,
+    et `TenantManager` qui rend `none()` hors contexte. Aucune mutation
+    isolée ne fera donc rougir ce test — c'est le prix de la redondance, et
+    il est écrit ici plutôt que laissé à découvrir."""
     _societe_a, _societe_b, comptable_a, _demande_b = deux_societes
 
     # Hors de tout `use_tenant` : aucun contexte actif.
@@ -197,3 +231,149 @@ def test_outside_any_company_context_nobody_is_eligible(deux_societes) -> None:
     _societe_a, _societe_b, comptable_a, demande_b = deux_societes
 
     assert approvals.is_eligible_approver(demande_b, comptable_a) is False
+
+
+# ---------------------------------------------------------------------------
+# Couche 2 — le filet sous le filtre
+# ---------------------------------------------------------------------------
+#
+# Les tests ci-dessus vérifient le SERVICE. Ceux qui suivent vérifient que la
+# base elle-même refuse, indépendamment de tout code applicatif : c'est la
+# différence entre « le seul lecteur écrit filtre correctement » et « aucun
+# lecteur ne PEUT lire ».
+
+
+def test_the_manager_denies_by_default_outside_any_company(deux_societes) -> None:
+    """`TenantManager`, appliqué aux deux modèles depuis la migration 0039.
+
+    Un futur lecteur qui oublierait son filtre — c'est-à-dire exactement ce
+    qui s'était produit — obtient désormais un ensemble vide plutôt que
+    toutes les sociétés."""
+    assert list(ApprovalRule.objects.all()) == []
+    assert list(ApprovalRequest.objects.all()) == []
+
+
+def test_a_company_s_manager_never_returns_another_s_rows(deux_societes) -> None:
+    societe_a, societe_b, _comptable_a, demande_b = deux_societes
+
+    with use_tenant(societe_a.id):
+        assert list(ApprovalRequest.objects.all()) == []
+        assert list(ApprovalRule.objects.all()) == []
+    with use_tenant(societe_b.id):
+        assert [d.id for d in ApprovalRequest.objects.all()] == [demande_b.id]
+
+
+def test_postgresql_itself_refuses_the_other_company_s_rows(deux_societes) -> None:
+    """**Le filet, testé SANS le manager.**
+
+    `all_objects` est un `models.Manager` ordinaire : il ne filtre rien. Ce
+    qui reste debout est donc la policy PostgreSQL seule. Sans elle, ce test
+    verrait la demande de B depuis le contexte de A — c'est-à-dire que le
+    dépôt n'aurait toujours qu'UNE couche de protection, celle qu'un
+    développeur peut oublier.
+
+    **Falsifié, et le premier essai avait donné un FAUX NÉGATIF.** Retirer la
+    policy avec `ALTER TABLE core_approval_request DISABLE ROW LEVEL
+    SECURITY` en `psql` avant de lancer pytest ne faisait PAS rougir ce
+    test — j'ai d'abord cru que le test ne valait rien. La cause est
+    ailleurs : `--reuse-db` conserve les données mais **rejoue `migrate`**,
+    donc `post_migrate` rappelle `apply_rls` et remet la policy avant le
+    premier test. La falsification qui mord se fait DANS la transaction du
+    test, et avant toute écriture (PostgreSQL refuse un `ALTER TABLE` sur
+    une table qui porte des déclencheurs de contrainte différés en
+    attente) : le contexte de A voit alors bien la demande de B. La policy
+    fait donc le travail.
+
+    C'est noté ici pour que le prochain ne refasse pas le même essai
+    invalide et n'en tire pas la même conclusion fausse."""
+    societe_a, societe_b, _comptable_a, demande_b = deux_societes
+
+    with use_tenant(societe_a.id):
+        vues = list(ApprovalRequest.all_objects.filter(id=demande_b.id))
+    assert vues == [], (
+        "PostgreSQL laisse lire la demande d'une autre société : la Row-Level "
+        "Security n'est pas appliquée sur `core_approval_request`."
+    )
+
+    with use_tenant(societe_b.id):
+        assert [d.id for d in ApprovalRequest.all_objects.filter(id=demande_b.id)] == [
+            demande_b.id
+        ], "La société propriétaire ne voit plus sa propre demande : la policy est trop stricte."
+
+
+def test_postgresql_refuses_to_write_a_row_into_another_company(deux_societes) -> None:
+    """L'écriture, et pas seulement la lecture. Une policy `USING` sans
+    `WITH CHECK` sert aussi de contrôle à l'INSERT : écrire une règle de la
+    société B depuis le contexte de A est refusé par la base."""
+    from django.db import ProgrammingError, transaction
+
+    societe_a, societe_b, _comptable_a, _demande_b = deux_societes
+    ct = ContentType.objects.get_for_model(Tenant)
+
+    with use_tenant(societe_a.id), pytest.raises(ProgrammingError), transaction.atomic():
+        ApprovalRule.objects.create(
+            tenant=societe_b, content_type=ct, name="Règle intruse", approver_role="x"
+        )
+
+
+def test_a_request_always_carries_the_company_of_its_rule(deux_societes) -> None:
+    """La colonne ajoutée par la couche 2 doit rester COHÉRENTE avec la
+    règle, sans quoi elle créerait une seconde vérité.
+
+    `request_approval` prend la société de LA RÈGLE, jamais du contexte
+    actif : une divergence rendrait la demande invisible de sa propre
+    lecture (qui vérifie les deux), et le service la rend impossible à la
+    création plutôt qu'à la lecture."""
+    societe_a, _societe_b, _comptable_a, _demande_b = deux_societes
+    ct = ContentType.objects.get_for_model(Tenant)
+    demandeur = UserFactory(email="demandeur.coherence@example.com")
+
+    with use_tenant(societe_a.id):
+        regle = ApprovalRule.objects.create(
+            tenant=societe_a, content_type=ct, name="Cohérence", approver_role="x"
+        )
+        demande = approvals.request_approval(societe_a, regle, demandeur)
+        assert demande.tenant_id == regle.tenant_id
+
+
+def test_the_policy_is_really_installed_on_both_tables(deux_societes) -> None:
+    """Le MÉCANISME, pas seulement son effet — et cette vérification
+    n'existait nulle part dans le dépôt.
+
+    `tests/architecture/test_rls_coverage.py` est purement statique : il
+    regarde de quoi les modèles héritent, jamais ce que PostgreSQL porte
+    réellement. Or `apply_rls` s'exécute sur `post_migrate` et ne dit jamais
+    ce qu'il n'a pas couvert — sa propre docstring le reconnaît : « son
+    silence ressemble exactement à une couverture complète ».
+
+    `FORCE` compte autant que `ENABLE` : sans lui, le PROPRIÉTAIRE de la
+    table contourne la policy, et le rôle applicatif de ce dépôt
+    (`widehalo_app`) est justement le propriétaire. Une table simplement
+    `ENABLE` serait donc protégée contre tout le monde sauf contre le seul
+    rôle qui s'y connecte."""
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
+            "WHERE relname IN ('core_approval_rule', 'core_approval_request') "
+            "ORDER BY relname"
+        )
+        etat = {ligne[0]: (ligne[1], ligne[2]) for ligne in cursor.fetchall()}
+        cursor.execute(
+            "SELECT tablename FROM pg_policies WHERE policyname = 'tenant_isolation_policy' "
+            "AND tablename IN ('core_approval_rule', 'core_approval_request')"
+        )
+        avec_policy = {ligne[0] for ligne in cursor.fetchall()}
+
+    for table in ("core_approval_rule", "core_approval_request"):
+        assert etat.get(table) == (True, True), (
+            f"{table} : Row-Level Security attendue en ENABLE + FORCE, trouvée "
+            f"{etat.get(table)}. Sans FORCE, le propriétaire de la table — c'est-à-dire "
+            "le rôle applicatif lui-même — contourne la policy."
+        )
+        assert table in avec_policy, (
+            f"{table} n'a pas de policy `tenant_isolation_policy` : la table est sous "
+            "RLS sans règle, donc VIDE pour tout le monde, ou pas protégée du tout "
+            "selon la version. `apply_rls` ne l'a pas couverte."
+        )
