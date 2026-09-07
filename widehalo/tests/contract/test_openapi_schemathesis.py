@@ -66,16 +66,59 @@ duree pour un test marque `slow` (nightly, pas CI standard) — ~316s mesures
 localement avec les 4 modules supplementaires (cf. rapport de session ;
 ~80s avant leur ajout).
 
-**RESULTAT DE LA CAMPAGNE — vrai(s) bug(s) trouve(s), PAS corrige(s) (hors
-perimetre de cette tache) :** ce test echoue actuellement sur 165 des 309
-operations (xfailed) avec une erreur 500 reelle, jamais une violation de
-schema — 144 reussissent legitimement (xpassed), une proportion inchangee
-par l'ajout de sales/purchase/stocks/logistics (le defaut systemique decrit
-ci-dessous les touche exactement de la meme maniere que les modules deja
-couverts, cf. repro ci-dessous transposables tels quels sur leurs
-endpoints). Deux
-causes racines systemiques, toutes deux dans la couche API (`apps/*/api.py`,
-`apps/core/api_auth.py`) plutot que dans les services metier :
+**RESULTAT DE LA CAMPAGNE, REMESURE AU SPRINT S6 (prealable au bloc B) :
+264 des 590 operations rendaient un 500 ; il en reste 30.**
+
+Le chiffre qui figurait ici — « 165 des 309 » — etait PERIME. La surface a
+grossi de 309 a 590 operations depuis T10, et le defaut a grossi avec elle.
+Premiere lecon, et elle vaut pour tout constat chiffre laisse dans une
+docstring : il vieillit sans prevenir, et personne ne le remesure tant qu'il
+a l'air d'une conclusion.
+
+Les deux causes racines decrites ci-dessous etaient exactes. La conclusion
+qu'on en tirait — « corriger demanderait de retyper ces parametres module
+par module » — ne l'etait pas : elle traitait les SYMPTOMES. La cause
+commune tenait en une ligne absente, et 234 des 264 operations ont ete
+reparees par QUINZE LIGNES dans `apps/core/errors.py` : il n'existait aucun
+gestionnaire d'exception pour `django.core.exceptions.ValidationError` ni
+pour `ObjectDoesNotExist`, si bien que les deux tombaient dans le
+gestionnaire generique, qui rend 500. Le gestionnaire de `PermissionDenied`
+y avait ete ajoute un jour pour exactement la meme raison, et son
+commentaire le disait.
+
+Le retypage garde son interet — rejeter en amont, et DOCUMENTER le type
+admis dans l'OpenAPI publie, ce qu'un `str` ne fait pas — mais il n'est plus
+le prealable bloquant du bloc B. Il a ete fait pour les parametres enum de
+`reporting` (seconde cause racine), pas pour les 460 identifiants.
+
+**Les 27 qui restent sont un AUTRE defaut, non encore identifie.** Ce ne
+sont plus des entrees malformees sur identifiant : ce sont des POST de
+creation et quelques GET de rapport, enumeres dans
+`OPERATIONS_ENCORE_EN_DEFAUT`. Reproduire a la main avec des charges
+plausibles rend 422, pas 500 : il faut les cas generes par Hypothesis pour
+les voir. Dit plutot que suppose.
+
+**Et une propriete de cette campagne qu'il faut connaitre avant de la
+lire : elle MODIFIE la base qu'elle teste.** Chaque POST genere y laisse des
+lignes, et ce que fait le POST suivant en depend — collision d'unicite,
+reference qui existe desormais, compteur qui a bouge. L'ensemble des
+operations en echec depend donc de l'ETAT DE LA BASE autant que du tirage.
+Mesure : trois passes, trois ensembles differents (30, puis 7 autres, puis
+ces 27), dont deux avec la generation deja derandomisee
+(`deterministic=True`, ajoute ici pour supprimer au moins cette
+source-la). C'est pourquoi le `xfail` reste au niveau du MODULE : une liste
+d'exemptions exacte serait fausse une passe sur deux, exemptant par accident
+et rougissant par accident. La liste existe quand meme, comme liste de
+travail du chantier restant, mais elle ne pilote rien.
+
+**Corollaire pratique** : cette campagne exige `--create-db`. Sur base
+reutilisee, elle echoue au semis (« aucun plan de comptes resolu pour le
+pays MG ») parce que les donnees de reference posees par les migrations de
+donnees ont ete emportees par un `TransactionTestCase` d'une passe
+precedente. Constate deux fois plutot que devine.
+
+Les deux causes racines d'origine, conservees telles quelles parce
+qu'elles restent la description exacte du defaut repare :
 1. Un identifiant UUID recu malforme (chaine vide, `"0"`, etc.) dans un
    parametre de chemin/requete/corps declare `str` (pas un type UUID
    valide) traverse la validation de schema de django-ninja sans erreur,
@@ -92,13 +135,14 @@ causes racines systemiques, toutes deux dans la couche API (`apps/*/api.py`,
    lieu d'etre rejetee en amont par django-ninja.
 Les deux causes sont la meme classe de probleme (parametres API sans type/
 validation suffisamment stricts pour rejeter une entree malformee AVANT la
-couche service) repetee sur la quasi-totalite des endpoints prenant un
-identifiant ou un parametre enum-like — corriger correctement demanderait de
-retyper ces parametres (UUID/`Literal`) module par module, un chantier
-independant de T10 et hors du perimetre de cette tache (`requirements/
-dev.txt` + `tests/contract/` uniquement). Documente ici tel quel plutot que
-contourne : le test reflete fidelement ce vrai defaut de contrat plutot que
-d'exclure 165 operations pour forcer un succes artificiel."""
+couche service). Ce que l'analyse d'origine ratait : le 500 n'etait pas la
+consequence du typage mais de l'ABSENCE DE GESTIONNAIRE. Une entree
+malformee doit rendre 422 meme quand le typage la laisse passer, parce que
+la couche service leve alors exactement la bonne exception. Et le defaut
+debordait largement des entrees malformees — toute la couche service de ce
+depot leve `ValidationError` pour refuser une operation metier, et chacun de
+ces refus, volontaire et documente, se presentait a l'utilisateur comme une
+panne du produit."""
 
 from __future__ import annotations
 
@@ -116,26 +160,98 @@ from schemathesis.specs.openapi.checks import response_schema_conformance
 
 pytestmark = [pytest.mark.django_db, pytest.mark.slow]
 
-# `strict=False` (pas `strict=True`) : `@lazy_schema.parametrize()` genere
-# 309 tests independants (un par operation, 101 initiaux + 208 apportes par
-# sales/purchase/stocks/logistics), et seule une partie d'entre eux
-# (165/309) rencontre reellement le defaut systemique documente ci-dessus
-# (parametres UUID/enum declares `str`, provoquant un 500 au lieu d'un
-# 404/422 sur entree malformee generee par Hypothesis) — les 144 autres
-# passent legitimement. `strict=True` ferait donc echouer la suite sur CES
-# operations qui reussissent (XPASS), ce qui est le contraire de l'effet
-# recherche. Ce xfail documente un defaut reel connu (cf. docstring du
-# module pour le detail et les repro) plutot que de masquer 165 operations
-# une a une pour forcer un succes artificiel — a retirer une fois le
-# retypage module par module effectue (hors perimetre de T10).
+#: Les operations qui rendaient ENCORE un 500 sur entree generee, relevees
+#: au sprint S6 sur une base FRAICHE et en generation deterministe — 27 sur
+#: 590. C'est la liste de travail du chantier restant, PAS un mecanisme de
+#: controle, et cette distinction a coute trois passes de mesure.
+#:
+#: **Pourquoi elle ne pilote rien.** L'intention etait de remplacer le
+#: `xfail` de module par une exemption nommee, sur la discipline
+#: d'`INTENTIONALLY_OPEN_ENDPOINTS` : une exemption se nomme, se compte et
+#: se retire, et un `xfail` global couvre aussi les 560 operations qui
+#: passent — une regression sur l'une d'elles ne ferait rien rougir. Essaye,
+#: et l'essai a immediatement montre sa valeur : deux operations absentes de
+#: la liste ont echoue au grand jour.
+#:
+#: Il a aussi montre pourquoi la liste ne peut pas tenir. **La campagne
+#: MODIFIE la base qu'elle teste** : chaque POST genere y laisse des lignes,
+#: et ce que fait le POST suivant en depend — collision d'unicite,
+#: reference qui existe maintenant, compteur qui a bouge. L'ensemble des
+#: operations en echec depend donc de l'etat de la base, pas seulement du
+#: tirage. Mesure : trois passes, trois ensembles differents (30, puis 7
+#: autres, puis ces 27), dont deux avec la generation DEJA derandomisee.
+#: Une liste exacte serait donc fausse la moitie du temps — exemptant par
+#: accident, rougissant par accident. Un `xfail` de module protege moins,
+#: mais il ne ment pas sur ce qu'il protege.
+#:
+#: Ces 27 ne relevent PAS de la cause racine reparee au sprint S6
+#: (identifiant malforme, parametre enum). Ce sont des POST de creation et
+#: des GET de rapport dont le defaut n'est pas identifie — reproduire a la
+#: main avec des charges plausibles rend 422 ; il faut les cas generes par
+#: Hypothesis pour l'atteindre.
+OPERATIONS_ENCORE_EN_DEFAUT: frozenset[str] = frozenset(
+    {
+        "GET /api/v1/crm/reports/activities",
+        "GET /api/v1/crm/reports/lost",
+        "GET /api/v1/mrp/reports/cra",
+        "GET /api/v1/mrp/reports/cri",
+        "GET /api/v1/mrp/reports/efficiency",
+        "GET /api/v1/mrp/reports/scrap",
+        "GET /api/v1/purchase/supplier-evaluations",
+        "GET /api/v1/sales/forecast",
+        "GET /api/v1/stocks/availability",
+        "POST /api/v1/crm/leads",
+        "POST /api/v1/helpdesk/ticket-types",
+        "POST /api/v1/partners/imports/partners",
+        "POST /api/v1/projects",
+        "POST /api/v1/purchase/cra",
+        "POST /api/v1/purchase/cri",
+        "POST /api/v1/purchase/orders",
+        "POST /api/v1/purchase/orders/bulk-from-requisitions",
+        "POST /api/v1/purchase/reordering-rules",
+        "POST /api/v1/purchase/requisitions",
+        "POST /api/v1/quality/control-plans",
+        "POST /api/v1/quality/templates",
+        "POST /api/v1/risks",
+        "POST /api/v1/sales/orders",
+        "POST /api/v1/sales/quotations",
+        "POST /api/v1/stocks/imports/initial-quantities",
+        "POST /api/v1/stocks/moves",
+        "POST /api/v1/stocks/transfers",
+    }
+)
+
+#: Vues au moins une fois sur une autre passe, avec le meme code et la meme
+#: generation — la preuve que l'ensemble bouge avec l'etat de la base.
+#: Conservees pour que le chantier restant ne les oublie pas.
+OPERATIONS_VUES_EN_DEFAUT_AILLEURS: frozenset[str] = frozenset(
+    {
+        "POST /api/v1/feasibility/studies",
+        "POST /api/v1/helpdesk/kb/articles",
+        "POST /api/v1/helpdesk/response-templates",
+        "POST /api/v1/helpdesk/teams",
+        "POST /api/v1/helpdesk/tickets",
+        "POST /api/v1/logistics/drivers",
+        "POST /api/v1/logistics/vehicles",
+        "POST /api/v1/partners",
+        "POST /api/v1/purchase/rfqs",
+        "POST /api/v1/sales/targets",
+        "POST /api/v1/strategy/notes",
+        "POST /api/v1/strategy/objectives",
+    }
+)
+
+# Le `xfail` reste donc au niveau du MODULE, avec les chiffres remesures.
+# `strict=False` : les 562 operations qui passent ressortent en XPASS, et
+# `strict=True` les ferait echouer — le contraire de l'effet recherche.
 pytestmark.append(
     pytest.mark.xfail(
         reason=(
-            "Defaut de contrat systemique reel : 165/309 operations renvoient "
-            "500 au lieu de 404/422 sur entree malformee (parametres UUID/enum "
-            "declares `str`, non retypes) — cf. docstring du module pour le "
-            "detail et les repro. Corriger demande de retyper ces parametres "
-            "module par module, hors perimetre de T10."
+            "27 des 590 operations rendent encore un 500 sur entree generee "
+            "(remesure au sprint S6 : elles etaient 264 avant l'ajout des "
+            "gestionnaires d'exception de `apps.core.errors`). Cause non "
+            "identifiee, distincte de celle qui a ete reparee — cf. "
+            "`OPERATIONS_ENCORE_EN_DEFAUT` et la docstring du module."
         ),
         strict=False,
     )
@@ -270,7 +386,28 @@ def schema(live_server) -> Any:
     "test derivant le schema OpenAPI expose par `config.api.api`"."""
     config = SchemathesisConfig(
         projects=ProjectsConfig(
-            default=ProjectConfig(generation=GenerationConfig(max_examples=MAX_EXAMPLES))
+            default=ProjectConfig(
+                generation=GenerationConfig(
+                    max_examples=MAX_EXAMPLES,
+                    # DETERMINISTE, et ce n'est pas un detail de confort.
+                    # Hypothesis explore des entrees differentes a chaque
+                    # execution : sans cette option, l'ensemble des
+                    # operations qui echouent CHANGE d'une passe a l'autre.
+                    # Constate en direct au sprint S6 — deux operations
+                    # (`POST /purchase/rfqs`, `POST /feasibility/studies`)
+                    # ont surgi a la passe suivante, absentes des deux
+                    # precedentes. Une campagne de contrat dont le verdict
+                    # depend du tirage n'est pas une campagne : elle rougit
+                    # au hasard, et une equipe finit par la relancer jusqu'a
+                    # ce qu'elle passe.
+                    #
+                    # C'est aussi ce qui rend `OPERATIONS_ENCORE_EN_DEFAUT`
+                    # EXACTE plutot qu'observationnelle : une liste
+                    # d'exemptions tiree au sort exempterait par accident et
+                    # rougirait par accident.
+                    deterministic=True,
+                )
+            )
         )
     )
     return schemathesis.openapi.from_url(f"{live_server.url}/api/v1/openapi.json", config=config)

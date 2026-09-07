@@ -6,7 +6,7 @@ l'etape suivante du meme chantier."""
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -25,11 +25,23 @@ from apps.reporting.services.scheduling import compute_next_run_at
 router = Router(tags=["reporting"])
 
 
+#: Les quatre formats que `RptJob.FORMAT_CHOICES` connait, et la seconde
+#: cause racine mesuree par la campagne de contrat : declares `str`, ils
+#: laissaient passer n'importe quelle valeur jusqu'a la logique de rendu,
+#: qui plantait en 500 au lieu d'un 422 rendu par le schema. Un `Literal`
+#: refuse en amont, ET documente les valeurs admises dans l'OpenAPI publie —
+#: ce qu'un `str` ne fait pas.
+ReportFormat = Literal["pdf", "xlsx", "csv", "json"]
+
+#: Les trois langues de `settings.LANGUAGES`. Meme motif.
+ReportLang = Literal["fr", "en", "mg"]
+
+
 class GenerateReportIn(Schema):
     code: str
     params: dict[str, Any] = {}
-    format: str = "json"
-    lang: str = "fr"
+    format: ReportFormat = "json"
+    lang: ReportLang = "fr"
     estimated_row_count: int | None = None
 
 
@@ -143,9 +155,9 @@ class ScheduleIn(Schema):
     name: str
     code: str
     params: dict[str, Any] = {}
-    format: str = "json"
-    lang: str = "fr"
-    frequency: str
+    format: ReportFormat = "json"
+    lang: ReportLang = "fr"
+    frequency: Literal["daily", "weekly", "monthly"]
     recipient_ids: list[str] = []
 
 
