@@ -7,6 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import DateTimeField, ExpressionWrapper, F, Q, QuerySet
 from django.utils import timezone
 
+from apps.core.context import get_current_tenant_id
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalDelegation, ApprovalRequest, ApprovalRule
 
@@ -33,17 +34,53 @@ def _delegate_ids_for(user: User) -> list[Any]:
 
 
 def pending_for_user(user: User) -> QuerySet[ApprovalRequest]:
-    """Demandes en attente adressees a l'utilisateur : celles ou son role
-    est l'approbateur principal, celles deleguees vers lui (delegation
-    explicite), et celles escaladees vers son role de secours faute de
-    decision dans le delai `rule.escalate_after` (cascade de validateurs
-    de secours — l'absence reelle d'un validateur, elle, sera detectee
-    plus tard par le futur module Presence/RH ; ici l'escalade est
-    purement temporelle)."""
+    """Demandes en attente adressees a l'utilisateur DANS CETTE SOCIETE :
+    celles ou son role est l'approbateur principal, celles deleguees vers
+    lui (delegation explicite), et celles escaladees vers son role de
+    secours faute de decision dans le delai `rule.escalate_after` (cascade
+    de validateurs de secours — l'absence reelle d'un validateur, elle,
+    sera detectee plus tard par le futur module Presence/RH ; ici
+    l'escalade est purement temporelle).
+
+    **`tenant_id` est OBLIGATOIRE, et c'est la correction.** Cette fonction
+    ne filtrait sur aucune societe : un utilisateur portant le role
+    « comptable » voyait les demandes de TOUTE societe dont une regle porte
+    ce role. Les groupes Django sont globaux dans ce depot — le seul role
+    ne peut donc pas decider ce qu'on voit.
+
+    Rien ne rattrapait l'oubli : `ApprovalRequest` n'a aucune colonne de
+    tenant (sa societe se deduit par `rule.tenant`), il n'y avait donc rien
+    d'evident a filtrer, et ni ce modele ni `ApprovalRule` ne passent par
+    `TenantManager` ou la securite au niveau des lignes.
+
+    **La societe vient du CONTEXTE ACTIF, jamais d'un parametre ni de
+    l'objet.** Les trois options ont ete pesees :
+
+    - la deduire de `approval_request.rule.tenant` rendrait le controle
+      TAUTOLOGIQUE — on comparerait la societe de l'objet a elle-meme ;
+    - un parametre explicite obligerait la dizaine d'enveloppes de
+      `services/public.py` a le fournir, soit dix occasions de passer la
+      mauvaise valeur, a commencer par la premiere sous la main : celle de
+      l'objet ;
+    - le contexte actif est la societe de L'APPELANT, pose par
+      `TenantMiddleware` depuis la requete authentifiee. Il n'y a rien a
+      fournir, donc rien a se tromper.
+
+    C'est aussi le mecanisme que tout le reste du depot emploie deja —
+    `TenantManager` et la securite au niveau des lignes lisent le meme
+    contextvar. Etre coherent avec lui n'est pas un compromis ici, c'est
+    l'inverse d'une exception.
+
+    Hors contexte de societe, on ne renvoie RIEN plutot que tout : meme
+    discipline deny-by-default que `TenantManager`."""
+    tenant_id = get_current_tenant_id()
+    if not tenant_id:
+        return ApprovalRequest.objects.none()
+
     delegator_ids = _delegate_ids_for(user)
     approver_roles = set(user.groups.values_list("name", flat=True))
 
-    qs = ApprovalRequest.objects.annotate(
+    qs = ApprovalRequest.objects.filter(rule__tenant_id=tenant_id).annotate(
         escalates_at=ExpressionWrapper(
             F("created_at") + F("rule__escalate_after"), output_field=DateTimeField()
         )
@@ -72,6 +109,15 @@ def is_eligible_approver(approval_request: ApprovalRequest, user: User) -> bool:
     correctif d'un controle d'acces manquant : `decide_approval` n'avait
     aucune verification d'eligibilite avant ce correctif)."""
     rule = approval_request.rule
+    # LA SOCIETE D'ABORD, avant tout examen de role. Voir la demande d'une
+    # autre societe est une indiscretion ; en DECIDER est un acte qui
+    # engage cette societe — approuver sa facture, sa periode de paie, sa
+    # commande. Ce controle manquait entierement : seuls les roles etaient
+    # compares, et les groupes Django sont globaux.
+    tenant_id = get_current_tenant_id()
+    if not tenant_id or str(rule.tenant_id) != str(tenant_id):
+        return False
+
     approver_roles = set(user.groups.values_list("name", flat=True))
 
     if rule.approver_role and rule.approver_role in approver_roles:
@@ -92,7 +138,7 @@ def decide(
     if not is_eligible_approver(request, decided_by):
         raise PermissionDenied(
             "Cet utilisateur n'est pas un approbateur eligible pour cette demande "
-            "(role approbateur, delegation ou escalade de secours requis)."
+            "(societe, role approbateur, delegation ou escalade de secours requis)."
         )
     request.status = (
         ApprovalRequest.STATUS_APPROVED if approved else ApprovalRequest.STATUS_REJECTED
