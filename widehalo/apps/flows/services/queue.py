@@ -452,6 +452,26 @@ def _call_adapter(
     return outcome, clock() - before
 
 
+def queue_exchange(exchange: FlwExchange) -> FlwExchange:
+    """Met un echange en file, en lui posant ses deux clefs au passage.
+
+    **C'est ICI que la clef d'idempotence est calculee, et pas a la
+    preparation** (S4). Un echange prepare puis abandonne sans jamais
+    partir ne doit pas consommer de clef : la contrainte d'unicite la
+    retiendrait pour toujours, et une seconde tentative sur la meme piece
+    serait refusee par la base pour un envoi qui n'a jamais eu lieu.
+
+    C'est le point d'entree que les declencheurs de S5 appelleront. Il
+    existe des maintenant parce que sans lui, chaque appelant devrait se
+    souvenir de poser les clefs — et le premier qui l'oublierait
+    transmettrait au tiers un echange sans protection contre le doublon,
+    sans que rien ne proteste."""
+    from apps.flows.services.idempotency import assign_keys
+
+    assign_keys(exchange)
+    return transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
+
+
 def _requeue_if_retrying(exchange: FlwExchange) -> None:
     """Un reessai du repasse par `en_file` avant d'etre emis.
 
@@ -601,6 +621,7 @@ __all__ = [
     "open_breakers",
     "outbound_queue_depth",
     "process_outbound_queue",
+    "queue_exchange",
     "record_call_failure",
     "record_call_success",
 ]

@@ -42,6 +42,19 @@ def register_scheduled_commands() -> None:
         ),
     )
     register_scheduled_command(
+        "core.purge_idempotency_keys",
+        command="purge_idempotency_keys",
+        module="core",
+        label="Purge des clés d'idempotence",
+        frequency=FREQUENCY_DAILY,
+        hour=5,
+        description=(
+            "S4 — rétention de 24 h. Le TTL existait sur le modèle depuis l'origine "
+            "et n'était appliqué nulle part : la table conservait une ligne par appel "
+            "idempotent, corps de réponse compris, indéfiniment."
+        ),
+    )
+    register_scheduled_command(
         "core.purge_expired_sandboxes",
         command="purge_expired_sandboxes",
         module="core",

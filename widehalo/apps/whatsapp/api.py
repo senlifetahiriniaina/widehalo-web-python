@@ -249,6 +249,7 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
     entrees de plusieurs numeros — et le tenant par defaut ne sert plus
     que de repli, pour les deploiements mono-societe qui n'ont rien a
     router."""
+    from apps.core.models.notification import WhatsAppMessage
     from apps.core.services.notifications import record_inbound_whatsapp_message
     from apps.core.tenant_context import activate_tenant
 
@@ -261,6 +262,11 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
     entries = body.get("entry", [])
     processed = 0
     routed = 0
+    # Compte les re-livraisons ignorees. Rendu dans la reponse plutot que
+    # tu : un webhook qui ignore silencieusement ressemble exactement a un
+    # webhook qui traite, et l'exploitant n'aurait aucun moyen de voir que
+    # le fournisseur re-livre.
+    duplicates = 0
 
     for entry in entries:
         for change in entry.get("changes", []):
@@ -279,12 +285,29 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
                 # L10 : le tenant est resolu quelques lignes plus haut — le
                 # passer ici est ce qui rend le message entrant VISIBLE sur
                 # l'ecran de conversation, qui filtre par tenant.
+                # S4 — protection contre le rejeu (cahier §8.2). Le
+                # fournisseur re-livre tant qu'il ne recoit pas un 2xx : une
+                # reponse lente, un deploiement, et le meme message arrive
+                # deux fois. Deduplique a l'ecriture, ce qui ne suffit pas :
+                # il faut aussi ne pas RETRAITER. Sans cette garde, un
+                # « STOP » re-livre revoquerait deux fois, et une
+                # notification de paiement serait rapprochee deux fois —
+                # « le defaut le plus couteux de cette famille ».
+                avant = WhatsAppMessage.objects.filter(
+                    tenant_id=tenant.id if tenant is not None else None,
+                    direction=WhatsAppMessage.DIRECTION_INBOUND,
+                    provider_message_id=message.get("id", ""),
+                ).exists() and bool(message.get("id", ""))
+
                 record_inbound_whatsapp_message(
                     phone_number=phone_number,
                     body=text,
                     provider_message_id=message.get("id", ""),
                     tenant_id=tenant.id if tenant is not None else None,
                 )
+                if avant:
+                    duplicates += 1
+                    continue
                 if tenant is not None:
                     with activate_tenant(tenant.id):
                         handle_inbound_message(tenant, phone_number=phone_number, body=text)
@@ -299,4 +322,5 @@ def whatsapp_webhook_receive(request: Any) -> dict[str, Any]:
         "processed": processed,
         "governed": default_tenant is not None or routed > 0,
         "routed_by_phone_number_id": routed,
+        "duplicates_ignored": duplicates,
     }

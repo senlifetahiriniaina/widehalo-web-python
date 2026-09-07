@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -177,6 +178,35 @@ def record_inbound_whatsapp_message(
     a fournir, et perdre le message serait pire que l'enregistrer
     orphelin — mais c'est desormais un cas degrade explicite, plus le
     comportement normal."""
+    # Second passage IGNORE et journalise comme doublon (cahier §8.2). La
+    # deduplication est faite ici, au seul point d'ecriture, plutot que
+    # dans le webhook : un second point d'entree ecrirait sans elle.
+    #
+    # `get_or_create` et non `create` : la contrainte en base est le
+    # garde-fou, cette lecture en est le chemin normal. Sans le
+    # `get_or_create`, la re-livraison remonterait une `IntegrityError`
+    # jusqu'au fournisseur, qui la lirait comme un echec et re-livrerait
+    # de nouveau — une boucle d'amplification, exactement ce que le cahier
+    # decrit sous « rafales entrantes ».
+    if provider_message_id:
+        message, cree = WhatsAppMessage.objects.get_or_create(
+            tenant_id=tenant_id,
+            provider_message_id=provider_message_id,
+            direction=WhatsAppMessage.DIRECTION_INBOUND,
+            defaults={
+                "phone_number": phone_number,
+                "body": body,
+                "status": WhatsAppMessage.STATUS_RECEIVED,
+            },
+        )
+        if not cree:
+            logging.getLogger(__name__).info(
+                "Message entrant %s déjà reçu : re-livraison ignorée.", provider_message_id
+            )
+        return message
+
+    # Sans identifiant du fournisseur, aucune deduplication n'est possible
+    # et on ecrit — perdre un message entrant serait pire qu'en garder deux.
     return WhatsAppMessage.objects.create(
         tenant_id=tenant_id,
         direction=WhatsAppMessage.DIRECTION_INBOUND,
