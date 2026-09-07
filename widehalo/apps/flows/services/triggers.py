@@ -44,11 +44,14 @@ hub — celui branché sur une transition métier — n'aurait jamais pu tirer.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from apps.core.services.expr import RestrictedExpressionError, safe_eval
+from apps.flows.models import FlwMapping
+from apps.flows.services.mapping import apply_mapping
 
 if TYPE_CHECKING:
     from apps.flows.models import FlwExchange, FlwTrigger
@@ -135,6 +138,40 @@ def _document_of(payload: dict[str, Any]) -> tuple[str, UUID | None]:
         return document_type, None
 
 
+def body_for(trigger: FlwTrigger, document_type: str, payload: dict[str, Any]) -> str:
+    """Le corps que l'échange transportera, en JSON canonique.
+
+    **Ce qui manquait, et il faut le dire.** Jusqu'au sprint S6, `fire`
+    appelait `prepare_exchange` SANS corps : chaque échange né d'un
+    déclencheur portait une empreinte vide, ce que FLX-1 interdit
+    expressément (« ou si un échange est écrit sans empreinte de
+    contenu »). Et l'éditeur de correspondance livré au sprint S5 —
+    `services/mapping.py`, six transformations, sa garde et ses tests —
+    n'avait AUCUN appelant de production. Deux défauts qui se
+    réparent l'un l'autre : le corps est la charge de l'événement passée
+    dans la correspondance de la liaison.
+
+    **Sans correspondance, la charge brute.** Refuser de partir faute de
+    correspondance rendrait le déclencheur inutilisable tant qu'aucune
+    n'est saisie, et transformerait une configuration incomplète en
+    silence — précisément ce que ce sprint corrige ailleurs. La charge
+    brute est un contenu réel, daté et empreint ; l'adaptateur la met à la
+    forme du tiers.
+
+    **JSON canonique** (`sort_keys`) : deux charges identiques doivent
+    donner la MÊME empreinte, sinon « prouver ce qui est parti » dépend de
+    l'ordre dans lequel un dictionnaire s'est trouvé construit."""
+    correspondance = (
+        FlwMapping.objects.filter(
+            link=trigger.link, document_type=document_type, is_active=True
+        ).first()
+        if document_type
+        else None
+    )
+    contenu = apply_mapping(correspondance.field_map, payload) if correspondance else payload
+    return json.dumps(contenu, sort_keys=True, ensure_ascii=False, default=str)
+
+
 def fire(trigger: FlwTrigger, payload: dict[str, Any]) -> FlwExchange:
     """Fait naître l'échange d'un déclencheur, et le met en file.
 
@@ -150,5 +187,6 @@ def fire(trigger: FlwTrigger, payload: dict[str, Any]) -> FlwExchange:
         operation=trigger.operation,
         document_type=document_type,
         document_id=document_id,
+        body=body_for(trigger, document_type, payload),
     )
     return queue_exchange(exchange)

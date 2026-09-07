@@ -22,6 +22,7 @@ from django.utils import timezone
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.flows.models import FlwExchange, FlwPayload
+from apps.flows.operations import OP_PUSH_DOCUMENT
 from apps.flows.services.exchange import (
     INCIDENT_WORTHY_STATES,
     TERMINAL_STATES,
@@ -46,7 +47,12 @@ def setup():
 
 
 def _prepare(tenant, link, **kwargs):
-    return prepare_exchange(tenant, link, operation="OP1", **kwargs)
+    # Un corps, toujours : depuis S6 un échange sans empreinte ne peut pas
+    # être émis (FLX-1, « aucun échange écrit sans empreinte de contenu »).
+    # Les échanges sans corps de ce fichier n'étaient pas un cas de test, ils
+    # étaient un objet qui n'aurait jamais dû exister.
+    kwargs.setdefault("body", '{"exemple": true}')
+    return prepare_exchange(tenant, link, operation=OP_PUSH_DOCUMENT, **kwargs)
 
 
 # --- Invariant 1 : accepté et rejeté sont terminaux ----------------------------
@@ -237,15 +243,38 @@ def test_preparing_an_exchange_touches_nothing_external(setup) -> None:
 
 
 def test_an_exchange_without_a_body_carries_no_payload_and_no_fingerprint(setup) -> None:
-    """Toutes les opérations ne transportent pas un corps (une demande de
-    statut, par exemple). Fabriquer une empreinte de la chaîne vide
-    donnerait une empreinte identique pour tous ces échanges, ce qui ne
-    prouverait rien tout en en ayant l'air."""
+    """Fabriquer une empreinte de la chaîne vide donnerait une empreinte
+    identique pour tous les échanges sans corps, ce qui ne prouverait rien
+    tout en en ayant l'air. L'absence d'empreinte est donc l'information
+    juste."""
     tenant, link = setup
     with use_tenant(tenant.id):
-        exchange = _prepare(tenant, link)
+        exchange = _prepare(tenant, link, body="")
         assert exchange.payload_fingerprint == ""
         assert not FlwPayload.objects.filter(exchange=exchange).exists()
+
+
+def test_an_exchange_without_a_fingerprint_can_never_be_emitted(setup) -> None:
+    """**La seconde moitié de FLX-1, et ce qu'elle a corrigé.** Le critère
+    interdit qu'« un échange soit écrit sans empreinte de contenu ». Ce
+    fichier affirmait, au sprint S2, qu'« toutes les opérations ne
+    transportent pas un corps (une demande de statut, par exemple) » — et
+    c'était une justification, pas une observation : le répartiteur planifié
+    et le déclencheur événementiel, écrits au sprint S5, produisaient
+    TOUS leurs échanges sans corps. Chaque relevé quotidien et chaque
+    transition métier écrivait donc une ligne de registre qui ne prouvait
+    rien de ce qui était parti.
+
+    Les deux ont désormais un corps réel (la fenêtre du passage, la charge
+    de l'événement passée dans la correspondance), et l'interdit est posé au
+    seul endroit qui les couvre tous : le passage à `emis`."""
+    tenant, link = setup
+    with use_tenant(tenant.id):
+        exchange = _prepare(tenant, link, body="")
+        transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
+        with pytest.raises(ValidationError) as erreur:
+            transition_exchange(exchange, to_state=FlwExchange.STATE_SENT)
+    assert "empreinte" in str(erreur.value)
 
 
 # --- Point de contrôle du sprint : l'entrepôt accueille le fait ---------------

@@ -50,12 +50,17 @@ def _echange_tranche(societe, liaison, *, retain_until=None, body=_CORPS):
 
     Jusqu'au VERDICT, et pas seulement jusqu'à `en_file` : le critère parle
     de « verdict intact », et un échange qui n'en a pas ne prouverait rien
-    de ce qu'on veut vérifier."""
+    de ce qu'on veut vérifier.
+
+    **Un échange SANS corps s'arrête en file, et ce n'est pas un
+    contournement.** Depuis S6, `emis` refuse un échange sans empreinte
+    (FLX-1) : un échange qui n'a jamais rien porté ne peut pas être émis, et
+    c'est exactement ce qu'on veut dire de lui."""
     echange = prepare_exchange(societe, liaison, operation=OP_PUSH_DOCUMENT, body=body)
     transition_exchange(echange, to_state=FlwExchange.STATE_QUEUED)
-    transition_exchange(echange, to_state=FlwExchange.STATE_SENT, result_code="200")
-    transition_exchange(echange, to_state=FlwExchange.STATE_ACCEPTED)
     if body:
+        transition_exchange(echange, to_state=FlwExchange.STATE_SENT, result_code="200")
+        transition_exchange(echange, to_state=FlwExchange.STATE_ACCEPTED)
         FlwPayload.objects.filter(exchange=echange).update(retain_until=retain_until)
     echange.refresh_from_db()
     return echange

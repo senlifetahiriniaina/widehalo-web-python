@@ -21,6 +21,7 @@ ce mois-là ; échouer transformerait un jour férié en incident.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -145,6 +146,42 @@ def occurrence_key(schedule: FlwSchedule, moment: dt.datetime) -> str:
     return f"{schedule.id}@{timezone.localtime(moment).isoformat(timespec='minutes')}"
 
 
+def scope_body(schedule: FlwSchedule, moment: dt.datetime) -> str:
+    """Le corps d'un échange planifié : LA DEMANDE, pas la donnée.
+
+    **Ce qui manquait.** `run_schedule` appelait `prepare_exchange` sans
+    corps : chaque passage produisait un échange à empreinte vide, ce que
+    FLX-1 interdit expressément (« ou si un échange est écrit sans
+    empreinte de contenu »). Une planification née un lundi et une née un
+    mardi étaient, dans le registre, deux lignes rigoureusement
+    indiscernables par leur contenu.
+
+    **Pourquoi la fenêtre, et pas les données.** La planification ne
+    possède aucune donnée métier, et `flows` n'a pas le droit d'aller la
+    chercher : la règle de couplage n°1 lui interdit d'importer le modèle
+    d'un module métier. Ce qu'elle possède, en revanche, c'est la DEMANDE —
+    quelle opération, sur quelle fenêtre, à quel passage. Le cahier la
+    nomme d'ailleurs comme la contrainte propre d'OP2 : « fenêtre de
+    portée, différentiel depuis le dernier envoi, sinon le volume
+    explose ». La planification porte la demande, l'adaptateur la sert.
+
+    `window_start` est le passage PRÉCÉDENT — c'est ce qui fait du
+    différentiel un différentiel. Nul au premier passage, et c'est
+    l'information juste : il n'y a pas d'envoi précédent dont se
+    différencier.
+    """
+    return json.dumps(
+        {
+            "occurrence": occurrence_key(schedule, moment),
+            "operation": schedule.operation,
+            "window_start": schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+            "window_end": moment.isoformat(),
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+
+
 def run_schedule(schedule: FlwSchedule, *, now: dt.datetime | None = None) -> FlwExchange:
     """Fait naître l'échange d'un passage, puis réarme la planification.
 
@@ -163,6 +200,7 @@ def run_schedule(schedule: FlwSchedule, *, now: dt.datetime | None = None) -> Fl
         operation=schedule.operation,
         document_type="",
         document_id=None,
+        body=scope_body(schedule, moment),
     )
     queue_exchange(exchange, occurrence=occurrence_key(schedule, moment))
 

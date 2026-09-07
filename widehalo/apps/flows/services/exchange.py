@@ -299,6 +299,17 @@ def transition_exchange(
         raise ValidationError(
             _("Transition refusée : %(from)s -> %(to)s.") % {"from": exchange.state, "to": to_state}
         )
+    if to_state == FlwExchange.STATE_SENT and not exchange.payload_fingerprint:
+        raise ValidationError(
+            _(
+                "Échange %(id)s sans empreinte de contenu : il ne peut pas être "
+                "émis. FLX-1 l'interdit expressément, et le motif tient à ce "
+                "qu'une empreinte prouve — « ce qui est réellement parti chez le "
+                "tiers ». Un échange sans corps ne prouve rien et ne transmet "
+                "rien : c'est une configuration incomplète, pas un envoi."
+            )
+            % {"id": exchange.id}
+        )
     if next_action_at is not None and to_state not in STATES_CARRYING_A_DEADLINE:
         raise ValidationError(
             _(

@@ -57,7 +57,9 @@ def setup():
     with use_tenant(tenant.id):
         connector = FlwConnectorFactory(tenant=tenant, code="factice")
         link = FlwLinkFactory(tenant=tenant, connector=connector, state=FlwLink.STATE_ACTIVE)
-        exchange = prepare_exchange(tenant, link, operation=OP_PUSH_DOCUMENT)
+        exchange = prepare_exchange(
+            tenant, link, operation=OP_PUSH_DOCUMENT, body='{"exemple": true}'
+        )
         transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
     return tenant, link, exchange
 

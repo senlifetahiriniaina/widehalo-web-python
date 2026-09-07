@@ -481,9 +481,12 @@ class FlwExchange(BaseModel):
     """LE REGISTRE. Une ligne par echange, entrant ou sortant.
 
     « Un adaptateur qui n'ecrit pas dans le registre n'est pas un
-    connecteur, c'est une fuite » (cahier, decision structurante n°1). La
-    garde CI de S6 (FLX-1) fera echouer la construction si un appel reseau
-    part hors de l'executeur, ou si un echange est ecrit sans empreinte.
+    connecteur, c'est une fuite » (cahier, decision structurante n°1). Les
+    deux moities de FLX-1 sont tenues depuis S6 :
+    `tests/architecture/test_flows_network_only_in_the_executor.py` fait
+    echouer la construction si un appel reseau part hors de l'executeur ou
+    si un module resout un adaptateur lui-meme, et le passage a `emis`
+    refuse un echange sans empreinte (`services/exchange.py`).
 
     Les neuf etats sont poses ici mais la machine a etats vit dans
     `services/exchange.py` (S2), avec ses trois invariants : `ACCEPTED` et

@@ -92,7 +92,16 @@ def _queue(tenant, link, count=1):
 
     out = []
     for index in range(count):
-        exchange = prepare_exchange(tenant, link, operation=_OPERATIONS_SORTANTES[index % 6])
+        exchange = prepare_exchange(
+            tenant,
+            link,
+            operation=_OPERATIONS_SORTANTES[index % 6],
+            # Un corps, sans quoi l'échange ne peut plus être émis depuis S6
+            # (FLX-1). L'index entre dedans : deux échanges d'une même passe
+            # doivent porter deux empreintes distinctes, sinon le registre ne
+            # prouve rien de ce qui est parti.
+            body=f'{{"rang": {index}}}',
+        )
         transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
         out.append(exchange)
     return out
