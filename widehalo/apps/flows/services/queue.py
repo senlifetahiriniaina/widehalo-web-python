@@ -302,10 +302,25 @@ def due_exchanges(
 
     L'ordre est l'anciennete de creation, pas l'echeance : un echange qui
     attend depuis ce matin passe avant un reessai programme il y a une
-    minute, quel que soit l'etat des deux."""
+    minute, quel que soit l'etat des deux.
+
+    **Seules les liaisons ACTIVES sont drainees (defaut trouve au sprint
+    S6).** Le declencheur evenementiel et le repartiteur planifie
+    refusaient deja une liaison en brouillon ou suspendue — chacun avec son
+    test — mais la vidange, elle, ne regardait pas. Une liaison suspendue
+    en pleine incidence continuait donc a appeler le tiers pour tout ce qui
+    etait DEJA en file, ce qui vide « suspendre » de son sens : on suspend
+    justement parce que les envois en cours posent probleme. Les echanges
+    restent en file, sans appel et sans echec — comme pour un connecteur
+    sans adaptateur, et pour la meme raison : l'etat de la liaison peut
+    changer, l'echange n'a pas a mourir avec.
+    """
     moment = now or timezone.now()
     queryset = FlwExchange.objects.filter(
-        tenant=tenant, state__in=DRAINABLE_STATES, direction=FlwExchange.DIRECTION_OUTBOUND
+        tenant=tenant,
+        state__in=DRAINABLE_STATES,
+        direction=FlwExchange.DIRECTION_OUTBOUND,
+        link__state=FlwLink.STATE_ACTIVE,
     ).exclude(state=FlwExchange.STATE_TO_RETRY, next_attempt_at__isnull=True)
     queryset = queryset.exclude(
         state=FlwExchange.STATE_TO_RETRY, next_attempt_at__gt=moment

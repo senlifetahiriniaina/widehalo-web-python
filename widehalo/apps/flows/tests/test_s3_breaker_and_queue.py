@@ -27,6 +27,14 @@ from django.utils import timezone
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.flows.models import FlwExchange, FlwIncident, FlwLink
+from apps.flows.operations import (
+    OP_DROP_FILE,
+    OP_INITIATE_PAYMENT,
+    OP_PUBLISH_DATASET,
+    OP_PUSH_DOCUMENT,
+    OP_QUERY_REFERENCE,
+    OP_SUBMIT_FOR_VERDICT,
+)
 from apps.flows.services.exchange import prepare_exchange
 from apps.flows.services.incidents import RECOVERY_ACTIONS, record_failure, resolve_incident
 from apps.flows.services.queue import (
@@ -43,6 +51,17 @@ from apps.flows.services.queue import (
 from apps.flows.tests.factories import FlwConnectorFactory, FlwLinkFactory
 
 pytestmark = pytest.mark.django_db
+
+#: Les six opérations SORTANTES, dans l'ordre du cahier. OP6 et OP7 sont
+#: entrantes et n'ont donc rien à faire dans une file de sortie.
+_OPERATIONS_SORTANTES = [
+    OP_PUSH_DOCUMENT,
+    OP_PUBLISH_DATASET,
+    OP_DROP_FILE,
+    OP_SUBMIT_FOR_VERDICT,
+    OP_INITIATE_PAYMENT,
+    OP_QUERY_REFERENCE,
+]
 
 
 @pytest.fixture
@@ -63,12 +82,17 @@ def setup():
 
 
 def _queue(tenant, link, count=1):
-    """`count` échanges prêts à partir, en `en_file`."""
+    """`count` échanges prêts à partir, en `en_file`.
+
+    L'opération tourne sur les six opérations SORTANTES du jeu fermé (S6) :
+    `f"OP{index}"` produisait « OP0 », qui n'a jamais existé, et le jeu
+    fermé le refuse désormais à la préparation. Les entrantes (OP6, OP7)
+    sont exclues — une passe de vidange est sortante par construction."""
     from apps.flows.services.exchange import transition_exchange
 
     out = []
     for index in range(count):
-        exchange = prepare_exchange(tenant, link, operation=f"OP{index}")
+        exchange = prepare_exchange(tenant, link, operation=_OPERATIONS_SORTANTES[index % 6])
         transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
         out.append(exchange)
     return out

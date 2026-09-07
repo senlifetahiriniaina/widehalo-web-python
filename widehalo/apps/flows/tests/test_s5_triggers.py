@@ -20,6 +20,11 @@ from apps.core.services.workflow import attempt_transition
 from apps.core.tests.models import SampleTenantScopedRecord
 from apps.core.tests.utils import use_tenant
 from apps.flows.models import FlwExchange, FlwLink
+from apps.flows.operations import (
+    OP_PUBLISH_DATASET,
+    OP_PUSH_DOCUMENT,
+    OP_SUBMIT_FOR_VERDICT,
+)
 from apps.flows.services import triggers
 from apps.flows.tests.factories import FlwLinkFactory, FlwTriggerFactory
 
@@ -48,7 +53,9 @@ def societe():
     return Tenant.objects.create(code="S5-DECL", name="Déclencheurs SARL")
 
 
-def _liaison_avec_declencheur(societe, *, operation="SOUMETTRE", condition=None, state=None):
+def _liaison_avec_declencheur(
+    societe, *, operation=OP_SUBMIT_FOR_VERDICT, condition=None, state=None
+):
     lien = FlwLinkFactory(tenant=societe, state=state or FlwLink.STATE_ACTIVE)
     FlwTriggerFactory(
         tenant=societe,
@@ -78,7 +85,7 @@ def test_a_real_transition_creates_a_queued_exchange(societe) -> None:
         "Le déclencheur a émis lui-même : la durée d'une validation métier "
         "dépendrait alors de la latence du tiers, ce que FLX-2 interdit."
     )
-    assert echange.operation == "SOUMETTRE"
+    assert echange.operation == OP_SUBMIT_FOR_VERDICT
 
 
 def test_the_exchange_carries_the_business_record_it_came_from(societe) -> None:
@@ -149,16 +156,19 @@ def test_one_broken_trigger_never_silences_the_others(societe, monkeypatch) -> N
     l'entreprise de TOUTES ses intégrations."""
     original = triggers.fire
 
+    cassee_id = None
+
     def _explose_pour_la_premiere(trigger, payload):
-        if trigger.operation == "CASSEE":
+        if trigger.link_id == cassee_id:
             raise RuntimeError("le tiers est injoignable")
         return original(trigger, payload)
 
     monkeypatch.setattr(triggers, "fire", _explose_pour_la_premiere)
 
     with use_tenant(societe.id):
-        _liaison_avec_declencheur(societe, operation="CASSEE")
-        saine = _liaison_avec_declencheur(societe, operation="SAINE")
+        cassee = _liaison_avec_declencheur(societe, operation=OP_PUSH_DOCUMENT)
+        cassee_id = cassee.id
+        saine = _liaison_avec_declencheur(societe, operation=OP_SUBMIT_FOR_VERDICT)
         enregistrement = SampleTenantScopedRecord.objects.create(tenant=societe, label="dossier")
 
     with use_tenant(societe.id):
@@ -167,7 +177,7 @@ def test_one_broken_trigger_never_silences_the_others(societe, monkeypatch) -> N
 
     with use_tenant(societe.id):
         assert FlwExchange.objects.filter(link=saine).count() == 1
-        assert FlwExchange.objects.filter(operation="CASSEE").count() == 0
+        assert FlwExchange.objects.filter(link=cassee).count() == 0
 
 
 def test_a_condition_that_does_not_match_fires_nothing(societe) -> None:
@@ -212,10 +222,10 @@ def test_a_transition_never_fires_another_company_s_trigger(societe) -> None:
     premier test."""
     autre = Tenant.objects.create(code="S5-DECL-B", name="Autre SARL")
     with use_tenant(societe.id):
-        chez_a = _liaison_avec_declencheur(societe, operation="CHEZ-A")
+        chez_a = _liaison_avec_declencheur(societe, operation=OP_PUSH_DOCUMENT)
         enregistrement = SampleTenantScopedRecord.objects.create(tenant=societe, label="dossier")
     with use_tenant(autre.id):
-        chez_b = _liaison_avec_declencheur(autre, operation="CHEZ-B")
+        chez_b = _liaison_avec_declencheur(autre, operation=OP_PUBLISH_DATASET)
 
     with use_tenant(societe.id):
         attempt_transition(enregistrement, "submit", None)

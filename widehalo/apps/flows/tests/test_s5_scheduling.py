@@ -20,6 +20,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.factories import HolidayFactory
 from apps.core.tests.utils import use_tenant
 from apps.flows.models import FlwExchange, FlwLink, FlwSchedule
+from apps.flows.operations import OP_PUBLISH_DATASET
 from apps.flows.services.scheduling import (
     arm_schedule,
     compute_next_run_at,
@@ -198,7 +199,7 @@ def test_running_a_schedule_queues_an_exchange_and_rearms(societe, liaison) -> N
         planification = FlwScheduleFactory(
             tenant=societe,
             link=liaison,
-            operation="RELEVE",
+            operation=OP_PUBLISH_DATASET,
             frequency=FlwSchedule.FREQUENCY_DAILY,
             hour=2,
             skip_public_holidays=False,
@@ -210,7 +211,7 @@ def test_running_a_schedule_queues_an_exchange_and_rearms(societe, liaison) -> N
             "Le répartiteur a émis lui-même : il aurait contourné le "
             "disjoncteur et l'espacement de réessai de la file (S3)."
         )
-        assert echange.operation == "RELEVE"
+        assert echange.operation == OP_PUBLISH_DATASET
         planification.refresh_from_db()
         assert planification.last_run_at == _moment(2026, 9, 10, 2)
         assert timezone.localtime(planification.next_run_at) == _moment(2026, 9, 11, 2)
@@ -233,7 +234,7 @@ def test_two_runs_of_the_same_schedule_do_not_collide(societe, liaison) -> None:
         planification = FlwScheduleFactory(
             tenant=societe,
             link=liaison,
-            operation="RELEVE",
+            operation=OP_PUBLISH_DATASET,
             frequency=FlwSchedule.FREQUENCY_DAILY,
             hour=2,
             skip_public_holidays=False,
@@ -275,13 +276,13 @@ def test_one_company_s_schedules_never_run_for_another(societe, liaison) -> None
     tout finit par tourner."""
     autre = Tenant.objects.create(code="S5-PLAN-B", name="Autre SARL")
     with use_tenant(societe.id):
-        planification = FlwScheduleFactory(tenant=societe, link=liaison, operation="CHEZ-A")
+        planification = FlwScheduleFactory(tenant=societe, link=liaison)
         arm_schedule(planification, after=_moment(2026, 9, 9, 12))
 
     totaux = run_due_schedules(_moment(2030, 1, 1))
 
     assert totaux == {"queued": 1, "failed": 0}
     with use_tenant(societe.id):
-        assert FlwExchange.objects.filter(operation="CHEZ-A").count() == 1
+        assert FlwExchange.objects.filter(link=liaison).count() == 1
     with use_tenant(autre.id):
         assert FlwExchange.objects.count() == 0

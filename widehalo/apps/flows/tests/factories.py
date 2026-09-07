@@ -31,6 +31,10 @@ from apps.flows.models import (
     FlwSchedule,
     FlwTrigger,
 )
+from apps.flows.operations import (
+    OP_PUSH_DOCUMENT,
+    OPERATION_CODES,
+)
 
 
 class FlwConnectorFactory(factory.django.DjangoModelFactory):
@@ -41,7 +45,13 @@ class FlwConnectorFactory(factory.django.DjangoModelFactory):
     code = factory.Sequence(lambda n: f"connecteur-{n}")
     name = "Connecteur de test"
     family = FlwConnector.FAMILY_FISCAL
-    supported_operations = factory.List(["OP1"])
+    # Les HUIT, parce qu'un connecteur de test qui n'en declarerait qu'une
+    # ferait echouer tout test parlant d'une autre pour une raison sans
+    # rapport avec ce qu'il verifie. Le refus d'une operation non declaree
+    # est verifie la ou il compte, sur un connecteur volontairement etroit
+    # (`test_s6_operations.py`) — pas par accident, dans vingt tests qui
+    # parlent d'autre chose.
+    supported_operations = factory.List(sorted(OPERATION_CODES))
 
 
 class FlwCredentialFactory(factory.django.DjangoModelFactory):
@@ -79,7 +89,7 @@ class FlwScheduleFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory(TenantFactory)
     link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
-    operation = "OP1"
+    operation = OP_PUSH_DOCUMENT
     frequency = FlwSchedule.FREQUENCY_DAILY
 
 
@@ -90,7 +100,7 @@ class FlwTriggerFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
     event_name = "sales.order_confirmed"
-    operation = "OP1"
+    operation = OP_PUSH_DOCUMENT
 
 
 class FlwExchangeFactory(factory.django.DjangoModelFactory):
@@ -100,7 +110,7 @@ class FlwExchangeFactory(factory.django.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
     direction = FlwExchange.DIRECTION_OUTBOUND
-    operation = "OP1"
+    operation = OP_PUSH_DOCUMENT
     partition_month = factory.LazyFunction(lambda: dt.date.today().replace(day=1))
 
 

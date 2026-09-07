@@ -9,13 +9,13 @@ dans la version deployee. Meme patron que
 `core.services.anomaly_registry` et `core.services.scheduled_commands` :
 chaque module declare ce qu'il apporte depuis son `apps.py::ready()`.
 
-**Le registre est VIDE au sprint S3, et c'est normal.** Le bloc A livre un
-adaptateur factice au sprint S6 ; les vrais connecteurs arrivent au bloc C
-et au-dela. Ce qui compte est que la vidange se comporte correctement
-maintenant : un echange dont le connecteur n'a pas d'adaptateur RESTE EN
-FILE, sans appel et sans echec. L'inverse — le marquer en echec — ferait
-d'un deploiement partiel une perte de donnees, et d'une montee de version
-un incident.
+**Le registre etait VIDE au sprint S3 ; il porte l'adaptateur de
+REFERENCE depuis S6** (`apps.flows.adapters.reference`), et les vrais
+connecteurs arrivent au bloc C et au-dela. Ce qui comptait alors compte
+toujours pour tous les autres codes : un echange dont le connecteur n'a
+pas d'adaptateur RESTE EN FILE, sans appel et sans echec. L'inverse — le
+marquer en echec — ferait d'un deploiement partiel une perte de donnees,
+et d'une montee de version un incident.
 
 C'est aussi pourquoi la commande periodique existe des maintenant plutot
 qu'au sprint S6. La lecon du lot WhatsApp est ecrite dans

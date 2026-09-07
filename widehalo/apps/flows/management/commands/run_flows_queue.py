@@ -8,13 +8,11 @@ pour seuls declencheurs un endpoint et un bouton — autrement dit
 Livrer une file de sortie sans son declencheur reproduirait exactement ce
 defaut, et personne ne s'en apercevrait avant le premier connecteur reel.
 
-**Ce que cette commande fait aujourd'hui, sans embellir : rien**, parce que
-le registre d'adaptateurs est vide jusqu'au sprint S6. Elle parcourt la
-file, ne trouve aucun connecteur adressable, et laisse tout en place. Un
-zero qui ne prouve rien serait du theatre : c'est pourquoi
-`test_s3_queue_command.py` enregistre un adaptateur factice et verifie que
-la commande envoie REELLEMENT — le compteur sait compter, ce sont les
-adaptateurs qui manquent.
+**Depuis le sprint S6, elle vidange pour de bon** : l'adaptateur de
+reference est enregistre, et une liaison branchee sur le connecteur
+`reference` part reellement. Les echanges des autres connecteurs restent
+en file tant que leur adaptateur n'est pas livre — sans appel et sans
+echec, ce qui est le comportement qui protege un deploiement partiel.
 
 Cadence HORAIRE, meme motif que la file WhatsApp : l'espacement de reessai
 par defaut demarre a cinq minutes, et un declencheur quotidien rendrait le
@@ -52,8 +50,9 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     "Aucun adaptateur enregistré : les échanges restent en file, sans "
-                    "appel ni échec. C'est l'état attendu tant que le bloc A n'a pas "
-                    "livré son adaptateur (sprint S6)."
+                    "appel ni échec. Depuis S6 l'adaptateur de référence est déclaré "
+                    "par `apps.flows.apps::ready()` — un registre vide signale donc "
+                    "que l'application n'a pas été chargée normalement."
                 )
             )
 

@@ -48,6 +48,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.flows.models import FlwExchange, FlwPayload
+from apps.flows.operations import is_inbound_operation, validate_operation
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -176,7 +177,48 @@ def prepare_exchange(
     ensuite : c'est ce qui doit survivre a la purge de la charge utile
     (FLX-5). La recalculer plus tard, apres purge, ne donnerait rien ; la
     recalculer avant donnerait la meme valeur et n'apporterait rien. Une
-    seule ecriture, au seul moment ou le corps est connu."""
+    seule ecriture, au seul moment ou le corps est connu.
+
+    **Trois refus a l'enregistrement (S6).** L'operation doit appartenir au
+    jeu ferme du cahier (§4.1), son sens doit s'accorder avec celui de
+    l'echange, et le connecteur de la liaison doit l'avoir DECLAREE. Les
+    trois se verifient ici parce que c'est le seul endroit ou un echange
+    naisse, et parce que le seul autre moment ou on pourrait s'en
+    apercevoir serait la passe de vidange — c'est-a-dire la nuit, dans un
+    journal que personne ne lit. Refuser ici n'est pas contradictoire avec
+    FLX-2 : un refus de configuration n'est pas un echec de tiers, et le
+    declencheur evenementiel isole deja chaque declencheur cassé des
+    autres.
+    """
+    validate_operation(operation)
+    if is_inbound_operation(operation) != (direction == FlwExchange.DIRECTION_INBOUND):
+        raise ValidationError(
+            _(
+                "L'opération %(operation)s est %(sens_attendu)s ; un échange "
+                "%(sens)s la contredirait. Le cahier tire du sens de chaque "
+                "opération la forme même du registre (§4.1) : deux attributs "
+                "qui se contredisent ne décrivent aucun échange réel."
+            )
+            % {
+                "operation": operation,
+                "sens_attendu": _("entrante") if is_inbound_operation(operation) else _("sortante"),
+                "sens": direction,
+            }
+        )
+    declarees = link.connector.supported_operations or []
+    if operation not in declarees:
+        raise ValidationError(
+            _(
+                "Le connecteur « %(code)s » ne déclare pas l'opération "
+                "%(operation)s (il déclare : %(declarees)s). Un adaptateur qui "
+                "n'annonce pas une opération ne se la voit jamais confier."
+            )
+            % {
+                "code": link.connector.code,
+                "operation": operation,
+                "declarees": ", ".join(declarees) or _("aucune"),
+            }
+        )
     now = timezone.now()
     exchange = FlwExchange.objects.create(
         tenant=tenant,

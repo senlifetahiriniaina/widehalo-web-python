@@ -1,15 +1,15 @@
 """S3 — le déclencheur automatique de la file, et son amorçage.
 
-Le registre d'adaptateurs est VIDE au sprint S3 : la commande périodique
-livrée ici ne fait donc rien aujourd'hui. Un test qui se contenterait de
-vérifier qu'elle s'exécute sans erreur serait vert pour toujours, quelle
-que soit sa capacité à vidanger — c'est précisément ce que ce projet
-appelle un théâtre de sécurité, et c'est le motif exact des tests
-d'amorçage déjà écrits pour le compteur d'adaptateurs (S1).
+Le registre d'adaptateurs était VIDE au sprint S3 : un test qui se serait
+contenté de vérifier que la commande s'exécute sans erreur aurait été vert
+pour toujours, quelle que soit sa capacité à vidanger — c'est précisément
+ce que ce projet appelle un théâtre de sécurité.
 
-On enregistre donc un adaptateur FACTICE et on vérifie que la commande
-envoie réellement. Le compteur sait compter ; ce sont les adaptateurs qui
-manquent, et ils arrivent au sprint S6.
+On enregistrait donc un adaptateur FACTICE et on vérifiait que la commande
+envoie réellement. Depuis S6 le registre porte l'adaptateur de référence,
+et l'amorçage garde tout son sens : il vérifie qu'un adaptateur
+QUELCONQUE, y compris un que ce fichier écrit à la main, est bien joint par
+la commande.
 
 **Pourquoi la commande existe six sprints avant son premier adaptateur.**
 La leçon est écrite dans ce dépôt, dans le lot WhatsApp : `retry_failed_
@@ -28,7 +28,9 @@ from django.core.management import call_command
 from apps.core.models.tenant import Tenant
 from apps.core.services.scheduled_commands import list_scheduled_commands
 from apps.core.tests.utils import use_tenant
+from apps.flows.adapters import reference
 from apps.flows.models import FlwExchange, FlwLink
+from apps.flows.operations import OP_PUSH_DOCUMENT
 from apps.flows.services.adapter_registry import _ADAPTERS, list_adapters, register_adapter
 from apps.flows.services.exchange import prepare_exchange, transition_exchange
 from apps.flows.services.queue import CallOutcome, process_outbound_queue
@@ -55,26 +57,26 @@ def setup():
     with use_tenant(tenant.id):
         connector = FlwConnectorFactory(tenant=tenant, code="factice")
         link = FlwLinkFactory(tenant=tenant, connector=connector, state=FlwLink.STATE_ACTIVE)
-        exchange = prepare_exchange(tenant, link, operation="OP1")
+        exchange = prepare_exchange(tenant, link, operation=OP_PUSH_DOCUMENT)
         transition_exchange(exchange, to_state=FlwExchange.STATE_QUEUED)
     return tenant, link, exchange
 
 
-def test_the_adapter_registry_is_empty_at_this_sprint() -> None:
-    """Documente l'état RÉEL plutôt que de laisser un zéro silencieux
-    passer pour une mesure. Ce test devra être retiré au sprint S6, et son
-    échec sera alors le rappel qu'il faut le faire."""
-    assert list_adapters() == [], (
-        "Un adaptateur est désormais enregistré : retirer ce test d'amorçage et "
-        "vérifier que le budget d'adaptateurs (`test_phase4_budgets.py`) le compte bien."
-    )
+def test_the_reference_adapter_is_registered_since_s6() -> None:
+    """Remplace le test d'amorçage de S3 (« le registre est vide à ce
+    sprint »), qui portait dans son propre corps l'instruction de le
+    retirer ici. Il l'est, et ce test le remplace plutôt que de disparaître
+    sans laisser de trace : ce qui était vérifié — que le registre dit la
+    vérité sur son contenu — reste vérifié, avec l'autre valeur."""
+    assert reference.CONNECTOR_CODE in list_adapters()
 
 
 def test_an_exchange_stays_queued_when_no_adapter_can_answer_for_it(setup) -> None:
-    """Le comportement qui compte tant que le registre est vide : l'échange
-    RESTE EN FILE, sans appel et sans échec. Le marquer en échec ferait
-    d'un déploiement partiel une perte de données, et d'une montée de
-    version un incident."""
+    """Le comportement qui compte pour un connecteur SANS adaptateur —
+    c'est-à-dire, depuis S6, pour tout connecteur autre que celui de
+    référence : l'échange RESTE EN FILE, sans appel et sans échec. Le
+    marquer en échec ferait d'un déploiement partiel une perte de données,
+    et d'une montée de version un incident."""
     tenant, _link, exchange = setup
     with use_tenant(tenant.id):
         counts = process_outbound_queue(tenant)

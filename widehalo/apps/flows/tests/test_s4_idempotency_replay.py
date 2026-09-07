@@ -28,6 +28,7 @@ from django.core.exceptions import ValidationError
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.flows.models import FlwExchange
+from apps.flows.operations import OP_SUBMIT_FOR_VERDICT
 from apps.flows.services.exchange import prepare_exchange, transition_exchange
 from apps.flows.services.idempotency import (
     assign_keys,
@@ -58,7 +59,7 @@ def _prepared(tenant, link, document_id=None):
     return prepare_exchange(
         tenant,
         link,
-        operation="soumettre_facture",
+        operation=OP_SUBMIT_FOR_VERDICT,
         document_type="facture_vente",
         document_id=document_id or uuid.uuid4(),
         body='{"montant": 1500000}',

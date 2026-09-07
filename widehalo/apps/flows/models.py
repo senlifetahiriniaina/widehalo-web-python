@@ -53,7 +53,7 @@ pratique ailleurs dans ce depot.
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -61,6 +61,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.cost_units import COST_UNIT_CHOICES
 from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel
+from apps.flows.operations import OPERATION_CHOICES, validate_supported_operations
 
 if TYPE_CHECKING:
     from datetime import date
@@ -102,8 +103,17 @@ class FlwConnector(BaseModel):
     # Les huit operations canoniques (OP1-OP8) que CET adaptateur sait
     # rendre. Liste declarative, jamais du code : l'executeur y lit ce
     # qu'il a le droit de demander. Un adaptateur qui n'annonce pas une
-    # operation ne se la verra jamais confier.
-    supported_operations = models.JSONField(default=list, blank=True)
+    # operation ne se la verra jamais confier — ce que `prepare_exchange`
+    # applique depuis S6, apres l'avoir promis en commentaire depuis S1.
+    #
+    # Le validateur ne suffit PAS a lui seul : Django ne fait tourner les
+    # validateurs de champ que dans `full_clean()`, jamais dans `save()`.
+    # Il est donc pose ici pour les formulaires et les schemas, ET rappele
+    # explicitement dans `save()` ci-dessous. Le supprimer d'un des deux
+    # endroits laisserait passer la moitie des ecritures.
+    supported_operations = models.JSONField(
+        default=list, blank=True, validators=[validate_supported_operations]
+    )
     is_enabled = models.BooleanField(default=False)
     # « Parallelisme borne par adaptateur pour ne pas declencher les
     # limitations de debit du tiers » (cahier §11). Le plafond vit sur le
@@ -135,6 +145,16 @@ class FlwConnector(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.code} ({self.family})"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Refuse a L'ENREGISTREMENT une operation hors du jeu ferme.
+
+        Meme discipline que FLX-6 pour les correspondances : accepter une
+        declaration invalide et echouer plus tard, au premier echange,
+        deplacerait la faute d'un ecran de configuration vers une passe de
+        vidange nocturne — la ou personne ne la lit."""
+        validate_supported_operations(self.supported_operations)
+        super().save(*args, **kwargs)
 
 
 class FlwCredential(BaseModel):
@@ -386,7 +406,7 @@ class FlwSchedule(BaseModel):
     ]
 
     link = models.ForeignKey(FlwLink, on_delete=models.CASCADE, related_name="schedules")
-    operation = models.CharField(max_length=32)
+    operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
     frequency = models.CharField(max_length=16, choices=FREQUENCY_CHOICES)
     hour = models.PositiveSmallIntegerField(default=2)
     # Report sur jour ouvre : jamais une liste de dates recopiee ici (une
@@ -436,7 +456,7 @@ class FlwTrigger(BaseModel):
 
     link = models.ForeignKey(FlwLink, on_delete=models.CASCADE, related_name="triggers")
     event_name = models.CharField(max_length=128)
-    operation = models.CharField(max_length=32)
+    operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
     # Condition declarative evaluee sur la charge de l'evenement, jamais du
     # code : meme discipline que `AnMetricDefinition.formule`, descriptive
     # et non executable.
@@ -515,7 +535,7 @@ class FlwExchange(BaseModel):
 
     link = models.ForeignKey(FlwLink, on_delete=models.PROTECT, related_name="exchanges")
     direction = models.CharField(max_length=8, choices=DIRECTION_CHOICES)
-    operation = models.CharField(max_length=32)
+    operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
     state = models.CharField(max_length=24, choices=STATE_CHOICES, default=STATE_PREPARED)
 
     # Piece metier, designee sans cle etrangere (cf. docstring de module).
