@@ -836,6 +836,22 @@ sprint), un seul échec, `test_sal7_quotation_draft_autosave.py::test_the_draft_
 discarded_on_purpose` — intermittent et antérieur, vérifié sous `git stash` qu'il se
 reproduit sans ces changements. 1/12 adaptateurs, 0/80 opérations publiques.
 
+### 6 nonies. Le préalable au bloc B, puis les sprints S7 et S8
+
+| Point | État à l'audit | Ce qui a changé |
+|---|---|---|
+| **La surface API rendait 500 sur entrée malformée** | non relevé comme tel | La campagne de contrat le documentait depuis T10 — « 165 des 309 opérations » — mais le chiffre était **périmé** : la surface est passée à 590 opérations et le défaut a grossi avec elle, à **264**. Un constat chiffré laissé dans une docstring vieillit sans prévenir. |
+| La cause, et ce qu'elle recouvrait | — | Aucun gestionnaire pour `django.core.exceptions.ValidationError` ni pour `ObjectDoesNotExist` dans `apps/core/errors.py` — celui de `PermissionDenied` y avait été ajouté un jour pour exactement la même raison. **Quinze lignes réparent 237 des 264.** Et le défaut débordait largement des entrées malformées : toute la couche service lève `ValidationError` pour refuser une opération métier, et chacun de ces refus se présentait à l'utilisateur comme une panne du produit. |
+| Ce qui reste, et ce qu'on en sait | — | 27 opérations, un **autre** défaut non identifié (POST de création, GET de rapport). Reproduire à la main rend 422 ; il faut les cas générés. Et la campagne s'est révélée **state-dependent** : elle modifie la base qu'elle teste, si bien que l'ensemble en échec change d'une passe à l'autre — trois passes, trois ensembles, dont deux avec la génération déjà dérandomisée. |
+| **API-1** — aucune élévation par l'API | ❌ | ✅ La clé porte un utilisateur réel, dont les groupes décident : tous les `require_permission` du dépôt s'appliquent sans qu'une ligne change. Le second contrôle — le droit du porteur — **manquait au premier jet**, ce qui rendait `PublicOperation.permission` décoratif et faisait qu'une portée ÉLEVAIT les droits. Trouvé par le test recopiant le critère mot pour mot. |
+| **API-2** — rien hors liste blanche | 🟡 | ✅ et **structurel** : un décorateur obligatoire, une garde qui l'exige sur chaque route publique, et la correspondance route ↔ opération vérifiée dans les deux sens. Une opération déclarée que rien ne sert est un engagement de rétrocompatibilité pris sur du vide. |
+| **API-6** — révocation immédiate | ❌ | ✅ Clé résolue à chaque appel, sans cache — lecture stricte de « y compris pour les appels en cours d'authentification ». Révoquer deux fois garde la première date. Inconnue, révoquée, expirée rendent le même 401 sans motif. |
+| **API-7** — débit par clé | 🟡 | ✅ Compteur indexé sur la CLÉ, `Retry-After` posé. `core.throttling` existait mais n'était appliqué à aucun endpoint et ne connaissait ni clé ni société. Le test qui vérifie l'indépendance des clés **passait d'abord pour la mauvaise raison** — deux plafonds différents le rendaient vert même avec un compteur partagé. |
+| **Le défaut qui aurait été fatal en production** | non relevé | `FlwApiKey` hérite de `BaseModel`, donc de la RLS ; l'authentification a lieu **avant** que la société soit connue. En début de requête `app.tenant_id` est vide, la policy ne rend aucune ligne : l'API publique n'aurait authentifié personne. Le test ne l'a pas vu tout de suite — la transaction englobante de pytest faisait survivre un `SET LOCAL` précédent. **Second faux positif de ce genre** dans ce dépôt. La société voyage désormais dans le jeton, et une société usurpée fait échouer FERMÉ. |
+| **`ROLE_APP_PERMISSIONS` n'avait pas d'entrée `flows`** | non relevé | Absente depuis S1, parce que le module n'avait ni API ni écran — même omission volontaire que `quality` avant d'être monté. Conséquence : **aucun rôle** ne détenait `flows.view_flwexchange`, et la portée d'une clé ne pouvait rien ouvrir. Deux rôles ajoutés, `admin` et `direction`. |
+| **Bac à sable** | ❌ | ✅ sans mécanisme nouveau : le clonage existe depuis la Phase 1, une clé désigne sa société. L'isolation est la RLS, pas un `if` dans la couche API. |
+| **Politique de dépréciation** | ❌ | ✅ et mécanisée : deux dates obligatoires, refusées si l'une manque, posées en en-têtes RFC 8594 sur les réponses elles-mêmes. Un intégrateur ne relit pas la documentation d'une opération qui marche. |
+
 ## 7. Suite
 
 Le plan de fermeture des écarts constatés ici — rattrapage des Phases 1 à 3, puis les

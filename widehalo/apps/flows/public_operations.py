@@ -46,15 +46,42 @@ class PublicOperation:
     controle est celui de la Phase 1 pour le copilote, reutilise SANS
     MODIFICATION ».
 
-    `deprecated_since` porte la politique de depreciation : une operation
-    publiee ne disparait pas, elle se marque. Vide tant qu'elle est
-    courante."""
+    **`deprecated_since` et `sunset_on` portent la politique de
+    depreciation, et il en faut DEUX.** « Une operation publiee ne se
+    retire plus, elle se deprecie sur plusieurs versions » : une seule date
+    ne dirait que « c'est deprecie », ce qu'un integrateur ne peut pas
+    planifier. La premiere date dit depuis quand l'operation est
+    deconseillee ; la seconde dit a partir de quand elle cessera de
+    repondre. Les deux voyagent dans les en-tetes `Deprecation` et `Sunset`
+    (RFC 8594), lus par les clients qui savent les lire, et sont publiees
+    dans l'OpenAPI pour les autres.
+
+    Les deux vont ensemble ou pas du tout : deprecier sans annoncer de fin
+    laisse un integrateur sans echeance, et annoncer une fin sans avoir
+    deprecie le prend par surprise. `validate_deprecation` le refuse."""
 
     code: str
     label: str
     permission: str
     description: str = ""
     deprecated_since: str = ""
+    sunset_on: str = ""
+
+    def __post_init__(self) -> None:
+        if bool(self.deprecated_since) != bool(self.sunset_on):
+            raise ValidationError(
+                _(
+                    "L'opération « %(code)s » déclare l'une des deux dates de "
+                    "dépréciation sans l'autre. Déprécier sans annoncer de fin "
+                    "laisse l'intégrateur sans échéance ; annoncer une fin sans "
+                    "avoir déprécié le prend par surprise."
+                )
+                % {"code": self.code}
+            )
+
+    @property
+    def is_deprecated(self) -> bool:
+        return bool(self.deprecated_since)
 
 
 _OPERATIONS: dict[str, PublicOperation] = {}

@@ -305,6 +305,25 @@ exactement la même raison, et son commentaire le dit. Un gestionnaire traite la
 entière ; le retypage `UUID`/`Literal` reste utile pour rejeter en amont, mais il
 n'est plus le préalable bloquant.
 
+## 3 septies. Le préalable au bloc B, puis S7 et S8
+
+*Le bloc B est ouvert. Détail critère par critère dans l'audit ; ce tableau
+garde ce qui change la suite.*
+
+| Sujet | État | Ce que ça change |
+|---|---|---|
+| **Préalable — les 500 de la surface API** | ✅ livré | Le préalable annoncé (« retyper 460 paramètres, module par module ») traitait les symptômes. La cause commune tenait en une ligne absente : aucun gestionnaire pour `django.core.exceptions.ValidationError` ni `ObjectDoesNotExist`. **264 opérations sur 590 → 27.** Le chiffre du dépôt (« 165 sur 309 ») était périmé de deux modules. Le retypage garde son intérêt pour l'OpenAPI publié, il n'est plus bloquant. |
+| **Ce que la campagne de contrat a appris sur elle-même** | — | Elle MODIFIE la base qu'elle teste : l'ensemble des opérations en échec dépend de l'état de la base autant que du tirage — trois passes, trois ensembles. Une liste d'exemptions exacte serait donc fausse une passe sur deux. `deterministic` activé, `xfail` gardé au niveau du module, liste conservée comme liste de travail. Et la campagne exige `--create-db`. |
+| **S7 — clés, portées, quotas** | ✅ livré | Surface publique séparée sous `/api/public/v1/`, avec son OpenAPI. API-1 tenu sans second mécanisme de droits : la clé porte un utilisateur réel. API-6 : résolution à chaque appel, sans cache. API-7 : compteur par clé, `Retry-After`. `ROLE_APP_PERMISSIONS` gagne son entrée `flows`, absente depuis S1. |
+| **Le défaut qui aurait été fatal** | — | `FlwApiKey` sous RLS, et l'authentification a lieu **avant** que la société soit connue : la policy cachait la clé à sa propre authentification. La société voyage donc dans le jeton. Le test ne l'a pas vu tout de suite — la transaction englobante de pytest faisait survivre un `SET LOCAL` précédent. **Second faux positif de ce genre**, après celui de la policy elle-même. |
+| **S8 — surface déclarée et documentée** | ✅ livré | API-2 devient **structurel** : un décorateur `@public_operation` obligatoire, et une garde qui exige que chaque route publique en porte un, dans les deux sens. Sans lui, la première vue publique ajoutée sans contrôle serait ouverte à toute clé, en silence. |
+| **Bac à sable** | ✅ livré, sans mécanisme nouveau | Le clonage de société existe depuis la Phase 1 et une clé désigne sa société : un bac à sable est une clé émise sur une société clonée. L'isolation est la RLS, pas un `if` dans la couche API — c'est pourquoi elle tient. |
+| **Politique de dépréciation** | ✅ livré, et **mécanisée** | Deux dates obligatoires (`Deprecation` et `Sunset`, RFC 8594), refusées si l'une manque, posées sur les réponses elles-mêmes. Un intégrateur ne relit pas la documentation d'une opération qui marche. Documents dans `docs/api-publique/`. |
+| **H29** — abonnement distinct pour le connecteur réglementaire | ⚖️ tranché sans effet technique | Le cahier le dit lui-même : « décision commerciale, sans effet technique », le repli étant « le connecteur passe au socle inclus ». Rien dans le code ne dépend de la réponse — le coût d'un connecteur ne se modélise nulle part, et les grilles tarifaires vivent déjà dans les paramètres versionnés. **Consigné comme non bloquant**, à trancher par le commanditaire quand il le voudra. |
+| **Reste du bloc B** | ⛔ | **S9** : webhooks entrants et sortants (API-3, API-4, API-5), le sprint le plus lourd du bloc — les notifications sortantes signées n'ont **aucun précédent** dans le dépôt. Vérification de H30. |
+
+**Mesure après S8** : 1/12 adaptateurs, 1/80 opérations publiques.
+
 ## 4. Vague 1 — rattrapage des Phases 1 à 3
 
 Seize lots, 51 écarts. L0 et L1 précèdent tout le reste : le premier parce qu'il

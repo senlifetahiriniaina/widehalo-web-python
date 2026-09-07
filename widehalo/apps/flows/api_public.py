@@ -23,6 +23,7 @@ meme chemin que le middleware utilise depuis la Phase 1 — donc avec
 
 from __future__ import annotations
 
+import functools
 from typing import Any
 
 from django.core.cache import cache
@@ -189,6 +190,86 @@ def _refused(request: Any, operation_code: str) -> ProblemDetailResponse | None:
     return None
 
 
+def _with_deprecation_headers(reponse: Any, operation_code: str) -> Any:
+    """Pose `Deprecation` et `Sunset` (RFC 8594) sur toute reponse d'une
+    operation depreciee.
+
+    **Sur la reponse, et pas seulement dans la documentation.** Un
+    integrateur ne relit pas la documentation d'une operation qui marche ;
+    il lit ses en-tetes s'il a un outil qui les lui montre, et il les
+    ignore sinon. Les poser coute une ligne et rend la politique de
+    depreciation opposable a ceux qui savent les lire — les autres restent
+    prevenus par l'OpenAPI, ou l'operation est marquee.
+
+    Une reponse qui n'est pas un objet HTTP (un dict rendu par ninja) passe
+    inchangee : ninja construira sa reponse plus tard, et l'en-tete se
+    perdrait. C'est une LIMITE assumee de cette version, ecrite plutot que
+    tue : aujourd'hui aucune operation n'est depreciee, et le jour ou l'une
+    le sera, elle rendra une reponse explicite."""
+    operation = get_public_operation(operation_code)
+    if operation is None or not operation.is_deprecated:
+        return reponse
+    if not hasattr(reponse, "__setitem__"):
+        return reponse
+    reponse["Deprecation"] = operation.deprecated_since
+    reponse["Sunset"] = operation.sunset_on
+    return reponse
+
+
+class _PublicOperationView:
+    """Le garde d'une operation publique : portee, droit, debit.
+
+    **Un objet appelable plutot qu'une fermeture**, et le motif est deja
+    ecrit dans ce depot, au prix d'un defaut trouve empiriquement
+    (`core.services.permissions._PermissionGuardedView`) : django-ninja
+    reconstruit le type des parametres annotes par une chaine via
+    `getattr(call, "__globals__", {})`, SANS remonter la chaine
+    `__wrapped__`. Une fermeture a un `__globals__` fige sur le module ou
+    elle est definie — ici `apps.flows.api_public` — et tout endpoint dont
+    le corps est un `Schema` serait alors mal classifie, donc casse pour
+    tout appelant. Un objet delegue `__globals__` a la vue d'origine.
+
+    **Pourquoi un decorateur et pas trois appels dans chaque vue.** C'est ce
+    qui rend API-2 STRUCTUREL plutot que memorise : « aucune operation non
+    declaree n'est atteignable par un jeton client ». Avec des appels a la
+    main, une vue publique ajoutee sans eux serait ouverte a toute cle, en
+    silence. Avec le decorateur, la garde d'architecture peut EXIGER que
+    chaque route publique en porte un — et le lien route/operation devient
+    inspectable, ce qu'il n'etait pas."""
+
+    def __init__(self, func: Any, code: str) -> None:
+        functools.update_wrapper(self, func)
+        self._func = func
+        self.public_operation_code = code
+
+    def __call__(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+        refus = _refused(request, self.public_operation_code) or _rate_limited(request)
+        if refus is not None:
+            return _with_deprecation_headers(refus, self.public_operation_code)
+        return _with_deprecation_headers(
+            self._func(request, *args, **kwargs), self.public_operation_code
+        )
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._func, name)
+
+
+def public_operation(code: str) -> Any:
+    """Decore une vue publique par le CODE de l'operation qu'elle sert.
+
+    L'ordre des decorateurs n'est pas indifferent, et c'est la meme regle
+    que pour `require_permission` : `@router.get(...)` reste le decorateur
+    EXTERNE et celui-ci l'INTERNE, juste au-dessus du `def`. `Router.
+    api_operation` enregistre la fonction qu'on lui passe puis la retourne
+    inchangee ; place a l'exterieur, ce garde n'intercepterait plus jamais
+    aucune requete."""
+
+    def decorator(func: Any) -> Any:
+        return _PublicOperationView(func, code)
+
+    return decorator
+
+
 #: La premiere operation publique, et elle n'est pas choisie au hasard : le
 #: cahier la nomme dans le contenu du bloc B — « journal d'appel consultable
 #: par le client » (§14.2). C'est aussi la seule que l'integrateur peut
@@ -215,6 +296,7 @@ router = Router(tags=["public"], auth=PublicApiKeyAuth())
 
 
 @router.get("/exchanges")
+@public_operation(OPERATION_EXCHANGES_READ)
 def list_exchanges(request: Any, limit: int = 50) -> Any:
     """Le journal d'echange du client, borne et filtre par sa societe.
 
@@ -222,10 +304,6 @@ def list_exchanges(request: Any, limit: int = 50) -> Any:
     prouve QU'un echange a eu lieu et ce qu'il est devenu. Rendre le contenu
     ferait de cette operation un canal d'exfiltration de pieces metier, avec
     une portee qui n'annonce qu'un journal."""
-    depasse = _refused(request, OPERATION_EXCHANGES_READ) or _rate_limited(request)
-    if depasse is not None:
-        return depasse
-
     from apps.flows.models import FlwExchange
 
     plafond = max(1, min(int(limit), 200))
@@ -250,6 +328,7 @@ def list_exchanges(request: Any, limit: int = 50) -> Any:
 
 __all__ = [
     "OPERATION_EXCHANGES_READ",
+    "public_operation",
     "PublicApiKeyAuth",
     "register_operations",
     "resolve_tenant_from_api_key",
