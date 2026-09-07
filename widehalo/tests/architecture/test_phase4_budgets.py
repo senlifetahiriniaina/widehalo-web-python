@@ -132,16 +132,35 @@ def test_the_adapter_counter_survives_a_missing_directory() -> None:
     assert _count_adapters(REPO_ROOT / "apps" / "flows" / "n_existe_pas") == []
 
 
-def test_the_public_surface_is_not_yet_open() -> None:
-    """Documente l'etat REEL au sprint S1, plutot que de laisser un zero
-    silencieux passer pour une mesure.
+def test_the_public_surface_is_open_and_counted() -> None:
+    """Remplace le test d'amorcage de S1 (« la surface publique n'est pas
+    encore ouverte »), qui portait dans son propre corps l'instruction de le
+    retirer ici. Elle est ouverte depuis le sprint S7, et ce test verifie ce
+    que celui-la demandait de verifier en partant : que le compteur lise
+    bien le ROUTEUR PUBLIC versionne, et non `config.api`.
 
-    Ce test devra etre supprime au bloc B, quand la surface publique
-    ouvrira — et son echec sera alors le rappel qu'il faut le faire. Une
-    assertion « rien n'existe encore » qui survit a l'existence de la chose
-    est un mensonge que personne ne relit."""
-    assert _count_public_operations() == 0, (
-        "La surface publique existe desormais : supprimer ce test d'amorcage et "
-        "verifier que `_count_public_operations` lit bien le routeur public "
-        "versionne, et non `config.api` (qui melange interne et public)."
+    La distinction est tout l'objet du plafond : `config.api` melange
+    l'interne et le public, et le compter ferait echouer un plafond de
+    retrocompatibilite pour des raisons internes."""
+    compte = _count_public_operations()
+    assert compte >= 1, (
+        "Le compteur d'operations publiques rend zero alors que la surface "
+        "existe : il ne lit pas `config.api_public`."
     )
+    assert compte < len(_all_internal_operations()), (
+        "Le compteur d'operations publiques compte AUSSI la surface interne : "
+        "les deux plafonds seraient alors indissociables."
+    )
+
+
+def _all_internal_operations() -> list[str]:
+    """Les operations de la surface INTERNE, pour le temoin ci-dessus."""
+    from config.api import api
+
+    return [
+        f"{methode}:{chemin}"
+        for _prefix, router in api._routers
+        for chemin, path_view in router.path_operations.items()
+        for operation in path_view.operations
+        for methode in operation.methods
+    ]

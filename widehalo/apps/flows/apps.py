@@ -26,6 +26,17 @@ class FlowsConfig(AppConfig):
         # dans un test suffirait a changer le comportement de la vidange.
         register_adapter(reference.CONNECTOR_CODE, reference.send)
 
+        # S7 — la surface publique. Deux declarations, et aucune des deux
+        # n'est faite a l'import : les operations publiques, et le moyen par
+        # lequel une CLE designe sa societe. Ce second point est la seule
+        # facon de le faire sans que `core` connaisse `flows` — c'est
+        # `flows` qui se declare a lui.
+        from apps.core.services.tenant_resolvers import register_tenant_resolver
+        from apps.flows.api_public import register_operations, resolve_tenant_from_api_key
+
+        register_operations()
+        register_tenant_resolver(resolve_tenant_from_api_key)
+
         # FLX-2 (S5) : UN SEUL abonne generique, comme `automation`. Il
         # recoit tout evenement publie et n'agit que sur ceux qu'un
         # `FlwTrigger` actif designe — aucun module metier n'a donc a

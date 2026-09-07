@@ -62,6 +62,7 @@ from apps.core.cost_units import COST_UNIT_CHOICES
 from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel
 from apps.flows.operations import OPERATION_CHOICES, validate_supported_operations
+from apps.flows.public_operations import validate_scopes
 
 if TYPE_CHECKING:
     from datetime import date
@@ -155,6 +156,95 @@ class FlwConnector(BaseModel):
         vidange nocturne — la ou personne ne la lit."""
         validate_supported_operations(self.supported_operations)
         super().save(*args, **kwargs)
+
+
+class FlwApiKey(BaseModel):
+    """Cle publique d'acces — le jeton d'API d'un client tiers (§13.2).
+
+    « Portees, debit, expiration, revocation. Portees exprimees en
+    operations publiques declarees, JAMAIS EN TABLES. »
+
+    **La cle porte un UTILISATEUR, et c'est ce qui tient API-1.** Le critere
+    exige qu'« un jeton client ne puisse obtenir aucune donnee qu'un
+    utilisateur du role correspondant ne pourrait consulter dans
+    l'interface ». Deux facons de le tenir : recopier la matrice de droits
+    dans un second mecanisme propre a l'API — et la voir diverger au premier
+    role ajoute — ou faire porter au jeton un utilisateur reel, dont les
+    groupes decident. La seconde est celle que le cahier demande
+    explicitement : « le controle est celui de la Phase 1 pour le copilote,
+    REUTILISE SANS MODIFICATION ». Tous les `require_permission` du depot
+    s'appliquent alors sans qu'une seule ligne change.
+
+    **Le secret n'est pas stocke.** `token_hash` porte l'empreinte SHA-256
+    du jeton ; le clair n'existe qu'une fois, au moment de l'emission, et
+    n'est jamais relu. Le nom du champ n'est pas libre : il doit finir par
+    `_hash` pour que `test_secrets_are_never_stored_in_clear.py` le
+    reconnaisse, et valoir `token_hash` pour que
+    `object_remap.SECRET_TOKEN_FIELD_NAMES` le REGENERE quand un tenant est
+    copie — sans quoi une sauvegarde restauree ressusciterait une cle
+    valide chez quelqu'un d'autre.
+
+    `prefix` est la partie AFFICHABLE, sans laquelle un exploitant qui a
+    trois cles ne peut pas savoir laquelle revoquer, et finirait par les
+    revoquer toutes. Meme raison d'etre que `FlwCredential.secret_hint`.
+
+    **`revoked_at` plutot qu'un simple `is_active`.** La revocation est un
+    FAIT DATE : savoir qu'une cle a ete revoquee le 12 a 14 h est ce qui
+    permet de dire si un appel du 12 a 13 h etait legitime. Un booleen
+    efface cette question."""
+
+    label = models.CharField(max_length=150)
+    # L'utilisateur dont les droits bornent la cle. PROTECT : supprimer le
+    # compte de service sans revoquer ses cles laisserait des jetons dont
+    # plus personne ne sait ce qu'ils ouvrent.
+    user = models.ForeignKey("core.User", on_delete=models.PROTECT, related_name="api_keys")
+    prefix = models.CharField(max_length=12)
+    token_hash = models.CharField(max_length=64, unique=True)
+    # Portees : des CODES d'operations publiques declarees. Le validateur
+    # est pose ici pour les formulaires et les schemas, ET rappele dans
+    # `save()` — Django ne fait tourner les validateurs de champ que dans
+    # `full_clean()`, jamais dans `save()`.
+    scopes = models.JSONField(default=list, blank=True, validators=[validate_scopes])
+    # « Debit maximal » (§8.2). Par CLE, et c'est ce qu'exige API-7 : « le
+    # depassement du debit d'une cle n'affecte ni les autres cles du tenant
+    # ni les autres tenants ». Un plafond porte par le tenant ferait d'un
+    # integrateur maladroit une panne pour tous les autres.
+    rate_limit_per_hour = models.PositiveIntegerField(default=1000)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.TextField(blank=True)
+    # Derniere utilisation, ecrite par l'authentification. Sert a repondre a
+    # « cette cle sert-elle encore ? » avant de la revoquer — la question
+    # que personne ne peut trancher sans elle, et qui fait qu'on ne revoque
+    # jamais.
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "flw_api_key"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["tenant", "prefix"], name="idx_flw_api_key_prefix")]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.prefix}…)"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        validate_scopes(self.scopes)
+        super().save(*args, **kwargs)
+
+    def is_usable(self, *, now: Any = None) -> bool:
+        """Une cle utilisable : ni revoquee, ni expiree, ni desactivee.
+
+        Les trois sont distinctes et aucune ne se deduit des autres. La
+        revocation est un acte, l'expiration une echeance, la desactivation
+        (`is_active`, de `BaseModel`) un archivage. Les confondre ferait
+        d'une cle archivee par megarde une cle revoquee, donc une
+        information fausse dans un journal d'acces."""
+        from django.utils import timezone
+
+        moment = now or timezone.now()
+        if not self.is_active or self.revoked_at is not None:
+            return False
+        return self.expires_at is None or self.expires_at > moment
 
 
 class FlwCredential(BaseModel):

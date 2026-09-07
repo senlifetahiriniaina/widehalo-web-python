@@ -16,11 +16,13 @@ portabilite ne peut pas construire l'entite et l'oublie en silence.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 
 import factory
 
 from apps.core.tests.factories import TenantFactory
 from apps.flows.models import (
+    FlwApiKey,
     FlwConnector,
     FlwCredential,
     FlwExchange,
@@ -52,6 +54,26 @@ class FlwConnectorFactory(factory.django.DjangoModelFactory):
     # (`test_s6_operations.py`) — pas par accident, dans vingt tests qui
     # parlent d'autre chose.
     supported_operations = factory.List(sorted(OPERATION_CODES))
+
+
+class FlwApiKeyFactory(factory.django.DjangoModelFactory):
+    """La factory exigee par `test_tenant_portability_per_entity` pour tout
+    `BaseModel`. Elle pose une empreinte ARBITRAIRE : une cle construite
+    par cette voie n'est utilisable par personne, puisque aucun clair ne lui
+    correspond. C'est voulu — emettre une vraie cle passe par
+    `services.api_keys.issue_key`, seul endroit ou le clair existe, et une
+    factory qui rendrait des cles utilisables en semerait dans tous les
+    jeux de donnees de test."""
+
+    class Meta:
+        model = FlwApiKey
+
+    tenant = factory.SubFactory(TenantFactory)
+    user = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    label = factory.Sequence(lambda n: f"cle-{n}")
+    prefix = factory.Sequence(lambda n: f"wh_test{n:02d}")
+    token_hash = factory.Sequence(lambda n: hashlib.sha256(f"factice-{n}".encode()).hexdigest())
+    scopes = factory.List([])
 
 
 class FlwCredentialFactory(factory.django.DjangoModelFactory):

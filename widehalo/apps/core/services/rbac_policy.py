@@ -63,6 +63,22 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
         # leur donner des roles differents aurait ete un piege.
         "quality": {"view", "add", "change"},
+        # `flows` (Phase 4, bloc B) : le hub de flux etait livre sans API
+        # ni ecran des sprints S1 a S6 — donc sans entree ici, exactement
+        # comme `quality` avant d'etre monte, et pour la meme raison. Le
+        # sprint S7 ouvre sa premiere operation publique (le journal
+        # d'echange), et une entree devient donc necessaire : sans elle,
+        # AUCUN role ne detient `flows.view_flwexchange`, et la portee d'une
+        # cle publique ne peut rien ouvrir — constate par le test qui
+        # recopie le critere API-1.
+        #
+        # Deux roles seulement, et c'est deliberé. Un echange dit vers QUI
+        # une piece est partie, avec quelle empreinte et quel verdict : c'est
+        # une donnee d'exploitation et de preuve, pas une donnee de travail
+        # quotidien. `admin` et `direction` la pilotent ; un commercial n'a
+        # aucune raison de lire le journal des soumissions fiscales, et le
+        # critere API-1 se verifie precisement sur ce cas.
+        "flows": {"view", "add", "change"},
         # `strategy` : **limite assumee et disclosee** — le chantier
         # budget/revue/risques (cahier Phase 2 §13.3) classe budget non
         # publie/objectifs/cartographie des risques en donnee "Sensible"
@@ -182,6 +198,11 @@ ROLE_APP_PERMISSIONS: dict[str, dict[str, set[str]]] = {
         # (inspections generiques dans `core`, HACCP dans `apps.quality`) ;
         # leur donner des roles differents aurait ete un piege.
         "quality": {"view", "change"},
+        # `flows` : cf. le motif ecrit sur le role `admin`. "view"+"change"
+        # et jamais "add" — meme raisonnement que pour `financing` et
+        # `projects` : ce role pilote et arbitre, il ne cree pas la
+        # configuration de premier niveau.
+        "flows": {"view", "change"},
         "logistics": {"view", "change"},
         "presence": {"view", "change"},
         "strategy": {"view", "add", "change"},

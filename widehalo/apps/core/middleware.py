@@ -54,7 +54,15 @@ class TenantMiddleware:
         session_tenant = request.session.get("tenant_id") if hasattr(request, "session") else None
         if session_tenant:
             return str(session_tenant)
-        return None
+        # Les moyens declares par les modules — l'API publique, dont la CLE
+        # designe sa societe. En dernier, et pas par commodite : une session
+        # ouverte appartient a un humain qui a choisi sa societe, une cle a
+        # un integrateur. Si les deux sont presents, c'est le choix explicite
+        # de l'humain qui prime. `core` ne connait aucun de ces moyens : ils
+        # se declarent a lui (`apps.core.services.tenant_resolvers`).
+        from apps.core.services.tenant_resolvers import resolve_tenant_from_request
+
+        return resolve_tenant_from_request(request)
 
 
 ONBOARDING_EXEMPT_PATH_PREFIXES = (

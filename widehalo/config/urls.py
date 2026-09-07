@@ -16,11 +16,18 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 
 from .api import api
+from .api_public import public_api
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="dashboard", permanent=False)),
     path("admin/", admin.site.urls),
     path("api/v1/", api.urls),
+    # La surface PUBLIQUE, sous un prefixe distinct : c'est ce prefixe que
+    # le resolveur de societe de `apps.flows.api_public` reconnait, et c'est
+    # lui qui empeche un jeton `wh_` d'ouvrir quoi que ce soit sur la
+    # surface interne. Deux surfaces, deux plafonds, deux contrats de
+    # retrocompatibilite.
+    path("api/public/v1/", public_api.urls),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("change-password/", change_password_view, name="change_password"),
