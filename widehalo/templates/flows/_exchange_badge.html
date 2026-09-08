@@ -1,0 +1,34 @@
+{% comment %}
+T4 (§10.2, « Pastille d'état d'échange ») — l'état des liaisons d'une
+pièce, lisible d'un coup d'œil.
+
+**L'exigence propre du cahier, mot pour mot** : « Quatre couleurs au
+maximum, un libellé toujours présent — **la couleur seule ne porte jamais
+l'information**. »
+
+Cette dernière phrase n'est pas une préférence esthétique, et c'est
+pourquoi ce gabarit ne contient aucun `<span>` vide coloré. Une pastille
+sans texte est illisible pour qui distingue mal les couleurs, illisible
+en impression noir et blanc, et illisible dans une capture d'écran
+envoyée au support. Le libellé est donc le contenu ; la couleur ne fait
+que le doubler.
+
+Les QUATRE couleurs, et pas une de plus :
+  - `attente`  : la pièce est partie, personne n'a tranché ;
+  - `succes`   : l'administration a accepté ;
+  - `refus`    : elle a refusé — c'est le seul état qui appelle une action
+                 du comptable ;
+  - `neutre`   : tout le reste, y compris « hors du champ », qui n'est pas
+                 un problème et ne doit donc pas s'afficher comme tel.
+
+Contexte attendu : `fiscal_state` (une valeur de
+`AccMove.FISCAL_STATE_CHOICES`) et `fiscal_state_display` (son libellé).
+{% endcomment %}
+{% load i18n %}
+{% if fiscal_state and fiscal_state != "non_concerne" %}
+  <span class="pastille pastille--{% if fiscal_state == 'accepte' %}succes{% elif fiscal_state == 'rejete' %}refus{% elif fiscal_state == 'attente_verdict' %}attente{% else %}neutre{% endif %}">
+    {# Le libellé est le contenu, jamais un attribut `title` : un intitulé #}
+    {# qui n'apparaît qu'au survol n'existe pas sur un écran tactile. #}
+    {{ fiscal_state_display }}
+  </span>
+{% endif %}

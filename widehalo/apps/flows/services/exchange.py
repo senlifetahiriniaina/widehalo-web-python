@@ -41,6 +41,7 @@ appartient au tiers, puisque le tiers n'est pas appele.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
@@ -164,6 +165,7 @@ def prepare_exchange(
     document_id: UUID | None = None,
     correlation_key: str = "",
     content_type: str = "application/json",
+    retain_until: dt.date | None = None,
 ) -> FlwExchange:
     """Cree un echange en `PREPARE`, avec sa charge utile et son empreinte.
 
@@ -190,6 +192,17 @@ def prepare_exchange(
     FLX-2 : un refus de configuration n'est pas un echec de tiers, et le
     declencheur evenementiel isole deja chaque declencheur cassé des
     autres.
+
+    **`retain_until` (T4).** La colonne existait sur `FlwPayload` depuis
+    S1, avec son motif ecrit — « deux liaisons du meme adaptateur peuvent
+    relever de politiques de retention differentes (une soumission fiscale
+    se conserve plus longtemps qu'un catalogue publie) » — mais AUCUN
+    appelant ne la renseignait, et la purge appliquait donc sa politique
+    par defaut a tout, soumissions fiscales comprises. Le bloc C est le
+    premier a en avoir besoin : c'est le profil pays qui porte la duree
+    reglementaire (EFA-7), et il la passe ici. `None` conserve le
+    comportement anterieur — politique par defaut, jamais « a garder pour
+    toujours ».
     """
     validate_operation(operation)
     if is_inbound_operation(operation) != (direction == FlwExchange.DIRECTION_INBOUND):
@@ -252,6 +265,7 @@ def prepare_exchange(
             content_type=content_type,
             body=corps,
             byte_size=len(corps.encode("utf-8")),
+            retain_until=retain_until,
         )
     return exchange
 

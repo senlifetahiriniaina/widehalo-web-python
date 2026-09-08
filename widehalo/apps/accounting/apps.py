@@ -13,6 +13,9 @@ class AccountingConfig(AppConfig):
         # `core.events` — jamais un import direct par `apps.reporting`.
         from apps.accounting.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.accounting.services.ai_context_registration import register_ai_context
+        from apps.accounting.services.einvoice_registration import (
+            register_einvoice_subscribers,
+        )
         from apps.accounting.services.flow_schema_registration import (
             register_outbound_schemas,
         )
@@ -31,3 +34,10 @@ class AccountingConfig(AppConfig):
         # correspondance de champs ne peut designer une piece de ce
         # module : la fermeture est deny-by-default.
         register_outbound_schemas()
+        # T4 (bloc C, EFA-1) : « une facture validee produit un document
+        # structure ». L'abonnement passe par le bus plutot que par un
+        # appel dans `validate_invoice` — l'evenement est persiste dans la
+        # meme transaction que la validation et distribue APRES commit,
+        # de sorte qu'un defaut du bloc C ne peut jamais mettre en peril
+        # une transition comptable (FLX-2).
+        register_einvoice_subscribers()

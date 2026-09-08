@@ -1,0 +1,45 @@
+{% comment %}
+T4 (§10.2, « Bandeau d'attente » ; EFA-2) — ce qui est attendu, de qui, et
+quand.
+
+**L'exigence propre du cahier** : « Aucune formulation technique. *En
+attente de validation fiscale, nouvelle tentative à 14 h 30* et non un
+code de statut. »
+
+Et le critère EFA-2 en fait une obligation : « en l'absence de
+raccordement ouvert, le document est produit, signé, archivé et mis en
+file ; **aucune erreur n'est présentée à l'utilisateur**, et un bandeau
+indique l'état d'attente ».
+
+C'est pourquoi ce bandeau n'est jamais rendu avec une classe d'erreur, ne
+porte aucun code d'état, et ne dit pas « échec » : rien n'a échoué. Le
+principe posé au §10.1 est plus fort qu'un simple affichage — « tout état
+d'attente affiche **ce qui va se passer ensuite et quand** ». Un bandeau
+qui dirait seulement « en attente » sans dire la suite ferait appeler le
+support pour une situation parfaitement normale.
+
+Contexte attendu : `fiscal_state`, et facultativement `next_attempt_at`
+(horodatage de la prochaine tentative) et `awaiting_link` (vrai quand
+aucun raccordement n'est encore ouvert).
+{% endcomment %}
+{% load i18n %}
+{% if fiscal_state == "attente_verdict" or awaiting_link %}
+  <div class="bandeau bandeau--attente" role="status">
+    <p>
+      {% if awaiting_link %}
+        {% comment %}
+          Le cas du mode d'attente : le raccordement n'est pas ouvert. Ce
+          n'est pas une panne, et le document existe déjà — le dire
+          explicitement évite qu'un comptable croie avoir perdu sa
+          facture.
+        {% endcomment %}
+        {% trans "Votre facture est enregistrée et conservée. Elle sera transmise à l'administration dès l'ouverture du raccordement fiscal ; vous n'avez rien à faire." %}
+      {% else %}
+        {% trans "En attente de validation fiscale." %}
+        {% if next_attempt_at %}
+          {% blocktrans with heure=next_attempt_at|time:"H\hi" %}Nouvelle tentative à {{ heure }}.{% endblocktrans %}
+        {% endif %}
+      {% endif %}
+    </p>
+  </div>
+{% endif %}
