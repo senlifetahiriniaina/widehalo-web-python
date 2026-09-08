@@ -99,6 +99,7 @@ def request_reference_lookup(
     document_type: str,
     document_id: UUID,
     body: str = "",
+    occurrence: str = "",
 ) -> dict[str, Any] | None:
     """OP8 — demande au hub d'interroger un referentiel, et rend la main.
 
@@ -120,7 +121,24 @@ def request_reference_lookup(
 
     Rend `None` quand aucune liaison active ne sert ce connecteur : ne pas
     avoir branche de referentiel est un etat parfaitement normal, pas une
-    erreur a signaler. L'appelant continue avec la valeur saisie."""
+    erreur a signaler. L'appelant continue avec la valeur saisie.
+
+    **`occurrence` n'est pas facultatif pour une INTERROGATION, et le
+    defaut qu'il ferme a deja coute une fois.** La clef d'idempotence se
+    calcule sur (liaison, piece, operation, rang de rejeu) : pour une meme
+    piece sur une meme liaison, elle NE CHANGE PAS. C'est exactement ce
+    qu'il faut pour une soumission — deux tentatives du meme envoi portent
+    la meme clef (FLX-4) — et c'est faux pour une lecture, qu'on refait
+    legitimement plus tard : la seconde demande heurterait
+    `uniq_flw_exchange_idempotency_key` par une `IntegrityError`, et le
+    travail periodique qui la porte mourrait au deuxieme passage, en
+    silence. Le meme defaut a ete trouve au sprint S5 sur les releves
+    quotidiens sans piece, et `compute_idempotency_key` porte deja
+    `occurrence` pour cette raison.
+
+    L'appelant passe donc ce qui distingue SON passage — une date, un
+    numero de campagne. Le laisser vide reste correct pour une piece qui ne
+    part qu'une fois."""
     from apps.flows.services.exchange import prepare_exchange
     from apps.flows.services.queue import queue_exchange
 
@@ -142,7 +160,8 @@ def request_reference_lookup(
             document_type=document_type,
             document_id=document_id,
             body=body,
-        )
+        ),
+        occurrence=occurrence,
     )
     return {
         "id": exchange.id,

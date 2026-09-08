@@ -64,16 +64,34 @@ VERDICT_PAR_ETAT: dict[str, str] = {
 }
 
 
-def request_verification(partner: Partner) -> dict[str, object] | None:
+def request_verification(
+    partner: Partner, *, now: dt.datetime | None = None
+) -> dict[str, object] | None:
     """Demande au hub d'interroger le référentiel pour ce tiers.
 
-    Rend `None` — sans lever — quand aucun référentiel n'est branché, ou
-    quand le tiers n'a aucun identifiant à vérifier. Les deux sont des
-    états normaux : la majorité des installations n'auront jamais de
-    liaison vers un référentiel fiscal, et un prospect saisi en trente
-    secondes n'a pas encore de NIF."""
+    Rend `None` — sans lever — dans trois cas, tous normaux : aucun
+    référentiel n'est branché, le tiers n'a aucun identifiant à vérifier,
+    ou **une demande est déjà en vol**. La majorité des installations
+    n'auront jamais de liaison vers un référentiel fiscal, un prospect
+    saisi en trente secondes n'a pas encore de NIF, et redemander ce qu'on
+    attend déjà ne ferait qu'ajouter du bruit chez une administration.
+
+    **Pourquoi une demande en vol arrête celle-ci, et pourquoi le passage
+    est horodaté.** La clef d'idempotence du hub se calcule sur (liaison,
+    pièce, opération) : pour ce tiers sur cette liaison, elle ne change
+    pas. Deux demandes identiques heurteraient donc
+    `uniq_flw_exchange_idempotency_key`, et le travail périodique
+    mourrait au deuxième passage — le défaut exact que le sprint S5 a
+    trouvé sur les relevés quotidiens. Deux garde-fous, parce qu'ils ne
+    couvrent pas la même chose : ne pas redemander ce qui est en vol
+    (économie et politesse), et dater le passage (une re-vérification l'an
+    prochain est un échange légitimement nouveau, pas un doublon)."""
     if not partner.nif and not partner.stat:
         return None
+    if _verification_en_vol(partner):
+        return None
+
+    maintenant = now or timezone.now()
     corps = json.dumps(
         {"nif": partner.nif, "stat": partner.stat, "name": partner.name},
         sort_keys=True,
@@ -85,6 +103,23 @@ def request_verification(partner: Partner) -> dict[str, object] | None:
         document_type=DOCUMENT_TYPE,
         document_id=partner.id,
         body=corps,
+        occurrence=maintenant.date().isoformat(),
+    )
+
+
+def _verification_en_vol(partner: Partner) -> bool:
+    """Un échange déjà parti pour ce tiers et dont le verdict n'est pas là.
+
+    « En vol » se déduit de `VERDICT_PAR_ETAT` plutôt que d'une seconde
+    liste d'états : tout échange qui ne porte pas encore de verdict est,
+    par définition, en vol. Une liste parallèle finirait par diverger de la
+    table des verdicts au premier état neuf, et le désaccord serait
+    silencieux."""
+    return any(
+        str(echange.get("state", "")) not in VERDICT_PAR_ETAT
+        for echange in list_exchanges_for_document(
+            partner.tenant, document_type=DOCUMENT_TYPE, document_id=partner.id, limit=5
+        )
     )
 
 

@@ -47,6 +47,7 @@ from apps.core.services.fiscal_identifiers import (
 )
 from apps.core.tests.utils import use_tenant
 from apps.partners.models import DuplicateAlert, Partner
+from apps.partners.services.fiscal_verification import VALIDITY_DAYS
 from apps.partners.services.onboarding import create_partner
 
 pytestmark = pytest.mark.django_db
@@ -568,6 +569,75 @@ def test_an_unavailable_reference_comes_back_into_the_queue(societe) -> None:
     # Un verdict rendu ne se redemande pas chaque nuit : c'est la correction
     # de l'identifiant qui rouvre la question, testée juste au-dessus.
     assert introuvable.id not in file_attente
+
+
+def test_the_periodic_command_survives_a_second_night(societe) -> None:
+    """Le défaut que ce test retient tuait la commande au DEUXIÈME passage.
+
+    La clef d'idempotence du hub se calcule sur (liaison, pièce,
+    opération) : pour un tiers donné sur une liaison donnée, elle ne change
+    pas. Une seconde demande identique heurte donc
+    `uniq_flw_exchange_idempotency_key` — une `IntegrityError`, pas un
+    refus propre — et le travail nocturne meurt. Aucun tiers ne serait
+    jamais vérifié au-delà de la première nuit, et rien ne le dirait.
+
+    C'est mot pour mot le défaut trouvé au sprint S5 sur les relevés
+    quotidiens sans pièce ; il a resurgi ici parce qu'une INTERROGATION se
+    refait légitimement, contrairement à une soumission. Deux garde-fous le
+    ferment : on ne redemande pas ce qui est en vol, et le passage est
+    daté."""
+    from django.core.management import call_command
+
+    with use_tenant(societe.id):
+        _referentiel_actif(societe)
+        create_partner(tenant=societe, name="Deux nuits", roles=[], nif="MG-NIF-9020")
+
+        call_command("verify_fiscal_identifiers", tenant_code=societe.code)
+        # La seconde nuit : le verdict n'est toujours pas arrivé.
+        call_command("verify_fiscal_identifiers", tenant_code=societe.code)
+
+
+def test_a_request_already_in_flight_is_not_sent_twice(societe) -> None:
+    """Redemander ce qu'on attend déjà n'apprend rien et coûte deux fois.
+
+    Le hub facture chaque échange et le cahier en fait une décision
+    structurante (« tout échange porte un coût imputé et un plafond
+    opposable ») : une demande en double est une dépense réelle, pas une
+    inélégance. Et du côté de l'administration interrogée, c'est du bruit
+    qu'on lui envoie sans raison."""
+    from apps.partners.services.fiscal_verification import request_verification
+
+    with use_tenant(societe.id):
+        _referentiel_actif(societe)
+        partenaire = create_partner(tenant=societe, name="En attente", roles=[], nif="MG-NIF-9021")
+
+        assert request_verification(partenaire) is not None
+        assert request_verification(partenaire) is None
+
+
+def test_a_settled_verdict_lets_a_later_pass_ask_again(societe) -> None:
+    """Une demande TRANCHÉE ne bloque pas la suivante.
+
+    Le garde-fou « en vol » ne doit pas devenir un verrou définitif : une
+    confirmation expire au bout d'un an, et la re-vérification qui suit est
+    un échange légitimement neuf. C'est `occurrence` — la date du passage —
+    qui lui donne sa propre clef d'idempotence."""
+    from apps.flows.models import FlwExchange
+    from apps.partners.services.fiscal_verification import request_verification
+
+    with use_tenant(societe.id):
+        _referentiel_actif(societe)
+        partenaire = create_partner(tenant=societe, name="Deux fois", roles=[], nif="MG-NIF-9022")
+
+        premiere = request_verification(partenaire)
+        assert premiere is not None
+        _echange_tranche(premiere, verdict=FlwExchange.STATE_ACCEPTED)
+
+        seconde = request_verification(
+            partenaire, now=timezone.now() + dt.timedelta(days=VALIDITY_DAYS + 1)
+        )
+        assert seconde is not None
+        assert seconde["id"] != premiere["id"]
 
 
 # --- La reprise qui chiffre -----------------------------------------------
