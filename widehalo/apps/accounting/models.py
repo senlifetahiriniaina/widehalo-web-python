@@ -1097,6 +1097,132 @@ class AccDcomLine(BaseModel):
         return f"{self.partner_id} — {self.classification} : {self.amount_mga}"
 
 
+class AccVatDeclaration(BaseModel, ReferenceMixin):
+    """ACC-6 — la declaration de TVA d'une PERIODE, et son rapprochement.
+
+    **Le critere, mot pour mot** : « La declaration de TVA d'une periode se
+    rapproche a l'ariary pres de la somme des ecritures de TVA de la
+    periode, avec un etat justificatif ligne a ligne. »
+
+    **Ce qui existait avant ce lot : rien**, et le depot l'ecrivait
+    lui-meme. `services/fiscal_export.py` disait, a propos de la ligne
+    ACC-TVA de son registre : « Aucune declaration TVA dediee (pas de
+    modele `acc_vat_declaration` a ce stade) : approche via `trial_balance`/
+    `general_ledger` filtres sur les comptes de TVA collectee/deductible ».
+    Il n'y avait donc ni objet a rapprocher, ni etat justificatif : la
+    liasse annuelle (IS/IR) existait, la declaration periodique non.
+
+    **Le rapprochement a deux cotes, et c'est tout l'objet du critere.**
+
+    - Cote DECLARATION : pour chaque taxe valide sur la periode, la somme
+      des bases (`AccMoveLine.tax_base`) et de la TVA correspondante,
+      relevee sur les lignes d'ecritures PUBLIEES qui designent cette taxe.
+    - Cote LIVRES : le mouvement net des comptes de TVA de cette meme taxe
+      (`AccTax.account_collected` / `account_deductible`) sur la periode.
+
+    Les deux doivent coincider a l'ariary. `ecart_mga` porte la difference
+    — pas un booleen : « ca ne tombe pas juste » n'aide personne, « il
+    manque 1 240 Ar cote collecte » designe l'ecriture a chercher.
+
+    **Pourquoi la difference existe et doit etre CONSERVEE.** Une ecriture
+    manuelle passee directement sur un compte de TVA sans designer de taxe
+    est parfaitement legale — un rappel, une regularisation, un
+    complement. Elle apparait cote livres et pas cote declaration : l'ecart
+    est alors la mesure exacte de ce qui reste a justifier, et le figer
+    dans la declaration est ce qui permet de le retrouver plus tard.
+    L'effacer en recalculant chaque fois transformerait un ecart tracable
+    en surprise."""
+
+    STATE_DRAFT = "draft"
+    STATE_FILED = "filed"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_FILED, "Deposee"),
+    ]
+
+    period = models.ForeignKey(AccPeriod, on_delete=models.PROTECT, related_name="+")
+    #: TVA collectee (sur les ventes) et deductible (sur les achats), telles
+    #: que la DECLARATION les etablit depuis les lignes taxees.
+    collected_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    deductible_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    #: Le net a payer (positif) ou le credit reportable (negatif).
+    net_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    #: Les memes deux montants, lus DANS LES LIVRES sur les comptes de TVA.
+    collected_books_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    deductible_books_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    #: L'ecart, signe, entre declaration et livres. Zero = rapproche.
+    ecart_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    generated_at = models.DateTimeField(null=True, blank=True)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+
+    class Meta:
+        db_table = "acc_vat_declaration"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "period"],
+                name="uniq_acc_vat_declaration_per_period",
+            )
+        ]
+        ordering = ["-period__date_start"]
+
+    def __str__(self) -> str:
+        return f"TVA {self.period.code}"
+
+    @property
+    def is_reconciled(self) -> bool:
+        """« a l'ariary pres » : l'unite legale malgache n'a pas de
+        subdivision en circulation, et la colonne porte quatre decimales
+        pour les calculs intermediaires. Le rapprochement se juge donc a
+        l'ariary, pas au dix-millieme."""
+        return abs(self.ecart_mga) < Decimal(1)
+
+
+class AccVatDeclarationLine(BaseModel):
+    """Une ligne de l'etat justificatif : une taxe, un sens, ses totaux.
+
+    L'etat justificatif « ligne a ligne » du critere a DEUX niveaux, et les
+    confondre ferait manquer l'un des deux. Ce modele porte l'agregat par
+    taxe — ce que la declaration reporte reellement a l'administration. Le
+    detail ecriture par ecriture, lui, n'est pas stocke : il se recalcule a
+    l'identique depuis les lignes publiees, qui sont immuables par
+    declencheur de base (`acc_move_immutable_when_posted`). Le figer serait
+    dupliquer une donnee deja inalterable, et le faire diverger le jour ou
+    l'un des deux serait corrige.
+
+    `move_line_count` est ce qui relie les deux : il dit combien de lignes
+    l'agregat resume, et un detail qui n'en rendrait pas autant signale
+    immediatement que le perimetre a change."""
+
+    SENS_COLLECTED = "collected"
+    SENS_DEDUCTIBLE = "deductible"
+    SENS_CHOICES = [
+        (SENS_COLLECTED, "TVA collectee"),
+        (SENS_DEDUCTIBLE, "TVA deductible"),
+    ]
+
+    declaration = models.ForeignKey(
+        AccVatDeclaration, on_delete=models.CASCADE, related_name="lines"
+    )
+    tax = models.ForeignKey(AccTax, on_delete=models.PROTECT, related_name="+")
+    sens = models.CharField(max_length=16, choices=SENS_CHOICES)
+    base_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    tax_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    #: Le mouvement net du compte de TVA de cette taxe sur la periode.
+    books_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    move_line_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "acc_vat_declaration_line"
+        ordering = ["sens", "tax__code"]
+
+    def __str__(self) -> str:
+        return f"{self.tax.code} ({self.sens})"
+
+    @property
+    def ecart_mga(self) -> Decimal:
+        return self.tax_mga - self.books_mga
+
+
 class AccIrcmDeclaration(BaseModel, ReferenceMixin):
     """ACC-IRCM (§1.7 du document annexe) : declaration annuelle de l'Impot
     sur les Revenus des Capitaux Mobiliers — 20% sur les interets/revenus et

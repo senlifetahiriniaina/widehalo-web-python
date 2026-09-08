@@ -9,6 +9,17 @@
   <div class="page-head">
     <h1>{% trans "Rapports comptables" %}</h1>
   </div>
+  {% comment %}
+    ACC-6 (T2) — la declaration de TVA n'est pas un export tabulaire comme
+    les autres : elle porte un RAPPROCHEMENT (a l'ariary pres) et un etat
+    justificatif a deux niveaux. Elle a donc son ecran, pas un simple
+    bouton de telechargement.
+  {% endcomment %}
+  <section>
+    <h2>{% trans "Déclaration de TVA" %}</h2>
+    <p><a href="{% url 'accounting:vat_declaration' %}">{% trans "Établir et rapprocher la déclaration d'une période" %}</a></p>
+  </section>
+
   <section>
     <h2>{% trans "Balance générale" %}</h2>
     <form method="get" action="{% url 'accounting:report_trial_balance' %}">

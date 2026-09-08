@@ -96,10 +96,32 @@
         <c-button variant="primary" type="submit">{% trans "Ajouter la ligne" %}</c-button>
       </form>
 
+      {% comment %}
+        T2 (CRM-7) — la relance devient PLANIFIABLE, et c'est ce qui rendait
+        le parcours UC1 impossible plutôt que lent. UC1 se termine sur « une
+        activité planifiée » ; `CrmActivity.due_at` existe depuis la
+        migration 0002, `log_activity` l'accepte, la tuile « relances en
+        retard » (CRM-4) le LIT — et aucune surface de production ne
+        l'écrivait. Seul le jeu de démonstration en posait, si bien que la
+        tuile ne pouvait rien afficher chez un client.
+
+        Les cinq types déclarés sont proposés, pas trois : le `<select>`
+        omettait « relance », qui est précisément le type de l'activité
+        qu'UC1 demande de planifier.
+      {% endcomment %}
       <h2>{% trans "Chronologie des activités" %}</h2>
       <ul>
         {% for activity in activities %}
-          <li>{{ activity.get_activity_type_display }} — {{ activity.subject }} ({{ activity.created_at }})</li>
+          <li>
+            {{ activity.get_activity_type_display }} — {{ activity.subject }}
+            {% if activity.done_at %}
+              <span class="badge badge-success">{% trans "faite le" %} {{ activity.done_at|date:"d/m/Y" }}</span>
+            {% elif activity.due_at %}
+              <span class="badge badge-warning">{% trans "prévue le" %} {{ activity.due_at|date:"d/m/Y H:i" }}</span>
+            {% else %}
+              <span class="badge">{% trans "enregistrée le" %} {{ activity.created_at|date:"d/m/Y" }}</span>
+            {% endif %}
+          </li>
         {% empty %}
           <li>{% trans "Aucune activité." %}</li>
         {% endfor %}
@@ -107,15 +129,18 @@
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="log_activity">
-        <select name="activity_type" aria-label="{% trans 'Type d activite' %}">
-          <option value="call">{% trans "Appel" %}</option>
-          <option value="visit">{% trans "Visite" %}</option>
-          <option value="email">{% trans "Émail" %}</option>
+        <select id="activity_type" name="activity_type" aria-label="{% trans 'Type d activite' %}">
+          {% for code, label in activity_type_choices %}
+            <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
         </select>
-        <input type="text" name="subject" placeholder="{% trans 'Objet' %}" required
+        <input id="activity_subject" type="text" name="subject" placeholder="{% trans 'Objet' %}" required
                aria-label="{% trans 'Objet' %}">
+        <input id="activity_due_at" type="datetime-local" name="due_at"
+               aria-label="{% trans 'Échéance de la relance' %}">
         <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
       </form>
+      <p><em>{% trans "Renseigner une échéance planifie une relance ; la laisser vide enregistre une activité déjà réalisée." %}</em></p>
     </div>
   </div>
 

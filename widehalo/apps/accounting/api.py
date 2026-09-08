@@ -38,6 +38,7 @@ from apps.accounting.models import (
     AccProvision,
     AccReconcileRule,
     AccTaxCalendar,
+    AccVatDeclaration,
 )
 from apps.accounting.services.assets import (
     compute_annual_depreciation,
@@ -119,6 +120,13 @@ from apps.accounting.services.reports import (
 )
 from apps.accounting.services.tax_calendar import create_tax_calendar_entry
 from apps.accounting.services.tax_returns import generate_liasse_ir, generate_liasse_is
+from apps.accounting.services.vat_declaration import (
+    build_vat_declaration,
+    declaration_for,
+    file_vat_declaration,
+    unjustified_book_lines,
+    vat_declaration_detail,
+)
 from apps.core.models.tenant import Tenant
 from apps.core.report_formats import REPORT_CONTENT_TYPES, ReportFormat
 from apps.core.services.permissions import require_permission
@@ -957,6 +965,98 @@ def _serialize_dcom_declaration(declaration: AccDcomDeclaration) -> dict:
         "fiscal_year_id": str(declaration.fiscal_year_id),
         "date_generated": declaration.date_generated.isoformat(),
         "total_amount_mga": str(declaration.total_amount_mga),
+    }
+
+
+@router.post("/accounting/vat-declarations/{period_id}/build")
+@require_permission("accounting.add_accvatdeclaration")
+def build_vat_declaration_endpoint(request, period_id: str):
+    """ACC-6 — etablit (ou re-etablit) la declaration de TVA d'une periode.
+
+    Idempotente sur la periode : rejouer la generation remplace les lignes
+    plutot que de les empiler. Une declaration DEPOSEE, elle, est refusee —
+    ce qui a ete transmis a l'administration ne se reecrit pas parce qu'une
+    ecriture a bouge depuis."""
+    periode = get_object_or_404(AccPeriod, id=period_id)
+    return _serialize_vat_declaration(build_vat_declaration(periode))
+
+
+@router.get("/accounting/vat-declarations/{period_id}")
+@require_permission("accounting.view_accvatdeclaration")
+def get_vat_declaration_endpoint(request, period_id: str):
+    """ACC-6 — la declaration de la periode, avec son rapprochement et son
+    etat justificatif par taxe."""
+    periode = get_object_or_404(AccPeriod, id=period_id)
+    return _serialize_vat_declaration(declaration_for(periode))
+
+
+@router.post("/accounting/vat-declarations/{period_id}/file")
+@require_permission("accounting.change_accvatdeclaration")
+def file_vat_declaration_endpoint(request, period_id: str):
+    """ACC-6 — depose la declaration, et REFUSE si elle ne se rapproche pas.
+
+    C'est la moitie opérante du critere : une declaration deposee sans
+    tomber juste transmet a l'administration un montant que les livres ne
+    justifient pas."""
+    periode = get_object_or_404(AccPeriod, id=period_id)
+    return _serialize_vat_declaration(file_vat_declaration(declaration_for(periode)))
+
+
+@router.get("/accounting/reports/vat-declaration/{period_id}")
+@require_permission("accounting.view_accvatdeclaration")
+def vat_declaration_report_endpoint(request, period_id: str, format: ReportFormat = "json"):
+    """ACC-6 — l'etat justificatif LIGNE A LIGNE, au sens fort : une ligne
+    d'ecriture par ligne d'etat.
+
+    §9.2 : la classe PCG du compte sort, jamais son numero complet."""
+    periode = get_object_or_404(AccPeriod, id=period_id)
+    lignes = vat_declaration_detail(declaration_for(periode))
+    data = rows_to_bytes(
+        lignes,
+        [
+            "date",
+            "reference",
+            "libelle",
+            "taxe",
+            "sens",
+            "base_mga",
+            "debit_mga",
+            "credit_mga",
+            "classe_pcg",
+        ],
+        format=format,
+    )
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
+
+
+def _serialize_vat_declaration(declaration: AccVatDeclaration) -> dict[str, object]:
+    return {
+        "id": str(declaration.id),
+        "period_id": str(declaration.period_id),
+        "state": declaration.state,
+        "collected_mga": declaration.collected_mga,
+        "deductible_mga": declaration.deductible_mga,
+        "net_mga": declaration.net_mga,
+        "collected_books_mga": declaration.collected_books_mga,
+        "deductible_books_mga": declaration.deductible_books_mga,
+        "ecart_mga": declaration.ecart_mga,
+        "is_reconciled": declaration.is_reconciled,
+        "generated_at": declaration.generated_at,
+        "lines": [
+            {
+                "tax_code": ligne.tax.code,
+                "sens": ligne.sens,
+                "base_mga": ligne.base_mga,
+                "tax_mga": ligne.tax_mga,
+                "books_mga": ligne.books_mga,
+                "ecart_mga": ligne.ecart_mga,
+                "move_line_count": ligne.move_line_count,
+            }
+            for ligne in declaration.lines.select_related("tax").all()
+        ],
+        # « D'ou vient l'ecart ? » — sans cette liste, `ecart_mga` dirait
+        # qu'il manque quelque chose sans dire ou chercher.
+        "lignes_non_justifiees": unjustified_book_lines(declaration),
     }
 
 

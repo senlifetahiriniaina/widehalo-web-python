@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import (
@@ -27,9 +28,15 @@ from apps.accounting.models import (
     AccTenantDefaultAccount,
 )
 from apps.accounting.services.default_accounts import resolve_default_account
+from apps.accounting.services.fiscal_years import (
+    close_fiscal_year,
+    closing_blockers,
+    reopen_fiscal_year,
+)
 from apps.accounting.services.legal_mentions import mandatory_vat_mention
 from apps.accounting.services.taxes import vat_applicable
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -45,16 +52,43 @@ def config_fiscal_years(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         try:
-            AccFiscalYear.objects.create(
-                tenant=tenant,
-                code=request.POST.get("code", ""),
-                date_start=date.fromisoformat(request.POST.get("date_start", "")),
-                date_end=date.fromisoformat(request.POST.get("date_end", "")),
-            )
+            action = request.POST.get("action", "create")
+            if action == "close":
+                # T2 (ACC-10) — la clôture a enfin une surface. `AccFiscalYear.
+                # state` etait AFFICHE par cet ecran (colonne « Statut ») et
+                # ecrit par PERSONNE : un exercice ne pouvait pas etre clos,
+                # et la colonne montrait « Ouvert » a perpetuite.
+                close_fiscal_year(
+                    get_object_or_404(
+                        AccFiscalYear, id=request.POST.get("fiscal_year_id"), tenant=tenant
+                    ),
+                    by=cast(User, request.user),
+                )
+            elif action == "reopen":
+                reopen_fiscal_year(
+                    get_object_or_404(
+                        AccFiscalYear, id=request.POST.get("fiscal_year_id"), tenant=tenant
+                    ),
+                    by=cast(User, request.user),
+                    motif=request.POST.get("motif", ""),
+                )
+            else:
+                AccFiscalYear.objects.create(
+                    tenant=tenant,
+                    code=request.POST.get("code", ""),
+                    date_start=date.fromisoformat(request.POST.get("date_start", "")),
+                    date_end=date.fromisoformat(request.POST.get("date_end", "")),
+                )
         except (ValidationError, ValueError, IntegrityError) as exc:
-            error = str(exc)
+            error = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
 
-    fiscal_years = AccFiscalYear.objects.filter(tenant=tenant).order_by("-date_start")
+    fiscal_years = list(AccFiscalYear.objects.filter(tenant=tenant).order_by("-date_start"))
+    # Ce qui empêche de clore, MONTRE avant que l'utilisateur ne clique —
+    # decouvrir un blocage apres coup ferait recommencer la manoeuvre.
+    for annee in fiscal_years:
+        annee.blocages = (  # type: ignore[attr-defined]
+            closing_blockers(annee) if annee.state == AccFiscalYear.STATE_OPEN else []
+        )
     return render(
         request,
         "accounting/config_fiscal_years.html",
@@ -292,11 +326,28 @@ def _vat_threshold_context(tenant: Tenant) -> dict[str, object]:
     ces cas l'ecran reste utilisable et se contente de ne rien affirmer —
     afficher « CA : 0 Ar, en dessous du seuil » a un tenant qui n'a
     simplement rien saisi serait une conclusion tiree du vide."""
-    from apps.accounting.services.vat_reference import resolve_vat_liability_thresholds
+    from apps.accounting.services.vat_reference import (
+        resolve_export_vat_rate,
+        resolve_vat_liability_thresholds,
+    )
+
+    # T2 (ACC-9) — le taux d'export est AFFICHE ici, et nulle part ailleurs.
+    # C'etait un parametre reglementaire seme et lu par personne ; cet ecran
+    # est son seul lecteur de production, et le bon : le comptable qui
+    # parametre le regime a besoin de savoir ce que le produit connait du
+    # taux d'export, et de voir qu'il n'est pas encore valide. Il n'est
+    # applique a AUCUN calcul — cf. `resolve_export_vat_rate` pour le motif
+    # complet.
+    taux_export = resolve_export_vat_rate(tenant)
 
     thresholds = resolve_vat_liability_thresholds(tenant)
     if thresholds is None:
-        return {"vat_thresholds": None, "annual_revenue_mga": None, "regime_hint": ""}
+        return {
+            "vat_thresholds": None,
+            "annual_revenue_mga": None,
+            "regime_hint": "",
+            "export_vat_rate": taux_export,
+        }
 
     revenue = _trailing_year_revenue(tenant)
     hint = ""
@@ -321,6 +372,7 @@ def _vat_threshold_context(tenant: Tenant) -> dict[str, object]:
         "vat_thresholds": thresholds,
         "annual_revenue_mga": revenue,
         "regime_hint": hint,
+        "export_vat_rate": taux_export,
     }
 
 

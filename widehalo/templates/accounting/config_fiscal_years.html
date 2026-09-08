@@ -18,6 +18,7 @@
         <th>{% trans "Début" %}</th>
         <th>{% trans "Fin" %}</th>
         <th>{% trans "Statut" %}</th>
+        <th>{% trans "Clôture" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -27,12 +28,44 @@
           <td>{{ fiscal_year.date_start }}</td>
           <td>{{ fiscal_year.date_end }}</td>
           <td>{{ fiscal_year.get_state_display }}</td>
+          <td>
+            {% comment %}
+              T2 (ACC-10) — la colonne « Statut » ci-contre affichait un état
+              que RIEN n'écrivait : `AccFiscalYear.state` n'avait aucun
+              service de clôture, aucun endpoint, aucun bouton. Elle disait
+              « Ouvert » à perpétuité. Le refus d'écriture, lui, est tenu par
+              la base (migration `0033`) et non par cet écran.
+            {% endcomment %}
+            {% if fiscal_year.state == "closed" %}
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reopen">
+                <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
+                <input type="text" name="motif" required
+                       placeholder="{% trans 'Motif de réouverture' %}"
+                       aria-label="{% trans 'Motif de réouverture' %}">
+                <c-button variant="secondary" type="submit">{% trans "Rouvrir" %}</c-button>
+              </form>
+            {% elif fiscal_year.blocages %}
+              <ul class="form-error">
+                {% for blocage in fiscal_year.blocages %}<li>{{ blocage }}</li>{% endfor %}
+              </ul>
+            {% else %}
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="close">
+                <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
+                <c-button variant="primary" type="submit">{% trans "Clore l'exercice" %}</c-button>
+              </form>
+            {% endif %}
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="4">{% trans "Aucun exercice." %}</td></tr>
+        <tr><td colspan="5">{% trans "Aucun exercice." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  <p><em>{% trans "Clore un exercice ferme toutes ses périodes et refuse en base toute nouvelle écriture publiée — y compris par appel direct de l'API et y compris pour un administrateur." %}</em></p>
 
   <h2>{% trans "Nouvel exercice" %}</h2>
   <form method="post">

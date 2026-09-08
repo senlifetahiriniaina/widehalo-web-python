@@ -22,6 +22,13 @@ urlpatterns = [
         name="report_general_ledger",
     ),
     path("reports/journal/", views_reports.journal_report_download, name="report_journal"),
+    # ACC-6 (T2) : la declaration de TVA d'une periode, avec son
+    # rapprochement a l'ariary pres et son etat justificatif ligne a ligne.
+    path(
+        "reports/vat-declaration/",
+        views_reports.vat_declaration_screen,
+        name="vat_declaration",
+    ),
     path("<uuid:invoice_id>/", views.invoice_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/fiscal-years/", views_config.config_fiscal_years, name="config_fiscal_years"),

@@ -4,9 +4,10 @@ plan."""
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -60,9 +61,27 @@ class MoveStageIn(Schema):
 
 
 class ActivityIn(Schema):
-    activity_type: str
+    """L'activité, PLANIFIABLE — `due_at` manquait, et avec lui UC1.
+
+    Le parcours de référence UC1 (« qualifier un prospect entrant et
+    planifier une relance ») se termine sur « une activité PLANIFIÉE ».
+    `CrmActivity.due_at` existe depuis la migration `0002`,
+    `log_activity` l'accepte, `count_overdue_follow_ups` et la tuile
+    « relances en retard » (CRM-4) le LISENT — et aucune surface de
+    production ne l'écrivait : ni cet endpoint, ni l'écran. Seul le jeu de
+    démonstration en posait. La tuile ne pouvait donc rien afficher chez un
+    client, et UC1 n'était pas lent : il était impossible.
+
+    `activity_type` typé plutôt que `str` libre, même motif qu'ailleurs :
+    une valeur hors des cinq choix déclarés s'écrivait sans un mot et
+    rendait l'activité invisible de tout filtre par type. Les CINQ, pas
+    trois — l'écran n'en proposait que trois et omettait justement
+    « relance », le type même de l'activité qu'UC1 demande de planifier."""
+
+    activity_type: Literal["call", "visit", "email", "follow_up", "meeting"]
     subject: str
     notes: str = ""
+    due_at: dt.datetime | None = None
 
 
 def _serialize_lead(lead: CrmLead) -> dict[str, Any]:
@@ -216,6 +235,7 @@ def create_lead_activity_endpoint(request, lead_id: str, payload: ActivityIn):
         activity_type=payload.activity_type,
         subject=payload.subject,
         notes=payload.notes,
+        due_at=payload.due_at,
         assigned_to=request.auth,
     )
     return {"id": str(activity.id)}

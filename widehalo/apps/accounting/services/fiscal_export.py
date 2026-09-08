@@ -34,9 +34,16 @@ _RESERVE = "a verifier aupres de la DGI/d'un cabinet OECFM avant tout depot reel
 # meme si l'URL de l'endpoint change.
 CANEVAS_NOTES: dict[str, str] = {
     "ACC-TVA": (
-        "Aucune declaration TVA dediee (pas de modele `acc_vat_declaration` a "
-        "ce stade) : approche via `trial_balance`/`general_ledger` filtres sur "
-        "les comptes de TVA collectee/deductible (`AccTax`, classe 445 PCG). "
+        "Declaration de TVA PERIODIQUE dediee depuis le lot T2 (ACC-6) : "
+        "`AccVatDeclaration` + `AccVatDeclarationLine`, etablies par "
+        "`services/vat_declaration.py::build_vat_declaration`, avec "
+        "rapprochement a l'ariary pres entre les lignes taxees et le "
+        "mouvement des comptes de TVA de la periode, et etat justificatif "
+        "ligne a ligne (`vat_declaration_detail`). Export CSV/XLSX via "
+        "`GET /accounting/reports/vat-declaration/{period_id}?format=csv|xlsx`. "
+        "Cette entree disait, jusqu'a ce lot, « aucune declaration TVA "
+        "dediee (pas de modele `acc_vat_declaration` a ce stade) » — c'etait "
+        "exact, et c'est ce constat qui a servi de point de depart. "
         f"Canevas eHetra declaration TVA — {_RESERVE}."
     ),
     "ACC-DCOM": (

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load l10n %}
+{% block title %}{% trans "Déclaration de TVA" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a>
+    <span>/</span> {% trans "Déclaration de TVA" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Déclaration de TVA" %}</h1>
+  </div>
+
+  {% comment %}
+    ACC-6 (T2) — « La déclaration de TVA d'une période se rapproche à
+    l'ariary près de la somme des écritures de TVA de la période, avec un
+    état justificatif ligne à ligne. » Avant ce lot il n'y avait ni objet à
+    rapprocher ni état : `services/fiscal_export.py` écrivait lui-même
+    « aucune déclaration TVA dédiée ».
+  {% endcomment %}
+
+  {% if erreur %}<p class="form-error">{{ erreur }}</p>{% endif %}
+
+  <form method="get" class="inline-form">
+    <label for="period_id">{% trans "Période" %}</label>
+    <select id="period_id" name="period_id" onchange="this.form.submit()">
+      {% for p in periodes %}
+        <option value="{{ p.id }}" {% if periode and periode.id == p.id %}selected{% endif %}>{{ p.code }}</option>
+      {% endfor %}
+    </select>
+    <noscript><c-button variant="secondary" type="submit">{% trans "Afficher" %}</c-button></noscript>
+  </form>
+
+  {% if not periode %}
+    <p><em>{% trans "Aucune période comptable : créez-en une avant de déclarer." %}</em></p>
+  {% else %}
+    <div class="wh-panel">
+      <h2>{% trans "Rapprochement" %}</h2>
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>{% trans "Déclaration" %}</th>
+            <th>{% trans "Livres" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{% trans "TVA collectée" %}</td>
+            <td>{{ declaration.collected_mga|unlocalize }}</td>
+            <td>{{ declaration.collected_books_mga|unlocalize }}</td>
+          </tr>
+          <tr>
+            <td>{% trans "TVA déductible" %}</td>
+            <td>{{ declaration.deductible_mga|unlocalize }}</td>
+            <td>{{ declaration.deductible_books_mga|unlocalize }}</td>
+          </tr>
+          <tr>
+            <td><strong>{% trans "Net" %}</strong></td>
+            <td><strong>{{ declaration.net_mga|unlocalize }}</strong></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      {% if declaration.is_reconciled %}
+        <p class="form-success">{% trans "Rapproché à l'ariary près." %}</p>
+        {% if declaration.state != "filed" %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="file">
+            <c-button variant="primary" type="submit">{% trans "Déposer la déclaration" %}</c-button>
+          </form>
+        {% else %}
+          <p><em>{% trans "Déclaration déposée : elle ne se régénère plus." %}</em></p>
+        {% endif %}
+      {% else %}
+        <p class="form-error">
+          {% trans "Écart" %} : <strong>{{ declaration.ecart_mga|unlocalize }} Ar</strong> —
+          {% trans "le dépôt est refusé tant qu'il subsiste." %}
+        </p>
+      {% endif %}
+    </div>
+
+    {% if non_justifiees %}
+      <div class="wh-panel">
+        <h2>{% trans "Écritures non justifiées" %}</h2>
+        <p><em>{% trans "Ces lignes touchent un compte de TVA sans désigner de taxe : elles apparaissent dans les livres et pas dans la déclaration. C'est d'elles que vient l'écart." %}</em></p>
+        <table class="smart-table">
+          <thead>
+            <tr>
+              <th>{% trans "Date" %}</th>
+              <th>{% trans "Pièce" %}</th>
+              <th>{% trans "Libellé" %}</th>
+              <th>{% trans "Débit" %}</th>
+              <th>{% trans "Crédit" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ligne in non_justifiees %}
+              <tr>
+                <td>{{ ligne.date }}</td>
+                <td>{{ ligne.reference }}</td>
+                <td>{{ ligne.libelle }}</td>
+                <td>{{ ligne.debit_mga|unlocalize }}</td>
+                <td>{{ ligne.credit_mga|unlocalize }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <div class="wh-panel">
+      <h2>{% trans "État justificatif — par taxe" %}</h2>
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th>{% trans "Taxe" %}</th>
+            <th>{% trans "Sens" %}</th>
+            <th>{% trans "Base" %}</th>
+            <th>{% trans "TVA" %}</th>
+            <th>{% trans "Livres" %}</th>
+            <th>{% trans "Lignes" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in lignes %}
+            <tr>
+              <td>{{ ligne.tax.code }}</td>
+              <td>{{ ligne.get_sens_display }}</td>
+              <td>{{ ligne.base_mga|unlocalize }}</td>
+              <td>{{ ligne.tax_mga|unlocalize }}</td>
+              <td>{{ ligne.books_mga|unlocalize }}</td>
+              <td>{{ ligne.move_line_count }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">{% trans "Aucune écriture taxée sur cette période." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="wh-panel">
+      <h2>{% trans "État justificatif — ligne à ligne" %}</h2>
+      {% comment %}
+        Le second niveau, celui que le critère nomme. Recalculé depuis les
+        lignes publiées, immuables par déclencheur de base : un état
+        régénéré rend exactement les mêmes lignes. Le numéro de compte
+        complet n'y figure jamais (§9.2) — seule la classe PCG.
+      {% endcomment %}
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th>{% trans "Date" %}</th>
+            <th>{% trans "Pièce" %}</th>
+            <th>{% trans "Libellé" %}</th>
+            <th>{% trans "Taxe" %}</th>
+            <th>{% trans "Base" %}</th>
+            <th>{% trans "Débit" %}</th>
+            <th>{% trans "Crédit" %}</th>
+            <th>{% trans "Classe" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in detail %}
+            <tr>
+              <td>{{ ligne.date }}</td>
+              <td>{{ ligne.reference }}</td>
+              <td>{{ ligne.libelle }}</td>
+              <td>{{ ligne.taxe }}</td>
+              <td>{{ ligne.base_mga|unlocalize }}</td>
+              <td>{{ ligne.debit_mga|unlocalize }}</td>
+              <td>{{ ligne.credit_mga|unlocalize }}</td>
+              <td>{{ ligne.classe_pcg }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8">{% trans "Aucune ligne taxée." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}

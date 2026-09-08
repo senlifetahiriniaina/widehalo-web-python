@@ -30,6 +30,13 @@ from django.db.models import Q
 from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 
+#: Le code du seuil d'assujettissement a la TVA. Recopie ici plutot
+#: qu'importe depuis `apps.accounting.services.vat_reference` : `core` ne
+#: peut pas importer une app metier (regle de couplage n1). La garde
+#: `tests/architecture/test_regulatory_gate_is_armed.py` verifie que les
+#: deux chaines restent identiques — elle, elle voit les deux cotes.
+VAT_LIABILITY_THRESHOLD_CODE = "tva.seuil_assujettissement"
+
 # Les dix codes que le moteur de paie lit REELLEMENT (`compute_payslip` via
 # `apps.payroll.services.params.resolve_params`, cf.
 # `apps/payroll/services/seed.py` pour leur definition).
@@ -101,8 +108,52 @@ ACTIVE_CALCULATION_PARAMETER_CODES: frozenset[str] = (
             # a la DATE DU DOCUMENT, et par `simulation.services.baseline` depuis
             # la Phase 1.
             "tva.taux_normal",
+            # T2 (ACC-9) — le seuil d'assujettissement rejoint le verrou, et
+            # il aurait du y etre des sa livraison.
+            #
+            # Le critere ACC-9 porte sur « un parametre utilise par un CALCUL
+            # ACTIF ». Celui-ci l'est sans ambiguite : `accounting.services.
+            # vat_reference.resolve_vat_liability_thresholds` le lit pour
+            # decider si une societe est assujettie de plein droit, si elle
+            # peut opter, ou si elle releve de l'impot synthetique — c'est
+            # une decision fiscale, pas un affichage. Il echappait pourtant
+            # au verrou : le registre ne portait que les dix codes de paie et
+            # `tva.taux_normal`.
+            #
+            # Sa valeur seedee porte sa propre reserve (« LF 2026, A
+            # CONFIRMER OECFM/DGI, source non primaire ») : c'est exactement
+            # le cas que le verrou existe pour attraper.
+            VAT_LIABILITY_THRESHOLD_CODE,
         }
     )
+)
+
+
+#: Les codes portes par une valeur GLOBALE (`tenant=None`), semee par une
+#: MIGRATION — donc presente sur toute base, y compris neuve.
+#:
+#: **Cette distinction n'etait ecrite nulle part, et elle compte.** Les dix
+#: parametres de paie sont PER-TENANT : ils naissent de
+#: `payroll.services.seed.seed_payroll_regulatory_params(tenant)`, pas d'une
+#: migration. Consequence directe : `unvalidated_active_parameters()` appele
+#: SANS `tenants=` ne voit que la moitie du registre, en silence. La commande
+#: de deploiement passe bien `tenants=Tenant.objects.all()` — la production
+#: est donc protegee — mais un futur appelant qui l'oublierait serait
+#: silencieusement sous-protege, et rien ne le lui dirait.
+#:
+#: Nommer les deux familles rend l'asymetrie verifiable :
+#: `tests/architecture/test_regulatory_gate_is_armed.py` controle chacune
+#: dans les conditions qui sont les siennes.
+GLOBAL_PARAMETER_CODES: frozenset[str] = frozenset(
+    {
+        "tva.taux_normal",
+        VAT_LIABILITY_THRESHOLD_CODE,
+    }
+)
+
+#: Le complement : les codes qui n'existent que rattaches a une societe.
+PER_TENANT_PARAMETER_CODES: frozenset[str] = (
+    ACTIVE_CALCULATION_PARAMETER_CODES - GLOBAL_PARAMETER_CODES
 )
 
 

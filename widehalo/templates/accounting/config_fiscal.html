@@ -44,6 +44,34 @@
     <p><em>{% trans "Seuils d'assujettissement non paramétrés : le rapprochement avec le chiffre d'affaires n'est pas affiché." %}</em></p>
   {% endif %}
 
+  {% comment %}
+    T2 (ACC-9) — le taux d'export est MONTRÉ, jamais appliqué. C'était un
+    paramètre réglementaire semé et lu par personne ; l'appliquer
+    mécaniquement aux ventes marquées « export » fabriquerait une règle
+    fiscale que ni le cahier ni une source primaire ne portent (le régime
+    des exportations est une exonération avec conditions de preuve, pas un
+    taux différent). Cet écran est son lecteur : il dit ce que le produit
+    connaît du taux, et il dit qu'il n'est pas validé.
+  {% endcomment %}
+  {% if export_vat_rate %}
+    <div class="wh-panel">
+      <h2>{% trans "Taux de TVA à l'exportation" %}</h2>
+      <p>
+        {% trans "Taux déclaré" %} :
+        <strong>{{ export_vat_rate.taux|unlocalize }} %</strong>
+        {% if export_vat_rate.est_valide %}
+          <span class="badge badge-success">{% trans "validé OECFM" %}</span>
+        {% else %}
+          <span class="badge badge-warning">{% trans "non validé" %}</span>
+        {% endif %}
+      </p>
+      {% if export_vat_rate.reference_legale %}
+        <p><em>{{ export_vat_rate.reference_legale }}</em></p>
+      {% endif %}
+      <p><em>{% trans "Ce taux est affiché à titre de référence ; il n'est appliqué à aucun calcul. Le régime des exportations n'est pas un taux différent mais une exonération assortie de ses propres conditions de preuve : son implémentation demande une confirmation OECFM/DGI." %}</em></p>
+    </div>
+  {% endif %}
+
   <form method="post">
     {% csrf_token %}
     <div class="form-field">

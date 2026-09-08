@@ -79,3 +79,72 @@ def journal_report_download(request: HttpRequest) -> HttpResponse:
         rows, ["reference", "date", "account", "label", "debit", "credit"], format=format
     )
     return _report_response(data, format, "journal")
+
+
+@login_required
+def vat_declaration_screen(request: HttpRequest) -> HttpResponse:
+    """ACC-6 — la declaration de TVA d'une periode, vue par le comptable.
+
+    **L'ecran est ce qui rend le critere utilisable.** Le rapprochement a
+    l'ariari pres et l'etat justificatif ligne a ligne existent en service
+    et en API depuis ce lot ; c'est ici qu'un comptable les LIT — et
+    surtout, qu'il voit d'ou vient l'ecart avant de deposer, plutot que de
+    le decouvrir au controle.
+
+    La periode est choisie explicitement (`?period_id=`) et non devinee
+    d'apres la date du jour : une declaration se prepare apres la cloture
+    de la periode qu'elle couvre, jamais pendant."""
+    from apps.accounting.models import AccPeriod
+    from apps.accounting.services.vat_declaration import (
+        declaration_for,
+    )
+
+    tenant = resolve_tenant(request)
+    periodes = AccPeriod.objects.filter(tenant=tenant).order_by("-date_start")
+    period_id = request.GET.get("period_id", "")
+    periode = periodes.filter(id=period_id).first() if period_id else periodes.first()
+
+    if periode is None:
+        return render(
+            request,
+            "accounting/vat_declaration.html",
+            {"periodes": periodes, "periode": None, "declaration": None},
+        )
+
+    if request.method == "POST" and request.POST.get("action") == "file":
+        from django.core.exceptions import ValidationError
+
+        from apps.accounting.services.vat_declaration import (
+            declaration_for,
+            file_vat_declaration,
+        )
+
+        try:
+            file_vat_declaration(declaration_for(periode))
+        except ValidationError as exc:
+            return render(
+                request,
+                "accounting/vat_declaration.html",
+                _vat_context(periodes, periode, erreur="; ".join(exc.messages)),
+            )
+
+    return render(request, "accounting/vat_declaration.html", _vat_context(periodes, periode))
+
+
+def _vat_context(periodes: object, periode: object, *, erreur: str = "") -> dict[str, object]:
+    from apps.accounting.services.vat_declaration import (
+        declaration_for,
+        unjustified_book_lines,
+        vat_declaration_detail,
+    )
+
+    declaration = declaration_for(periode)  # type: ignore[arg-type]
+    return {
+        "periodes": periodes,
+        "periode": periode,
+        "declaration": declaration,
+        "lignes": declaration.lines.select_related("tax").all(),
+        "detail": vat_declaration_detail(declaration),
+        "non_justifiees": unjustified_book_lines(declaration),
+        "erreur": erreur,
+    }

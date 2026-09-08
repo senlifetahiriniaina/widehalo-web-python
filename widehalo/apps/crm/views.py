@@ -5,7 +5,7 @@ activites, saisie rapide. Meme patron que `apps.accounting.views`."""
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import cast
 
@@ -13,11 +13,19 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from apps.core.models.user import User
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.crm.models import CrmLead, CrmLostReason, CrmPipeline, CrmStage, CrmTeam
+from apps.crm.models import (
+    CrmActivity,
+    CrmLead,
+    CrmLostReason,
+    CrmPipeline,
+    CrmStage,
+    CrmTeam,
+)
 from apps.crm.services.activities import lead_timeline, log_activity
 from apps.crm.services.discounts import DiscountApprovalRequiredError, enforce_discount_threshold
 from apps.crm.services.leads import (
@@ -51,6 +59,27 @@ def lead_list(request: HttpRequest) -> HttpResponse:
         page_template="crm/list.html",
         page_context={"row_url_name": "crm:detail"},
     )
+
+
+def _parse_due_at(raw: str) -> datetime | None:
+    """L'echeance saisie par un `<input type="datetime-local">`, ou `None`.
+
+    Le navigateur envoie « 2026-06-30T09:00 » — une heure LOCALE sans
+    fuseau. La rendre consciente du fuseau courant plutot que la laisser
+    naive : une echeance naive comparee a `timezone.now()` leverait, et la
+    tuile « relances en retard » (CRM-4) tombe precisement sur cette
+    comparaison.
+
+    Une chaine illisible rend `None` plutot que de lever : une echeance
+    mal saisie ne doit pas empecher d'enregistrer l'activite elle-meme —
+    l'utilisateur la corrigera, et l'activite existe."""
+    if not raw:
+        return None
+    try:
+        naive = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return timezone.make_aware(naive) if timezone.is_naive(naive) else naive
 
 
 @login_required
@@ -96,11 +125,19 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
                 # depuis le debut.
                 convert_lead_to_partner(lead)
             elif action == "log_activity":
+                # T2 (CRM-7) — `due_at` etait le champ manquant, et avec lui
+                # le parcours UC1 tout entier : « opportunite creee,
+                # rattachee a une societe, avec une ACTIVITE PLANIFIEE ».
+                # Rien dans le produit ne l'ecrivait, sauf le jeu de
+                # demonstration.
+                due_at_raw = request.POST.get("due_at", "").strip()
                 log_activity(
                     lead,
                     activity_type=request.POST.get("activity_type", "call"),
                     subject=request.POST.get("subject", ""),
                     notes=request.POST.get("notes", ""),
+                    due_at=_parse_due_at(due_at_raw),
+                    assigned_to=user,
                 )
             elif action == "add_line":
                 variant_id_raw = request.POST.get("variant_id", "").strip()
@@ -133,6 +170,10 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
             "stages": lead.pipeline.stages.all(),
             "lost_reasons": CrmLostReason.objects.filter(tenant=lead.tenant),
             "activities": lead_timeline(lead),
+            # Les CINQ types declares, pas les trois que le gabarit codait
+            # en dur — il omettait « relance », le type meme de l'activite
+            # qu'UC1 demande de planifier.
+            "activity_type_choices": CrmActivity.TYPE_CHOICES,
             "lines": lead.lines.all(),
             "score": compute_lead_score(lead),
             "whatsapp_link": whatsapp_contact_link(lead),

@@ -100,12 +100,22 @@ admis dans l'OpenAPI publie, ce qu'un `str` ne fait pas — mais il n'est plus
 le prealable bloquant du bloc B. Il a ete fait pour les parametres enum de
 `reporting` (seconde cause racine), pas pour les 460 identifiants.
 
-**Les 27 qui restent sont un AUTRE defaut, non encore identifie.** Ce ne
-sont plus des entrees malformees sur identifiant : ce sont des POST de
-creation et quelques GET de rapport, enumeres dans
-`OPERATIONS_ENCORE_EN_DEFAUT`. Reproduire a la main avec des charges
-plausibles rend 422, pas 500 : il faut les cas generes par Hypothesis pour
-les voir. Dit plutot que suppose.
+**27 au sprint S6, 20 depuis le lot T1** — et la difference est exactement
+les sept operations de `sales` et `crm` que T1 a instruites. Leurs causes,
+mesurees plutot que supposees : `uuid.UUID(chaine libre)` dans le corps de
+la vue, `objects.create(**payload)` sans validation laissant Postgres
+repondre par une `DataError`, un parametre `format` libre atteignant le
+dictionnaire de types MIME, et — le plus interessant — `create_lead_quick`
+levant `ValueError` sur une societe NEUVE, c'est-a-dire sur une entree
+parfaitement valide. Aucune n'etait une entree malformee sur identifiant :
+c'est pour cela que la cause racine du prealable du bloc B ne les couvrait
+pas.
+
+Les 20 restantes sont de la meme famille (des POST de creation et quelques
+GET de rapport dans les autres modules) et attendent le meme traitement,
+module par module. Reproduire a la main avec des charges plausibles rend
+422, pas 500 : il faut les cas generes par Hypothesis pour les voir. Dit
+plutot que suppose.
 
 **Et une propriete de cette campagne qu'il faut connaitre avant de la
 lire : elle MODIFIE la base qu'elle teste.** Chaque POST genere y laisse des
@@ -193,23 +203,31 @@ pytestmark = [pytest.mark.django_db, pytest.mark.slow]
 #: accident, rougissant par accident. Un `xfail` de module protege moins,
 #: mais il ne ment pas sur ce qu'il protege.
 #:
-#: Ces 27 ne relevent PAS de la cause racine reparee au sprint S6
+#: Ces operations ne relevent PAS de la cause racine reparee au sprint S6
 #: (identifiant malforme, parametre enum). Ce sont des POST de creation et
-#: des GET de rapport dont le defaut n'est pas identifie — reproduire a la
-#: main avec des charges plausibles rend 422 ; il faut les cas generes par
-#: Hypothesis pour l'atteindre.
+#: des GET de rapport — reproduire a la main avec des charges plausibles
+#: rend 422 ; il faut les cas generes par Hypothesis pour l'atteindre.
+#:
+#: **Les sept de `sales` et `crm` sont barrees : T1 les a fermees**, et la
+#: passe suivante l'a confirme (20 xfailed la ou il y en avait 27). Elles
+#: restent listees, commentees, parce que leurs causes sont le catalogue
+#: des defauts que les 20 restantes presentent probablement aussi :
+#:
+#:   "GET /api/v1/crm/reports/activities"   -> parametre `format` libre
+#:   "GET /api/v1/crm/reports/lost"         -> parametre `format` libre
+#:   "GET /api/v1/sales/forecast"           -> uuid.UUID(chaine libre)
+#:   "POST /api/v1/crm/leads"               -> ValueError sur societe neuve
+#:   "POST /api/v1/sales/orders"            -> uuid.UUID(chaine libre)
+#:   "POST /api/v1/sales/quotations"        -> uuid.UUID(chaine libre)
+#:   "POST /api/v1/sales/targets"           -> create() sans validation
 OPERATIONS_ENCORE_EN_DEFAUT: frozenset[str] = frozenset(
     {
-        "GET /api/v1/crm/reports/activities",
-        "GET /api/v1/crm/reports/lost",
         "GET /api/v1/mrp/reports/cra",
         "GET /api/v1/mrp/reports/cri",
         "GET /api/v1/mrp/reports/efficiency",
         "GET /api/v1/mrp/reports/scrap",
         "GET /api/v1/purchase/supplier-evaluations",
-        "GET /api/v1/sales/forecast",
         "GET /api/v1/stocks/availability",
-        "POST /api/v1/crm/leads",
         "POST /api/v1/helpdesk/ticket-types",
         "POST /api/v1/partners/imports/partners",
         "POST /api/v1/projects",
@@ -222,8 +240,6 @@ OPERATIONS_ENCORE_EN_DEFAUT: frozenset[str] = frozenset(
         "POST /api/v1/quality/control-plans",
         "POST /api/v1/quality/templates",
         "POST /api/v1/risks",
-        "POST /api/v1/sales/orders",
-        "POST /api/v1/sales/quotations",
         "POST /api/v1/stocks/imports/initial-quantities",
         "POST /api/v1/stocks/moves",
         "POST /api/v1/stocks/transfers",
@@ -244,7 +260,6 @@ OPERATIONS_VUES_EN_DEFAUT_AILLEURS: frozenset[str] = frozenset(
         "POST /api/v1/logistics/vehicles",
         "POST /api/v1/partners",
         "POST /api/v1/purchase/rfqs",
-        "POST /api/v1/sales/targets",
         "POST /api/v1/strategy/notes",
         "POST /api/v1/strategy/objectives",
     }
@@ -256,10 +271,11 @@ OPERATIONS_VUES_EN_DEFAUT_AILLEURS: frozenset[str] = frozenset(
 pytestmark.append(
     pytest.mark.xfail(
         reason=(
-            "27 des 590 operations rendent encore un 500 sur entree generee "
-            "(remesure au sprint S6 : elles etaient 264 avant l'ajout des "
-            "gestionnaires d'exception de `apps.core.errors`). Cause non "
-            "identifiee, distincte de celle qui a ete reparee — cf. "
+            "20 des 590 operations rendent encore un 500 sur entree generee. "
+            "Historique mesure : 264 avant les gestionnaires d'exception de "
+            "`apps.core.errors` (prealable du bloc B), 27 apres, 20 depuis le "
+            "lot T1 qui a ferme les sept de `sales` et `crm`. Les restantes "
+            "sont de la meme famille, module par module — cf. "
             "`OPERATIONS_ENCORE_EN_DEFAUT` et la docstring du module."
         ),
         strict=False,

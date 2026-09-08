@@ -118,6 +118,11 @@ def diverging_sale_taxes(
 
 VAT_LIABILITY_THRESHOLD_CODE = "tva.seuil_assujettissement"
 
+#: Le taux de TVA applicable aux exportations, declare par la table
+#: d'amorcage du cahier (Phase 1) et seme par
+#: `accounting/0032_seed_vat_thresholds`.
+VAT_EXPORT_RATE_CODE = "tva.taux_export"
+
 
 def resolve_vat_liability_thresholds(
     tenant: Tenant, *, at_date: dt.date | None = None
@@ -156,3 +161,70 @@ def resolve_vat_liability_thresholds(
         # Un parametre saisi a la main peut porter n'importe quelle forme.
         # Mieux vaut ne rien afficher qu'un seuil invente.
         return None
+
+
+def resolve_export_vat_rate(
+    tenant: Tenant, *, at_date: dt.date | None = None
+) -> dict[str, object] | None:
+    """Le taux de TVA declare pour les exportations — AFFICHE, jamais
+    applique.
+
+    **La decision prise ici, et son motif, parce qu'elle merite d'etre
+    ecrite.** `tva.taux_export` etait seme (migration `0032`) et lu par
+    personne : un parametre reglementaire decoratif, exactement ce que ce
+    depot traque. Deux issues se presentaient.
+
+    La premiere — le brancher sur le calcul de TVA de `sales`, en
+    l'appliquant aux lignes des commandes marquees `is_export` — a ete
+    ECARTEE, et ce n'est pas de la prudence excessive. Le regime des
+    exportations n'est pas « un taux different » : c'est une exonoration
+    avec ses propres conditions de preuve (justificatif de sortie du
+    territoire), sa propre ligne de declaration, et son propre traitement
+    de la TVA deductible d'amont. Un taux a 0 % applique mecaniquement
+    produirait des factures qui ont l'air justes et une declaration qui ne
+    l'est pas. La reserve portee par le parametre lui-meme — « A CONFIRMER
+    OECFM/DGI (source non primaire) » — dit precisement qu'on ne sait pas
+    encore ce qu'il faut faire ; fabriquer la regle en attendant serait la
+    presenter comme verifiee.
+
+    La seconde, retenue : l'ECRAN DE CONFIGURATION FISCALE l'affiche, avec
+    sa reference legale et son statut de validation. C'est un vrai lecteur
+    de production — le comptable qui parametre le regime a besoin de savoir
+    ce que le produit connait du taux d'export et de voir qu'il n'est pas
+    encore valide. Le parametre cesse d'etre decoratif sans qu'aucune regle
+    fiscale soit inventee.
+
+    **Consequence assumee** : ce code n'entre PAS dans
+    `ACTIVE_CALCULATION_PARAMETER_CODES`. Le critere ACC-9 gouverne les
+    parametres « utilises par un calcul actif » ; celui-ci est lu par un
+    affichage. L'y mettre bloquerait un deploiement au nom d'une valeur
+    qu'aucun calcul ne consomme, et diluerait le sens du verrou. Le jour ou
+    le regime d'export sera reellement implemente, ce code y entrera avec
+    lui.
+
+    Rend `None` — jamais une exception — si le parametre n'est pas
+    resolvable : meme posture que `resolve_vat_liability_thresholds`, un
+    ecran de lecture ne tombe pas parce qu'une migration d'amorcage n'a pas
+    ete rejouee."""
+    at_date = at_date or timezone.now().date()
+    try:
+        value, version = get_parameter_with_version(VAT_EXPORT_RATE_CODE, at_date, tenant)
+    except RegulatoryParameter.DoesNotExist:
+        return None
+    try:
+        taux = Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError):
+        return None
+    ligne = (
+        RegulatoryParameter.objects.filter(code=VAT_EXPORT_RATE_CODE, tenant__isnull=True)
+        .order_by("-valid_from")
+        .first()
+    )
+    return {
+        "taux": taux,
+        "version": version,
+        "reference_legale": ligne.legal_reference if ligne else "",
+        "est_valide": bool(
+            ligne and ligne.statut_validation == RegulatoryParameter.STATUS_VALIDE_OECFM
+        ),
+    }

@@ -63,6 +63,8 @@ from apps.accounting.models import (
     AccTax,
     AccTaxCalendar,
     AccTenantDefaultAccount,
+    AccVatDeclaration,
+    AccVatDeclarationLine,
 )
 
 
@@ -521,3 +523,28 @@ class AccInvoiceImportRowFactory(factory.django.DjangoModelFactory):
     sens = AccInvoiceImportRow.SENS_CLIENT
     status = AccInvoiceImportRow.STATUS_UNRESOLVABLE
     anomaly_codes = factory.LazyFunction(list)
+
+
+class AccVatDeclarationFactory(factory.django.DjangoModelFactory):
+    """ACC-6 (T2). Une declaration VIDE : les montants et l'ecart sont
+    ecrits par `services/vat_declaration.py::build_vat_declaration`, jamais
+    saisis — une factory qui les poserait fabriquerait un rapprochement qui
+    n'a rapproche rien."""
+
+    class Meta:
+        model = AccVatDeclaration
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    period = factory.SubFactory(AccPeriodFactory, tenant=factory.SelfAttribute("..tenant"))
+
+
+class AccVatDeclarationLineFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AccVatDeclarationLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    declaration = factory.SubFactory(
+        AccVatDeclarationFactory, tenant=factory.SelfAttribute("..tenant")
+    )
+    tax = factory.SubFactory(AccTaxFactory, tenant=factory.SelfAttribute("..tenant"))
+    sens = AccVatDeclarationLine.SENS_COLLECTED
