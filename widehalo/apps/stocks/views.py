@@ -39,8 +39,10 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext as _
 
 from apps.catalog.services.public import convert_textile_measurement
+from apps.core.identifiers import parse_uuid
 from apps.core.models.audit import AuditLog
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
@@ -135,10 +137,10 @@ def stock_view(request: HttpRequest) -> HttpResponse:
     quants = StkQuant.objects.filter(qty__gt=0, location__type=StkLocation.TYPE_INTERNE)
     variant_id = None
     if variant_raw:
-        variant_id = uuid.UUID(variant_raw)
+        variant_id = parse_uuid(variant_raw, champ=_("produit"))
         quants = quants.filter(variant_id=variant_id)
     if location_id:
-        quants = quants.filter(location_id=uuid.UUID(location_id))
+        quants = quants.filter(location_id=parse_uuid(location_id, champ=_("emplacement")))
     quants = list(quants.select_related("location").order_by("location__code"))
     for quant in quants:
         quant.available = quant.qty - quant.qty_reserved  # type: ignore[attr-defined]
@@ -176,7 +178,7 @@ def move_list(request: HttpRequest) -> HttpResponse:
         try:
             create_move(
                 tenant=tenant,
-                variant_id=uuid.UUID(request.POST.get("variant_id", "")),
+                variant_id=parse_uuid(request.POST.get("variant_id"), champ=_("produit")),
                 qty=Decimal(request.POST.get("qty") or "1"),
                 uom=request.POST.get("uom", ""),
                 location_from=get_object_or_404(
@@ -279,7 +281,7 @@ def _lot_for_add_line(picking: StkPicking, variant_id: uuid.UUID, post: Any) -> 
     `fefo_suggestion` ci-dessous)."""
     lot_id = post.get("lot_id", "").strip()
     if lot_id:
-        return get_object_or_404(StkLot, id=uuid.UUID(lot_id))
+        return get_object_or_404(StkLot, id=parse_uuid(lot_id, champ=_("lot")))
 
     lot_name = post.get("lot_name", "").strip()
     if not lot_name:

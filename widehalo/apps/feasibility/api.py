@@ -30,7 +30,7 @@ class StudyIn(Schema):
 
 
 class StudyLineIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     hypothetical_spec: dict[str, Any] = {}
     assumed_qty: Decimal = Decimal(1)
     assumed_unit_price_mga: Decimal = Decimal(0)
@@ -108,7 +108,7 @@ def add_study_line_endpoint(request: Any, study_id: str, payload: StudyLineIn) -
     study = get_object_or_404(FeaStudy, id=study_id)
     line = add_study_line(
         study,
-        variant_id=UUID(payload.variant_id) if payload.variant_id else None,
+        variant_id=payload.variant_id,
         hypothetical_spec=payload.hypothetical_spec,
         assumed_qty=payload.assumed_qty,
         assumed_unit_price_mga=payload.assumed_unit_price_mga,

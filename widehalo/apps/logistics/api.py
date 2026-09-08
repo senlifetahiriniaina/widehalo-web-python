@@ -18,6 +18,7 @@ import datetime as dt
 import uuid
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
@@ -517,7 +518,7 @@ class PackagingTypeIn(Schema):
 
 
 class PackagingPlanLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     qty: Decimal
 
 
@@ -770,7 +771,7 @@ class ShipmentBlockIn(Schema):
 
 
 class RefactorFreightIn(Schema):
-    partner_id: str
+    partner_id: UUID
     amount_mga: Decimal | None = None
     date: dt.date | None = None
 
@@ -1000,7 +1001,7 @@ def refactor_freight_endpoint(request, shipment_id: str, payload: RefactorFreigh
     shipment = get_object_or_404(LogShipment, id=shipment_id)
     invoice_id = refactor_freight_to_customer(
         shipment,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         amount_mga=payload.amount_mga,
         date=payload.date,
     )
@@ -1009,7 +1010,7 @@ def refactor_freight_endpoint(request, shipment_id: str, payload: RefactorFreigh
 
 class ShipmentDelayIn(Schema):
     expected_date: dt.date
-    supplier_partner_id: str
+    supplier_partner_id: UUID
     as_of: dt.date | None = None
     threshold_days: int = 3
 
@@ -1021,7 +1022,7 @@ def report_shipment_delay_endpoint(request, shipment_id: str, payload: ShipmentD
     incident_id = report_shipment_delay(
         shipment,
         expected_date=payload.expected_date,
-        supplier_partner_id=uuid.UUID(payload.supplier_partner_id),
+        supplier_partner_id=payload.supplier_partner_id,
         as_of=payload.as_of,
         threshold_days=payload.threshold_days,
     )
@@ -1057,7 +1058,7 @@ class CustomsLineIn(Schema):
     transit_cost_mga: Decimal = Decimal(0)
     qty: Decimal = Decimal(1)
     weight_kg: Decimal | None = None
-    variant_id: str | None = None
+    variant_id: UUID | None = None
 
 
 class CustomsSimulateIn(Schema):
@@ -1206,7 +1207,7 @@ def add_customs_line_endpoint(request, customs_file_id: str, payload: CustomsLin
             transit_cost_mga=payload.transit_cost_mga,
             qty=payload.qty,
             weight_kg=payload.weight_kg,
-            variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+            variant_id=payload.variant_id,
         )
     except ValidationError as exc:
         return _error_response(exc)

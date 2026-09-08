@@ -37,7 +37,9 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext as _
 
+from apps.core.identifiers import parse_optional_uuid, parse_uuid
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.services.workflow import TransitionPermissionError
@@ -382,7 +384,7 @@ def order_create(request: HttpRequest) -> HttpResponse:
         try:
             order = create_order(
                 tenant=tenant,
-                partner_id=uuid.UUID(request.POST.get("partner_id", "")),
+                partner_id=parse_uuid(request.POST.get("partner_id"), champ=_("fournisseur")),
                 date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
                 date_expected=parse_date(request.POST.get("date_expected", "")),
                 origin=request.POST.get("origin", PurOrder.ORIGIN_LOCAL),
@@ -634,10 +636,10 @@ def price_watch_list(request: HttpRequest) -> HttpResponse:
                     search_query_or_url=post.get("search_query_or_url", ""),
                     currency=post.get("currency", "MGA"),
                     frequency=post.get("frequency", PrcPriceWatchTarget.FREQUENCY_MONTHLY),
-                    material_reference_id=uuid.UUID(material_reference_id)
-                    if material_reference_id
-                    else None,
-                    variant_id=uuid.UUID(variant_id) if variant_id else None,
+                    material_reference_id=parse_optional_uuid(
+                        material_reference_id, champ=_("matière de référence")
+                    ),
+                    variant_id=parse_optional_uuid(variant_id, champ=_("produit")),
                 )
             elif action == "check":
                 target = get_object_or_404(PrcPriceWatchTarget, id=post.get("target_id"))

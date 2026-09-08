@@ -23,9 +23,11 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 
 from apps.accounting.services.public import get_default_sale_tax
 from apps.catalog.services.public import search_sellable_variants
+from apps.core.identifiers import parse_uuid
 from apps.core.views.tenant_web import resolve_tenant
 from apps.partners.services.public import search_partners
 from apps.pos.models import PosOrder, PosPaymentMethod, PosRegister, PosSession, PosSyncLog
@@ -91,7 +93,7 @@ def sale_screen(request: HttpRequest) -> HttpResponse:
     if order_id:
         try:
             last_order = (
-                PosOrder.objects.filter(id=uuid.UUID(order_id))
+                PosOrder.objects.filter(id=parse_uuid(order_id, champ=_("ticket")))
                 .select_related("register")
                 .prefetch_related("lines", "payments")
                 .first()

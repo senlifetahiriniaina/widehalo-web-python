@@ -5,12 +5,12 @@ reports` sont appelees directement (jamais l'API JWT interne)."""
 
 from __future__ import annotations
 
-import uuid
-
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils.translation import gettext as _
 
+from apps.core.identifiers import parse_uuid
 from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.purchase.models import PurOrder, PurRfq
@@ -117,7 +117,11 @@ def report_supplier_evaluations(request: HttpRequest) -> HttpResponse:
     """PUR-EVAL."""
     format = parse_report_format(request.GET.get("format"))
     partner_id = request.GET.get("partner_id", "")
-    rows = supplier_evaluation_rows(uuid.UUID(partner_id)) if partner_id else []
+    rows = (
+        supplier_evaluation_rows(parse_uuid(partner_id, champ=_("fournisseur")))
+        if partner_id
+        else []
+    )
     data = rows_to_bytes(
         rows,
         [

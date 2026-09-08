@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from typing import cast
-from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -15,6 +14,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -36,7 +36,7 @@ def _add_line_from_post(study: FeaStudy, request: HttpRequest) -> None:
     raw_variant_id = request.POST.get("variant_id")
     add_study_line(
         study,
-        variant_id=UUID(raw_variant_id) if raw_variant_id else None,
+        variant_id=parse_uuid(raw_variant_id, champ=_("produit")) if raw_variant_id else None,
         hypothetical_spec={"name": request.POST.get("hypothetical_name", "")}
         if request.POST.get("hypothetical_name")
         else {},

@@ -21,7 +21,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 
+from apps.core.identifiers import parse_uuid
 from apps.core.views.tenant_web import resolve_tenant
 from apps.purchase.models import PurReorderingProposal, PurReorderingRule, PurSubstitute
 from apps.purchase.services.reordering import (
@@ -57,12 +59,12 @@ def config_reordering_rules(request: HttpRequest) -> HttpResponse:
             if action == "create":
                 create_reordering_rule(
                     tenant=tenant,
-                    variant_id=uuid.UUID(request.POST.get("variant_id", "")),
+                    variant_id=parse_uuid(request.POST.get("variant_id"), champ=_("produit")),
                     min_qty=Decimal(request.POST.get("min_qty") or "0"),
                     max_qty=Decimal(request.POST.get("max_qty") or "0"),
                     multiple_qty=Decimal(request.POST.get("multiple_qty") or "1"),
                     lead_time_days=int(request.POST.get("lead_time_days") or "0"),
-                    warehouse_id=uuid.UUID(request.POST["warehouse_id"])
+                    warehouse_id=parse_uuid(request.POST.get("warehouse_id"), champ=_("entrepôt"))
                     if request.POST.get("warehouse_id")
                     else None,
                 )
@@ -136,7 +138,7 @@ def substitute_list(request: HttpRequest) -> HttpResponse:
 
     variant_id = request.GET.get("variant_id", "")
     substitutes = (
-        list_substitutes_for_variant(uuid.UUID(variant_id))
+        list_substitutes_for_variant(parse_uuid(variant_id, champ=_("produit")))
         if variant_id
         else list(PurSubstitute.objects.filter(tenant=tenant, is_active=True))
     )

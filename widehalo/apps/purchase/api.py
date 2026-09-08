@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from decimal import Decimal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -78,11 +79,11 @@ router = Router(tags=["purchase"])
 
 
 class RequisitionLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     description: str
     qty: Decimal
     uom: str = ""
-    preferred_supplier_id: str | None = None
+    preferred_supplier_id: UUID | None = None
 
 
 class RequisitionIn(Schema):
@@ -156,11 +157,11 @@ def create_requisition_endpoint(request, payload: RequisitionIn):
     for line in payload.lines:
         add_requisition_line(
             requisition,
-            variant_id=uuid.UUID(line.variant_id),
+            variant_id=line.variant_id,
             description=line.description,
             qty=line.qty,
             uom=line.uom,
-            preferred_supplier_id=uuid.UUID(line.preferred_supplier_id)
+            preferred_supplier_id=line.preferred_supplier_id
             if line.preferred_supplier_id
             else None,
         )
@@ -182,11 +183,11 @@ def add_requisition_line_endpoint(request, requisition_id: str, payload: Requisi
     try:
         add_requisition_line(
             requisition,
-            variant_id=uuid.UUID(payload.variant_id),
+            variant_id=payload.variant_id,
             description=payload.description,
             qty=payload.qty,
             uom=payload.uom,
-            preferred_supplier_id=uuid.UUID(payload.preferred_supplier_id)
+            preferred_supplier_id=payload.preferred_supplier_id
             if payload.preferred_supplier_id
             else None,
         )
@@ -235,7 +236,7 @@ def reject_requisition_endpoint(request, requisition_id: str, payload: Requisiti
 
 
 class RfqLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     description: str
     qty: Decimal
     uom: str = ""
@@ -248,17 +249,17 @@ class RfqIn(Schema):
 
 
 class RfqSupplierIn(Schema):
-    partner_id: str
+    partner_id: UUID
 
 
 class RfqResponseLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     qty: Decimal
     unit_price_mga: Decimal
 
 
 class RfqResponseIn(Schema):
-    partner_id: str
+    partner_id: UUID
     date_received: dt.date
     lines: list[RfqResponseLineIn] = []
     currency: str = "MGA"
@@ -351,7 +352,7 @@ def add_rfq_line_endpoint(request, rfq_id: str, payload: RfqLineIn):
     rfq = get_object_or_404(PurRfq, id=rfq_id)
     add_rfq_line(
         rfq,
-        variant_id=uuid.UUID(payload.variant_id),
+        variant_id=payload.variant_id,
         description=payload.description,
         qty=payload.qty,
         uom=payload.uom,
@@ -364,7 +365,7 @@ def add_rfq_line_endpoint(request, rfq_id: str, payload: RfqLineIn):
 @require_permission("purchase.change_purrfq")
 def add_rfq_supplier_endpoint(request, rfq_id: str, payload: RfqSupplierIn):
     rfq = get_object_or_404(PurRfq, id=rfq_id)
-    add_rfq_supplier(rfq, partner_id=uuid.UUID(payload.partner_id))
+    add_rfq_supplier(rfq, partner_id=payload.partner_id)
     rfq.refresh_from_db()
     return _serialize_rfq(rfq)
 
@@ -387,11 +388,11 @@ def record_rfq_response_endpoint(request, rfq_id: str, payload: RfqResponseIn):
     try:
         record_rfq_response(
             rfq,
-            partner_id=uuid.UUID(payload.partner_id),
+            partner_id=payload.partner_id,
             date_received=payload.date_received,
             lines=[
                 {
-                    "variant_id": uuid.UUID(line.variant_id),
+                    "variant_id": line.variant_id,
                     "qty": line.qty,
                     "unit_price_mga": line.unit_price_mga,
                 }
@@ -445,7 +446,7 @@ def award_rfq_endpoint(request, rfq_id: str, payload: RfqAwardIn):
 
 
 class OrderLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     description: str
     qty: Decimal
     unit_price_mga: Decimal
@@ -456,7 +457,7 @@ class OrderLineIn(Schema):
 
 
 class OrderIn(Schema):
-    partner_id: str
+    partner_id: UUID
     date: dt.date
     date_expected: dt.date | None = None
     origin: str = PurOrder.ORIGIN_LOCAL
@@ -474,7 +475,7 @@ class OrderDisputeIn(Schema):
 
 
 class OrderFromRequisitionIn(Schema):
-    partner_id: str
+    partner_id: UUID
 
 
 class BulkFromRequisitionsIn(Schema):
@@ -544,7 +545,7 @@ def create_order_endpoint(request, payload: OrderIn):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     order = create_order(
         tenant=tenant,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         date=payload.date,
         date_expected=payload.date_expected,
         origin=payload.origin,
@@ -554,7 +555,7 @@ def create_order_endpoint(request, payload: OrderIn):
     for line in payload.lines:
         add_order_line(
             order,
-            variant_id=uuid.UUID(line.variant_id),
+            variant_id=line.variant_id,
             description=line.description,
             qty=line.qty,
             unit_price_mga=line.unit_price_mga,
@@ -574,7 +575,7 @@ def create_order_from_requisition_endpoint(
 ):
     requisition = get_object_or_404(PurRequisition, id=requisition_id)
     try:
-        order = create_order_from_requisition(requisition, partner_id=uuid.UUID(payload.partner_id))
+        order = create_order_from_requisition(requisition, partner_id=payload.partner_id)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return _serialize_order(order)
@@ -620,7 +621,7 @@ def add_order_line_endpoint(request, order_id: str, payload: OrderLineIn):
     try:
         add_order_line(
             order,
-            variant_id=uuid.UUID(payload.variant_id),
+            variant_id=payload.variant_id,
             description=payload.description,
             qty=payload.qty,
             unit_price_mga=payload.unit_price_mga,
@@ -826,12 +827,12 @@ def order_reception_variance_endpoint(request, order_id: str):
 
 
 class ReorderingRuleIn(Schema):
-    variant_id: str
+    variant_id: UUID
     min_qty: Decimal
     max_qty: Decimal
     multiple_qty: Decimal = Decimal(1)
     lead_time_days: int = 0
-    warehouse_id: str | None = None
+    warehouse_id: UUID | None = None
 
 
 def _serialize_reordering_rule(rule: PurReorderingRule) -> dict:  # type: ignore[type-arg]
@@ -862,12 +863,12 @@ def create_reordering_rule_endpoint(request, payload: ReorderingRuleIn):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     rule = create_reordering_rule(
         tenant=tenant,
-        variant_id=uuid.UUID(payload.variant_id),
+        variant_id=payload.variant_id,
         min_qty=payload.min_qty,
         max_qty=payload.max_qty,
         multiple_qty=payload.multiple_qty,
         lead_time_days=payload.lead_time_days,
-        warehouse_id=uuid.UUID(payload.warehouse_id) if payload.warehouse_id else None,
+        warehouse_id=payload.warehouse_id,
     )
     return _serialize_reordering_rule(rule)
 
@@ -889,7 +890,7 @@ def run_reordering_endpoint(request):
 
 class CraIn(Schema):
     date: dt.date
-    partner_id: str
+    partner_id: UUID
     activity_type: str
     hours: Decimal
     order_id: str | None = None
@@ -934,7 +935,7 @@ def create_cra_endpoint(request, payload: CraIn):
         tenant=tenant,
         date=payload.date,
         buyer=request.auth,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         activity_type=payload.activity_type,
         hours=payload.hours,
         order=order,
@@ -984,7 +985,7 @@ def reject_cra_endpoint(request, cra_id: str, payload: CraRejectIn):
 class CriIn(Schema):
     date: dt.date
     type: str
-    partner_id: str
+    partner_id: UUID
     description: str
     order_id: str | None = None
     impact: str = ""
@@ -1032,7 +1033,7 @@ def create_cri_endpoint(request, payload: CriIn):
         tenant=tenant,
         date=payload.date,
         type=payload.type,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         description=payload.description,
         order=order,
         impact=payload.impact,
@@ -1105,8 +1106,8 @@ class PriceWatchTargetIn(Schema):
     search_query_or_url: str
     currency: str = "MGA"
     frequency: str = PrcPriceWatchTarget.FREQUENCY_MONTHLY
-    material_reference_id: str | None = None
-    variant_id: str | None = None
+    material_reference_id: UUID | None = None
+    variant_id: UUID | None = None
 
 
 def _serialize_price_watch_target(target: PrcPriceWatchTarget) -> dict:  # type: ignore[type-arg]
@@ -1155,10 +1156,10 @@ def create_price_watch_target_endpoint(request, payload: PriceWatchTargetIn):
             search_query_or_url=payload.search_query_or_url,
             currency=payload.currency,
             frequency=payload.frequency,
-            material_reference_id=uuid.UUID(payload.material_reference_id)
+            material_reference_id=payload.material_reference_id
             if payload.material_reference_id
             else None,
-            variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+            variant_id=payload.variant_id,
         )
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=422)

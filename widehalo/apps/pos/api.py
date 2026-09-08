@@ -191,7 +191,7 @@ def create_register(request, payload: RegisterIn):  # type: ignore[no-untyped-de
         tenant=_tenant(request),
         code=payload.code,
         name=payload.name,
-        warehouse_id=uuid.UUID(payload.warehouse_id) if payload.warehouse_id else None,
+        warehouse_id=payload.warehouse_id,
         created_by=request.auth,
     )
     return _serialize_register(register)
@@ -214,7 +214,7 @@ def create_payment_method(request, payload: PaymentMethodIn):  # type: ignore[no
         type=payload.type,
         requires_reference=payload.requires_reference,
         default_account_type=payload.default_account_type,
-        account_id=uuid.UUID(payload.account_id) if payload.account_id else None,
+        account_id=payload.account_id,
         created_by=request.auth,
     )
     return _serialize_payment_method(method)
@@ -371,11 +371,11 @@ def sync_orders_endpoint(request, payload: OrderSyncBatchIn):  # type: ignore[no
             order, outcome = sync_order(
                 tenant,
                 session=session,
-                client_uuid=uuid.UUID(spec.client_uuid),
+                client_uuid=spec.client_uuid,
                 local_sequence=spec.local_sequence,
                 order_type=spec.order_type,
                 document_type=spec.document_type,
-                partner_id=uuid.UUID(spec.partner_id) if spec.partner_id else None,
+                partner_id=spec.partner_id,
                 lines=[line.dict() for line in spec.lines],
                 payments=[
                     {**payment.dict(), "method_id": uuid.UUID(payment.dict()["method_id"])}
@@ -441,10 +441,10 @@ def create_return_endpoint(request, payload: ReturnOrderIn):  # type: ignore[no-
             _tenant(request),
             origin_order=origin_order,
             session=session,
-            client_uuid=uuid.UUID(payload.client_uuid),
+            client_uuid=payload.client_uuid,
             local_sequence=payload.local_sequence,
             return_lines=[
-                {"origin_line_id": uuid.UUID(line.origin_line_id), "qty": line.qty}
+                {"origin_line_id": line.origin_line_id, "qty": line.qty}
                 for line in payload.return_lines
             ],
             refund_method=refund_method,

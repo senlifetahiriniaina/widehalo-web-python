@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from decimal import Decimal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -238,7 +239,7 @@ def create_defect_type_endpoint(request, payload: DefectTypeIn):
 
 
 class MoveIn(Schema):
-    variant_id: str
+    variant_id: UUID
     qty: Decimal
     uom: str = ""
     location_from_id: str
@@ -251,7 +252,7 @@ class MoveIn(Schema):
 
 
 class TransferIn(Schema):
-    variant_id: str
+    variant_id: UUID
     qty: Decimal
     uom: str = ""
     source_warehouse_id: str
@@ -271,7 +272,7 @@ class PickingIn(Schema):
     type: str
     location_from_id: str
     location_to_id: str
-    partner_id: str | None = None
+    partner_id: UUID | None = None
     date_scheduled: str | None = None
     source_document: str = ""
     carrier: str = ""
@@ -279,7 +280,7 @@ class PickingIn(Schema):
 
 
 class PickingLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     qty: Decimal
     uom: str = ""
     unit_cost_mga: Decimal = Decimal(0)
@@ -292,7 +293,7 @@ class MeasurementIn(Schema):
     uom: str = ""
     theoretical_value: Decimal | None = None
     device: str = ""
-    partner_id_for_dispute: str | None = None
+    partner_id_for_dispute: UUID | None = None
 
 
 class QualityStateIn(Schema):
@@ -315,7 +316,7 @@ class InventoryIn(Schema):
 
 
 class InventoryLineIn(Schema):
-    variant_id: str
+    variant_id: UUID
     location_id: str
     lot_id: str | None = None
 
@@ -401,7 +402,7 @@ def create_move_endpoint(request, payload: MoveIn):
     try:
         move = create_move(
             tenant=tenant,
-            variant_id=uuid.UUID(payload.variant_id),
+            variant_id=payload.variant_id,
             qty=payload.qty,
             uom=payload.uom,
             location_from=get_object_or_404(StkLocation, id=payload.location_from_id),
@@ -452,7 +453,7 @@ def transfer_between_warehouses_endpoint(request, payload: TransferIn):
     try:
         move = transfer_between_warehouses(
             tenant=tenant,
-            variant_id=uuid.UUID(payload.variant_id),
+            variant_id=payload.variant_id,
             qty=payload.qty,
             uom=payload.uom,
             source_warehouse=get_object_or_404(StkWarehouse, id=payload.source_warehouse_id),
@@ -531,7 +532,7 @@ def create_picking_endpoint(request, payload: PickingIn):
             type=payload.type,
             location_from=get_object_or_404(StkLocation, id=payload.location_from_id),
             location_to=get_object_or_404(StkLocation, id=payload.location_to_id),
-            partner_id=uuid.UUID(payload.partner_id) if payload.partner_id else None,
+            partner_id=payload.partner_id,
             date_scheduled=dt.date.fromisoformat(payload.date_scheduled)
             if payload.date_scheduled
             else None,
@@ -552,7 +553,7 @@ def add_picking_line_endpoint(request, picking_id: str, payload: PickingLineIn):
     try:
         add_picking_line(
             picking,
-            variant_id=uuid.UUID(payload.variant_id),
+            variant_id=payload.variant_id,
             qty=payload.qty,
             uom=payload.uom,
             unit_cost_mga=payload.unit_cost_mga,
@@ -597,7 +598,7 @@ def create_measurement_endpoint(request, payload: MeasurementIn):
             uom=payload.uom,
             theoretical_value=payload.theoretical_value,
             device=payload.device,
-            partner_id_for_dispute=uuid.UUID(payload.partner_id_for_dispute)
+            partner_id_for_dispute=payload.partner_id_for_dispute
             if payload.partner_id_for_dispute
             else None,
         )
@@ -685,7 +686,7 @@ def add_inventory_line_endpoint(request, inventory_id: str, payload: InventoryLi
     lot = get_object_or_404(StkLot, id=payload.lot_id) if payload.lot_id else None
     try:
         line = add_inventory_line(
-            inventory, variant_id=uuid.UUID(payload.variant_id), location=location, lot=lot
+            inventory, variant_id=payload.variant_id, location=location, lot=lot
         )
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
@@ -798,7 +799,7 @@ class StockImportRowResolveIn(Schema):
 
 
 class StockImportRowQualifyIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     location_id: str | None = None
 
 
@@ -884,7 +885,7 @@ def qualify_stock_import_row_endpoint(request, row_id: str, payload: StockImport
     location = (
         get_object_or_404(StkLocation, id=payload.location_id) if payload.location_id else None
     )
-    variant_id = uuid.UUID(payload.variant_id) if payload.variant_id else None
+    variant_id = payload.variant_id
     try:
         qualified = qualify_stock_import_row(
             row, variant_id=variant_id, location=location, qualified_by=request.auth

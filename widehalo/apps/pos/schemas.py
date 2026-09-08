@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from uuid import UUID
 
 from ninja import Schema
 
@@ -14,14 +15,14 @@ from apps.pos.models import PosOrder, PosOrderLine, PosPaymentMethod
 class RegisterIn(Schema):
     code: str
     name: str
-    warehouse_id: str | None = None
+    warehouse_id: UUID | None = None
 
 
 class RegisterOut(Schema):
     id: str
     code: str
     name: str
-    warehouse_id: str | None
+    warehouse_id: UUID | None
     is_active: bool
 
 
@@ -31,7 +32,7 @@ class PaymentMethodIn(Schema):
     type: str = PosPaymentMethod.TYPE_CASH
     requires_reference: bool = False
     default_account_type: str = PosPaymentMethod.ACCOUNT_TYPE_CASH
-    account_id: str | None = None
+    account_id: UUID | None = None
 
 
 class PaymentMethodOut(Schema):
@@ -41,7 +42,7 @@ class PaymentMethodOut(Schema):
     type: str
     requires_reference: bool
     default_account_type: str
-    account_id: str | None
+    account_id: UUID | None
     is_active: bool
 
 
@@ -102,11 +103,11 @@ class OrderPaymentIn(Schema):
 
 
 class OrderSyncIn(Schema):
-    client_uuid: str
+    client_uuid: UUID
     local_sequence: int
     order_type: str = PosOrder.TYPE_SALE
     document_type: str = PosOrder.DOCUMENT_TICKET
-    partner_id: str | None = None
+    partner_id: UUID | None = None
     source: str = PosOrder.SOURCE_ONLINE
     lines: list[OrderLineIn] = []
     payments: list[OrderPaymentIn] = []
@@ -149,13 +150,13 @@ class OrderOut(Schema):
     id: str
     session_id: str
     register_code: str
-    client_uuid: str
+    client_uuid: UUID
     number: str
     local_sequence: int
     order_type: str
     origin_order_id: str | None
     document_type: str
-    partner_id: str | None
+    partner_id: UUID | None
     partner_name: str
     state: str
     source: str
@@ -174,21 +175,21 @@ class OrderSyncResultOut(Schema):
     rollback complet à la première `ValidationError`), `detail` porte
     alors le motif du rejet."""
 
-    client_uuid: str
+    client_uuid: UUID
     outcome: str
     order: OrderOut | None = None
     detail: str = ""
 
 
 class ReturnLineIn(Schema):
-    origin_line_id: str
+    origin_line_id: UUID
     qty: Decimal
 
 
 class ReturnOrderIn(Schema):
     origin_order_id: str
     session_id: str
-    client_uuid: str
+    client_uuid: UUID
     local_sequence: int
     return_lines: list[ReturnLineIn]
     refund_method_id: str
@@ -211,7 +212,7 @@ class PartnerSearchOut(Schema):
 class SyncLogOut(Schema):
     id: str
     register_code: str
-    client_uuid: str
+    client_uuid: UUID
     local_sequence: int | None
     outcome: str
     detail: str

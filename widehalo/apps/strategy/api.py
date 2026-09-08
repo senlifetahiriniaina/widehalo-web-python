@@ -7,9 +7,9 @@ mecanisme de generation de rapport)."""
 
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
@@ -40,7 +40,7 @@ class ObjectiveIn(Schema):
     description: str = ""
     parent_id: str | None = None
     owner_id: str | None = None
-    department_id: str | None = None
+    department_id: UUID | None = None
     sector_code: str | None = None
     period_start: str
     period_end: str
@@ -122,7 +122,7 @@ def list_objectives_endpoint(request: Any) -> dict[str, Any]:
 @require_permission("strategy.add_stgobjective")
 def create_objective_endpoint(request: Any, payload: ObjectiveIn) -> dict[str, Any]:
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
-    department_id = uuid.UUID(payload.department_id) if payload.department_id else None
+    department_id = payload.department_id
     try:
         assert_can_manage_level(
             request.auth, level=payload.level, department_id=department_id, tenant=tenant
