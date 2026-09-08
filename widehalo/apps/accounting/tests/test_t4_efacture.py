@@ -288,6 +288,48 @@ def test_the_submitted_document_never_carries_a_full_account_number(societe) -> 
     assert document["client"]["nif"] == "MG-NIF-600001"
 
 
+def test_the_signed_bytes_are_stable_across_two_renderings(societe) -> None:
+    """La signature porte sur des octets : deux rendus du même document
+    doivent être identiques, sinon une vérification faite plus tard échoue
+    sans que rien ne dise pourquoi.
+
+    Le défaut qui a rendu ce test nécessaire n'était pas théorique :
+    `json.dumps` sans convertisseur explosait sur toute facture réelle
+    (dates, décimaux), et le corriger par un `default=str` aurait fait
+    dépendre le format soumis à une administration du `__str__` d'un type
+    Python."""
+    from apps.accounting.services.einvoice_submission import (
+        build_structured_document,
+        canonical_bytes,
+    )
+
+    with use_tenant(societe.id):
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+        document = build_structured_document(piece)
+        assert canonical_bytes(document) == canonical_bytes(document)
+        # Les décimaux ne partent jamais en notation exponentielle, et les
+        # dates sont en ISO 8601 — pas au format d'affichage local.
+        rendu = canonical_bytes(document).decode("utf-8")
+        assert "E+" not in rendu and "e+" not in rendu
+        assert piece.date.isoformat() in rendu
+
+
+def test_an_unrenderable_type_raises_instead_of_leaking_a_repr() -> None:
+    """Un type inattendu LÈVE plutôt que de partir sous son `repr`.
+
+    Un objet rendu `<AccAccount: 411100>` serait à la fois illisible pour
+    l'administration et une fuite : le §9.2 interdit précisément le numéro
+    de compte complet dans une charge utile archivée."""
+    from apps.accounting.services.einvoice_submission import canonical_bytes
+
+    class Inattendu:
+        def __str__(self) -> str:  # pragma: no cover - jamais appelé
+            return "411100"
+
+    with pytest.raises(TypeError, match="non sérialisable"):
+        canonical_bytes({"x": Inattendu()})
+
+
 # --- Les trois axes sont orthogonaux (EFA-6) -------------------------------
 
 

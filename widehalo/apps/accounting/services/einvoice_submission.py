@@ -32,7 +32,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from django.utils import timezone
 
@@ -113,17 +115,12 @@ def submit_invoice(move: AccMove, *, now: dt.datetime | None = None) -> Submissi
     assert profil is not None  # garanti par `no_profile` ci-dessus  # noqa: S101
 
     document = build_structured_document(move)
-    octets = json.dumps(document, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    octets = canonical_bytes(document)
 
     signature = _sign_or_none(move, octets)
     archive = _archive(move, octets)
 
-    corps = json.dumps(
-        {"document": document, "signature": signature},
-        sort_keys=True,
-        ensure_ascii=False,
-        default=str,
-    )
+    corps = canonical_bytes({"document": document, "signature": signature}).decode("utf-8")
     echange = _queue(move, corps, profil.archive_years, maintenant)
 
     move.fiscal_state = (
@@ -137,6 +134,63 @@ def submit_invoice(move: AccMove, *, now: dt.datetime | None = None) -> Submissi
         exchange_id=echange,
         signed=signature is not None,
         archived=archive,
+    )
+
+
+def canonical_bytes(payload: Any) -> bytes:
+    """La forme d'octets d'un document, STABLE et explicite.
+
+    **La signature porte sur ces octets exacts** (EFA-2, EFA-8) : deux
+    rendus différents du même document produiraient deux signatures
+    différentes, et une vérification faite plus tard échouerait sans que
+    rien ne dise pourquoi. Trois choix, tous nécessaires à cette
+    stabilité :
+
+    - `sort_keys` : l'ordre d'insertion d'un dictionnaire Python est un
+      détail d'implémentation du code qui l'a construit, pas une propriété
+      du document.
+    - `ensure_ascii=False` : une raison sociale malgache porte des accents,
+      et les échapper en `\\uXXXX` gonflerait la charge utile sans rien
+      apporter — l'encodage est UTF-8, déclaré.
+    - `separators` sans espace : un rendu compact ne dépend d'aucun réglage
+      d'agrément.
+
+    **Le convertisseur est NOMMÉ plutôt que `default=str`.** Une date rendue
+    par `str()` donne « 2026-01-15 » aujourd'hui, mais rien ne le garantit
+    pour un `datetime` (« 2026-01-15 08:30:00+00:00 », avec un espace au
+    milieu) ni pour un `Decimal` en notation exponentielle. Sur un document
+    soumis à une administration et signé, laisser le format dépendre du
+    `__str__` d'un type est le genre de dépendance implicite qui se
+    découvre le jour d'un contrôle."""
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=_render_value,
+    ).encode("utf-8")
+
+
+def _render_value(valeur: Any) -> str:
+    """Rend ce que `json` ne sait pas rendre — sans jamais deviner.
+
+    Un type inattendu LÈVE plutôt que d'être rendu par son `repr` : un
+    objet qui partirait vers une administration sous la forme
+    `<AccAccount: 411100>` serait à la fois illisible et une fuite (§9.2
+    interdit précisément le numéro de compte complet)."""
+    if isinstance(valeur, dt.datetime):
+        return valeur.isoformat()
+    if isinstance(valeur, dt.date):
+        return valeur.isoformat()
+    if isinstance(valeur, Decimal):
+        # `format(..., "f")` évite la notation exponentielle que `str()`
+        # produit sur les très grands et très petits nombres.
+        return format(valeur, "f")
+    if isinstance(valeur, UUID):
+        return str(valeur)
+    raise TypeError(
+        f"Type non sérialisable dans un document soumis : {type(valeur).__name__}. "
+        "Ajouter un rendu explicite plutôt que de laisser `str()` décider."
     )
 
 
@@ -248,6 +302,7 @@ def _queue(move: AccMove, corps: str, archive_years: int, now: dt.datetime) -> A
 
 __all__ = [
     "CONNECTOR_CODE",
+    "canonical_bytes",
     "DOCUMENT_TYPE",
     "OUTCOME_INCOMPLETE",
     "OUTCOME_NOT_CONCERNED",
