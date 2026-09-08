@@ -120,6 +120,79 @@ def record_verdict(
     return move
 
 
+#: Le nom de la variante portant le marquage. Une CONSTANTE et non une
+#: chaîne recopiée : le producteur, le lecteur et le test la lisent tous
+#: les trois, et trois recopies divergent au premier renommage.
+MARKED_VARIANT = "marquee"
+
+
+def render_marked_representation(move: AccMove, *, actor: Any = None) -> bytes | None:
+    """La représentation lisible portant l'identifiant et le marquage.
+
+    **« L'identifiant attribué et le marquage vérifiable sont reportés sur
+    la représentation lisible du document »** (EFA-4). C'est un SECOND
+    document, distinct de celui qui a été soumis, et la raison est que les
+    deux critères se contredisent autrement : RPT-9 impose qu'un PDF de
+    facture ne soit produit qu'une fois et resservi octet-pour-octet, quand
+    EFA-4 veut un marquage apposé après le verdict.
+
+    Deux documents, donc — comme dans la vie : la facture qu'on soumet et
+    celle qu'on remet au client ne sont pas le même papier. Ce qui est
+    archivé à la soumission reste figé et signé ; celle-ci est produite ici
+    et n'existe qu'une fois le verdict connu.
+
+    Rend `None` tant qu'aucun verdict d'acceptation n'est arrivé : marquer
+    une facture que l'administration n'a pas acceptée lui ferait porter une
+    caution qu'elle n'a pas."""
+    from apps.accounting.models import AccMove as Move
+    from apps.reporting.services.public import render_and_archive
+
+    if move.fiscal_state != Move.FISCAL_STATE_ACCEPTED:
+        return None
+    if not move.fiscal_reference:
+        # Un verdict d'acceptation sans identifiant attribué n'est pas
+        # marquable : le marquage EST l'identifiant. Produire un document
+        # « marqué » qui ne porterait rien serait pire que ne rien
+        # produire — il aurait l'air valide.
+        return None
+
+    contenu = render_and_archive(
+        content_object=move,
+        actor=actor,
+        generate_fn=lambda: _marked_bytes(move),
+        variant=MARKED_VARIANT,
+    )
+    return contenu
+
+
+def _marked_bytes(move: AccMove) -> bytes:
+    """Le contenu de la représentation marquée.
+
+    **Rendu textuel et non PDF, et c'est assumé.** Le gabarit de facture
+    légale du module `reporting` produit déjà le PDF de la facture ; y
+    incruster un marquage suppose de savoir OÙ l'administration exige qu'il
+    figure — en pied, en filigrane, en code-barres bidimensionnel — et
+    cette exigence n'est publiée nulle part d'accessible à ce dépôt. Le
+    dispositif malgache n'est pas ouvert.
+
+    Ce qui est tenu ici, et qui est ce que le critère demande, est
+    indépendant de la mise en page : l'identifiant attribué et le marquage
+    vérifiable sont REPORTÉS sur une représentation lisible, archivée,
+    distincte du document soumis, et reproductible à l'octet. La forme se
+    change dans cette seule fonction le jour où l'administration la
+    publiera — c'est exactement ce qu'EFA-7 appelle « sans déploiement de
+    code » pour le reste du profil, et la même discipline s'y applique."""
+    rendu_le = move.fiscal_settled_at.isoformat() if move.fiscal_settled_at else "—"
+    lignes = [
+        f"Facture : {move.reference}",
+        f"Date : {move.date.isoformat()}",
+        f"Identifiant fiscal attribué : {move.fiscal_reference}",
+        f"Marquage vérifiable : {move.fiscal_marking or '—'}",
+        f"Verdict rendu le : {rendu_le}",
+    ]
+    return "\n".join(lignes).encode("utf-8")
+
+
 def verdict_summary(move: AccMove) -> VerdictSummary:
     """Le sort fiscal de la pièce, pour un écran."""
     return VerdictSummary(
@@ -183,8 +256,10 @@ def _already_recorded(move: AccMove, exchange_state: str, settled_at: Any) -> bo
 
 __all__ = [
     "FISCAL_STATE_BY_EXCHANGE_STATE",
+    "MARKED_VARIANT",
     "VerdictSummary",
     "record_verdict",
+    "render_marked_representation",
     "refresh_from_exchanges",
     "verdict_summary",
 ]

@@ -625,6 +625,116 @@ def test_refreshing_without_any_exchange_changes_nothing(societe) -> None:
         assert piece.fiscal_state == AccMove.FISCAL_STATE_NOT_CONCERNED
 
 
+# --- La représentation lisible marquée (EFA-4, seconde moitié) -------------
+
+
+def test_the_marked_representation_carries_the_attributed_identifier(societe) -> None:
+    """« L'identifiant attribué et le marquage vérifiable sont REPORTÉS sur
+    la représentation lisible du document » — EFA-4.
+
+    C'est un SECOND document, et il le faut : RPT-9 impose qu'un PDF de
+    facture ne soit produit qu'une fois et resservi octet-pour-octet, quand
+    EFA-4 veut un marquage apposé après le verdict. Les deux ne peuvent pas
+    être vrais du même fichier. Comme dans la vie : la facture qu'on soumet
+    et celle qu'on remet au client ne sont pas le même papier."""
+    from apps.accounting.services.einvoice_verdict import render_marked_representation
+
+    with use_tenant(societe.id):
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+        record_verdict(
+            piece,
+            exchange_state="accepte",
+            raw='{"id":"FISC-2026-77"}',
+            fiscal_reference="FISC-2026-77",
+            marking="QR:abc123",
+        )
+
+        contenu = render_marked_representation(piece)
+
+    assert contenu is not None
+    texte = contenu.decode("utf-8")
+    assert "FISC-2026-77" in texte
+    assert "QR:abc123" in texte
+
+
+def test_the_marked_representation_does_not_replace_the_submitted_one(societe) -> None:
+    """Les deux documents COEXISTENT, et le soumis n'est jamais retouché.
+
+    Si la variante n'entrait pas dans la recherche, la seconde retrouverait
+    le document de la première et rendrait ses octets — un marquage fiscal
+    servi à la place de la facture soumise, ou l'inverse, sans que rien ne
+    le signale."""
+    from apps.accounting.services.einvoice_verdict import render_marked_representation
+    from apps.core.models.document import Document
+
+    with use_tenant(societe.id):
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+        submit_invoice(piece)
+        soumis = Document.objects.get(tenant=societe)
+        octets_soumis = soumis.file.read()
+
+        record_verdict(
+            piece,
+            exchange_state="accepte",
+            raw="{}",
+            fiscal_reference="FISC-2026-78",
+            marking="QR:xyz",
+        )
+        marquee = render_marked_representation(piece)
+
+        assert Document.objects.filter(tenant=societe).count() == 2
+        soumis.refresh_from_db()
+        assert soumis.file.read() == octets_soumis, "le document soumis a été réécrit"
+        assert marquee != octets_soumis
+
+
+def test_the_marked_representation_is_stable_across_two_calls(societe) -> None:
+    """RPT-9 est tenu PAR VARIANTE : chacune n'est générée qu'une fois et
+    toute relecture sert l'octet-pour-octet archivé."""
+    from apps.accounting.services.einvoice_verdict import render_marked_representation
+
+    with use_tenant(societe.id):
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+        record_verdict(piece, exchange_state="accepte", raw="{}", fiscal_reference="FISC-2026-79")
+        premier = render_marked_representation(piece)
+        second = render_marked_representation(piece)
+
+    assert premier == second
+
+
+def test_an_unaccepted_invoice_is_never_marked(societe) -> None:
+    """Marquer une facture que l'administration n'a pas acceptée lui ferait
+    porter une caution qu'elle n'a pas.
+
+    Le rejet et l'attente rendent `None` pour la même raison : le marquage
+    n'est pas un ornement, c'est la preuve d'un verdict."""
+    from apps.accounting.services.einvoice_verdict import render_marked_representation
+
+    with use_tenant(societe.id):
+        rejetee = _facture(societe, partner_id=_client_complet(societe).id)
+        record_verdict(rejetee, exchange_state="rejete", raw="{}", fiscal_reference="X")
+        assert render_marked_representation(rejetee) is None
+
+        en_attente = _facture(societe, partner_id=_client_complet(societe).id)
+        en_attente.fiscal_state = AccMove.FISCAL_STATE_AWAITING
+        en_attente.save(update_fields=["fiscal_state"])
+        assert render_marked_representation(en_attente) is None
+
+
+def test_an_acceptance_without_an_identifier_produces_nothing(societe) -> None:
+    """Un verdict d'acceptation sans identifiant attribué n'est pas
+    marquable : le marquage EST l'identifiant.
+
+    Produire un document « marqué » qui ne porterait rien serait pire que
+    de ne rien produire — il aurait l'air valide."""
+    from apps.accounting.services.einvoice_verdict import render_marked_representation
+
+    with use_tenant(societe.id):
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+        record_verdict(piece, exchange_state="accepte", raw="{}", fiscal_reference="")
+        assert render_marked_representation(piece) is None
+
+
 # --- La reprise à l'ouverture (EFA-3) --------------------------------------
 
 
