@@ -135,31 +135,31 @@ router = Router(tags=["accounting"])
 
 
 class InvoiceLineIn(Schema):
-    account_id: str
+    account_id: UUID
     amount: Decimal
     label: str = ""
 
 
 class InvoiceIn(Schema):
-    journal_id: str
-    period_id: str
+    journal_id: UUID
+    period_id: UUID
     date: dt.date
     partner_id: UUID | None = None
-    receivable_account_id: str
+    receivable_account_id: UUID
     currency: str = "MGA"
     lines: list[InvoiceLineIn]
 
 
 class BudgetIn(Schema):
-    fiscal_year_id: str
+    fiscal_year_id: UUID
     name: str
 
 
 class BudgetLineIn(Schema):
-    account_id: str
+    account_id: UUID
     budgeted_amount_mga: Decimal
-    period_id: str | None = None
-    analytic_account_id: str | None = None
+    period_id: UUID | None = None
+    analytic_account_id: UUID | None = None
 
 
 class TaxCalendarIn(Schema):
@@ -173,7 +173,7 @@ class TaxCalendarIn(Schema):
 class AssetIn(Schema):
     category: str
     label: str
-    account_id: str
+    account_id: UUID
     acquisition_date: dt.date
     acquisition_value_mga: Decimal
     depreciation_method: str
@@ -187,29 +187,29 @@ class AssetDisposeIn(Schema):
 
 
 class AssetDepreciationComputeIn(Schema):
-    fiscal_year_id: str
+    fiscal_year_id: UUID
     post: bool = False
-    journal_id: str | None = None
-    period_id: str | None = None
-    dotation_account_id: str | None = None
-    accumulated_depreciation_account_id: str | None = None
+    journal_id: UUID | None = None
+    period_id: UUID | None = None
+    dotation_account_id: UUID | None = None
+    accumulated_depreciation_account_id: UUID | None = None
 
 
 class ProvisionIn(Schema):
     nature: str
-    account_id: str
-    fiscal_year_id: str
+    account_id: UUID
+    fiscal_year_id: UUID
     opening_amount_mga: Decimal = Decimal(0)
     dotation_mga: Decimal = Decimal(0)
     reprise_mga: Decimal = Decimal(0)
 
 
 class DcomGenerateIn(Schema):
-    fiscal_year_id: str
+    fiscal_year_id: UUID
 
 
 class IrcmGenerateIn(Schema):
-    fiscal_year_id: str
+    fiscal_year_id: UUID
     rate_pct: Decimal = Decimal("20")
 
 
@@ -218,7 +218,7 @@ class LocalTaxIn(Schema):
     property_label: str
     assessed_value_mga: Decimal
     rate_pct: Decimal
-    fiscal_year_id: str
+    fiscal_year_id: UUID
 
 
 class DunningLevelIn(Schema):
@@ -229,30 +229,30 @@ class DunningLevelIn(Schema):
 
 
 class DunningActionIn(Schema):
-    move_line_id: str
-    level_id: str
+    move_line_id: UUID
+    level_id: UUID
     date_sent: dt.date | None = None
     notes: str = ""
 
 
 class MobileMoneyReconcileIn(Schema):
-    payment_id: str
+    payment_id: UUID
 
 
 class ImportRowResolveIn(Schema):
-    account_id: str | None = None
+    account_id: UUID | None = None
     date: dt.date | None = None
     discard: bool = False
 
 
 class ImportRowQualifyIn(Schema):
-    account_id: str | None = None
+    account_id: UUID | None = None
     partner_id: UUID | None = None
 
 
 class ReconcileRuleIn(Schema):
     name: str
-    bank_account_id: str | None = None
+    bank_account_id: UUID | None = None
     match_on_amount: bool = True
     amount_tolerance_mga: Decimal = Decimal(0)
     match_on_reference: bool = False
@@ -262,11 +262,11 @@ class ReconcileRuleIn(Schema):
 
 
 class ConfirmReconciliationIn(Schema):
-    move_line_id: str | None = None
+    move_line_id: UUID | None = None
 
 
 class ManualMatchIn(Schema):
-    move_line_id: str
+    move_line_id: UUID
 
 
 class LandedCostBatchIn(Schema):
@@ -287,15 +287,15 @@ class LandedCostLineIn(Schema):
 class LandedCostComponentIn(Schema):
     label: str
     amount_mga: Decimal
-    account_id: str | None = None
+    account_id: UUID | None = None
 
 
 class RegisterPaymentIn(Schema):
-    period_id: str
-    journal_id: str
-    cash_account_id: str
-    gain_account_id: str
-    loss_account_id: str
+    period_id: UUID
+    journal_id: UUID
+    cash_account_id: UUID
+    gain_account_id: UUID
+    loss_account_id: UUID
     date: dt.date
     amount: Decimal
     method: str
@@ -1866,8 +1866,8 @@ def qualify_cash_journal_import_row_endpoint(request, row_id: str, payload: Impo
 
 class InvoiceImportRowQualifyIn(Schema):
     variant_id: UUID | None = None
-    account_id: str | None = None
-    tax_account_id: str | None = None
+    account_id: UUID | None = None
+    tax_account_id: UUID | None = None
     partner_id: UUID | None = None
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -26,11 +27,11 @@ class ChecklistTemplateIn(Schema):
 
 
 class InspectionIn(Schema):
-    template_id: str
+    template_id: UUID
     results: list[dict[str, Any]]
     inspected_at: datetime
     content_type_id: int | None = None
-    object_id: str = ""
+    object_id: UUID = ""
 
 
 def _serialize_template(template: QltChecklistTemplate) -> dict:

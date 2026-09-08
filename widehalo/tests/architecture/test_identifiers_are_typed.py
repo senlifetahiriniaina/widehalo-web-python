@@ -63,6 +63,10 @@ EXEMPTIONS: dict[str, str] = {
     "ConditionStepIn.next_step_id": "clef d'étape du canevas visuel, pas un UUID",
     "ConditionStepIn.next_step_on_false_id": "clef d'étape du canevas visuel, pas un UUID",
     "ActionStepIn.next_step_id": "clef d'étape du canevas visuel, pas un UUID",
+    # `django.contrib.contenttypes.ContentType` a une clef primaire ENTIÈRE :
+    # c'est une table de Django, pas un `BaseModel` de ce dépôt, et elle n'a
+    # jamais eu d'`UUIDField`. La typer `UUID` refuserait toute valeur valide.
+    "InspectionIn.content_type_id": "clef primaire entière de django ContentType, jamais un UUID",
 }
 
 

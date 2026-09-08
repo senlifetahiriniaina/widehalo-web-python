@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -97,7 +98,7 @@ class ProjectIn(Schema):
     name: str
     description: str = ""
     methodology: str = PrjProject.METHODOLOGY_WATERFALL
-    client_partner_id: str | None = None
+    client_partner_id: UUID | None = None
     start_date: str | None = None
     end_date: str | None = None
 
@@ -106,7 +107,7 @@ class LinkObjectiveIn(Schema):
     """Payload PJ13 : `objective_id=None` (ou champ omis) efface le lien
     existant — cf. `services/public.py::link_project_to_objective`."""
 
-    objective_id: str | None = None
+    objective_id: UUID | None = None
 
 
 class TaskGanttIn(Schema):
@@ -130,7 +131,7 @@ class BudgetLineIn(Schema):
 
 
 class BillMilestoneIn(Schema):
-    task_id: str
+    task_id: UUID
 
 
 class BillFixedIn(Schema):
@@ -149,7 +150,7 @@ class SprintIn(Schema):
 
 
 class TeamMemberIn(Schema):
-    user_id: str
+    user_id: UUID
     role: str = ""
     allocation_pct: int
 
@@ -175,15 +176,15 @@ class ManualTimeEntryIn(Schema):
 class WikiPageIn(Schema):
     title: str
     body: str = ""
-    parent_id: str | None = None
+    parent_id: UUID | None = None
 
 
 class TaskDependencyIn(Schema):
     """PJ15 : payload de creation d'une dependance entre deux taches DU
     MEME projet — cf. `services/dependencies.py::add_dependency`."""
 
-    from_task_id: str
-    to_task_id: str
+    from_task_id: UUID
+    to_task_id: UUID
     dependency_type: str = PrjTaskDependency.TYPE_FINISH_TO_START
 
 
@@ -215,8 +216,8 @@ class WikiPageUpdateIn(Schema):
 
 class TaskIn(Schema):
     task_type: str = PrjTask.TYPE_TASK
-    parent_id: str | None = None
-    assignee_id: str | None = None
+    parent_id: UUID | None = None
+    assignee_id: UUID | None = None
     start_date: str | None = None
     end_date: str | None = None
     duration_days: int = 0

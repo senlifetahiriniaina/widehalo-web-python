@@ -303,14 +303,14 @@ class TripStopIn(Schema):
 
 
 class TripIn(Schema):
-    vehicle_id: str
-    driver_id: str
+    vehicle_id: UUID
+    driver_id: UUID
     date: dt.date
     stops: list[TripStopIn] = []
 
 
 class ReorderStopsIn(Schema):
-    ordered_stop_ids: list[str]
+    ordered_stop_ids: list[UUID]
 
 
 class StartTripIn(Schema):
@@ -323,8 +323,8 @@ class CloseTripIn(Schema):
 
 class TripTemplateIn(Schema):
     name: str
-    vehicle_id: str
-    driver_id: str
+    vehicle_id: UUID
+    driver_id: UUID
     interval: str = LogTripTemplate.INTERVAL_WEEKLY
     stops_data: list[dict[str, Any]] = []
     start_date: dt.date
@@ -525,8 +525,8 @@ class PackagingPlanLineIn(Schema):
 class PackagingPlanIn(Schema):
     source_app_label: str
     source_model: str
-    source_object_id: str
-    packaging_type_id: str
+    source_object_id: UUID
+    packaging_type_id: UUID
     lines: list[PackagingPlanLineIn]
 
 
@@ -751,7 +751,7 @@ class ShipmentLegIn(Schema):
     mode: str = "road"
     origin: str
     destination: str
-    carrier_id: str | None = None
+    carrier_id: UUID | None = None
     departure_date: dt.date | None = None
     arrival_date: dt.date | None = None
 
@@ -759,10 +759,10 @@ class ShipmentLegIn(Schema):
 class ShipmentIn(Schema):
     origin: str
     destination: str
-    carrier_id: str | None = None
+    carrier_id: UUID | None = None
     incoterm: str = ""
-    purchase_order_ids: list[str] = []
-    sales_order_ids: list[str] = []
+    purchase_order_ids: list[UUID] = []
+    sales_order_ids: list[UUID] = []
     legs: list[ShipmentLegIn] = []
 
 
@@ -1043,13 +1043,13 @@ class HsCodeIn(Schema):
 
 
 class CustomsFileIn(Schema):
-    shipment_id: str
-    broker_id: str | None = None
+    shipment_id: UUID
+    broker_id: UUID | None = None
     opened_at: dt.date | None = None
 
 
 class CustomsLineIn(Schema):
-    hs_code_id: str
+    hs_code_id: UUID
     description: str
     fob_value_mga: Decimal
     freight_value_mga: Decimal = Decimal(0)

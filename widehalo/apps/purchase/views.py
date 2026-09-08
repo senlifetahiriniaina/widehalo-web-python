@@ -204,7 +204,7 @@ def requisition_detail(request: HttpRequest, requisition_id: str) -> HttpRespons
             if action == "add_line":
                 add_requisition_line(
                     requisition,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                     description=post.get("description", ""),
                     qty=Decimal(post.get("qty") or "1"),
                     uom=post.get("uom", ""),
@@ -214,7 +214,8 @@ def requisition_detail(request: HttpRequest, requisition_id: str) -> HttpRespons
                 )
             elif action == "create_order":
                 new_order = create_order_from_requisition(
-                    requisition, partner_id=uuid.UUID(post.get("partner_id", ""))
+                    requisition,
+                    partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
                 )
             else:
                 handler = _REQUISITION_ACTIONS.get(action)
@@ -293,24 +294,30 @@ def rfq_detail(request: HttpRequest, rfq_id: str) -> HttpResponse:
             if action == "add_line":
                 add_rfq_line(
                     rfq,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                     description=post.get("description", ""),
                     qty=Decimal(post.get("qty") or "1"),
                     uom=post.get("uom", ""),
                 )
             elif action == "add_supplier":
-                add_rfq_supplier(rfq, partner_id=uuid.UUID(post.get("partner_id", "")))
+                add_rfq_supplier(
+                    rfq, partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire"))
+                )
             elif action == "send":
                 send_rfq(rfq)
             elif action == "record_response":
                 record_rfq_response(
                     rfq,
-                    partner_id=uuid.UUID(post.get("resp_partner_id", "")),
+                    partner_id=parse_uuid(
+                        post.get("resp_partner_id"), champ=_("partenaire responsable")
+                    ),
                     date_received=parse_date(post.get("resp_date_received", ""))
                     or timezone.now().date(),
                     lines=[
                         {
-                            "variant_id": uuid.UUID(post.get("resp_variant_id", "")),
+                            "variant_id": parse_uuid(
+                                post.get("resp_variant_id"), champ=_("produit responsable")
+                            ),
                             "qty": Decimal(post.get("resp_qty") or "1"),
                             "unit_price_mga": Decimal(post.get("resp_unit_price_mga") or "0"),
                         }
@@ -433,7 +440,7 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             if action == "add_line":
                 add_order_line(
                     order,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                     description=post.get("description", ""),
                     qty=Decimal(post.get("qty") or "1"),
                     unit_price_mga=Decimal(post.get("unit_price_mga") or "0"),
@@ -535,7 +542,7 @@ def cra_list(request: HttpRequest) -> HttpResponse:
                     tenant=tenant,
                     date=parse_date(post.get("date", "")) or timezone.now().date(),
                     buyer=user,
-                    partner_id=uuid.UUID(post.get("partner_id", "")),
+                    partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
                     activity_type=post.get("activity_type", PurCra.TYPE_SOURCING),
                     hours=Decimal(post.get("hours") or "0"),
                     order=order,
@@ -585,7 +592,7 @@ def cri_list(request: HttpRequest) -> HttpResponse:
                     tenant=tenant,
                     date=parse_date(post.get("date", "")) or timezone.now().date(),
                     type=post.get("type", PurCri.TYPE_RETARD),
-                    partner_id=uuid.UUID(post.get("partner_id", "")),
+                    partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
                     description=post.get("description", ""),
                     order=order,
                     impact=post.get("impact", ""),

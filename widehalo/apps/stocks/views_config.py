@@ -10,7 +10,6 @@ pour la justification complete de ce choix (plafond `test_budget.py`,
 
 from __future__ import annotations
 
-import uuid
 from decimal import InvalidOperation
 from typing import cast
 
@@ -18,7 +17,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 
+from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
 from apps.core.views.tenant_web import resolve_tenant
 from apps.stocks.models import (
@@ -154,7 +155,7 @@ def config_negative_stock(request: HttpRequest) -> HttpResponse:
             if action == "grant":
                 grant_negative_stock_exception(
                     tenant=tenant,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                     authorized_by=user,
                     reason=post.get("reason", ""),
                 )

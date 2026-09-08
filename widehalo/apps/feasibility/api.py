@@ -26,7 +26,7 @@ class StudyIn(Schema):
     name: str
     description: str = ""
     sector_code: str = ""
-    owner_id: str | None = None
+    owner_id: UUID | None = None
 
 
 class StudyLineIn(Schema):

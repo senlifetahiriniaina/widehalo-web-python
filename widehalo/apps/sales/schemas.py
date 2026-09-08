@@ -66,7 +66,7 @@ class QuotationLineOut(Schema):
 
     id: str
     sequence: int
-    variant_id: str | None
+    variant_id: UUID | None
     is_custom: bool
     description: str
     qty: Decimal
@@ -82,9 +82,9 @@ class QuotationLineOut(Schema):
 class QuotationOut(Schema):
     id: str
     reference: str
-    partner_id: str
+    partner_id: UUID
     contact: str
-    source_lead_id: str | None
+    source_lead_id: UUID | None
     source_lead_reference: str
     date: dt.date
     validity_date: dt.date | None
@@ -148,14 +148,14 @@ class OrderInvoiceIn(Schema):
 
 
 class OrderInvoiceOut(Schema):
-    invoice_id: str | None
+    invoice_id: UUID | None
     detail: str = ""
 
 
 class OrderLineOut(Schema):
     id: str
     sequence: int
-    variant_id: str | None
+    variant_id: UUID | None
     is_custom: bool
     description: str
     qty: Decimal
@@ -177,7 +177,7 @@ class RecurrenceIn(Schema):
     name: str
     interval: str
     start_date: dt.date
-    template_order_id: str
+    template_order_id: UUID
     day_rule: str = ""
     end_date: dt.date | None = None
 
@@ -190,15 +190,15 @@ class RecurrenceOut(Schema):
     start_date: dt.date
     end_date: dt.date | None
     next_run: dt.date
-    template_order_id: str
+    template_order_id: UUID
     is_active: bool
 
 
 class ForecastOut(Schema):
     id: str
     period: str
-    variant_id: str
-    partner_id: str | None
+    variant_id: UUID
+    partner_id: UUID | None
     qty_forecast: Decimal
     qty_actual: Decimal | None
     confidence: str
@@ -247,10 +247,10 @@ class TargetOut(Schema):
 class OrderOut(Schema):
     id: str
     reference: str
-    quotation_id: str | None
-    partner_id: str
+    quotation_id: UUID | None
+    partner_id: UUID
     contact: str
-    source_lead_id: str | None
+    source_lead_id: UUID | None
     source_lead_reference: str
     date: dt.date
     date_confirmed: dt.date | None

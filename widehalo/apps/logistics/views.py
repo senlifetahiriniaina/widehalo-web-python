@@ -24,7 +24,9 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
+from django.utils.translation import gettext as _
 
+from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
@@ -467,7 +469,7 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
             elif action == "refactor_freight":
                 refactor_freight_to_customer(
                     shipment,
-                    partner_id=uuid.UUID(post.get("partner_id", "")),
+                    partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
                     amount_mga=Decimal(post["amount_mga"]) if post.get("amount_mga") else None,
                 )
             else:

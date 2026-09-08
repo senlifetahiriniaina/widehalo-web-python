@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -33,33 +34,33 @@ router = Router(tags=["patronage"])
 class PatternIn(Schema):
     code: str
     name: str
-    size_chart_id: str
+    size_chart_id: UUID
 
 
 class PieceIn(Schema):
     code: str
     name: str
     qty_per_garment: int = 1
-    material_variant_id: str | None = None
+    material_variant_id: UUID | None = None
 
 
 class ConsumptionIn(Schema):
     size: str
-    material_variant_id: str
+    material_variant_id: UUID
     width_cm: Decimal
     waste_pct: Decimal = Decimal(0)
 
 
 class MarkerIn(Schema):
-    material_variant_id: str
+    material_variant_id: UUID
     fabric_width_cm: Decimal
     size_ratio: dict[str, int]
     efficiency_pct: Decimal = Decimal(85)
 
 
 class PushToBomIn(Schema):
-    bom_id: str
-    material_variant_id: str
+    bom_id: UUID
+    material_variant_id: UUID
 
 
 def _serialize_pattern(pattern: PatPattern) -> dict[str, Any]:

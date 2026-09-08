@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any, Literal
+from uuid import UUID
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -158,7 +159,7 @@ class ScheduleIn(Schema):
     format: ReportFormat = "json"
     lang: ReportLang = "fr"
     frequency: Literal["daily", "weekly", "monthly"]
-    recipient_ids: list[str] = []
+    recipient_ids: list[UUID] = []
 
 
 def _serialize_schedule(schedule: RptSchedule) -> dict[str, Any]:

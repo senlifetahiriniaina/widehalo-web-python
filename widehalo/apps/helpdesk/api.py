@@ -31,6 +31,7 @@ d'un tiers. Les endpoints de configuration (`HlpTeam`/
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -88,17 +89,17 @@ def _forbidden() -> JsonResponse:
 class TeamIn(Schema):
     name: str
     description: str = ""
-    member_ids: list[str] = []
+    member_ids: list[UUID] = []
 
 
 class TicketTypeIn(Schema):
     kind: str
     code: str
     label: str
-    parent_id: str | None = None
+    parent_id: UUID | None = None
     sector_code: str = ""
     related_module: str = ""
-    default_team_id: str | None = None
+    default_team_id: UUID | None = None
     default_priority: str = ""
 
 
@@ -106,7 +107,7 @@ class TicketTypeUpdateIn(Schema):
     label: str | None = None
     sector_code: str | None = None
     related_module: str | None = None
-    default_team_id: str | None = None
+    default_team_id: UUID | None = None
     default_priority: str | None = None
     is_active: bool | None = None
 
@@ -115,11 +116,11 @@ class TicketIn(Schema):
     subject: str
     description: str = ""
     kind: str
-    ticket_type_id: str | None = None
+    ticket_type_id: UUID | None = None
     priority: str = ""
-    assignee_id: str | None = None
-    team_id: str | None = None
-    sla_policy_id: str | None = None
+    assignee_id: UUID | None = None
+    team_id: UUID | None = None
+    sla_policy_id: UUID | None = None
     blocks_operations: bool = False
 
 
@@ -135,8 +136,8 @@ class EscalationRuleIn(Schema):
     condition_type: str
     threshold_minutes: int | None = None
     min_priority: str = ""
-    escalate_to_team_id: str | None = None
-    escalate_to_user_id: str | None = None
+    escalate_to_team_id: UUID | None = None
+    escalate_to_user_id: UUID | None = None
 
 
 class CommentIn(Schema):
@@ -146,20 +147,20 @@ class CommentIn(Schema):
 
 class KbCategoryIn(Schema):
     name: str
-    parent_id: str | None = None
+    parent_id: UUID | None = None
 
 
 class KbArticleIn(Schema):
     title: str
     body: str = ""
-    category_id: str | None = None
+    category_id: UUID | None = None
     is_published: bool = False
 
 
 class KbArticleUpdateIn(Schema):
     title: str | None = None
     body: str | None = None
-    category_id: str | None = None
+    category_id: UUID | None = None
 
 
 class KbFeedbackIn(Schema):

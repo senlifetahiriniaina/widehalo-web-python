@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -29,8 +30,8 @@ router = Router(tags=["catalog"])
 
 class TemplateIn(Schema):
     name: str
-    base_uom_id: str
-    category_id: str | None = None
+    base_uom_id: UUID
+    category_id: UUID | None = None
     base_price_mga: Decimal = Decimal(0)
     is_sellable: bool = True
 
@@ -40,7 +41,7 @@ class TemplateSellableIn(Schema):
 
 
 class VariantAttributesIn(Schema):
-    attribute_ids: list[str]
+    attribute_ids: list[UUID]
 
 
 class SectorSpecIn(Schema):

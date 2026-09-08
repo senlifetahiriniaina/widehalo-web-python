@@ -310,7 +310,7 @@ def picking_detail(request: HttpRequest, picking_id: str) -> HttpResponse:
         post = request.POST
         try:
             if action == "add_line":
-                variant_id = uuid.UUID(post.get("variant_id", ""))
+                variant_id = parse_uuid(post.get("variant_id"), champ=_("produit"))
                 add_picking_line(
                     picking,
                     variant_id=variant_id,
@@ -581,7 +581,7 @@ def inventory_detail(request: HttpRequest, inventory_id: str) -> HttpResponse:
             if action == "add_line":
                 add_inventory_line(
                     inventory,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                     location=get_object_or_404(StkLocation, id=post.get("location_id")),
                 )
             elif action == "start":
@@ -634,8 +634,8 @@ def return_list(request: HttpRequest) -> HttpResponse:
         try:
             create_return(
                 tenant=tenant,
-                partner_id=uuid.UUID(post.get("partner_id", "")),
-                variant_id=uuid.UUID(post.get("variant_id", "")),
+                partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
+                variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
                 qty=Decimal(post.get("qty") or "1"),
                 date=parse_date(post.get("date", "")) or timezone.now().date(),
                 reason=post.get("reason", ""),
@@ -912,7 +912,7 @@ def scan_receive_submit(request: HttpRequest) -> HttpResponse:
     redirect_url = f"/stocks/scan/?warehouse_id={warehouse_id}&location_scan={location_scan}"
 
     try:
-        client_uuid = uuid.UUID(request.POST.get("client_uuid", ""))
+        client_uuid = parse_uuid(request.POST.get("client_uuid"), champ=_("ticket client"))
         location_from = get_object_or_404(StkLocation, id=request.POST.get("location_from_id"))
         location_to = get_object_or_404(StkLocation, id=request.POST.get("location_to_id"))
         scan.sync_scan_reception_line(

@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -44,7 +45,7 @@ class LoanApplicationIn(Schema):
     duration_months: int
     purpose: str = ""
     currency: str = "MGA"
-    bank_partner_id: str | None = None
+    bank_partner_id: UUID | None = None
     bank_name: str = ""
     own_contribution_pct: Decimal = Decimal(30)
 
@@ -67,14 +68,14 @@ class GuaranteeIn(Schema):
 
 
 class CredocIn(Schema):
-    purchase_order_id: str
+    purchase_order_id: UUID
     bank: str
     beneficiary: str
     amount_mga: Decimal
     validity_date: str
     currency: str = "MGA"
     advising_bank: str = ""
-    log_shipment_id: str | None = None
+    log_shipment_id: UUID | None = None
     incoterm: str = ""
     documents_required: list[str] = []
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -50,14 +51,14 @@ router = Router(tags=["mrp"])
 
 class BomIn(Schema):
     code: str
-    product_template_id: str
+    product_template_id: UUID
     uom_code: str = ""
     qty: Decimal = Decimal(1)
 
 
 class OrderIn(Schema):
-    bom_id: str
-    workshop_id: str
+    bom_id: UUID
+    workshop_id: UUID
     qty: Decimal
 
 

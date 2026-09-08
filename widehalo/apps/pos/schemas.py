@@ -47,15 +47,15 @@ class PaymentMethodOut(Schema):
 
 
 class SessionOpenIn(Schema):
-    register_id: str
+    register_id: UUID
     opening_cash_amount: Decimal = Decimal(0)
 
 
 class SessionOut(Schema):
     id: str
-    register_id: str
+    register_id: UUID
     register_code: str
-    cashier_id: str
+    cashier_id: UUID
     state: str
     opened_at: dt.datetime
     closed_at: dt.datetime | None
@@ -64,7 +64,7 @@ class SessionOut(Schema):
     closing_cash_expected: Decimal | None
     cash_variance: Decimal | None
     cash_variance_reason: str
-    closing_move_id: str | None
+    closing_move_id: UUID | None
     local_sequence_last: int
 
 
@@ -86,7 +86,7 @@ class SessionCloseIn(Schema):
 
 class OrderLineIn(Schema):
     line_type: str = PosOrderLine.TYPE_PRODUCT
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     description: str = ""
     qty: Decimal = Decimal(1)
     uom: str = ""
@@ -97,7 +97,7 @@ class OrderLineIn(Schema):
 
 
 class OrderPaymentIn(Schema):
-    method_id: str
+    method_id: UUID
     amount: Decimal
     reference: str = ""
 
@@ -114,7 +114,7 @@ class OrderSyncIn(Schema):
 
 
 class OrderSyncBatchIn(Schema):
-    session_id: str
+    session_id: UUID
     orders: list[OrderSyncIn] = []
 
 
@@ -122,7 +122,7 @@ class OrderLineOut(Schema):
     id: str
     sequence: int
     line_type: str
-    variant_id: str | None
+    variant_id: UUID | None
     description: str
     qty: Decimal
     uom: str
@@ -134,12 +134,12 @@ class OrderLineOut(Schema):
     total: Decimal
     service_basis: str
     is_deposit: bool
-    stock_move_id: str | None
+    stock_move_id: UUID | None
 
 
 class OrderPaymentOut(Schema):
     id: str
-    method_id: str
+    method_id: UUID
     method_name: str
     amount: Decimal
     reference: str
@@ -148,13 +148,13 @@ class OrderPaymentOut(Schema):
 
 class OrderOut(Schema):
     id: str
-    session_id: str
+    session_id: UUID
     register_code: str
     client_uuid: UUID
     number: str
     local_sequence: int
     order_type: str
-    origin_order_id: str | None
+    origin_order_id: UUID | None
     document_type: str
     partner_id: UUID | None
     partner_name: str
@@ -187,12 +187,12 @@ class ReturnLineIn(Schema):
 
 
 class ReturnOrderIn(Schema):
-    origin_order_id: str
-    session_id: str
+    origin_order_id: UUID
+    session_id: UUID
     client_uuid: UUID
     local_sequence: int
     return_lines: list[ReturnLineIn]
-    refund_method_id: str
+    refund_method_id: UUID
     refund_reference: str = ""
 
 

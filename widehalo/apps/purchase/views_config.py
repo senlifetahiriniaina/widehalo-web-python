@@ -14,7 +14,6 @@ transactionnels de `views.py`."""
 
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
@@ -121,8 +120,10 @@ def substitute_list(request: HttpRequest) -> HttpResponse:
             if action == "create":
                 substitute = create_substitute(
                     tenant=tenant,
-                    variant_id=uuid.UUID(post.get("variant_id", "")),
-                    substitute_variant_id=uuid.UUID(post.get("substitute_variant_id", "")),
+                    variant_id=parse_uuid(post.get("variant_id"), champ=_("produit")),
+                    substitute_variant_id=parse_uuid(
+                        post.get("substitute_variant_id"), champ=_("produit de substitution")
+                    ),
                     compatibility=post.get("compatibility", PurSubstitute.COMPATIBILITY_EQUIVALENT),
                     ratio=Decimal(post.get("ratio") or "1"),
                     conditions=post.get("conditions", ""),

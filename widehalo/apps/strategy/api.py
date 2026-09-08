@@ -38,8 +38,8 @@ class ObjectiveIn(Schema):
     title: str
     level: str
     description: str = ""
-    parent_id: str | None = None
-    owner_id: str | None = None
+    parent_id: UUID | None = None
+    owner_id: UUID | None = None
     department_id: UUID | None = None
     sector_code: str | None = None
     period_start: str
@@ -64,7 +64,7 @@ class CheckInIn(Schema):
 class NoteIn(Schema):
     title: str
     body: str = ""
-    objective_id: str | None = None
+    objective_id: UUID | None = None
 
 
 def _serialize_objective(objective: StgObjective) -> dict[str, Any]:

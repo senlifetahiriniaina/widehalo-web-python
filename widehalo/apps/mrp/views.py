@@ -15,8 +15,10 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext as _
 
 from apps.catalog.services.public import get_variant_sector_code
+from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
@@ -169,8 +171,8 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             elif action == "create_subcontract":
                 send_to_subcontractor(
                     order,
-                    partner_id=UUID(post.get("partner_id") or ""),
-                    variant_id=UUID(post.get("sub_variant_id") or ""),
+                    partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
+                    variant_id=parse_uuid(post.get("sub_variant_id"), champ=_("sous-produit")),
                     qty=Decimal(post.get("sub_qty") or "0"),
                     price_unit=Decimal(post.get("price_unit") or "0"),
                 )

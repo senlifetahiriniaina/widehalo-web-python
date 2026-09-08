@@ -86,15 +86,15 @@ class WarehouseIn(Schema):
     name: str
     type: str = StkWarehouse.TYPE_PRINCIPAL
     address: str = ""
-    manager_id: str | None = None
+    manager_id: UUID | None = None
 
 
 class LocationIn(Schema):
-    warehouse_id: str
+    warehouse_id: UUID
     code: str
     name: str
     type: str = StkLocation.TYPE_INTERNE
-    parent_id: str | None = None
+    parent_id: UUID | None = None
     is_scrap: bool = False
     capacity: Decimal | None = None
     barcode: str = ""
@@ -242,25 +242,25 @@ class MoveIn(Schema):
     variant_id: UUID
     qty: Decimal
     uom: str = ""
-    location_from_id: str
-    location_to_id: str
+    location_from_id: UUID
+    location_to_id: UUID
     date: str
     move_type: str
     source_document: str = ""
     unit_cost_mga: Decimal = Decimal(0)
-    lot_id: str | None = None
+    lot_id: UUID | None = None
 
 
 class TransferIn(Schema):
     variant_id: UUID
     qty: Decimal
     uom: str = ""
-    source_warehouse_id: str
-    destination_warehouse_id: str
+    source_warehouse_id: UUID
+    destination_warehouse_id: UUID
     date: str
     source_document: str = ""
     unit_cost_mga: Decimal = Decimal(0)
-    lot_id: str | None = None
+    lot_id: UUID | None = None
 
 
 class ReceiveTransferIn(Schema):
@@ -270,8 +270,8 @@ class ReceiveTransferIn(Schema):
 
 class PickingIn(Schema):
     type: str
-    location_from_id: str
-    location_to_id: str
+    location_from_id: UUID
+    location_to_id: UUID
     partner_id: UUID | None = None
     date_scheduled: str | None = None
     source_document: str = ""
@@ -284,7 +284,7 @@ class PickingLineIn(Schema):
     qty: Decimal
     uom: str = ""
     unit_cost_mga: Decimal = Decimal(0)
-    lot_id: str | None = None
+    lot_id: UUID | None = None
 
 
 class MeasurementIn(Schema):
@@ -297,16 +297,16 @@ class MeasurementIn(Schema):
 
 
 class QualityStateIn(Schema):
-    quant_id: str | None = None
-    lot_id: str | None = None
+    quant_id: UUID | None = None
+    lot_id: UUID | None = None
     state: str
-    defect_type_id: str | None = None
+    defect_type_id: UUID | None = None
     defect_qty: Decimal = Decimal(0)
     description: str = ""
 
 
 class InventoryIn(Schema):
-    warehouse_id: str
+    warehouse_id: UUID
     date: str
     type: str = StkInventory.TYPE_PONCTUEL
     # STK-6 (L13) : comptage a l'aveugle. Defaut `False` — le mode aveugle
@@ -317,8 +317,8 @@ class InventoryIn(Schema):
 
 class InventoryLineIn(Schema):
     variant_id: UUID
-    location_id: str
-    lot_id: str | None = None
+    location_id: UUID
+    lot_id: UUID | None = None
 
 
 def _serialize_move(move: StkMove) -> dict:  # type: ignore[type-arg]
@@ -792,15 +792,15 @@ def consistency_report_endpoint(request):
 
 class StockImportRowResolveIn(Schema):
     variant_code: str | None = None
-    warehouse_id: str | None = None
-    location_id: str | None = None
+    warehouse_id: UUID | None = None
+    location_id: UUID | None = None
     qty: Decimal | None = None
     discard: bool = False
 
 
 class StockImportRowQualifyIn(Schema):
     variant_id: UUID | None = None
-    location_id: str | None = None
+    location_id: UUID | None = None
 
 
 def _serialize_stock_import_row(row: StkImportRow) -> dict:

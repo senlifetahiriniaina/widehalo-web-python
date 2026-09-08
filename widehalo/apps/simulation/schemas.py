@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any
+from uuid import UUID
 
 from ninja import Schema
 
@@ -31,7 +32,7 @@ class BaselineOut(Schema):
 
 
 class ScenarioCreateIn(Schema):
-    baseline_id: str
+    baseline_id: UUID
     name: str
     description: str = ""
     is_shared: bool = False
@@ -49,10 +50,10 @@ class ScenarioUpdateIn(Schema):
 
 class ScenarioOut(Schema):
     id: str
-    baseline_id: str
+    baseline_id: UUID
     name: str
     description: str
-    owner_id: str
+    owner_id: UUID
     owner_email: str
     is_shared: bool
     ai_generated: bool
@@ -64,13 +65,13 @@ class ScenarioOut(Schema):
 
 
 class CompareIn(Schema):
-    scenario_ids: list[str]
+    scenario_ids: list[UUID]
 
 
 class ScenarioComparisonRowOut(Schema):
     id: str
     name: str
-    owner_id: str
+    owner_id: UUID
     is_shared: bool
     levers: dict[str, Any]
     indicators: dict[str, Any]
@@ -84,6 +85,6 @@ class SensitivityRowOut(Schema):
 
 
 class AiProposeIn(Schema):
-    baseline_id: str
+    baseline_id: UUID
     nl_request: str
     proposed_levers: dict[str, float]

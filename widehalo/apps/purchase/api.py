@@ -268,7 +268,7 @@ class RfqResponseIn(Schema):
 
 
 class RfqAwardIn(Schema):
-    response_id: str
+    response_id: UUID
 
 
 def _serialize_rfq_line(line) -> dict:  # type: ignore[no-untyped-def,type-arg]
@@ -479,7 +479,7 @@ class OrderFromRequisitionIn(Schema):
 
 
 class BulkFromRequisitionsIn(Schema):
-    requisition_ids: list[str]
+    requisition_ids: list[UUID]
 
 
 def _serialize_order_line(line) -> dict:  # type: ignore[no-untyped-def,type-arg]
@@ -767,7 +767,7 @@ class ReceiveLineIn(Schema):
     qty_received_now: Decimal
     quality_status: str
     notes: str = ""
-    photo_document_ids: list[str] = []
+    photo_document_ids: list[UUID] = []
     # Bloc D, D2 (QUA-8) : le certificat lui-meme reste hors API dans ce
     # sprint (l'upload de fichier via API Ninja depasse le perimetre
     # annonce) — documente explicitement, pas silencieux. Un appelant API
@@ -893,7 +893,7 @@ class CraIn(Schema):
     partner_id: UUID
     activity_type: str
     hours: Decimal
-    order_id: str | None = None
+    order_id: UUID | None = None
     comment: str = ""
 
 
@@ -987,11 +987,11 @@ class CriIn(Schema):
     type: str
     partner_id: UUID
     description: str
-    order_id: str | None = None
+    order_id: UUID | None = None
     impact: str = ""
     action_taken: str = ""
     cost_mga: Decimal = Decimal(0)
-    attachment_document_ids: list[str] = []
+    attachment_document_ids: list[UUID] = []
 
 
 class CriCloseIn(Schema):

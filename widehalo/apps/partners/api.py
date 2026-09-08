@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import UUID
 
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -37,8 +38,8 @@ class PartnerIn(Schema):
 
 
 class MergeIn(Schema):
-    primary_id: str
-    duplicate_id: str
+    primary_id: UUID
+    duplicate_id: UUID
 
 
 def _serialize(partner: Partner) -> dict:

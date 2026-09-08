@@ -25,6 +25,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -72,14 +73,14 @@ class CriticalPointIn(Schema):
 
 class MeasurementIn(Schema):
     value: Decimal
-    lot_variant_id: str | None = None
+    lot_variant_id: UUID | None = None
     lot_name: str = ""
     measured_at: dt.datetime | None = None
 
 
 class NonConformityIn(Schema):
     description: str
-    lot_variant_id: str | None = None
+    lot_variant_id: UUID | None = None
     lot_name: str = ""
 
 
@@ -88,13 +89,13 @@ class CloseIn(Schema):
 
 
 class LotReleaseIn(Schema):
-    lot_variant_id: str
+    lot_variant_id: UUID
     lot_name: str
     reason: str
 
 
 class RecallIn(Schema):
-    lot_variant_id: str
+    lot_variant_id: UUID
     lot_name: str
     reason: str
 

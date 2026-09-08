@@ -46,7 +46,7 @@ class LeadLineIn(Schema):
 class LeadIn(Schema):
     name: str
     partner_id: UUID | None = None
-    pipeline_id: str | None = None
+    pipeline_id: UUID | None = None
     contact_name: str = ""
     email: str = ""
     phone: str = ""
@@ -55,8 +55,8 @@ class LeadIn(Schema):
 
 
 class MoveStageIn(Schema):
-    stage_id: str
-    lost_reason_id: str | None = None
+    stage_id: UUID
+    lost_reason_id: UUID | None = None
     comment: str = ""
 
 

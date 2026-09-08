@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django.utils.translation import gettext as _
 from ninja import Router, Schema
 
@@ -15,7 +17,7 @@ class TenantOut(Schema):
 
 
 class TenantSelectIn(Schema):
-    tenant_id: str
+    tenant_id: UUID
 
 
 @router.get("/tenants", response=list[TenantOut])
