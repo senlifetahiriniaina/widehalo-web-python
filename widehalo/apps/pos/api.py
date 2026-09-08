@@ -21,7 +21,6 @@ routeur, jamais une logique dupliquée."""
 
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -377,10 +376,7 @@ def sync_orders_endpoint(request, payload: OrderSyncBatchIn):  # type: ignore[no
                 document_type=spec.document_type,
                 partner_id=spec.partner_id,
                 lines=[line.dict() for line in spec.lines],
-                payments=[
-                    {**payment.dict(), "method_id": uuid.UUID(payment.dict()["method_id"])}
-                    for payment in spec.payments
-                ],
+                payments=[payment.dict() for payment in spec.payments],
                 source=spec.source,
                 user=request.auth,
             )

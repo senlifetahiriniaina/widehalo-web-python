@@ -588,9 +588,7 @@ def bulk_from_requisitions_endpoint(request, payload: BulkFromRequisitionsIn):
 
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     try:
-        result = create_bulk_orders_from_requisitions(
-            [uuid.UUID(rid) for rid in payload.requisition_ids], tenant=tenant
-        )
+        result = create_bulk_orders_from_requisitions(list(payload.requisition_ids), tenant=tenant)
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
     return {
@@ -789,7 +787,7 @@ def receive_order_line_endpoint(request, order_id: str, line_id: str, payload: R
             quality_status=payload.quality_status,
             user=request.auth,
             notes=payload.notes,
-            photo_document_ids=[uuid.UUID(doc_id) for doc_id in payload.photo_document_ids],
+            photo_document_ids=list(payload.photo_document_ids),
             lot_name=payload.lot_name,
             date_production=payload.date_production,
             date_expiry=payload.date_expiry,
@@ -1039,7 +1037,7 @@ def create_cri_endpoint(request, payload: CriIn):
         impact=payload.impact,
         action_taken=payload.action_taken,
         cost_mga=payload.cost_mga,
-        attachment_document_ids=[uuid.UUID(doc_id) for doc_id in payload.attachment_document_ids],
+        attachment_document_ids=list(payload.attachment_document_ids),
     )
     return _serialize_cri(cri)
 

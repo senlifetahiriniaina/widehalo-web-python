@@ -150,11 +150,40 @@ def test_no_endpoint_converts_an_identifier_by_hand() -> None:
                 violations.append(
                     f"{chemin.relative_to(APPS_DIR.parent)}:{node.lineno} UUID({argument})"
                 )
+    # La conversion peut aussi se cacher DANS une comprehension qui itere
+    # sur un champ de schema : `[uuid.UUID(x) for x in payload.stop_ids]`.
+    # La premiere redaction de cette garde ne regardait que l'argument
+    # direct et l'a laissee passer — `payload.ordered_stop_ids` typee
+    # `list[UUID]`, le `uuid.UUID()` recevait alors un `UUID` et levait
+    # `TypeError`. C'est la passe complete qui l'a trouve, pas la garde.
+    violations.extend(_conversions_in_comprehensions())
     assert not violations, (
         "Conversion manuelle d'un identifiant de schéma : le champ doit être "
         "déclaré `UUID`, et la conversion supprimée — la garder masquerait un "
         "retour à `str` :\n" + "\n".join(violations)
     )
+
+
+def _conversions_in_comprehensions() -> list[str]:
+    """Les `UUID(x)` dont la source est un champ de schema PARCOURU.
+
+    Une conversion dans une comprehension est aussi morte que la conversion
+    directe, et aussi dangereuse : elle masque le retypage, et si le champ
+    EST typé, elle explose en `TypeError`."""
+    trouvees: list[str] = []
+    for chemin in _fichiers_de_surface():
+        arbre = ast.parse(chemin.read_text(encoding="utf-8"), filename=str(chemin))
+        for node in ast.walk(arbre):
+            if not isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+                continue
+            sources = " ".join(ast.unparse(g.iter) for g in node.generators)
+            if not sources.startswith(("payload.", "line.", "spec.")):
+                continue
+            rendu = ast.unparse(node.elt)
+            if "UUID(" in rendu:
+                ou = chemin.relative_to(APPS_DIR.parent)
+                trouvees.append(f"{ou}:{node.lineno} {rendu} for … in {sources}")
+    return trouvees
 
 
 def test_no_screen_view_converts_a_request_value_by_hand() -> None:

@@ -23,17 +23,33 @@ et n'ont rien pour les arrêter. C'est exactement la répartition que le lot
 T1 a établie entre `ReportFormat` (le type, côté API) et
 `parse_report_format` (la fonction, côté écran).
 
-**`BadRequest` plutôt qu'un repli sur `None`.** Traiter un identifiant
-illisible comme « pas d'identifiant » crée un document orphelin au lieu de
-refuser une saisie fausse — une erreur silencieuse qu'un comptable
-découvrira des semaines plus tard, sur une facture sans client.
+**`ValidationError` plutôt qu'un repli sur `None`.** Traiter un
+identifiant illisible comme « pas d'identifiant » crée un document orphelin
+au lieu de refuser une saisie fausse — une erreur silencieuse qu'un
+comptable découvrira des semaines plus tard, sur une facture sans client.
+
+**Et `ValidationError` plutôt que `BadRequest`, ce qui n'est pas un
+détail.** La première rédaction levait `BadRequest`, et le test SAL-7
+`test_a_validation_error_no_longer_empties_the_form` l'a refusée sur-le-
+champ : les vues de formulaire rattrapent `ValidationError` pour re-rendre
+la page AVEC la saisie de l'utilisateur, et `BadRequest` traverse ce
+`try` pour produire une page 400 nue. C'est-à-dire qu'elle rouvrait le
+défaut que le lot SAL-7 avait précisément fermé — un formulaire vidé par
+une erreur de validation.
+
+`ValidationError` est le bon niveau sur les deux surfaces : les vues qui
+re-rendent le rattrapent déjà, et côté API le gestionnaire livré par T1
+(`apps.core.errors.on_domain_validation_error`) le traduit en 422 qui
+nomme le champ. `BadRequest` reste juste là où rien ne rattrape et où il
+n'y a pas de saisie à préserver — la lecture d'un paramètre de rapport
+dans une barre d'adresse, ce que fait `parse_report_format`.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-from django.core.exceptions import BadRequest
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
 
@@ -47,11 +63,11 @@ def parse_uuid(valeur: str | None, *, champ: str) -> UUID:
     moitié du travail d'un refus."""
     brut = (valeur or "").strip()
     if not brut:
-        raise BadRequest(_("Le champ « %(champ)s » est obligatoire.") % {"champ": champ})
+        raise ValidationError(_("Le champ « %(champ)s » est obligatoire.") % {"champ": champ})
     try:
         return UUID(brut)
     except (ValueError, AttributeError, TypeError) as refus:
-        raise BadRequest(
+        raise ValidationError(
             _(
                 "Identifiant illisible pour le champ « %(champ)s ». Sélectionnez "
                 "une valeur dans la liste plutôt que de la saisir à la main."

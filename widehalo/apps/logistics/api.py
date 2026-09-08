@@ -15,7 +15,6 @@ JWT applicatif) — meme patron que le webhook WhatsApp de
 from __future__ import annotations
 
 import datetime as dt
-import uuid
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -414,7 +413,7 @@ def get_trip_endpoint(request, trip_id: str):
 def reorder_stops_endpoint(request, trip_id: str, payload: ReorderStopsIn):
     trip = get_object_or_404(LogTrip, id=trip_id)
     try:
-        reorder_stops(trip, [uuid.UUID(stop_id) for stop_id in payload.ordered_stop_ids])
+        reorder_stops(trip, list(payload.ordered_stop_ids))
     except ValidationError as exc:
         return _error_response(exc)
     trip.refresh_from_db()

@@ -5,7 +5,6 @@ l'etape suivante du meme chantier."""
 
 from __future__ import annotations
 
-import uuid
 from typing import Any, Literal
 from uuid import UUID
 
@@ -210,7 +209,7 @@ def create_schedule_endpoint(request, payload: ScheduleIn):
         created_by=request.auth,
     )
     if payload.recipient_ids:
-        recipients = User.objects.filter(id__in=[uuid.UUID(r) for r in payload.recipient_ids])
+        recipients = User.objects.filter(id__in=list(payload.recipient_ids))
         schedule.recipients.set(recipients)
     return _serialize_schedule(schedule)
 
