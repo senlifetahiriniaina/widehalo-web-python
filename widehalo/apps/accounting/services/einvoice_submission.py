@@ -268,36 +268,32 @@ def _queue(move: AccMove, corps: str, archive_years: int, now: dt.datetime) -> A
 
     `None` n'est pas un échec : c'est le mode d'attente. Le document est
     déjà produit, signé et archivé au moment où l'on arrive ici — c'est
-    exactement l'ordre qu'EFA-2 décrit."""
-    from apps.flows.models import FlwLink
-    from apps.flows.operations import OP_SUBMIT_FOR_VERDICT
-    from apps.flows.services.exchange import prepare_exchange
-    from apps.flows.services.queue import queue_exchange
+    exactement l'ordre qu'EFA-2 décrit.
 
-    liaison = (
-        FlwLink.objects.filter(
-            tenant=move.tenant, connector__code=CONNECTOR_CODE, state=FlwLink.STATE_ACTIVE
-        )
-        .select_related("connector")
-        .first()
-    )
-    if liaison is None:
-        return None
+    **Tout passe par `flows.services.public`, et une garde l'exige.** La
+    première rédaction de cette fonction importait `flows.models` et
+    `flows.services.queue` pour construire l'échange elle-même ; la règle
+    de couplage n°1 l'interdit et `test_module_boundaries` l'a refusé. Ce
+    n'est pas une question de style : un module métier qui sait construire
+    un échange peut en construire un que le registre du hub n'a pas
+    validé, et le socle de flux existe pour que cela soit impossible.
 
-    echange = queue_exchange(
-        prepare_exchange(
-            move.tenant,
-            liaison,
-            operation=OP_SUBMIT_FOR_VERDICT,
-            document_type=DOCUMENT_TYPE,
-            document_id=move.id,
-            body=corps,
-            # EFA-7 : la durée d'archivage bascule avec le pays. La colonne
-            # existait depuis S1 en attendant ce premier appelant.
-            retain_until=(now + dt.timedelta(days=365 * archive_years)).date(),
-        )
+    Ce module dit donc ce qu'il veut — « faire valider cette pièce » — et
+    ignore la liaison, la préparation et la file."""
+    from apps.flows.services.public import submit_document_for_verdict
+
+    echange = submit_document_for_verdict(
+        move.tenant,
+        connector_code=CONNECTOR_CODE,
+        document_type=DOCUMENT_TYPE,
+        document_id=move.id,
+        body=corps,
+        # EFA-7 : la durée d'archivage bascule avec le pays. La colonne
+        # existait sur `FlwPayload` depuis S1 en attendant ce premier
+        # appelant.
+        retain_until=(now + dt.timedelta(days=365 * archive_years)).date(),
     )
-    return echange.id
+    return echange["id"] if echange is not None else None
 
 
 __all__ = [

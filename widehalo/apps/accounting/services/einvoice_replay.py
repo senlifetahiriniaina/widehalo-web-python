@@ -111,16 +111,9 @@ def open_fiscal_link(tenant: Tenant, *, now: dt.datetime | None = None) -> Repla
     raccordement déjà ouvert est exactement ce qu'on veut pouvoir faire
     après un incident, et refuser au motif que « c'est déjà ouvert »
     obligerait à suspendre puis rouvrir pour rattraper un retard."""
-    from apps.flows.models import FlwLink
+    from apps.flows.services.public import activate_link
 
-    liaison = (
-        FlwLink.objects.filter(tenant=tenant, connector__code=CONNECTOR_CODE)
-        .exclude(state=FlwLink.STATE_ACTIVE)
-        .first()
-    )
-    if liaison is not None:
-        liaison.state = FlwLink.STATE_ACTIVE
-        liaison.save(update_fields=["state"])
+    activate_link(tenant, connector_code=CONNECTOR_CODE)
     return replay_pending_submissions(tenant, now=now)
 
 
