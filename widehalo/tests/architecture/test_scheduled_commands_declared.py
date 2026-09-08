@@ -50,6 +50,14 @@ _ONE_SHOT_COMMANDS: dict[str, str] = {
     ),
     "bootstrap_admin": "Creation du premier compte d'administration, une fois par instance.",
     "create_tenant": "Creation d'un tenant, a la demande commerciale.",
+    "audit_fiscal_identifiers": (
+        "Instrument de MESURE, invoque a la demande : elle chiffre les "
+        "identifiants fiscaux absents, mal formes ou en doublon, et ne modifie "
+        "rien. La planifier produirait chaque nuit un rapport que personne "
+        "n'a demande ; c'est la preparation d'un chantier de reprise (T3), "
+        "pas une tache d'exploitation. La verification periodique, elle, est "
+        "bien planifiee — `verify_fiscal_identifiers`."
+    ),
     "sync_scheduled_commands": (
         "C'est la commande qui ECRIT les planifications. Se planifier "
         "elle-meme n'aurait pas de sens : elle est appelee au deploiement."

@@ -160,6 +160,9 @@ def partner_edit(request: HttpRequest, partner_id: str) -> HttpResponse:
     if request.method == "POST":
         partner.name = request.POST.get("name", partner.name)
         partner.nif = request.POST.get("nif", "")
+        # T3 — le numéro statistique, seconde moitié de l'identité fiscale
+        # que le référentiel n'avait pas du tout.
+        partner.stat = request.POST.get("stat", "")
         partner.roles = request.POST.getlist("roles")
         try:
             partner.credit_limit_mga = Decimal(request.POST.get("credit_limit_mga") or "0")

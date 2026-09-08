@@ -38,11 +38,13 @@ sans aucune trace."""
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from apps.core.models.tenant import Tenant
+from apps.core.services.fiscal_identifiers import canonical
 from apps.core.services.import_wizard import RowError, dry_run_validate
 from apps.core.services.import_xlsx import fold_header, read_xlsx_rows
 from apps.core.services.sequences import next_reference
@@ -181,6 +183,17 @@ def import_partners_xlsx(
         .values_list("reference", flat=True)
     )
 
+    # T3 — l'index des NIF deja presents, sous leur forme CANONIQUE, construit
+    # UNE FOIS puis tenu a jour au fil des creations. Refaire une requete par
+    # ligne creee rendrait l'import quadratique : un fichier de cinq mille
+    # tiers ferait cinq mille balayages du referentiel, sur un chemin qui
+    # n'en faisait aucun avant ce lot. La cle est la forme canonique, la
+    # valeur la liste des fiches qui la portent — un meme identifiant peut
+    # deja etre porte par plusieurs fiches, et chacune merite son alerte.
+    index_par_canonique: dict[str, list[Partner]] = defaultdict(list)
+    for existant in Partner.objects.filter(tenant=tenant).exclude(nif="").only("id", "nif"):
+        index_par_canonique[canonical(existant.nif)].append(existant)
+
     for entry in normalized_rows:
         if entry["email"] or entry["phone"] or entry["address"]:
             summary.coordinates_ignored_count += 1
@@ -203,15 +216,22 @@ def import_partners_xlsx(
             existing_codes.add(code)
         summary.created_count += 1
 
-        if entry["nif"]:
-            existing_matches = Partner.objects.filter(tenant=tenant, nif=entry["nif"]).exclude(
-                pk=partner.pk
-            )
-            for match in existing_matches:
+        if partner.nif:
+            # T3 — le rapprochement se fait sur la forme CANONIQUE, comme
+            # dans `services/onboarding.py`. Comparer les chaines brutes ne
+            # voyait que les saisies rigoureusement identiques : deux
+            # feuilles de calcul du meme client, l'une avec tirets et
+            # l'autre sans, produisaient deux fiches sans la moindre alerte.
+            cible = canonical(partner.nif)
+            for match in index_par_canonique[cible]:
                 DuplicateAlert.objects.create(
                     tenant=tenant, partner=partner, duplicate_of=match, matched_field="nif"
                 )
                 summary.duplicate_alerts_count += 1
+            # La fiche qui vient d'etre creee entre a son tour dans l'index :
+            # deux lignes du MEME fichier portant le meme identifiant doivent
+            # se rapprocher entre elles, pas seulement contre l'existant.
+            index_par_canonique[cible].append(partner)
 
     return summary
 

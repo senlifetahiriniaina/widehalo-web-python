@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
+from apps.core.services.fiscal_identifiers import canonical
 from apps.core.services.sequences import next_reference
 from apps.partners.models import DuplicateAlert, Partner
 
@@ -15,11 +16,14 @@ def create_partner(
     name: str,
     roles: list[str],
     nif: str = "",
+    stat: str = "",
     credit_limit_mga: Decimal = Decimal(0),
 ) -> Partner:
     """Cree un partenaire avec un code auto-sequence (PART-<annee>-NNNN) et
     detecte un eventuel doublon de NIF DANS LE MEME TENANT sans jamais
-    bloquer la creation — une `DuplicateAlert` est simplement journalisee
+    bloquer la creation — le rapprochement porte depuis T3 sur la forme
+    CANONIQUE de l'identifiant (`fiscal_identifiers.canonical`), et non
+    plus sur la chaine brute — une `DuplicateAlert` est simplement journalisee
     pour revue humaine.
 
     **INT1 (chantier interactivite native inter-modules)** : chaque
@@ -36,13 +40,38 @@ def create_partner(
         name=name,
         roles=roles,
         nif=nif,
+        stat=stat,
         credit_limit_mga=credit_limit_mga,
     )
 
-    if nif:
+    if partner.nif:
         from apps.core.events import publish_event
 
-        existing_matches = Partner.objects.filter(tenant=tenant, nif=nif).exclude(pk=partner.pk)
+        # T3 — le rapprochement se fait sur la forme CANONIQUE, pas sur la
+        # chaîne brute. Avant ce lot, « MG-NIF-100002 » et « mg nif 100002 »
+        # désignaient le même tiers et ne levaient aucune alerte : la
+        # détection de doublon ne voyait que les saisies rigoureusement
+        # identiques, c'est-à-dire le cas où l'utilisateur avait déjà fait
+        # attention.
+        # Le rapprochement se fait en Python et non en SQL, faute d'index
+        # fonctionnel sur la forme canonique — et la requete ne ramene donc
+        # que les deux colonnes utiles des seules fiches qui portent un NIF,
+        # jamais tout le referentiel. Comparer en base supposerait de
+        # reproduire `canonical` en SQL, ce qui divergerait sur les valeurs
+        # anterieures a T3 : aucune migration de donnees ne les a
+        # normalisees (deliberement — cf. la migration), et elles peuvent
+        # donc contenir des caracteres que le format n'admet plus.
+        cible = canonical(partner.nif)
+        existing_matches = [
+            autre
+            for autre in (
+                Partner.objects.filter(tenant=tenant)
+                .exclude(pk=partner.pk)
+                .exclude(nif="")
+                .only("id", "nif")
+            )
+            if canonical(autre.nif) == cible
+        ]
         for match in existing_matches:
             alert = DuplicateAlert.objects.create(
                 tenant=tenant, partner=partner, duplicate_of=match, matched_field="nif"

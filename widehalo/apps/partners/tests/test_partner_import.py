@@ -93,6 +93,70 @@ def test_import_flags_duplicate_nif_without_blocking() -> None:
         assert DuplicateAlert.objects.filter(tenant=tenant).count() == 1
 
 
+def test_import_matches_two_spellings_of_the_same_nif() -> None:
+    """T3 — le rapprochement porte sur la forme CANONIQUE.
+
+    Avant ce lot, l'import comparait les chaines brutes : deux feuilles du
+    meme client, l'une avec tirets et l'autre sans, produisaient deux fiches
+    sans la moindre alerte — c'est-a-dire que la detection ne servait que
+    dans le cas ou l'utilisateur avait deja fait attention.
+
+    Les deux ecritures sont conservees telles quelles : normaliser d'office
+    reecrirait la saisie du comptable, et l'une des deux formes peut etre
+    la forme officielle."""
+    tenant = TenantFactory()
+    file_bytes = _build_xlsx(
+        [
+            ["P001", "Client A", "MG-NIF-100002", "client", 0, "", "", ""],
+            ["P002", "Client B", "mg nif 100002", "client", 0, "", "", ""],
+        ]
+    )
+
+    with use_tenant(tenant.id):
+        summary = import_partners_xlsx(tenant, file_bytes)
+
+        assert summary.is_valid
+        assert summary.created_count == 2
+        assert summary.duplicate_alerts_count == 1
+        assert Partner.objects.get(tenant=tenant, reference="P001").nif == "MG-NIF-100002"
+        assert Partner.objects.get(tenant=tenant, reference="P002").nif == "MG NIF 100002"
+
+
+def test_import_does_not_rescan_the_whole_referential_for_every_row() -> None:
+    """L'index des NIF est construit UNE fois, pas une fois par ligne.
+
+    Le rapprochement canonique se fait en Python : le refaire par une
+    requete a chaque ligne creee rendrait l'import quadratique, sur un
+    chemin qui ne faisait aucune requete de ce genre avant T3. Ce test
+    mesure le nombre de requetes, seul moyen de figer la propriete —
+    une relecture du code ne l'aurait pas empechee de revenir.
+
+    Le budget est volontairement large : il n'est pas la pour figer un
+    nombre exact de requetes (que toute evolution ferait bouger sans
+    defaut), mais pour attraper une croissance PAR LIGNE."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    tenant = TenantFactory()
+    lignes = [
+        [f"P{index:03d}", f"Client {index}", f"MG-NIF-2000{index:02d}", "client", 0, "", "", ""]
+        for index in range(20)
+    ]
+
+    with use_tenant(tenant.id), CaptureQueriesContext(connection) as requetes:
+        summary = import_partners_xlsx(tenant, _build_xlsx(lignes))
+
+    assert summary.created_count == 20
+    scans = [
+        requete
+        for requete in requetes.captured_queries
+        if "partners_partner" in requete["sql"] and "SELECT" in requete["sql"].upper()
+    ]
+    # Un balayage par ligne creee ferait au moins 20 SELECT sur la table ;
+    # l'index construit une fois en laisse une poignee.
+    assert len(scans) < 20, f"{len(scans)} lectures de partners_partner pour 20 lignes"
+
+
 def test_import_reports_row_errors_without_writing_anything() -> None:
     tenant = TenantFactory()
     file_bytes = _build_xlsx(

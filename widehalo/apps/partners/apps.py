@@ -17,6 +17,7 @@ class PartnersConfig(AppConfig):
         from apps.partners.services.automation_registration import (
             register_actions as register_automation_actions,
         )
+        from apps.partners.services.scheduling_registration import register_scheduled_commands
 
         register_ai_context()
         # INT1 (chantier interactivite native inter-modules) : meme patron,
@@ -25,3 +26,9 @@ class PartnersConfig(AppConfig):
         # INT2 (participation aux registres IA generiques) : anomalies,
         # meme patron que `helpdesk`/`stocks`.
         register_ai_anomaly_checks()
+        # T3 (OP8) : declaration de la commande periodique de verification
+        # des identifiants fiscaux — registre partage
+        # `core.services.scheduled_commands`. Declare seulement ; l'ecriture
+        # des planifications est faite au deploiement par
+        # `apps.core.tasks.sync_schedules`.
+        register_scheduled_commands()

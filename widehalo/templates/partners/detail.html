@@ -75,6 +75,21 @@
       <section x-show="isActive('general')">
         <p>{% trans "Référence" %}: {{ partner.reference }}</p>
         <p>{% trans "NIF" %}: {{ partner.nif|default:"—" }}</p>
+        <p>{% trans "Numéro statistique" %}: {{ partner.stat|default:"—" }}</p>
+        {% comment %}
+          T3 (OP8) — l'état de vérification est MONTRÉ à côté de la valeur,
+          jamais à sa place : le référentiel annote, il ne fait pas autorité
+          contre le comptable. « Confirmé le 3 mars » et « jamais vérifié »
+          se lisent différemment, et c'est pourquoi la date accompagne
+          l'état.
+        {% endcomment %}
+        <p>
+          {% trans "Vérification fiscale" %}:
+          <strong>{{ partner.get_fiscal_verification_state_display }}</strong>
+          {% if partner.fiscal_verified_at %}
+            <span class="badge">{{ partner.fiscal_verified_at|date:"d/m/Y" }}</span>
+          {% endif %}
+        </p>
         <p>{% trans "Rôles" %}: {{ partner.roles_display }}</p>
         <p>{% trans "Plafond crédit" %}: {{ partner.credit_limit_mga }} MGA</p>
         {% if perms.partners.change_partner %}

@@ -22,6 +22,15 @@
       <label for="nif">{% trans "NIF" %}</label>
       <input id="nif" type="text" name="nif" value="{{ partner.nif }}">
     </div>
+    {% comment %}
+      T3 — le numéro statistique, seconde moitié de l'identité fiscale.
+      Une administration en demande deux ; n'en porter qu'un rend la
+      soumission incomplète au moment où elle devient bloquante (EFA-1).
+    {% endcomment %}
+    <div class="form-field">
+      <label for="stat">{% trans "Numéro statistique" %}</label>
+      <input id="stat" type="text" name="stat" value="{{ partner.stat }}">
+    </div>
     <div class="form-field">
       <label for="roles">{% trans "Rôles" %}</label>
       <select id="roles" name="roles" multiple>

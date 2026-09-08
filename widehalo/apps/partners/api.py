@@ -17,9 +17,22 @@ router = Router(tags=["partners"])
 
 
 class PartnerIn(Schema):
+    """T3 — `stat` rejoint `nif` : une administration fiscale demande les
+    deux, et n'en porter qu'un rend la soumission incomplète au moment
+    précis où elle devient bloquante (EFA-1).
+
+    Les deux restent des chaînes libres au niveau du schéma, et c'est
+    volontaire : le format est DÉCLARÉ par pays
+    (`core.services.fiscal_identifiers`) et vérifié dans `Partner.save()`,
+    qui connaît la société — donc le pays. Un `Literal` ou un motif figé
+    ici affirmerait un format malgache qu'aucune source primaire de ce
+    dépôt ne confirme. Une valeur mal formée ressort en 422 par le
+    gestionnaire de `ValidationError`, avec le message du registre."""
+
     name: str
     roles: list[str] = []
     nif: str = ""
+    stat: str = ""
     credit_limit_mga: Decimal = Decimal(0)
 
 
@@ -35,6 +48,9 @@ def _serialize(partner: Partner) -> dict:
         "name": partner.name,
         "roles": partner.roles,
         "nif": partner.nif,
+        "stat": partner.stat,
+        "fiscal_verification_state": partner.fiscal_verification_state,
+        "fiscal_verified_at": partner.fiscal_verified_at,
         "credit_limit_mga": str(partner.credit_limit_mga),
     }
 
@@ -62,6 +78,7 @@ def create_partner_endpoint(request, payload: PartnerIn):
         name=payload.name,
         roles=payload.roles,
         nif=payload.nif,
+        stat=payload.stat,
         credit_limit_mga=payload.credit_limit_mga,
     )
     return _serialize(partner)

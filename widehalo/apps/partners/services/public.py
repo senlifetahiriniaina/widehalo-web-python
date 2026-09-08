@@ -194,3 +194,57 @@ def list_partners_for_warehouse(
         }
         for partner in qs.order_by("updated_at")
     ]
+
+
+def get_partner_fiscal_identity(partner_id: Any) -> dict[str, Any]:
+    """T3 (EFA-1) — l'identite fiscale d'un tiers, pour qui doit la
+    SOUMETTRE.
+
+    Premier appelant prevu : le controle de completude du bloc C
+    (`accounting`), qui doit savoir si la piece porte de quoi etre soumise
+    — et qui ne peut pas toucher `apps.partners.models` (regle de couplage
+    n°1). Il recoit des primitives, jamais l'objet.
+
+    **Les trois informations vont ensemble, et separement elles trompent.**
+    L'identifiant dit ce que le tiers a declare ; l'etat de verification
+    dit ce que le referentiel en pense ; la date dit depuis quand. Rendre
+    le seul identifiant laisserait l'appelant croire qu'un NIF present est
+    un NIF valide, ce qui est precisement la confusion que le lot T3
+    existe pour lever.
+
+    Un tiers inconnu rend un dictionnaire VIDE de contenu plutot que
+    `None` : l'appelant qui teste « le NIF est-il present ? » obtient la
+    bonne reponse — non — sans avoir a distinguer deux cas d'absence."""
+    partner = Partner.objects.filter(id=partner_id).first()
+    if partner is None:
+        return {
+            "partner_id": None,
+            "name": "",
+            "nif": "",
+            "stat": "",
+            "verification_state": "",
+            "verified_at": None,
+        }
+    return {
+        "partner_id": partner.id,
+        "name": partner.name,
+        "nif": partner.nif,
+        "stat": partner.stat,
+        "verification_state": partner.fiscal_verification_state,
+        "verified_at": partner.fiscal_verified_at,
+    }
+
+
+def missing_fiscal_identifiers(
+    partner_id: Any, *, required: tuple[str, ...] = ("nif",)
+) -> list[str]:
+    """Les identifiants EXIGES que ce tiers ne porte pas — pour que le
+    refus de soumission NOMME le champ, comme EFA-1 l'exige.
+
+    `required` est un parametre et non une constante : le bloc C le tirera
+    du profil pays (EFA-7 : « le changement de pays du paramétrage bascule
+    format, contrôles, durée d'archivage et libellés, sans déploiement de
+    code »). Le defaut — le seul NIF — est le minimum commun, pas une
+    regle malgache affirmee."""
+    identite = get_partner_fiscal_identity(partner_id)
+    return [champ for champ in required if not identite.get(champ)]

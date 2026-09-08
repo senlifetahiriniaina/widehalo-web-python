@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.db.uuid7 import uuid7
+from apps.core.services.fiscal_identifiers import (
+    DEFAULT_COUNTRY_CODE,
+    IDENTIFIER_NIF,
+    IDENTIFIER_STAT,
+    validate_identifier,
+    validate_partner_nif,
+    validate_partner_stat,
+)
 
 
 class Tenant(models.Model):
@@ -22,7 +32,18 @@ class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     code = models.CharField(max_length=32, unique=True)
     name = models.CharField(_("raison sociale"), max_length=255)
-    nif = models.CharField(_("NIF"), max_length=32, blank=True)
+    # T3 — l'identifiant fiscal de l'EMETTEUR. EFA-1 exige les mentions du
+    # vendeur autant que celles du client : une facture soumise sans
+    # l'identifiant de celui qui l'emet est refusee de la meme facon. Meme
+    # format declare par pays que `partners.Partner.nif`
+    # (`core.services.fiscal_identifiers`), et meme raison de le controler
+    # dans `save()` : `Tenant` est ecrit par la creation de societe
+    # (`core/views/auth_web.py`), par une commande de management et par
+    # l'administration Django, dont aucune ne passe par `full_clean()`.
+    nif = models.CharField(_("NIF"), max_length=32, blank=True, validators=[validate_partner_nif])
+    stat = models.CharField(
+        _("numéro statistique"), max_length=32, blank=True, validators=[validate_partner_stat]
+    )
     # SAL-8 (L5) : mentions legales obligatoires portees par les documents
     # legaux du tenant (facture en tete). Champ LIBRE et non pre-rempli : les
     # mentions varient par pays, par regime fiscal et par activite, et en
@@ -153,6 +174,18 @@ class Tenant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.code} — {self.name}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Refuse a L'ENREGISTREMENT un identifiant fiscal mal forme.
+
+        Le pays est celui de la societe elle-meme — `country_code`, « MG »
+        par defaut — ce qui rend le controle correct pour une societe
+        etrangere le jour ou il y en aura une, sans changement de code
+        (EFA-7)."""
+        pays = self.country_code or DEFAULT_COUNTRY_CODE
+        self.nif = validate_identifier(self.nif, identifier=IDENTIFIER_NIF, country_code=pays)
+        self.stat = validate_identifier(self.stat, identifier=IDENTIFIER_STAT, country_code=pays)
+        super().save(*args, **kwargs)
 
     def soft_delete(self) -> None:
         from django.utils import timezone as tz

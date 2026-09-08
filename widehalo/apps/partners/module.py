@@ -30,11 +30,19 @@ from apps.core.module import ModuleSpec
 # consomme `apps.financing.services.public.
 # list_loan_applications_for_bank_partner`/`list_credocs_for_bank_partner`
 # — jamais un import de `apps.financing.models`.
+# "flows" ajoute par T3 (OP8, §4.1) : `services/fiscal_verification.py`
+# consomme `apps.flows.services.public.request_reference_lookup` et
+# `list_exchanges_for_document` pour faire verifier un identifiant fiscal
+# aupres d'un referentiel — jamais un import de `apps.flows.models`. Le
+# sens de la dependance est celui que la docstring du hub impose : c'est
+# le module metier qui appelle le hub, et le hub ne rappelle jamais un
+# module metier.
 MODULE = ModuleSpec(
     name="partners",
     dependencies=(
         "core",
         "chat",
+        "flows",
         "accounting",
         "catalog",
         "purchase",
