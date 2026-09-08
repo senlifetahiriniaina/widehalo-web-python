@@ -122,25 +122,40 @@ def test_import_matches_two_spellings_of_the_same_nif() -> None:
         assert Partner.objects.get(tenant=tenant, reference="P002").nif == "MG NIF 100002"
 
 
+#: Lectures de `partners_partner` qu'une ligne creee coute LEGITIMEMENT :
+#: la verification d'existence de `save()` et la relecture des champs
+#: audites pour le diff (`_AUDITED_FIELDS`). Les deux existaient avant T3.
+#: Une TROISIEME serait le balayage de rapprochement des doublons, et c'est
+#: exactement ce que ce budget refuse.
+LECTURES_LEGITIMES_PAR_LIGNE = 2
+
+
 def test_import_does_not_rescan_the_whole_referential_for_every_row() -> None:
-    """Le rapprochement canonique ne doit pas croitre AVEC LE NOMBRE DE LIGNES.
+    """Le rapprochement canonique ne doit pas coûter une lecture PAR LIGNE.
 
     Le rapprochement se fait en Python — comparer en SQL supposerait de
     reproduire `canonical`, qui divergerait sur les valeurs anterieures a
     T3 (aucune migration ne les a normalisees, deliberement). Le refaire
-    par une requete a chaque ligne creee rendrait l'import quadratique, sur
-    un chemin qui ne faisait aucune requete de ce genre avant T3.
+    par une requete a chaque ligne creee rendrait l'import quadratique en
+    lignes examinees, sur un chemin qui ne faisait aucune requete de ce
+    genre avant T3.
 
-    Ce test ne fige AUCUN nombre de requetes : un budget chiffre casserait
-    a la premiere evolution sans rapport. Il compare deux imports de
-    tailles differentes et exige que le nombre de BALAYAGES — les lectures
-    de la table sans filtre sur la clef primaire — ne suive pas la taille
-    du fichier. Avec l'ancien code, 5 lignes en produisaient 5 et 20 en
-    produisaient 20."""
+    **Comment ce test mesure, et pourquoi pas autrement.** Une premiere
+    redaction comptait les lectures « sans filtre sur la clef primaire » :
+    elle ne mordait pas, parce que le balayage fautif s'ecrit
+    `.exclude(pk=...)` et porte donc bien la clef primaire — dans un `NOT`.
+    Une seconde comptait toutes les lectures et exigeait un total : elle
+    echouait sur les deux lectures que `save()` fait par ligne depuis
+    toujours.
+
+    Ce qui discrimine reellement, c'est le COUT MARGINAL : on importe deux
+    fichiers de tailles differentes et on divise l'ecart de requetes par
+    l'ecart de lignes. Deux lectures par ligne sont legitimes ; une
+    troisieme est le balayage."""
     from django.db import connection
     from django.test.utils import CaptureQueriesContext
 
-    def _balayages(nombre_de_lignes: int) -> int:
+    def _lectures(nombre_de_lignes: int) -> int:
         tenant = TenantFactory()
         lignes = [
             [
@@ -163,20 +178,16 @@ def test_import_does_not_rescan_the_whole_referential_for_every_row() -> None:
             [
                 requete
                 for requete in requetes.captured_queries
-                # Une lecture de la table SANS filtre sur la clef primaire :
-                # c'est la signature d'un balayage, par opposition aux
-                # verifications d'existence que `save()` fait par ligne et
-                # qui existaient bien avant ce lot.
                 if 'FROM "partners_partner"' in requete["sql"]
-                and '"partners_partner"."id" =' not in requete["sql"]
             ]
         )
 
-    petit = _balayages(5)
-    grand = _balayages(20)
-    assert grand == petit, (
-        f"{petit} balayage(s) pour 5 lignes mais {grand} pour 20 : le "
-        "rapprochement des doublons refait une lecture par ligne."
+    petit, grand = 5, 25
+    cout_marginal = (_lectures(grand) - _lectures(petit)) / (grand - petit)
+    assert cout_marginal <= LECTURES_LEGITIMES_PAR_LIGNE, (
+        f"{cout_marginal} lecture(s) de partners_partner par ligne creee, "
+        f"pour un budget de {LECTURES_LEGITIMES_PAR_LIGNE} : le rapprochement "
+        "des doublons refait un balayage a chaque ligne."
     )
 
 
