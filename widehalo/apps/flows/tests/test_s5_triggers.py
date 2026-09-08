@@ -128,7 +128,7 @@ def test_a_broken_trigger_never_undoes_the_business_transition(societe, monkeypa
     constat que la corrélation de S4, et il se traite pareil — en le
     disant."""
 
-    def _explose(trigger, payload):
+    def _explose(trigger, payload, **_kwargs):
         raise RuntimeError("le tiers est injoignable")
 
     monkeypatch.setattr(triggers, "fire", _explose)
@@ -158,10 +158,10 @@ def test_one_broken_trigger_never_silences_the_others(societe, monkeypatch) -> N
 
     cassee_id = None
 
-    def _explose_pour_la_premiere(trigger, payload):
+    def _explose_pour_la_premiere(trigger, payload, **kwargs):
         if trigger.link_id == cassee_id:
             raise RuntimeError("le tiers est injoignable")
-        return original(trigger, payload)
+        return original(trigger, payload, **kwargs)
 
     monkeypatch.setattr(triggers, "fire", _explose_pour_la_premiere)
 
@@ -180,10 +180,19 @@ def test_one_broken_trigger_never_silences_the_others(societe, monkeypatch) -> N
         assert FlwExchange.objects.filter(link=cassee).count() == 0
 
 
-def test_a_condition_that_does_not_match_fires_nothing(societe) -> None:
+def test_a_legacy_expression_condition_fires_nothing(societe) -> None:
+    """T0 (axe A1) : « jamais une expression libre ».
+
+    Les conditions saisies avant T0 portent la clef `expression` et restent
+    en base telles quelles — aucune migration ne les convertit, parce que
+    deviner l'intention de leur auteur et se tromper ÉLARGIRAIT la portée
+    d'un déclencheur. Elles cessent donc simplement de tirer : ne rien
+    envoyer est le seul sens dans lequel une erreur d'interprétation est
+    rattrapable. Le filtre déclaratif qui les remplace est mesuré dans
+    `test_t0_source_schema.py`, de bout en bout."""
     with use_tenant(societe.id):
         lien = _liaison_avec_declencheur(
-            societe, condition={"expression": "payload['target'] == 'approved'"}
+            societe, condition={"expression": "payload['target'] == 'submitted'"}
         )
         enregistrement = SampleTenantScopedRecord.objects.create(tenant=societe, label="dossier")
 
@@ -192,14 +201,20 @@ def test_a_condition_that_does_not_match_fires_nothing(societe) -> None:
         enregistrement.save(update_fields=["state"])
 
     with use_tenant(societe.id):
-        assert not FlwExchange.objects.filter(link=lien).exists()
+        assert not FlwExchange.objects.filter(link=lien).exists(), (
+            "Une condition portant l'ancienne clef `expression` a déclenché un "
+            "échange : elle a donc été ignorée plutôt que refusée, et la portée "
+            "du déclencheur s'est élargie toute seule."
+        )
 
 
 def test_an_unreadable_condition_fires_nothing(societe) -> None:
     """Deny-by-default. Une condition qu'on ne sait pas évaluer ne doit
     RIEN envoyer : l'inverse ferait partir une pièce vers un tiers sur la
-    foi d'une expression que personne n'a su lire."""
+    foi d'un filtre que personne n'a su lire."""
     assert triggers.passes_condition({"expression": "__import__('os')"}, {"target": "x"}) is False
+    assert triggers.passes_condition({"filters": "pas une liste"}, {"target": "x"}) is False
+    assert triggers.passes_condition({"filters": [{"op": "regex"}]}, {"target": "x"}) is False
     assert triggers.passes_condition({}, {"target": "x"}) is True
 
 

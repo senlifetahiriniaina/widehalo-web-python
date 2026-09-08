@@ -39,13 +39,19 @@ pas du pédantisme : le champ en trop part quand même chez le tiers.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
+
+from apps.core.services.outbound_schemas import (
+    SourceFieldRefusedError,
+    get_outbound_document,
+    validate_source_path,
+)
 
 if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
@@ -108,6 +114,8 @@ PROBLEM_TOO_MANY_SOURCES = "sources_multiples_interdites"
 PROBLEM_MISSING_PARAMETER = "parametre_absent"
 PROBLEM_INVALID_PARAMETER = "parametre_invalide"
 PROBLEM_EMPTY_SCHEMA = "schema_tiers_absent"
+PROBLEM_UNDECLARED_SOURCE_DOCUMENT = "piece_source_non_declaree"
+PROBLEM_REFUSED_SOURCE_FIELD = "champ_source_refuse"
 
 
 @dataclass(frozen=True)
@@ -184,14 +192,90 @@ def _sources_of(rule: dict[str, Any]) -> list[str]:
     return [str(source)] if source else []
 
 
-def validate_mapping(field_map: dict[str, Any], target_schema: dict[str, Any]) -> MappingReport:
-    """Confronte une correspondance au schéma déclaré du tiers.
+def _source_problems(
+    field_map: dict[str, Any], *, source_document: str, operations: Iterable[str]
+) -> list[MappingProblem]:
+    """Les refus dus à NOTRE schéma, jamais à celui du tiers.
+
+    Le champ désigné dans le problème est le champ CIBLE — c'est celui que
+    l'utilisateur voit dans l'éditeur de correspondance ; le chemin source
+    fautif est dans le détail. Nommer la source en `target_field` obligerait
+    à chercher quelle ligne de l'écran la porte."""
+    if not source_document:
+        return [
+            MappingProblem(
+                kind=PROBLEM_UNDECLARED_SOURCE_DOCUMENT,
+                target_field="",
+                detail=_(
+                    "aucune pièce source déclarée : une correspondance se valide "
+                    "contre notre schéma autant que contre celui du tiers"
+                ),
+            )
+        ]
+    if get_outbound_document(source_document) is None:
+        return [
+            MappingProblem(
+                kind=PROBLEM_UNDECLARED_SOURCE_DOCUMENT,
+                target_field="",
+                detail=_(
+                    "la pièce « %(code)s » n'est pas déclarée liable par son "
+                    "module — rien de ce qu'elle porte ne peut sortir tant que "
+                    "ce module n'a pas dit ce qui le peut"
+                )
+                % {"code": source_document},
+            )
+        ]
+
+    problems: list[MappingProblem] = []
+    for target_field, rule in field_map.items():
+        if not isinstance(rule, dict):
+            continue
+        for chemin in _sources_of(rule):
+            try:
+                validate_source_path(source_document, chemin, operations=operations)
+            except SourceFieldRefusedError as refus:
+                problems.append(
+                    MappingProblem(
+                        kind=PROBLEM_REFUSED_SOURCE_FIELD,
+                        target_field=target_field,
+                        detail="; ".join(refus.messages),
+                    )
+                )
+    return problems
+
+
+def validate_mapping(
+    field_map: dict[str, Any],
+    target_schema: dict[str, Any],
+    *,
+    source_document: str = "",
+    operations: Iterable[str] = (),
+) -> MappingReport:
+    """Confronte une correspondance aux DEUX schémas : celui du tiers et le
+    nôtre.
 
     Ne lève jamais : elle RAPPORTE. C'est `save_mapping` qui refuse — un
     écran d'édition a besoin de montrer TOUS les problèmes d'un coup, pas
-    de les découvrir un par un à chaque tentative d'enregistrement."""
+    de les découvrir un par un à chaque tentative d'enregistrement.
+
+    **Le second schéma est arrivé avec T0, et il manquait.** Jusque-là
+    cette fonction ne validait que contre `target_schema`, c'est-à-dire
+    contre ce que le TIERS déclare attendre. Une correspondance pouvait
+    donc désigner `lines[].margin_pct` en source : rien ne s'y opposait, et
+    la marge partait au premier échange. Le §9.2 l'interdit — « marge,
+    coût de revient, commentaires de gestion exclus par défaut de toute
+    correspondance » — et c'est `apps.core.services.outbound_schemas` qui
+    porte désormais la liste, module par module.
+
+    `source_document` vide veut dire « aucune pièce source déclarée » : la
+    correspondance est alors refusée en bloc. Deny-by-default assumé — une
+    correspondance qu'on ne sait pas confronter à notre propre schéma est
+    exactement celle qui laisse fuir."""
     report = MappingReport()
     fields = declared_fields(target_schema)
+    report.problems.extend(
+        _source_problems(field_map, source_document=source_document, operations=operations)
+    )
 
     if not fields:
         # Une correspondance validée contre un schéma vide serait validée
@@ -317,10 +401,30 @@ def save_mapping(
 
     Une `ValidationError`, jamais un booléen : un appelant qui ignore un
     booléen enregistre quand même. C'est le même choix que
-    `attempt_transition` fait pour la permission."""
+    `attempt_transition` fait pour la permission.
+
+    **`document_type` est aussi le code de la pièce source** — il vaut
+    `app.Modele`, exactement ce que `workflow.transitioned` porte sous la
+    clef `model`. C'est ce qui permet de retrouver le schéma déclaré par le
+    module sans table de correspondance supplémentaire, et donc de
+    confronter les CHEMINS SOURCES de la correspondance à ce que le module
+    accepte de laisser sortir (§9.2).
+
+    **Les opérations viennent du connecteur, pas de l'appelant.** La
+    minimisation du §9.2 est « seuls les champs exigés par l'opération
+    partent » : les opérations concernées sont celles que ce connecteur
+    sait faire, puisque n'importe laquelle d'entre elles pourra emprunter
+    cette correspondance. Les déduire ici plutôt que les demander évite
+    qu'un appelant obtienne un champ personnel en déclarant l'opération qui
+    l'arrange."""
     from apps.flows.models import FlwMapping
 
-    report = validate_mapping(field_map, target_schema)
+    report = validate_mapping(
+        field_map,
+        target_schema,
+        source_document=document_type,
+        operations=link.connector.supported_operations or (),
+    )
     if not report.is_valid:
         raise ValidationError(
             _("Correspondance refusée — %(details)s") % {"details": report.as_message()}

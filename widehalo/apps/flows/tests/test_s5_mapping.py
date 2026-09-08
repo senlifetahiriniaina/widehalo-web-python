@@ -10,6 +10,14 @@ ne se souvient de l'avoir configurée.
 
 Ces tests exercent donc `save_mapping`, jamais seulement `validate_mapping` :
 ce qui compte est que la BASE ne contienne pas la correspondance fautive.
+
+**T0 a changé les CHEMINS SOURCES de ce fichier, pas ce qu'il mesure.** Une
+correspondance se valide désormais contre deux schémas : celui du tiers
+(FLX-6, mesuré ici) et le nôtre (§9.2, mesuré dans
+`test_t0_source_schema.py`). Les sources nomment donc des champs réellement
+déclarés d'une pièce réellement liable — `sales.SalesOrder` — au lieu de
+noms inventés. C'est plus proche d'une correspondance de production, et ça
+évite qu'un test de FLX-6 échoue pour une raison de §9.2.
 """
 
 from __future__ import annotations
@@ -39,6 +47,11 @@ from apps.flows.tests.factories import FlwLinkFactory
 pytestmark = pytest.mark.django_db
 
 
+#: La pièce de CHEZ NOUS que la correspondance lit. Une commande de vente :
+#: c'est la pièce liable la plus banale, et ses champs déclarés couvrent
+#: tous les cas de ce fichier.
+PIECE_SOURCE = "sales.SalesOrder"
+
 #: Le schéma que le tiers DÉCLARE. Trois champs obligatoires, un
 #: facultatif — la forme la plus banale d'un formulaire fiscal.
 SCHEMA_TIERS = {
@@ -51,14 +64,14 @@ SCHEMA_TIERS = {
 }
 
 CORRESPONDANCE_COMPLETE = {
-    "nif": {"source": "partenaire.nif"},
+    "nif": {"source": "partner_id"},
     "date_piece": {
         "source": "date",
         "transform": "format_date",
         "params": {"format": "%d/%m/%Y"},
     },
     "montant": {
-        "source": "total",
+        "source": "amount_total",
         "transform": "separateur_decimal",
         "params": {"separateur": ","},
     },
@@ -80,7 +93,7 @@ def test_a_complete_mapping_is_saved(liaison) -> None:
         mapping = save_mapping(
             liaison.tenant,
             liaison,
-            document_type="facture_vente",
+            document_type=PIECE_SOURCE,
             field_map=CORRESPONDANCE_COMPLETE,
             target_schema=SCHEMA_TIERS,
         )
@@ -98,7 +111,7 @@ def test_a_missing_required_field_is_refused_and_named(liaison) -> None:
         save_mapping(
             liaison.tenant,
             liaison,
-            document_type="facture_vente",
+            document_type=PIECE_SOURCE,
             field_map=incomplete,
             target_schema=SCHEMA_TIERS,
         )
@@ -116,7 +129,9 @@ def test_a_missing_required_field_is_refused_and_named(liaison) -> None:
 def test_all_the_missing_fields_are_named_at_once(liaison) -> None:
     """Un éditeur qui ne signale qu'un défaut à la fois fait recommencer
     l'utilisateur autant de fois qu'il y a de champs."""
-    rapport = validate_mapping({"nif": {"source": "x"}}, SCHEMA_TIERS)
+    rapport = validate_mapping(
+        {"nif": {"source": "reference"}}, SCHEMA_TIERS, source_document=PIECE_SOURCE
+    )
     assert sorted(rapport.missing_required_fields) == ["date_piece", "montant"]
 
 
@@ -124,7 +139,7 @@ def test_an_optional_field_may_be_left_unmapped(liaison) -> None:
     """La contrepartie — sans elle, la garde exigerait de renseigner des
     champs que le tiers dit facultatifs, et on remplirait des colonnes pour
     faire taire un test."""
-    rapport = validate_mapping(CORRESPONDANCE_COMPLETE, SCHEMA_TIERS)
+    rapport = validate_mapping(CORRESPONDANCE_COMPLETE, SCHEMA_TIERS, source_document=PIECE_SOURCE)
     assert rapport.is_valid
     assert "commentaire" not in CORRESPONDANCE_COMPLETE
 
@@ -134,8 +149,8 @@ def test_a_field_the_third_party_never_declared_is_refused(liaison) -> None:
     champs ne peut pas ajouter un champ non déclaré nécessaire » (cahier,
     protection des données). Un champ en trop PART quand même chez le
     tiers — c'est une donnée personnelle qui sort sans motif."""
-    avec_extra = {**CORRESPONDANCE_COMPLETE, "marge_commerciale": {"source": "marge"}}
-    rapport = validate_mapping(avec_extra, SCHEMA_TIERS)
+    avec_extra = {**CORRESPONDANCE_COMPLETE, "marge_commerciale": {"source": "notes"}}
+    rapport = validate_mapping(avec_extra, SCHEMA_TIERS, source_document=PIECE_SOURCE)
     assert not rapport.is_valid
     assert [p.kind for p in rapport.problems] == [PROBLEM_UNKNOWN_TARGET_FIELD]
     assert rapport.problems[0].target_field == "marge_commerciale"
@@ -144,9 +159,9 @@ def test_a_field_the_third_party_never_declared_is_refused(liaison) -> None:
 def test_a_transformation_outside_the_closed_set_is_refused(liaison) -> None:
     hors_jeu = {
         **CORRESPONDANCE_COMPLETE,
-        "commentaire": {"source": "note", "transform": "expression_libre"},
+        "commentaire": {"source": "notes", "transform": "expression_libre"},
     }
-    rapport = validate_mapping(hors_jeu, SCHEMA_TIERS)
+    rapport = validate_mapping(hors_jeu, SCHEMA_TIERS, source_document=PIECE_SOURCE)
     assert [p.kind for p in rapport.problems] == [PROBLEM_UNKNOWN_TRANSFORM]
 
 
@@ -159,7 +174,7 @@ def test_a_transformation_without_its_parameter_is_refused_before_saving(liaison
         **CORRESPONDANCE_COMPLETE,
         "date_piece": {"source": "date", "transform": "format_date"},
     }
-    rapport = validate_mapping(sans_format, SCHEMA_TIERS)
+    rapport = validate_mapping(sans_format, SCHEMA_TIERS, source_document=PIECE_SOURCE)
     assert [p.kind for p in rapport.problems] == [PROBLEM_MISSING_PARAMETER]
     assert rapport.problems[0].target_field == "date_piece"
 
@@ -167,9 +182,9 @@ def test_a_transformation_without_its_parameter_is_refused_before_saving(liaison
 def test_an_unknown_case_is_refused(liaison) -> None:
     mauvaise_casse = {
         **CORRESPONDANCE_COMPLETE,
-        "commentaire": {"source": "note", "transform": "casse", "params": {"casse": "PascalCase"}},
+        "commentaire": {"source": "notes", "transform": "casse", "params": {"casse": "PascalCase"}},
     }
-    rapport = validate_mapping(mauvaise_casse, SCHEMA_TIERS)
+    rapport = validate_mapping(mauvaise_casse, SCHEMA_TIERS, source_document=PIECE_SOURCE)
     assert [p.kind for p in rapport.problems] == [PROBLEM_INVALID_PARAMETER]
 
 
@@ -180,30 +195,32 @@ def test_only_concatenation_accepts_several_sources(liaison) -> None:
     plusieurs_sources_sur_une_casse = {
         **CORRESPONDANCE_COMPLETE,
         "commentaire": {
-            "sources": ["a", "b"],
+            "sources": ["reference", "currency"],
             "transform": "casse",
             "params": {"casse": "majuscules"},
         },
     }
-    rapport = validate_mapping(plusieurs_sources_sur_une_casse, SCHEMA_TIERS)
+    rapport = validate_mapping(
+        plusieurs_sources_sur_une_casse, SCHEMA_TIERS, source_document=PIECE_SOURCE
+    )
     assert [p.kind for p in rapport.problems] == [PROBLEM_TOO_MANY_SOURCES]
 
     concatenation = {
         **CORRESPONDANCE_COMPLETE,
         "commentaire": {
-            "sources": ["a", "b"],
+            "sources": ["reference", "currency"],
             "transform": "concatenation",
             "params": {"separateur": " "},
         },
     }
-    assert validate_mapping(concatenation, SCHEMA_TIERS).is_valid
+    assert validate_mapping(concatenation, SCHEMA_TIERS, source_document=PIECE_SOURCE).is_valid
 
 
 def test_an_empty_third_party_schema_validates_nothing(liaison) -> None:
     """Une correspondance validée contre un schéma vide serait validée
     contre RIEN, et rendrait « valide » — le pire des deux mondes, puisque
     l'utilisateur croirait avoir été contrôlé."""
-    rapport = validate_mapping(CORRESPONDANCE_COMPLETE, {})
+    rapport = validate_mapping(CORRESPONDANCE_COMPLETE, {}, source_document=PIECE_SOURCE)
     assert not rapport.is_valid
 
 
@@ -214,15 +231,15 @@ def test_saving_twice_updates_instead_of_duplicating(liaison) -> None:
         save_mapping(
             liaison.tenant,
             liaison,
-            document_type="facture_vente",
+            document_type=PIECE_SOURCE,
             field_map=CORRESPONDANCE_COMPLETE,
             target_schema=SCHEMA_TIERS,
         )
-        corrigee = {**CORRESPONDANCE_COMPLETE, "commentaire": {"source": "note"}}
+        corrigee = {**CORRESPONDANCE_COMPLETE, "commentaire": {"source": "notes"}}
         save_mapping(
             liaison.tenant,
             liaison,
-            document_type="facture_vente",
+            document_type=PIECE_SOURCE,
             field_map=corrigee,
             target_schema=SCHEMA_TIERS,
         )
@@ -247,6 +264,11 @@ def test_the_six_transformations_produce_what_the_third_party_expects() -> None:
         "regime": "RS",
         "note": "facture de test",
     }
+    # `apply_mapping` est une fonction PURE sur des dicts : elle ne connaît
+    # aucun schéma, ni le nôtre ni celui du tiers. Ses chemins sources
+    # restent donc libres — et `partenaire.nif` exerce en plus la lecture
+    # d'un chemin IMBRIQUÉ, que les chemins plats des tests de validation
+    # ci-dessus ne couvrent pas.
     field_map = {
         "nif": {"source": "partenaire.nif"},
         "date_piece": {

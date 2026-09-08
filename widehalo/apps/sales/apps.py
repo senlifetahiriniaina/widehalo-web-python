@@ -19,6 +19,7 @@ class SalesConfig(AppConfig):
         from apps.sales.services.ai_context_registration import register_ai_context
         from apps.sales.services.ai_data_query_registration import register_ai_data_query_tools
         from apps.sales.services.ai_insight_registration import register_ai_insight_sources
+        from apps.sales.services.flow_schema_registration import register_outbound_schemas
         from apps.sales.services.reports_registration import register_reports
         from apps.sales.services.scheduling_registration import register_scheduled_commands
 
@@ -36,3 +37,9 @@ class SalesConfig(AppConfig):
         # registre partage `core.services.data_query_tool_registry`.
         register_ai_data_query_tools()
         register_scheduled_commands()
+        # T0 (Phase 4, axes A1/A2 et §9.2) : declaration de ce que ce
+        # module accepte de laisser sortir — registre partage
+        # `core.services.outbound_schemas`. Sans elle, aucune
+        # correspondance de champs ne peut designer une piece de ce
+        # module : la fermeture est deny-by-default.
+        register_outbound_schemas()

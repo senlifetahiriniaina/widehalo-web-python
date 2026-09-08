@@ -13,6 +13,9 @@ class AccountingConfig(AppConfig):
         # `core.events` — jamais un import direct par `apps.reporting`.
         from apps.accounting.services.ai_anomaly_registration import register_ai_anomaly_checks
         from apps.accounting.services.ai_context_registration import register_ai_context
+        from apps.accounting.services.flow_schema_registration import (
+            register_outbound_schemas,
+        )
         from apps.accounting.services.reports_registration import register_reports
 
         register_reports()
@@ -22,3 +25,9 @@ class AccountingConfig(AppConfig):
         # AI3 (detection d'anomalies cross-modules) : meme patron, registre
         # partage `core.services.anomaly_registry`.
         register_ai_anomaly_checks()
+        # T0 (Phase 4, axes A1/A2 et §9.2) : declaration de ce que ce
+        # module accepte de laisser sortir — registre partage
+        # `core.services.outbound_schemas`. Sans elle, aucune
+        # correspondance de champs ne peut designer une piece de ce
+        # module : la fermeture est deny-by-default.
+        register_outbound_schemas()

@@ -549,9 +549,18 @@ class FlwTrigger(BaseModel):
     link = models.ForeignKey(FlwLink, on_delete=models.CASCADE, related_name="triggers")
     event_name = models.CharField(max_length=128)
     operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
-    # Condition declarative evaluee sur la charge de l'evenement, jamais du
+    # T0 (axe A1) : la piece source declaree, au format `app.Modele` —
+    # exactement ce que `workflow.transitioned` porte sous la clef `model`.
+    # C'est elle qui donne un SCHEMA aux filtres ci-dessous : sans piece
+    # declaree, « champ declare du modele » n'a pas de referent, et le
+    # filtre redeviendrait une expression libre.
+    document_type = models.CharField(max_length=64, blank=True)
+    # Condition declarative evaluee sur la PROJECTION de la piece, jamais du
     # code : meme discipline que `AnMetricDefinition.formule`, descriptive
-    # et non executable.
+    # et non executable. Depuis T0 la seule forme lue est
+    # `{"filters": [{"field": ..., "op": ..., "value": ...}]}` ; toute autre
+    # clef fait echouer la condition (deny-by-default, cf.
+    # `services/triggers.py::declared_filters`).
     condition = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
 

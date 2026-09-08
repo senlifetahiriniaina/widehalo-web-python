@@ -121,7 +121,13 @@ class FlwTriggerFactory(factory.django.DjangoModelFactory):
 
     tenant = factory.SubFactory(TenantFactory)
     link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
-    event_name = "sales.order_confirmed"
+    # Un evenement REELLEMENT publie (`core.events.PUBLISHED_EVENT_TYPES`).
+    # Le defaut precedent, « sales.order_confirmed », n'existe nulle part :
+    # un declencheur construit par cette factory n'aurait jamais pu tirer, et
+    # aucun test ne l'aurait dit. `save_trigger` refuse desormais un nom
+    # d'evenement non publie (T0) ; la factory, qui court-circuite le
+    # service, doit au moins ne pas semer l'inverse.
+    event_name = "workflow.transitioned"
     operation = OP_PUSH_DOCUMENT
 
 

@@ -19,6 +19,7 @@ class CrmConfig(AppConfig):
             register_actions as register_automation_actions,
         )
         from apps.crm.services.chatter_registration import register_chatter_guards
+        from apps.crm.services.flow_schema_registration import register_outbound_schemas
         from apps.crm.services.reports_registration import register_reports
 
         register_reports()
@@ -39,3 +40,9 @@ class CrmConfig(AppConfig):
         # discussion de l'opportunite d'un collegue serait lisible et
         # ecrivable, rouvrant la faille refermee aux bloquants (4/4).
         register_chatter_guards()
+        # T0 (Phase 4, axes A1/A2 et §9.2) : declaration de ce que ce
+        # module accepte de laisser sortir — registre partage
+        # `core.services.outbound_schemas`. Sans elle, aucune
+        # correspondance de champs ne peut designer une piece de ce
+        # module : la fermeture est deny-by-default.
+        register_outbound_schemas()

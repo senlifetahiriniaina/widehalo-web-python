@@ -35,6 +35,24 @@ autres ne protègent pas : un déclencheur cassé n'empêche pas les AUTRES
 déclencheurs du même événement de partir. Celle-là, une seule mutation la
 fait rougir.
 
+**T0 — le filtre cesse d'être une expression libre (axe A1).** Le cahier
+est catégorique : « Portée — quels objets partent : filtres sur des champs
+déclarés du modèle, **jamais une expression libre**. Un filtre non déclaré
+est refusé à l'enregistrement. » Jusqu'à T0, `condition` portait une
+chaîne évaluée par `safe_eval` sur la charge de l'événement, et rien ne la
+validait à l'enregistrement — ni sa syntaxe, ni les champs qu'elle nommait.
+Elle porte désormais des `filters` déclaratifs, dont chaque champ doit
+être un champ DÉCLARÉ FILTRABLE de la pièce source
+(`apps.core.services.outbound_schemas`), et c'est `save_trigger` qui refuse.
+
+Deux conséquences assumées. D'abord le filtre s'évalue sur la PROJECTION
+de la pièce, pas sur la charge de l'événement : « champs déclarés du
+modèle » désigne le modèle, et `workflow.transitioned` n'en porte que cinq
+clefs d'enveloppe. Ensuite, une condition portant l'ancienne clef
+`expression` ne déclenche plus RIEN — deny-by-default, dans le sens qui ne
+laisse rien sortir, plutôt qu'une conversion automatique qui élargirait la
+portée d'un déclencheur sans que personne ne l'ait décidé.
+
 **Le défaut qui rendait tout cela inerte, et qui a été corrigé par ce même
 sprint.** `core/workflows.py` publiait `workflow.transitioned` sans
 `tenant_id`. Comme tout `FlwTrigger` appartient à une société, un événement
@@ -46,15 +64,21 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from apps.core.services.expr import RestrictedExpressionError, safe_eval
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext as _
+
+from apps.core.services.outbound_schemas import get_outbound_document, project_document
 from apps.flows.models import FlwMapping
-from apps.flows.services.mapping import apply_mapping
+from apps.flows.services.mapping import apply_mapping, read_source
 
 if TYPE_CHECKING:
-    from apps.flows.models import FlwExchange, FlwTrigger
+    from apps.core.models.tenant import Tenant
+    from apps.flows.models import FlwExchange, FlwLink, FlwTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +112,27 @@ def dispatch_event_to_triggers(event: dict[str, Any]) -> None:
                 event_name=event_name, is_active=True, link__state=FlwLink.STATE_ACTIVE
             ).select_related("link")
         )
+        if not triggers:
+            return
+        # La projection est celle de la PIÈCE que l'événement désigne, et
+        # elle est calculée UNE fois pour tous les déclencheurs de cet
+        # événement : dix déclencheurs sur la même facture ne doivent pas
+        # relire la facture dix fois.
+        document_type, document_id = _document_of(payload)
+        document = (
+            project_document(document_type, document_id) if document_type and document_id else None
+        )
         for trigger in triggers:
-            if not passes_condition(trigger.condition, payload):
+            if trigger.document_type and trigger.document_type != document_type:
+                # Le déclencheur a déclaré filtrer une pièce que cet
+                # événement ne porte pas. Ne rien faire plutôt que filtrer
+                # à vide : sans quoi une erreur de configuration ferait
+                # partir TOUTES les pièces au lieu d'aucune.
+                continue
+            if not passes_condition(trigger.condition, document):
                 continue
             try:
-                fire(trigger, payload)
+                fire(trigger, payload, document=document)
             except Exception:  # noqa: BLE001 — FLX-2 : un déclencheur cassé n'en bloque aucun autre, et surtout pas la transition métier déjà validée.
                 logger.exception(
                     "Déclencheur de flux en échec (liaison %s, événement %s)",
@@ -101,21 +141,96 @@ def dispatch_event_to_triggers(event: dict[str, Any]) -> None:
                 )
 
 
-def passes_condition(condition: dict[str, Any], payload: dict[str, Any]) -> bool:
-    """Condition déclarative, jamais du code.
+#: Le jeu FERMÉ d'opérateurs de filtre (axe A1). Même discipline que les
+#: six transformations de S5 et les huit opérations de S6, pour la même
+#: raison : une énumération qu'on peut allonger sans que rien ne proteste
+#: redevient du texte libre en deux sprints. La garde est
+#: `tests/architecture/test_outbound_schema_vocabularies_are_closed.py`.
+FILTER_EQ = "eq"
+FILTER_NE = "ne"
+FILTER_IN = "in"
+FILTER_NOT_IN = "not_in"
+FILTER_GT = "gt"
+FILTER_GTE = "gte"
+FILTER_LT = "lt"
+FILTER_LTE = "lte"
 
-    Deny-by-default sur expression invalide : une condition qu'on ne sait
-    pas évaluer ne déclenche RIEN. L'inverse ferait partir un échange vers
-    un tiers sur la foi d'une expression que personne n'a su lire — même
-    décision que `automation.services.dispatch._passes_trigger_filter`,
-    reprise et non réinventée."""
-    expression = (condition or {}).get("expression")
-    if not expression:
-        return True
+
+def _cmp(gauche: Any, droite: Any, comparaison: Callable[[Any, Any], bool]) -> bool:
+    """Une comparaison d'ordre sur des types incomparables est FAUSSE, pas
+    une exception.
+
+    Comparer une date à une chaîne lève `TypeError` en Python. Laisser
+    remonter ferait échouer le déclencheur entier — donc, par l'absorption
+    de FLX-2, le rendrait silencieusement inerte. Rendre `False` est le
+    même deny-by-default que partout ailleurs ici : le filtre ne retient
+    pas la pièce, et rien ne part."""
     try:
-        return bool(safe_eval(expression, {"payload": payload}))
-    except RestrictedExpressionError:
+        return bool(comparaison(gauche, droite))
+    except TypeError:
         return False
+
+
+FILTER_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
+    FILTER_EQ: lambda valeur, attendu: valeur == attendu,
+    FILTER_NE: lambda valeur, attendu: valeur != attendu,
+    FILTER_IN: lambda valeur, attendu: isinstance(attendu, list) and valeur in attendu,
+    FILTER_NOT_IN: lambda valeur, attendu: isinstance(attendu, list) and valeur not in attendu,
+    FILTER_GT: lambda valeur, attendu: _cmp(valeur, attendu, operator.gt),
+    FILTER_GTE: lambda valeur, attendu: _cmp(valeur, attendu, operator.ge),
+    FILTER_LT: lambda valeur, attendu: _cmp(valeur, attendu, operator.lt),
+    FILTER_LTE: lambda valeur, attendu: _cmp(valeur, attendu, operator.le),
+}
+
+KNOWN_FILTER_OPERATORS: frozenset[str] = frozenset(FILTER_OPERATORS)
+
+
+def declared_filters(condition: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Les filtres d'une condition, ou `None` si la condition est illisible.
+
+    `None` et « aucun filtre » ne sont pas la même chose, et les confondre
+    ferait exactement le mauvais choix : une condition illisible doit
+    RETENIR la pièce, une condition vide doit la laisser passer."""
+    if not condition:
+        return []
+    inconnues = set(condition) - {"filters"}
+    if inconnues:
+        # Notamment l'ancienne clef `expression` : cf. la section T0 de la
+        # docstring de module. Une condition qu'on ne sait plus lire ne
+        # déclenche rien.
+        return None
+    filtres = condition.get("filters")
+    if not isinstance(filtres, list) or not all(isinstance(f, dict) for f in filtres):
+        return None
+    return list(filtres)
+
+
+def passes_condition(condition: dict[str, Any], document: dict[str, Any] | None) -> bool:
+    """Le filtre déclaratif de l'axe A1, évalué sur la PROJECTION.
+
+    Deny-by-default sur tout ce qui ne se lit pas : une condition qu'on ne
+    sait pas évaluer ne déclenche RIEN. L'inverse ferait partir un échange
+    vers un tiers sur la foi d'un filtre que personne n'a su lire — même
+    décision que `automation.services.dispatch._passes_trigger_filter`,
+    reprise et non réinventée.
+
+    Un filtre sur une pièce absente (`document is None`) est refusé pour la
+    même raison : on ne sait pas si la pièce l'aurait satisfait."""
+    filtres = declared_filters(condition)
+    if filtres is None:
+        return False
+    if not filtres:
+        return True
+    if document is None:
+        return False
+    for filtre in filtres:
+        operateur = FILTER_OPERATORS.get(str(filtre.get("op", "")))
+        chemin = str(filtre.get("field", ""))
+        if operateur is None or not chemin:
+            return False
+        if not operateur(read_source(document, chemin), filtre.get("value")):
+            return False
+    return True
 
 
 def _document_of(payload: dict[str, Any]) -> tuple[str, UUID | None]:
@@ -138,7 +253,7 @@ def _document_of(payload: dict[str, Any]) -> tuple[str, UUID | None]:
         return document_type, None
 
 
-def body_for(trigger: FlwTrigger, document_type: str, payload: dict[str, Any]) -> str:
+def body_for(trigger: FlwTrigger, document_type: str, source: dict[str, Any]) -> str:
     """Le corps que l'échange transportera, en JSON canonique.
 
     **Ce qui manquait, et il faut le dire.** Jusqu'au sprint S6, `fire`
@@ -151,12 +266,19 @@ def body_for(trigger: FlwTrigger, document_type: str, payload: dict[str, Any]) -
     réparent l'un l'autre : le corps est la charge de l'événement passée
     dans la correspondance de la liaison.
 
-    **Sans correspondance, la charge brute.** Refuser de partir faute de
-    correspondance rendrait le déclencheur inutilisable tant qu'aucune
+    **Sans correspondance, la source telle quelle.** Refuser de partir faute
+    de correspondance rendrait le déclencheur inutilisable tant qu'aucune
     n'est saisie, et transformerait une configuration incomplète en
-    silence — précisément ce que ce sprint corrige ailleurs. La charge
-    brute est un contenu réel, daté et empreint ; l'adaptateur la met à la
-    forme du tiers.
+    silence — précisément ce que le sprint S6 corrige ailleurs. La source
+    est un contenu réel, daté et empreint ; l'adaptateur la met à la forme
+    du tiers.
+
+    **Et `source` est la PROJECTION de la pièce quand elle en a une** (T0) :
+    la charge de `workflow.transitioned` ne porte que cinq clefs
+    d'enveloppe, si bien qu'avant T0 une correspondance désignant
+    `partner_id` lisait `None` et n'émettait rien. La projection est
+    élaguée aux seuls champs déclarés émis — la marge et le coût de revient
+    n'y sont donc pas, quelle que soit la correspondance saisie.
 
     **JSON canonique** (`sort_keys`) : deux charges identiques doivent
     donner la MÊME empreinte, sinon « prouver ce qui est parti » dépend de
@@ -168,25 +290,135 @@ def body_for(trigger: FlwTrigger, document_type: str, payload: dict[str, Any]) -
         if document_type
         else None
     )
-    contenu = apply_mapping(correspondance.field_map, payload) if correspondance else payload
+    contenu = apply_mapping(correspondance.field_map, source) if correspondance else source
     return json.dumps(contenu, sort_keys=True, ensure_ascii=False, default=str)
 
 
-def fire(trigger: FlwTrigger, payload: dict[str, Any]) -> FlwExchange:
+def fire(
+    trigger: FlwTrigger, payload: dict[str, Any], *, document: dict[str, Any] | None = None
+) -> FlwExchange:
     """Fait naître l'échange d'un déclencheur, et le met en file.
 
     **Ne rend jamais un échange PARTI**, et c'est le cœur de FLX-2 : mettre
-    en file est une écriture locale, appeler un tiers ne l'est pas."""
+    en file est une écriture locale, appeler un tiers ne l'est pas.
+
+    `document` est la projection déjà calculée par le répartiteur — elle est
+    passée plutôt que recalculée pour que dix déclencheurs branchés sur la
+    même facture ne la relisent pas dix fois. Un appelant qui ne l'a pas
+    (un rejeu, un test) la laisse à `None` et elle est calculée ici."""
     from apps.flows.services.exchange import prepare_exchange
     from apps.flows.services.queue import queue_exchange
 
     document_type, document_id = _document_of(payload)
+    if document is None and document_type and document_id:
+        document = project_document(document_type, document_id)
     exchange = prepare_exchange(
         trigger.tenant,
         trigger.link,
         operation=trigger.operation,
         document_type=document_type,
         document_id=document_id,
-        body=body_for(trigger, document_type, payload),
+        body=body_for(trigger, document_type, document if document is not None else payload),
     )
     return queue_exchange(exchange)
+
+
+def save_trigger(
+    tenant: Tenant,
+    link: FlwLink,
+    *,
+    event_name: str,
+    operation: str,
+    document_type: str = "",
+    filters: list[dict[str, Any]] | None = None,
+    is_active: bool = True,
+) -> FlwTrigger:
+    """LE point d'entrée de l'axe A1 : enregistre un déclencheur, ou refuse
+    en nommant le champ.
+
+    « Un filtre non déclaré est refusé **à l'enregistrement** » — comme
+    FLX-6 pour les correspondances, et pour la même raison : un filtre
+    accepté en base et découvert faux au premier événement ne se découvre
+    qu'en production, sur la pièce d'un client, longtemps après que
+    quelqu'un l'a saisi.
+
+    Cinq refus :
+
+    1. l'événement n'est pas un événement publié — un déclencheur branché
+       sur un nom qui n'existe pas ne tirera jamais, et rien ne le dirait ;
+    2. la pièce déclarée n'est pas liable — son module n'a pas dit ce
+       qu'elle a le droit de laisser sortir ;
+    3. un filtre sans pièce déclarée — il n'y aurait rien contre quoi
+       vérifier les champs, donc pas de « champ déclaré » du tout ;
+    4. un opérateur hors du jeu fermé ;
+    5. un champ qui n'est pas déclaré FILTRABLE sur cette pièce."""
+    from apps.core.events import PUBLISHED_EVENT_TYPES
+    from apps.flows.models import FlwTrigger
+    from apps.flows.operations import validate_operation
+
+    validate_operation(operation)
+    if event_name not in PUBLISHED_EVENT_TYPES:
+        raise ValidationError(
+            _(
+                "L'événement « %(nom)s » n'est publié par aucun module. Un "
+                "déclencheur branché sur un nom qui n'existe pas ne tire jamais, "
+                "et rien ne le signale."
+            )
+            % {"nom": event_name}
+        )
+
+    filtres = list(filters or [])
+    document = get_outbound_document(document_type) if document_type else None
+    if document_type and document is None:
+        raise ValidationError(
+            _(
+                "La pièce « %(code)s » n'est pas déclarée liable par son module : "
+                "aucun filtre ne peut porter sur ses champs tant que ce module "
+                "n'a pas dit lesquels peuvent sortir."
+            )
+            % {"code": document_type}
+        )
+    if filtres and document is None:
+        raise ValidationError(
+            _(
+                "Un filtre suppose une pièce source déclarée : sans elle il n'y "
+                "a aucun « champ déclaré » contre quoi le vérifier, et l'axe A1 "
+                "redeviendrait une expression libre."
+            )
+        )
+
+    if document is not None:
+        filtrables = set(document.filterable_paths)
+        for filtre in filtres:
+            operateur = str(filtre.get("op", ""))
+            if operateur not in KNOWN_FILTER_OPERATORS:
+                raise ValidationError(
+                    _("Opérateur de filtre « %(op)s » hors du jeu fermé : %(jeu)s.")
+                    % {"op": operateur, "jeu": ", ".join(sorted(KNOWN_FILTER_OPERATORS))}
+                )
+            chemin = str(filtre.get("field", ""))
+            if chemin not in filtrables:
+                raise ValidationError(
+                    _(
+                        "« %(chemin)s » n'est pas un champ filtrable déclaré de "
+                        "« %(code)s ». Champs filtrables : %(liste)s."
+                    )
+                    % {
+                        "chemin": chemin,
+                        "code": document_type,
+                        "liste": ", ".join(sorted(filtrables)) or _("aucun"),
+                    }
+                )
+
+    trigger, _created = FlwTrigger.objects.update_or_create(
+        tenant=tenant,
+        link=link,
+        event_name=event_name,
+        operation=operation,
+        defaults={
+            "document_type": document_type,
+            "condition": {"filters": filtres} if filtres else {},
+            "is_active": is_active,
+        },
+    )
+    return trigger
