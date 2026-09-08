@@ -19,6 +19,8 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from apps.accounting.models import AccMove
 from apps.accounting.services.einvoice_completeness import (
@@ -328,6 +330,196 @@ def test_an_unrenderable_type_raises_instead_of_leaking_a_repr() -> None:
 
     with pytest.raises(TypeError, match="non sérialisable"):
         canonical_bytes({"x": Inattendu()})
+
+
+# --- Le certificat de signature (EFA-8) ------------------------------------
+
+
+def _cle_privee_pem() -> str:
+    """Une clé RSA jetable, générée pour ce test.
+
+    Générée et non figée dans le dépôt : une clé privée en clair dans un
+    fichier versionné est une clé compromise, même « de test » — le jour
+    où quelqu'un la recopie dans une configuration réelle, elle est
+    publique depuis le premier commit."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    cle = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return cle.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("ascii")
+
+
+def _certificat(societe, *, expire_dans_jours: int | None):
+    """Pose un certificat sur la liaison fiscale de cette société."""
+    from apps.flows.models import FlwCredential
+
+    liaison = _liaison_fiscale(societe, active=True)
+    echeance = (
+        None if expire_dans_jours is None else timezone.now() + dt.timedelta(days=expire_dans_jours)
+    )
+    FlwCredential.objects.create(
+        tenant=societe,
+        connector=liaison.connector,
+        label="Certificat fiscal",
+        kind=FlwCredential.KIND_CERTIFICATE,
+        secret=_cle_privee_pem(),
+        secret_hint="se termine par 4f2a",
+        expires_at=echeance,
+    )
+    return liaison
+
+
+def test_a_valid_certificate_signs_the_submission(societe) -> None:
+    """EFA-2 : le document est « produit, SIGNÉ, archivé et mis en file »."""
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=365)
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+
+        resultat = submit_invoice(piece)
+
+        assert resultat.signed is True
+        assert resultat.outcome == OUTCOME_QUEUED
+
+
+def test_an_expired_certificate_refuses_the_submission_before_it_leaves(societe) -> None:
+    """« Une signature avec certificat expiré est REFUSÉE AVANT
+    SOUMISSION » — EFA-8, mot pour mot.
+
+    « Avant » n'est pas un détail de formulation : le refus doit tomber
+    avant l'archivage et avant la mise en file, sans quoi l'administration
+    recevrait une soumission qu'elle rejettera après l'avoir enregistrée,
+    et le dépôt garderait l'archive d'un document qui n'aurait jamais dû
+    partir."""
+    from apps.core.models.document import Document
+    from apps.flows.models import FlwExchange
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=-1)
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+
+        with pytest.raises(ValidationError, match="expiré"):
+            submit_invoice(piece)
+
+        assert Document.objects.filter(tenant=societe).count() == 0, (
+            "le document a été archivé alors que la signature était refusée"
+        )
+        assert not FlwExchange.objects.filter(tenant=societe).exists(), (
+            "la soumission est partie malgré un certificat expiré"
+        )
+
+
+def test_no_certificate_at_all_is_not_an_error(societe) -> None:
+    """Ne pas avoir encore fourni son certificat est l'état normal de toute
+    installation qui n'a pas ouvert de raccordement.
+
+    EFA-2 interdit d'y présenter une erreur : le document est produit et
+    archivé, simplement pas signé. La différence avec le certificat expiré
+    est celle entre « pas encore équipé », qui n'appelle aucune action, et
+    « équipé d'un moyen sans valeur », qui en appelle une tout de suite."""
+    with use_tenant(societe.id):
+        _liaison_fiscale(societe, active=True)
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+
+        resultat = submit_invoice(piece)
+
+        assert resultat.signed is False
+        assert resultat.outcome == OUTCOME_QUEUED
+        assert resultat.archived is True
+
+
+def test_an_expiry_within_thirty_days_raises_an_alert(societe) -> None:
+    """« L'expiration prochaine déclenche une alerte AU MOINS trente jours
+    avant échéance » — le critère pose un plancher, pas une cible."""
+    from apps.flows.services.public import describe_signing_certificate
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=20)
+        etat = describe_signing_certificate(societe, connector_code=CONNECTOR_CODE)
+
+    assert etat["present"] is True
+    assert etat["expiring_soon"] is True
+    assert etat["expired"] is False
+    assert etat["days_remaining"] <= 30
+
+
+def test_a_certificate_valid_for_a_year_raises_no_alert(societe) -> None:
+    """Alerter trop tôt vide l'alerte de son sens : un exploitant qui voit
+    « expire bientôt » toute l'année cesse de le lire."""
+    from apps.flows.services.public import describe_signing_certificate
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=200)
+        etat = describe_signing_certificate(societe, connector_code=CONNECTOR_CODE)
+
+    assert etat["expiring_soon"] is False
+
+
+def test_an_already_expired_certificate_does_not_expire_soon(societe) -> None:
+    """« Expire bientôt » et « a expiré » sont deux messages, deux urgences
+    et deux écrans. Les confondre ferait afficher « expire dans -3 jours »,
+    ce qui ne veut rien dire et fait douter de tout le reste."""
+    from apps.flows.services.public import describe_signing_certificate
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=-3)
+        etat = describe_signing_certificate(societe, connector_code=CONNECTOR_CODE)
+
+    assert etat["expired"] is True
+    assert etat["expiring_soon"] is False
+
+
+def test_a_certificate_without_a_deadline_is_never_refused(societe) -> None:
+    """Un certificat sans échéance connue n'est pas réputé éternel : il est
+    réputé NON SURVEILLÉ.
+
+    Le refuser bloquerait une soumission sur une donnée que l'exploitant a
+    seulement omis de saisir — une omission de paramétrage ne doit pas
+    avoir la même conséquence qu'un certificat périmé."""
+    from apps.flows.services.public import describe_signing_certificate
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=None)
+        piece = _facture(societe, partner_id=_client_complet(societe).id)
+
+        assert submit_invoice(piece).signed is True
+        etat = describe_signing_certificate(societe, connector_code=CONNECTOR_CODE)
+        assert etat["expiring_soon"] is False
+        assert etat["days_remaining"] is None
+
+
+def test_the_private_key_never_crosses_the_module_boundary(societe) -> None:
+    """La surface publique rend la SIGNATURE, jamais le MOYEN.
+
+    Le cahier est catégorique sur le logement d'un secret (§13.2 : « table
+    à part, chiffrée, jamais exportée »). Si `accounting` devait signer
+    lui-même, il faudrait lui rendre la clé — c'est-à-dire faire traverser
+    un secret à une frontière de module pour qu'il soit utilisé ailleurs.
+    Ce test vérifie qu'aucune matière secrète ne figure dans ce que la
+    surface publique renvoie."""
+    from apps.flows.services.public import describe_signing_certificate, sign_document
+
+    with use_tenant(societe.id):
+        _certificat(societe, expire_dans_jours=365)
+        etat = describe_signing_certificate(societe, connector_code=CONNECTOR_CODE)
+        signature = sign_document(societe, connector_code=CONNECTOR_CODE, payload=b"x")
+
+    assert "PRIVATE KEY" not in repr(etat)
+    assert "PRIVATE KEY" not in repr(signature)
+    assert set(etat) == {
+        "present",
+        "label",
+        "hint",
+        "expires_at",
+        "expired",
+        "expiring_soon",
+        "days_remaining",
+    }
+    assert signature is not None
+    assert set(signature) == {"algorithm", "value", "certificate_hint", "signed_at"}
 
 
 # --- Les trois axes sont orthogonaux (EFA-6) -------------------------------
