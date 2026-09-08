@@ -8,26 +8,56 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
 from apps.catalog.services.public import get_variant_price
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 from apps.crm.models import CrmLead, CrmLeadLine, CrmPipeline, CrmStage
-from apps.crm.services.pipelines import resolve_default_pipeline
+from apps.crm.services.pipelines import ensure_default_pipeline, resolve_default_pipeline
 
 
 def _default_pipeline(tenant: Tenant) -> CrmPipeline:
-    pipeline = resolve_default_pipeline(tenant)
-    if pipeline is None:
-        raise ValueError(_("Aucun pipeline configure pour ce tenant."))
-    return pipeline
+    """Le pipeline par defaut de la societe, CREE s'il n'existe pas encore.
+
+    **Le defaut ferme ici rendait 500 toute creation d'opportunite sur une
+    societe neuve.** Cette fonction levait `ValueError` — pas
+    `ValidationError` — quand aucun pipeline n'existait : l'exception
+    tombait donc dans le gestionnaire generique de `core.errors` et
+    ressortait en « une erreur inattendue est survenue ». Or l'absence de
+    pipeline n'a rien d'inattendu sur une societe qui vient d'etre creee :
+    c'est meme l'etat NORMAL, puisque le pipeline par defaut n'etait pose
+    que par une commande de deploiement lancee a la main
+    (`load_default_pipeline`).
+
+    Refuser aurait ete la mauvaise reponse a la mauvaise question. Un CRM
+    sans tunnel de vente ne peut rien faire du tout ; `ensure_default_
+    pipeline` existe depuis L4 precisement pour poser le tunnel a sept
+    etapes, et elle est idempotente. La creation d'opportunite l'appelle
+    donc plutot que d'echouer — meme decision que partout ailleurs dans ce
+    depot, ou une donnee de reference manquante se seme au lieu de bloquer
+    l'utilisateur."""
+    return resolve_default_pipeline(tenant) or ensure_default_pipeline(tenant)
 
 
 def _first_stage(pipeline: CrmPipeline) -> CrmStage:
+    """La premiere etape du tunnel.
+
+    `ValidationError` et non `ValueError` : un pipeline vide est une
+    configuration invalide, que `core.errors` presente en 422 avec son
+    message, la ou un `ValueError` ressortait en 500 muet. Le cas subsiste
+    parce qu'un pipeline peut avoir ete cree a la main sans etape — celui
+    par defaut, lui, en pose sept."""
     stage = pipeline.stages.order_by("sequence").first()
     if stage is None:
-        raise ValueError(_("Le pipeline ne comporte aucune étape."))
+        raise ValidationError(
+            _(
+                "Le tunnel « %(nom)s » ne comporte aucune étape : aucune "
+                "opportunité ne peut y naître."
+            )
+            % {"nom": pipeline.name}
+        )
     return stage
 
 

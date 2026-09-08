@@ -91,7 +91,24 @@ def test_custom_line_does_not_require_a_variant(crm_setup) -> None:
         assert CrmLeadLine.objects.filter(lead=lead, is_custom=True).count() == 1
 
 
-def test_create_lead_without_any_pipeline_raises() -> None:
+def test_create_lead_on_a_company_without_any_pipeline_seeds_the_default_one() -> None:
+    """T1 — ce test figeait le défaut, il mesure maintenant sa correction.
+
+    Il assertait `pytest.raises(ValueError)` : une société sans tunnel de
+    vente faisait échouer la création d'opportunité. C'était le
+    comportement du code, mais pas un comportement défendable — une société
+    NEUVE n'a aucun tunnel, c'est son état normal, et le tunnel par défaut
+    n'était posé que par une commande de déploiement lancée à la main. Toute
+    première opportunité rendait donc 500 par l'API (`ValueError` n'étant
+    pas une `ValidationError`, elle tombait dans le gestionnaire générique).
+
+    Le tunnel à sept étapes est désormais semé à la volée par
+    `ensure_default_pipeline`, idempotente et livrée depuis L4 — elle
+    n'avait simplement aucun appelant sur ce chemin."""
     tenant = Tenant.objects.create(code="CRM-EMPTY", name="CRM Empty Tenant")
-    with use_tenant(tenant.id), pytest.raises(ValueError):
-        create_lead_quick(tenant=tenant, name="Sans pipeline")
+    with use_tenant(tenant.id):
+        assert not CrmPipeline.objects.filter(tenant=tenant).exists()
+        lead = create_lead_quick(tenant=tenant, name="Sans pipeline")
+        assert lead.pipeline.is_default
+        assert lead.stage is not None
+        assert CrmPipeline.objects.filter(tenant=tenant, is_default=True).count() == 1

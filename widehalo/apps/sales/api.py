@@ -20,7 +20,7 @@ tout le projet (cf. `_serialize_line`/`_serialize_order_line`)."""
 
 from __future__ import annotations
 
-import uuid
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -161,15 +161,15 @@ def create_quotation_endpoint(request, payload: QuotationIn):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     quotation = create_quotation(
         tenant=tenant,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         date=payload.date,
         salesperson=request.auth,
         currency=payload.currency,
-        source_lead_id=uuid.UUID(payload.source_lead_id) if payload.source_lead_id else None,
+        source_lead_id=payload.source_lead_id,
         contact=payload.contact,
         validity_date=payload.validity_date,
-        pricelist_id=uuid.UUID(payload.pricelist_id) if payload.pricelist_id else None,
-        payment_term_id=uuid.UUID(payload.payment_term_id) if payload.payment_term_id else None,
+        pricelist_id=payload.pricelist_id,
+        payment_term_id=payload.payment_term_id,
         incoterm=payload.incoterm,
         delivery_address=payload.delivery_address,
         notes=payload.notes,
@@ -178,7 +178,7 @@ def create_quotation_endpoint(request, payload: QuotationIn):
     for index, line in enumerate(payload.lines):
         add_quotation_line(
             quotation,
-            variant_id=uuid.UUID(line.variant_id) if line.variant_id else None,
+            variant_id=line.variant_id,
             description=line.description,
             qty=line.qty,
             uom=line.uom,
@@ -205,7 +205,7 @@ def add_quotation_line_endpoint(request, quotation_id: str, payload: QuotationLi
     quotation = get_object_or_404(SalesQuotation, id=quotation_id)
     add_quotation_line(
         quotation,
-        variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+        variant_id=payload.variant_id,
         description=payload.description,
         qty=payload.qty,
         uom=payload.uom,
@@ -321,15 +321,15 @@ def create_order_endpoint(request, payload: OrderIn):
     tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
     order = create_order(
         tenant=tenant,
-        partner_id=uuid.UUID(payload.partner_id),
+        partner_id=payload.partner_id,
         date=payload.date,
         salesperson=request.auth,
         currency=payload.currency,
-        source_lead_id=uuid.UUID(payload.source_lead_id) if payload.source_lead_id else None,
+        source_lead_id=payload.source_lead_id,
         contact=payload.contact,
         commitment_date=payload.commitment_date,
-        pricelist_id=uuid.UUID(payload.pricelist_id) if payload.pricelist_id else None,
-        payment_term_id=uuid.UUID(payload.payment_term_id) if payload.payment_term_id else None,
+        pricelist_id=payload.pricelist_id,
+        payment_term_id=payload.payment_term_id,
         incoterm=payload.incoterm,
         delivery_address=payload.delivery_address,
         notes=payload.notes,
@@ -338,7 +338,7 @@ def create_order_endpoint(request, payload: OrderIn):
     for index, line in enumerate(payload.lines):
         add_order_line(
             order,
-            variant_id=uuid.UUID(line.variant_id) if line.variant_id else None,
+            variant_id=line.variant_id,
             description=line.description,
             qty=line.qty,
             uom=line.uom,
@@ -417,9 +417,7 @@ def invoice_order_endpoint(request, order_id: str, payload: OrderInvoiceIn):
     order = get_object_or_404(SalesOrder, id=order_id)
     lines = None
     if payload.line_ids:
-        lines = list(
-            order.lines.filter(id__in=[uuid.UUID(line_id) for line_id in payload.line_ids])
-        )
+        lines = list(order.lines.filter(id__in=payload.line_ids))
 
     invoice_id = invoice_order(order, request.auth, lines=lines)
     if invoice_id is None:
@@ -494,7 +492,7 @@ def list_forecast_endpoint(
     request,
     date_from: str | None = Query(None, alias="from"),
     date_to: str | None = Query(None, alias="to"),
-    variant: str | None = Query(None),
+    variant: UUID | None = Query(None),  # noqa: B008 — idiome django-ninja standard
 ):
     """RG-SAL-7 (§5.5.7) : liste des previsions deja calculees
     (`services.forecast.recompute_forecasts_for_period` alimente la
@@ -510,7 +508,7 @@ def list_forecast_endpoint(
     if date_to:
         forecasts = forecasts.filter(period__lte=date_to)
     if variant:
-        forecasts = forecasts.filter(variant_id=uuid.UUID(variant))
+        forecasts = forecasts.filter(variant_id=variant)
     return {"results": [_serialize_forecast(forecast) for forecast in forecasts]}
 
 
@@ -552,7 +550,7 @@ def create_target_endpoint(request, payload: TargetIn):
         tenant=tenant,
         period=payload.period,
         scope=payload.scope,
-        scope_ref=uuid.UUID(payload.scope_ref) if payload.scope_ref else None,
+        scope_ref=payload.scope_ref,
         amount_mga=payload.amount_mga,
         qty=payload.qty,
     )

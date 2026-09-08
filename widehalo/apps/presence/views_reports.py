@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.presence.services.reports import (
     absence_register_rows,
@@ -49,7 +50,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_attendance_sheet(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     year, month = _period(request)
     rows = attendance_sheet_rows(tenant, year=year, month=month)
     data = rows_to_bytes(
@@ -73,7 +74,7 @@ def report_attendance_sheet(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_absences(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = absence_register_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -86,7 +87,7 @@ def report_absences(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_leave_balances(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     year = int(request.GET.get("year", dt.date.today().year))
     rows = leave_balance_rows(tenant, year=year)
     data = rows_to_bytes(
@@ -108,7 +109,7 @@ def report_leave_balances(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_overtime(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     year, month = _period(request)
     rows = overtime_rows(tenant, year=year, month=month)
     data = rows_to_bytes(
@@ -120,7 +121,7 @@ def report_overtime(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_absenteeism(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     year, month = _period(request)
     rows = absenteeism_by_department_rows(tenant, year=year, month=month)
     data = rows_to_bytes(rows, ["department", "employee_count", "absence_days"], format=format)
@@ -130,7 +131,7 @@ def report_absenteeism(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_reconciliation(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     year, month = _period(request)
     rows = reconciliation_rows(tenant, year=year, month=month)
     data = rows_to_bytes(

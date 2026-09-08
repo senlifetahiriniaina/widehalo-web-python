@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.stocks.models import StkInventory, StkLot
 from apps.stocks.services.reports import (
@@ -53,7 +54,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 def report_state(request: HttpRequest) -> HttpResponse:
     """STK-ETAT."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = stock_state_rows(tenant)
     data = rows_to_bytes(rows, ["location_id", "variant_id", "qty", "value_mga"], format=format)
     return _report_response(data, format, "stocks-etat")
@@ -65,7 +66,7 @@ def report_moves(request: HttpRequest) -> HttpResponse:
     from django.utils.dateparse import parse_date
 
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     variant_raw = request.GET.get("variant_id", "")
     rows = move_rows(
         tenant,
@@ -100,7 +101,7 @@ def report_moves(request: HttpRequest) -> HttpResponse:
 def report_traceability(request: HttpRequest, lot_id: str) -> HttpResponse:
     """STK-TRAC."""
     lot = get_object_or_404(StkLot, id=lot_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = traceability_rows(lot)
     data = rows_to_bytes(
         rows,
@@ -126,7 +127,7 @@ def report_traceability(request: HttpRequest, lot_id: str) -> HttpResponse:
 def report_inventory(request: HttpRequest, inventory_id: str) -> HttpResponse:
     """STK-INV."""
     inventory = get_object_or_404(StkInventory, id=inventory_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = inventory_line_rows(inventory)
     data = rows_to_bytes(
         rows,
@@ -149,7 +150,7 @@ def report_inventory(request: HttpRequest, inventory_id: str) -> HttpResponse:
 def report_defects(request: HttpRequest) -> HttpResponse:
     """STK-DEF."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = defect_analysis_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -163,7 +164,7 @@ def report_defects(request: HttpRequest) -> HttpResponse:
 def report_dormant(request: HttpRequest) -> HttpResponse:
     """STK-AGE."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = dormant_stock_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -177,7 +178,7 @@ def report_dormant(request: HttpRequest) -> HttpResponse:
 def report_consistency(request: HttpRequest) -> HttpResponse:
     """STK-COHER."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = production_consistency_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -199,7 +200,7 @@ def report_consistency(request: HttpRequest) -> HttpResponse:
 def report_measurements(request: HttpRequest) -> HttpResponse:
     """STK-MES."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = measurement_variance_rows(tenant)
     data = rows_to_bytes(
         rows, ["measured_at", "type", "value", "uom", "variance_pct", "device"], format=format
@@ -211,7 +212,7 @@ def report_measurements(request: HttpRequest) -> HttpResponse:
 def report_valuation(request: HttpRequest) -> HttpResponse:
     """STK-VAL."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     variant_raw = request.GET.get("variant_id", "")
     rows = valuation_layer_rows(tenant, variant_id=uuid.UUID(variant_raw) if variant_raw else None)
     data = rows_to_bytes(

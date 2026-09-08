@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from apps.core.report_formats import parse_report_format
 from apps.core.services.permissions import user_role_codes
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.reports import (
@@ -43,7 +44,7 @@ def _period_from_request(request: HttpRequest) -> tuple:  # type: ignore[type-ar
     today = timezone.now().date()
     date_from = parse_date(request.GET.get("date_from", "")) or today.replace(day=1)
     date_to = parse_date(request.GET.get("date_to", "")) or today
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     return date_from, date_to, format
 
 
@@ -79,7 +80,7 @@ def report_delivery_note(request: HttpRequest, order_id: str) -> HttpResponse:
     """SAL-BL (portee minimale assumee, cf. `services.reports.
     delivery_note_rows`)."""
     order = get_object_or_404(SalesOrder, id=order_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = delivery_note_rows(order)
     data = rows_to_bytes(
         rows, ["description", "qty_ordered", "qty_delivered", "uom"], format=format
@@ -103,7 +104,7 @@ def report_margin(request: HttpRequest) -> HttpResponse:
     """SAL-MARGE — RG-SAL-5 : masquage applique dans
     `services.reports.margin_report` selon les roles de l'utilisateur
     courant (memes roles que l'ecran/l'API)."""
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     role_codes = user_role_codes(request.user)
     rows = margin_report(role_codes=role_codes)
     can_see_margin = bool(role_codes & {"direction", "admin", "resp_commercial"})
@@ -117,7 +118,7 @@ def report_margin(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_late_orders(request: HttpRequest) -> HttpResponse:
     """SAL-RET."""
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = late_orders_report()
     data = rows_to_bytes(
         rows, ["reference", "partner_id", "commitment_date", "state", "days_late"], format=format
@@ -128,7 +129,7 @@ def report_late_orders(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_targets(request: HttpRequest) -> HttpResponse:
     """SAL-OBJ."""
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     period = request.GET.get("period") or timezone.now().strftime("%Y-%m")
     rows = target_achievement_report(period=period)
     data = rows_to_bytes(
@@ -142,7 +143,7 @@ def report_targets(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_forecast(request: HttpRequest) -> HttpResponse:
     """SAL-PREV."""
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     today = timezone.now().date()
     date_from = request.GET.get("date_from") or today.replace(day=1).strftime("%Y-%m")
     date_to = request.GET.get("date_to") or today.strftime("%Y-%m")

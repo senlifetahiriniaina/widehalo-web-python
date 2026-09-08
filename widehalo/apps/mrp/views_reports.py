@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from apps.core.report_formats import parse_report_format
 from apps.mrp.models import MrpOrder, MrpWorkshop
 from apps.mrp.services.reports import (
     cost_report,
@@ -43,7 +44,7 @@ def _period_from_request(request: HttpRequest) -> tuple:
     today = timezone.now().date()
     date_from = parse_date(request.GET.get("date_from", "")) or today.replace(day=1)
     date_to = parse_date(request.GET.get("date_to", "")) or today
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     return date_from, date_to, format
 
 
@@ -71,7 +72,7 @@ def report_order_pdf(request: HttpRequest, order_id: str) -> HttpResponse:
 @login_required
 def report_cost(request: HttpRequest, order_id: str) -> HttpResponse:
     order = get_object_or_404(MrpOrder, id=order_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     row = cost_report(order)
     data = rows_to_bytes([row], list(row.keys()), format=format)
     return _report_response(data, format, f"cout-{order.reference or order.id}")
@@ -98,7 +99,7 @@ def report_cri(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_efficiency(request: HttpRequest) -> HttpResponse:
     workcenter_code = request.GET.get("workcenter_code") or None
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = efficiency_report(workcenter_code)
     data = rows_to_bytes(
         rows, ["workcenter", "qty_done", "qty_rejected", "efficiency_pct"], format=format
@@ -117,7 +118,7 @@ def report_scrap(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_workload(request: HttpRequest, workshop_id: str) -> HttpResponse:
     workshop = get_object_or_404(MrpWorkshop, id=workshop_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = workload_report(workshop)
     data = rows_to_bytes(rows, ["workcenter", "total_planned_min"], format=format)
     return _report_response(data, format, f"mrp-charge-{workshop.code}")

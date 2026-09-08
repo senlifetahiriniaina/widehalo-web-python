@@ -120,6 +120,7 @@ from apps.accounting.services.reports import (
 from apps.accounting.services.tax_calendar import create_tax_calendar_entry
 from apps.accounting.services.tax_returns import generate_liasse_ir, generate_liasse_is
 from apps.core.models.tenant import Tenant
+from apps.core.report_formats import REPORT_CONTENT_TYPES, ReportFormat
 from apps.core.services.permissions import require_permission
 
 router = Router(tags=["accounting"])
@@ -501,7 +502,7 @@ def create_tax_calendar_endpoint(request, payload: TaxCalendarIn):
 
 @router.get("/accounting/reports/trial-balance")
 @require_permission("accounting.view_accaccount")
-def trial_balance_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def trial_balance_endpoint(request, fiscal_year_id: str, format: ReportFormat = "json"):
     from apps.accounting.models import AccFiscalYear
 
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
@@ -517,7 +518,9 @@ def trial_balance_endpoint(request, fiscal_year_id: str, format: str = "json"):
 
 @router.get("/accounting/reports/general-ledger")
 @require_permission("accounting.view_accmove")
-def general_ledger_endpoint(request, account_id: str, fiscal_year_id: str, format: str = "json"):
+def general_ledger_endpoint(
+    request, account_id: str, fiscal_year_id: str, format: ReportFormat = "json"
+):
     from apps.accounting.models import AccFiscalYear
 
     account = get_object_or_404(AccAccount, id=account_id)
@@ -534,7 +537,9 @@ def general_ledger_endpoint(request, account_id: str, fiscal_year_id: str, forma
 
 @router.get("/accounting/reports/journal")
 @require_permission("accounting.view_accmove")
-def journal_report_endpoint(request, journal_id: str, fiscal_year_id: str, format: str = "json"):
+def journal_report_endpoint(
+    request, journal_id: str, fiscal_year_id: str, format: ReportFormat = "json"
+):
     from apps.accounting.models import AccFiscalYear
 
     journal = get_object_or_404(AccJournal, id=journal_id)
@@ -549,13 +554,6 @@ def journal_report_endpoint(request, journal_id: str, fiscal_year_id: str, forma
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }[format]
     return HttpResponse(data, content_type=content_type)
-
-
-_REPORT_CONTENT_TYPES = {
-    "json": "application/json",
-    "csv": "text/csv",
-    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-}
 
 
 def _flatten_balance_sheet(data: dict) -> list[dict]:
@@ -580,7 +578,7 @@ def _flatten_balance_sheet(data: dict) -> list[dict]:
 @router.get("/accounting/reports/balance-sheet")
 @require_permission("accounting.view_accaccount")
 def balance_sheet_endpoint(
-    request, fiscal_year_id: str, as_of_date: dt.date | None = None, format: str = "json"
+    request, fiscal_year_id: str, as_of_date: dt.date | None = None, format: ReportFormat = "json"
 ):
     """ACC-BIL — bilan. Reserve OECFM : cf. docstring de
     `services/reports.py::balance_sheet`."""
@@ -592,12 +590,12 @@ def balance_sheet_endpoint(
         return JsonResponse(data)
     rows = _flatten_balance_sheet(data)
     payload = rows_to_bytes(rows, ["section", "courant", "code", "name", "amount"], format=format)
-    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(payload, content_type=REPORT_CONTENT_TYPES[format])
 
 
 @router.get("/accounting/reports/income-statement")
 @require_permission("accounting.view_accaccount")
-def income_statement_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def income_statement_endpoint(request, fiscal_year_id: str, format: ReportFormat = "json"):
     """ACC-CR — compte de resultat par nature. Reserve OECFM : cf. docstring
     de `services/reports.py::income_statement`."""
     from apps.accounting.models import AccFiscalYear
@@ -605,12 +603,14 @@ def income_statement_endpoint(request, fiscal_year_id: str, format: str = "json"
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
     rows = income_statement(fiscal_year)
     data = rows_to_bytes(rows, ["poste", "label", "amount"], format=format)
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 @router.get("/accounting/reports/income-statement-by-function")
 @require_permission("accounting.view_accaccount")
-def income_statement_by_function_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def income_statement_by_function_endpoint(
+    request, fiscal_year_id: str, format: ReportFormat = "json"
+):
     """ACC-CR-FCT — compte de resultat par fonction. Reserve OECFM : cf.
     docstring de `services/reports.py::income_statement_by_function`."""
     from apps.accounting.models import AccFiscalYear
@@ -618,12 +618,12 @@ def income_statement_by_function_endpoint(request, fiscal_year_id: str, format: 
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
     rows = income_statement_by_function(fiscal_year)
     data = rows_to_bytes(rows, ["label", "amount"], format=format)
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 @router.get("/accounting/reports/cash-flow")
 @require_permission("accounting.view_accaccount")
-def cash_flow_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def cash_flow_endpoint(request, fiscal_year_id: str, format: ReportFormat = "json"):
     """ACC-CF — tableau des flux de tresorerie (methode directe). Reserve
     OECFM et choix de methode : cf. docstring de
     `services/reports.py::cash_flow_statement`."""
@@ -636,12 +636,12 @@ def cash_flow_endpoint(request, fiscal_year_id: str, format: str = "json"):
     payload = rows_to_bytes(
         data["lines"], ["date", "reference", "section", "account", "label", "amount"], format=format
     )
-    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(payload, content_type=REPORT_CONTENT_TYPES[format])
 
 
 @router.get("/accounting/reports/equity-variation")
 @require_permission("accounting.view_accaccount")
-def equity_variation_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def equity_variation_endpoint(request, fiscal_year_id: str, format: ReportFormat = "json"):
     """ACC-VCP — etat de variation des capitaux propres. Simplification V1 :
     cf. docstring de `services/reports.py::equity_variation_statement`."""
     from apps.accounting.models import AccFiscalYear
@@ -649,7 +649,7 @@ def equity_variation_endpoint(request, fiscal_year_id: str, format: str = "json"
     fiscal_year = get_object_or_404(AccFiscalYear, id=fiscal_year_id)
     rows = equity_variation_statement(fiscal_year)
     data = rows_to_bytes(rows, ["code", "name", "opening", "movement", "closing"], format=format)
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 _AGED_BALANCE_FIELDS = [
@@ -663,20 +663,24 @@ _AGED_BALANCE_FIELDS = [
 
 @router.get("/accounting/reports/aged-receivables")
 @require_permission("accounting.view_accmove")
-def aged_receivables_endpoint(request, as_of_date: dt.date | None = None, format: str = "json"):
+def aged_receivables_endpoint(
+    request, as_of_date: dt.date | None = None, format: ReportFormat = "json"
+):
     """ACC-AGE-C — balance agee clients."""
     rows = aged_receivables(as_of_date)
     data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 @router.get("/accounting/reports/aged-payables")
 @require_permission("accounting.view_accmove")
-def aged_payables_endpoint(request, as_of_date: dt.date | None = None, format: str = "json"):
+def aged_payables_endpoint(
+    request, as_of_date: dt.date | None = None, format: ReportFormat = "json"
+):
     """ACC-AGE-F — balance agee fournisseurs."""
     rows = aged_payables(as_of_date)
     data = rows_to_bytes(rows, _AGED_BALANCE_FIELDS, format=format)
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------
@@ -706,7 +710,7 @@ def financial_ratios_endpoint(request, fiscal_year_id: str):
 @router.get("/accounting/reports/analytical-income-statement")
 @require_permission("accounting.view_accmove")
 def analytical_income_statement_endpoint(
-    request, fiscal_year_id: str, analytic_plan_id: str, format: str = "json"
+    request, fiscal_year_id: str, analytic_plan_id: str, format: ReportFormat = "json"
 ):
     """ACC-ANA — compte de resultat analytique par axe. Cf. docstring de
     `services/reports.py::analytical_income_statement`."""
@@ -718,7 +722,7 @@ def analytical_income_statement_endpoint(
         ["analytic_account_id", "code", "name", "produits", "charges", "net"],
         format=format,
     )
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------
@@ -917,7 +921,7 @@ def _flatten_fixed_asset_annexes(data: dict) -> list[dict]:
 
 @router.get("/accounting/reports/fixed-asset-annexes")
 @require_permission("accounting.view_accasset")
-def fixed_asset_annexes_endpoint(request, fiscal_year_id: str, format: str = "json"):
+def fixed_asset_annexes_endpoint(request, fiscal_year_id: str, format: ReportFormat = "json"):
     """ACC-ANNEXE1 — rapport composite assemblant les 4 annexes fiscales
     (§1.11 du document annexe). Reserve OECFM : cf. docstring de
     `services/reports.py::fixed_asset_annexes`.
@@ -938,7 +942,7 @@ def fixed_asset_annexes_endpoint(request, fiscal_year_id: str, format: str = "js
     # sous-annexe (cellules vides pour les colonnes non applicables a une
     # ligne donnee) — simple, robuste, pas de perte d'information.
     payload = rows_to_bytes(rows, fields, format=format)
-    return HttpResponse(payload, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(payload, content_type=REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------
@@ -969,7 +973,7 @@ def generate_dcom_endpoint(request, payload: DcomGenerateIn):
 
 @router.get("/accounting/reports/dcom/{declaration_id}")
 @require_permission("accounting.view_accdcomdeclaration")
-def dcom_report_endpoint(request, declaration_id: str, format: str = "json"):
+def dcom_report_endpoint(request, declaration_id: str, format: ReportFormat = "json"):
     """ACC-DCOM1 — rapport plat (canevas DGI approche), noms de tiers
     resolus via `apps.partners.services.public.get_partner_display_name`."""
     declaration = get_object_or_404(AccDcomDeclaration, id=declaration_id)
@@ -977,7 +981,7 @@ def dcom_report_endpoint(request, declaration_id: str, format: str = "json"):
     data = rows_to_bytes(
         rows, ["partner_id", "partner_name", "classification", "amount_mga"], format=format
     )
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 def _serialize_ircm_declaration(declaration: AccIrcmDeclaration) -> dict:
@@ -1183,7 +1187,7 @@ def approve_budget_endpoint(request, budget_id: str):
 
 @router.get("/accounting/budgets/{budget_id}/variance-report")
 @require_permission("accounting.view_accbudget")
-def budget_variance_report_endpoint(request, budget_id: str, format: str = "json"):
+def budget_variance_report_endpoint(request, budget_id: str, format: ReportFormat = "json"):
     """A14 — rapport d'ecart reel vs budget. `period=None` sur une ligne
     signifie "etale sur l'exercice" (comparaison au reel cumule de tout
     `budget.fiscal_year`) — cf. docstring de `AccBudgetLine`/
@@ -1204,7 +1208,7 @@ def budget_variance_report_endpoint(request, budget_id: str, format: str = "json
         ],
         format=format,
     )
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------
@@ -1612,7 +1616,7 @@ def finalize_landed_cost_batch_endpoint(request, batch_id: str):
 
 @router.get("/accounting/landed-cost-batches/{batch_id}/report")
 @require_permission("accounting.view_acclandedcostbatch")
-def landed_cost_report_endpoint(request, batch_id: str, format: str = "json"):
+def landed_cost_report_endpoint(request, batch_id: str, format: ReportFormat = "json"):
     """ACC-IMP — rapport de repartition des couts d'importation. Cf.
     docstring de `services/landed_costs.py::landed_cost_report`."""
     batch = get_object_or_404(AccLandedCostBatch, id=batch_id)
@@ -1634,7 +1638,7 @@ def landed_cost_report_endpoint(request, batch_id: str, format: str = "json"):
         ],
         format=format,
     )
-    return HttpResponse(data, content_type=_REPORT_CONTENT_TYPES[format])
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
 
 
 # ---------------------------------------------------------------------------

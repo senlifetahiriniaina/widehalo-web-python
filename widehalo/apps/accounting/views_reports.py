@@ -18,6 +18,7 @@ from apps.accounting.services.reports import (
     rows_to_bytes,
     trial_balance,
 )
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 
 CONTENT_TYPES = {
@@ -52,7 +53,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 @login_required
 def trial_balance_download(request: HttpRequest) -> HttpResponse:
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = trial_balance(fiscal_year)
     data = rows_to_bytes(rows, ["code", "name", "debit", "credit", "balance"], format=format)
     return _report_response(data, format, "balance-generale")
@@ -62,7 +63,7 @@ def trial_balance_download(request: HttpRequest) -> HttpResponse:
 def general_ledger_download(request: HttpRequest) -> HttpResponse:
     account = get_object_or_404(AccAccount, id=request.GET.get("account_id"))
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = general_ledger(account, fiscal_year)
     data = rows_to_bytes(rows, ["date", "reference", "label", "debit", "credit"], format=format)
     return _report_response(data, format, "grand-livre")
@@ -72,7 +73,7 @@ def general_ledger_download(request: HttpRequest) -> HttpResponse:
 def journal_report_download(request: HttpRequest) -> HttpResponse:
     journal = get_object_or_404(AccJournal, id=request.GET.get("journal_id"))
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = journal_report(journal, fiscal_year)
     data = rows_to_bytes(
         rows, ["reference", "date", "account", "label", "debit", "credit"], format=format

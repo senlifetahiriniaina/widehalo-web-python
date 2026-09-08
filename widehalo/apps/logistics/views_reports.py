@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.logistics.services.reports import (
     customs_duty_rows,
@@ -39,7 +40,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_vehicle_costs(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = vehicle_cost_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -52,7 +53,7 @@ def report_vehicle_costs(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_shipments(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = shipment_status_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -65,7 +66,7 @@ def report_shipments(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_customs(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = customs_duty_rows(tenant)
     data = rows_to_bytes(
         rows,

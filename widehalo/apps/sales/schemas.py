@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
+from uuid import UUID
 
-from ninja import Schema
+from ninja import Field, Schema
 
 
 class QuotationLineIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     description: str = ""
     qty: Decimal = Decimal(1)
     uom: str = ""
@@ -23,14 +24,24 @@ class QuotationLineIn(Schema):
 
 
 class QuotationIn(Schema):
-    partner_id: str
+    """Les identifiants sont des `UUID`, pas des `str`.
+
+    **Le défaut fermé, et il rendait 500.** L'endpoint faisait
+    `uuid.UUID(payload.partner_id)` sur un champ déclaré `str` : une
+    chaîne quelconque traversait la validation de schéma puis levait
+    `ValueError` dans le corps de la vue, où plus rien ne la rattrapait.
+    Typé `UUID`, c'est django-ninja qui refuse — 422, en nommant le champ,
+    et l'OpenAPI annonce `format: uuid` à l'intégrateur.
+    """
+
+    partner_id: UUID
     date: dt.date
     contact: str = ""
-    source_lead_id: str | None = None
+    source_lead_id: UUID | None = None
     validity_date: dt.date | None = None
-    pricelist_id: str | None = None
+    pricelist_id: UUID | None = None
     currency: str = "MGA"
-    payment_term_id: str | None = None
+    payment_term_id: UUID | None = None
     incoterm: str = ""
     delivery_address: str = ""
     notes: str = ""
@@ -89,7 +100,7 @@ class QuotationOut(Schema):
 
 
 class OrderLineIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     description: str = ""
     qty: Decimal = Decimal(1)
     uom: str = ""
@@ -102,15 +113,17 @@ class OrderLineIn(Schema):
 
 
 class OrderIn(Schema):
-    partner_id: str
+    """Mêmes identifiants typés que `QuotationIn`, même motif."""
+
+    partner_id: UUID
     date: dt.date
-    quotation_id: str | None = None
+    quotation_id: UUID | None = None
     contact: str = ""
-    source_lead_id: str | None = None
+    source_lead_id: UUID | None = None
     commitment_date: dt.date | None = None
-    pricelist_id: str | None = None
+    pricelist_id: UUID | None = None
     currency: str = "MGA"
-    payment_term_id: str | None = None
+    payment_term_id: UUID | None = None
     incoterm: str = ""
     delivery_address: str = ""
     notes: str = ""
@@ -128,8 +141,10 @@ class OrderDeliverIn(Schema):
 
 class OrderInvoiceIn(Schema):
     # Ids de `SalesOrderLine` a facturer (facturation partielle) ; liste
-    # vide/omise = toutes les lignes de la commande.
-    line_ids: list[str] = []
+    # vide/omise = toutes les lignes de la commande. Typés `UUID` : la vue
+    # les convertissait elle-même, et une chaîne quelconque y levait un
+    # `ValueError` non rattrapé — donc un 500 pour une entrée invalide.
+    line_ids: list[UUID] = []
 
 
 class OrderInvoiceOut(Schema):
@@ -197,11 +212,27 @@ class ForecastRecomputeIn(Schema):
 
 
 class TargetIn(Schema):
-    period: str
-    scope: str = "company"
-    scope_ref: str | None = None
-    amount_mga: Decimal = Decimal(0)
-    qty: Decimal | None = None
+    """L'objectif commercial, borné par son schéma plutôt que par la base.
+
+    **Trois 500 fermés d'un coup.** `POST /sales/targets` faisait
+    `SalesTarget.objects.create(**payload)` sans validation : une `period`
+    de plus de sept caractères, un `amount_mga` au-delà de dix-huit
+    chiffres, ou un `scope` hors des trois valeurs déclarées passaient la
+    vue et faisaient lever Postgres — `DataError`, donc 500. Les deux
+    premiers sont désormais refusés ICI, par le schéma ; le troisième
+    l'est par `SalesTarget.save()`, parce qu'un `choices` que rien ne
+    vérifie est un `choices` décoratif, et qu'il y a d'autres portes que
+    cet endpoint.
+
+    `period` est le bucket mensuel « AAAA-MM », le même format que
+    `SalesForecast.period` — un motif, pas une date, parce que la colonne
+    est un `CharField(max_length=7)` et non un `DateField`."""
+
+    period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    scope: Literal["company", "team", "salesperson"] = "company"
+    scope_ref: UUID | None = None
+    amount_mga: Decimal = Field(default=Decimal(0), max_digits=18, decimal_places=4)
+    qty: Decimal | None = Field(default=None, max_digits=18, decimal_places=4)
 
 
 class TargetOut(Schema):

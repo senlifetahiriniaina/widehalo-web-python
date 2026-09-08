@@ -11,6 +11,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.report_formats import REPORT_CONTENT_TYPES, ReportFormat
 from apps.core.services.permissions import require_permission
 from apps.mrp.models import (
     MrpBom,
@@ -279,7 +280,9 @@ def cost_report_endpoint(request, order_id: str):
 
 @router.get("/mrp/reports/cra")
 @require_permission("mrp.view_mrpcra")
-def cra_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
+def cra_report_endpoint(
+    request, date_from: dt.date, date_to: dt.date, format: ReportFormat = "json"
+):
     rows = cra_summary(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(
         rows, ["employee", "workshop", "state", "total_hours", "total_qty_done"], format=format
@@ -289,7 +292,9 @@ def cra_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: s
 
 @router.get("/mrp/reports/cri")
 @require_permission("mrp.view_mrpcri")
-def cri_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
+def cri_report_endpoint(
+    request, date_from: dt.date, date_to: dt.date, format: ReportFormat = "json"
+):
     rows = cri_summary(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(rows, ["workcenter", "type", "total_downtime_min", "count"], format=format)
     return _report_response(data, format)
@@ -297,7 +302,9 @@ def cri_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: s
 
 @router.get("/mrp/reports/efficiency")
 @require_permission("mrp.view_mrpworkcenter")
-def efficiency_report_endpoint(request, workcenter_code: str | None = None, format: str = "json"):
+def efficiency_report_endpoint(
+    request, workcenter_code: str | None = None, format: ReportFormat = "json"
+):
     rows = efficiency_report(workcenter_code)
     data = rows_to_bytes(
         rows, ["workcenter", "qty_done", "qty_rejected", "efficiency_pct"], format=format
@@ -307,7 +314,9 @@ def efficiency_report_endpoint(request, workcenter_code: str | None = None, form
 
 @router.get("/mrp/reports/scrap")
 @require_permission("mrp.view_mrpscrap")
-def scrap_report_endpoint(request, date_from: dt.date, date_to: dt.date, format: str = "json"):
+def scrap_report_endpoint(
+    request, date_from: dt.date, date_to: dt.date, format: ReportFormat = "json"
+):
     rows = scrap_report(date_from=date_from, date_to=date_to)
     data = rows_to_bytes(rows, ["reason", "total_qty", "total_cost_mga"], format=format)
     return _report_response(data, format)
@@ -315,17 +324,12 @@ def scrap_report_endpoint(request, date_from: dt.date, date_to: dt.date, format:
 
 @router.get("/mrp/reports/workload/{workshop_id}")
 @require_permission("mrp.view_mrpworkshop")
-def workload_report_endpoint(request, workshop_id: str, format: str = "json"):
+def workload_report_endpoint(request, workshop_id: str, format: ReportFormat = "json"):
     workshop = get_object_or_404(MrpWorkshop, id=workshop_id)
     rows = workload_report(workshop)
     data = rows_to_bytes(rows, ["workcenter", "total_planned_min"], format=format)
     return _report_response(data, format)
 
 
-def _report_response(data: bytes, format: str) -> HttpResponse:
-    content_type = {
-        "json": "application/json",
-        "csv": "text/csv",
-        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }[format]
-    return HttpResponse(data, content_type=content_type)
+def _report_response(data: bytes, format: ReportFormat) -> HttpResponse:
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])

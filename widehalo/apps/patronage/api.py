@@ -10,6 +10,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.report_formats import REPORT_CONTENT_TYPES, ReportFormat
 from apps.core.services.permissions import require_permission
 from apps.patronage.models import PatPattern, PatSizeChart
 from apps.patronage.services.consumption import compute_consumption, compute_marker, push_to_bom
@@ -227,7 +228,7 @@ def variation_points_endpoint(request, pattern_id: str):
 
 @router.get("/patronage/reports/measurements/{pattern_id}")
 @require_permission("patronage.view_patsizechart")
-def measurements_report_endpoint(request, pattern_id: str, format: str = "json"):
+def measurements_report_endpoint(request, pattern_id: str, format: ReportFormat = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = measurement_chart_report(pattern)
     fields = ["measurement_point", *pattern.size_chart.sizes]
@@ -236,7 +237,7 @@ def measurements_report_endpoint(request, pattern_id: str, format: str = "json")
 
 @router.get("/patronage/reports/consumption/{pattern_id}")
 @require_permission("patronage.view_patconsumption")
-def consumption_report_endpoint(request, pattern_id: str, format: str = "json"):
+def consumption_report_endpoint(request, pattern_id: str, format: ReportFormat = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = consumption_report(pattern)
     return _report_response(
@@ -249,7 +250,7 @@ def consumption_report_endpoint(request, pattern_id: str, format: str = "json"):
 
 @router.get("/patronage/reports/marker/{pattern_id}")
 @require_permission("patronage.view_patmarker")
-def marker_report_endpoint(request, pattern_id: str, format: str = "json"):
+def marker_report_endpoint(request, pattern_id: str, format: ReportFormat = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = marker_report(pattern)
     return _report_response(
@@ -262,7 +263,7 @@ def marker_report_endpoint(request, pattern_id: str, format: str = "json"):
 
 @router.get("/patronage/reports/versions/{pattern_id}")
 @require_permission("patronage.view_patpattern")
-def version_report_endpoint(request, pattern_id: str, format: str = "json"):
+def version_report_endpoint(request, pattern_id: str, format: ReportFormat = "json"):
     pattern = get_object_or_404(PatPattern, id=pattern_id)
     rows = version_comparison_report(pattern)
     return _report_response(
@@ -271,10 +272,5 @@ def version_report_endpoint(request, pattern_id: str, format: str = "json"):
     )
 
 
-def _report_response(data: bytes, format: str) -> HttpResponse:
-    content_type = {
-        "json": "application/json",
-        "csv": "text/csv",
-        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }[format]
-    return HttpResponse(data, content_type=content_type)
+def _report_response(data: bytes, format: ReportFormat) -> HttpResponse:
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])

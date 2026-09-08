@@ -37,12 +37,26 @@ from apps.core.services.smart_defaults import apply_country_defaults
 
 DEMO_PASSWORD = "Str0ngPassw0rd!23"  # noqa: S105 — mot de passe de demo, jamais utilise en prod.
 
-# (local-part de l'email, role RBAC) — les 3 utilisateurs de demo crees par
+# (local-part de l'email, role RBAC) — les utilisateurs de demo crees par
 # ce seed. "resp_production" est le premier de la liste : c'est le login
 # principal recommande pour Schemathesis (hors CORE_MFA_REQUIRED_ROLES).
+#
+# **`demo.resp-commercial` existe pour une raison precise, et il faut
+# l'ecrire.** La campagne de contrat (`tests/contract/
+# test_openapi_schemathesis.py`) documentait depuis T10 une limitation
+# qu'elle ne pouvait pas lever seule : aucun utilisateur non-MFA n'avait
+# acces a `accounting`, si bien que les ~90 endpoints `/accounting/*`
+# recevaient un 403 avant meme d'etre atteints. Leur absence de 500 n'etait
+# donc pas une mesure — c'etait un angle mort, et la docstring de la
+# campagne le disait mot pour mot en renvoyant a « une prochaine iteration ».
+# `resp_commercial` porte `accounting: {"view"}` et n'est PAS dans
+# `settings.CORE_MFA_REQUIRED_ROLES` : c'est le seul role qui ouvre la
+# comptabilite en lecture sans exiger un enrolement TOTP que Schemathesis
+# ne sait pas faire.
 DEMO_USERS: list[tuple[str, str]] = [
     ("demo.production", "resp_production"),
     ("demo.commercial", "commercial"),
+    ("demo.resp-commercial", "resp_commercial"),
     ("demo.admin", "admin"),
 ]
 

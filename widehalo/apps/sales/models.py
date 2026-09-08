@@ -24,7 +24,12 @@ necessaire."""
 
 from __future__ import annotations
 
+import re
+from typing import Any
+
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.translation import gettext as _
 from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
@@ -488,6 +493,13 @@ class SalesCustomerCalendar(BaseModel):
         return f"{self.label} ({self.date_from} -> {self.date_to})"
 
 
+#: Le bucket mensuel « AAAA-MM » partage par `SalesTarget.period` et
+#: `SalesForecast.period` — une CHAINE et non une date, parce que la
+#: granularite est le mois et qu'une date obligerait a choisir un jour
+#: arbitraire dans ce mois.
+_PERIODE_MENSUELLE = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+
+
 class SalesTarget(BaseModel):
     """Objectif commercial (§5.5.3) : `period` est une simple chaine de
     bucket mensuel (ex. "2026-01"), pas une FK vers
@@ -520,6 +532,46 @@ class SalesTarget(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.scope}:{self.period}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Refuse a L'ENREGISTREMENT une portee hors des trois declarees, et
+        une periode qui n'est pas un bucket mensuel.
+
+        **Un `choices` que rien ne verifie est un `choices` decoratif.**
+        Django ne fait tourner les validateurs de champ que dans
+        `full_clean()`, jamais dans `save()` : `SalesTarget.objects.create(
+        scope="n'importe quoi")` etait accepte sans un mot, et l'objectif
+        se retrouvait invisible de tout ecran filtrant par portee. Meme
+        constat et meme remede que `FlwConnector.supported_operations`
+        (S6), a une app de distance.
+
+        La periode, elle, faisait lever POSTGRES : `CharField(max_length=7)`
+        rendait `DataError` — donc 500 — sur toute chaine plus longue. Le
+        schema d'entree de l'API la borne desormais aussi, mais l'endpoint
+        n'est pas la seule porte : un import, une commande de reprise ou un
+        shell passent par ici.
+
+        Validation CIBLEE plutot que `full_clean()` complet : ce dernier
+        declencherait une requete d'unicite a chaque ecriture, sur un
+        modele ecrit en lot par le calcul d'objectifs."""
+        if self.scope not in {code for code, _label in self.SCOPE_CHOICES}:
+            raise ValidationError(
+                {
+                    "scope": _("Portée inconnue : %(valeur)s. Attendu : %(attendues)s.")
+                    % {
+                        "valeur": self.scope,
+                        "attendues": ", ".join(code for code, _label in self.SCOPE_CHOICES),
+                    }
+                }
+            )
+        if not _PERIODE_MENSUELLE.fullmatch(self.period or ""):
+            raise ValidationError(
+                {
+                    "period": _("Période attendue au format AAAA-MM, reçue : %(valeur)s.")
+                    % {"valeur": self.period}
+                }
+            )
+        super().save(*args, **kwargs)
 
 
 class SalesForecast(BaseModel):

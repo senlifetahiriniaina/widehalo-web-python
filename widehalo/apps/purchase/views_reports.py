@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.purchase.models import PurOrder, PurRfq
 from apps.purchase.services.reports import (
@@ -59,7 +60,7 @@ def report_order_pdf(request: HttpRequest, order_id: str) -> HttpResponse:
 def report_rfq(request: HttpRequest, rfq_id: str) -> HttpResponse:
     """PUR-RFQ."""
     rfq = get_object_or_404(PurRfq, id=rfq_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = rfq_rows(rfq)
     data = rows_to_bytes(
         rows,
@@ -73,7 +74,7 @@ def report_rfq(request: HttpRequest, rfq_id: str) -> HttpResponse:
 def report_rfq_comparison(request: HttpRequest, rfq_id: str) -> HttpResponse:
     """PUR-COMP."""
     rfq = get_object_or_404(PurRfq, id=rfq_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = rfq_comparison_rows(rfq)
     data = rows_to_bytes(
         rows,
@@ -87,7 +88,7 @@ def report_rfq_comparison(request: HttpRequest, rfq_id: str) -> HttpResponse:
 def report_reception(request: HttpRequest, order_id: str) -> HttpResponse:
     """PUR-REC."""
     order = get_object_or_404(PurOrder, id=order_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = reception_rows(order)
     data = rows_to_bytes(
         rows,
@@ -101,7 +102,7 @@ def report_reception(request: HttpRequest, order_id: str) -> HttpResponse:
 def report_engagements(request: HttpRequest) -> HttpResponse:
     """PUR-ENG."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = engagements_rows(tenant)
     data = rows_to_bytes(
         rows,
@@ -114,7 +115,7 @@ def report_engagements(request: HttpRequest) -> HttpResponse:
 @login_required
 def report_supplier_evaluations(request: HttpRequest) -> HttpResponse:
     """PUR-EVAL."""
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     partner_id = request.GET.get("partner_id", "")
     rows = supplier_evaluation_rows(uuid.UUID(partner_id)) if partner_id else []
     data = rows_to_bytes(
@@ -138,7 +139,7 @@ def report_supplier_evaluations(request: HttpRequest) -> HttpResponse:
 def report_late_orders(request: HttpRequest) -> HttpResponse:
     """PUR-RET."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = late_orders_rows(tenant)
     data = rows_to_bytes(
         rows, ["reference", "partner_id", "date_expected", "state", "days_late"], format=format
@@ -150,7 +151,7 @@ def report_late_orders(request: HttpRequest) -> HttpResponse:
 def report_cri(request: HttpRequest) -> HttpResponse:
     """PUR-CRI."""
     tenant = resolve_tenant(request)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     state = request.GET.get("state", "")
     type = request.GET.get("type", "")  # noqa: A001 - coherent avec PurCri.type
     rows = cri_rows(tenant, state=state, type=type)

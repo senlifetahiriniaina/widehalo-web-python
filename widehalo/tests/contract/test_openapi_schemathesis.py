@@ -13,8 +13,8 @@ considerations qu'un test e2e Playwright : vraies requetes, vraie base).
 aucun role de `ROLE_APP_PERMISSIONS` n'est a la fois (a) large sur TOUS les
 modules metier et (b) absent de `settings.CORE_MFA_REQUIRED_ROLES` — "admin"
 est le plus large mais EST dans cet ensemble (bloquerait le login JWT direct,
-Schemathesis n'ayant pas de flux d'enrolement TOTP). On utilise donc QUATRE
-utilisateurs non-MFA (les 2 crees par `seed_core`, plus 2 crees par
+Schemathesis n'ayant pas de flux d'enrolement TOTP). On utilise donc CINQ
+utilisateurs non-MFA (les 3 crees par `seed_core`, plus 2 crees par
 `seed_purchase`/`seed_stocks` lors de l'extension a sales/purchase/stocks/
 logistics) et on route chaque requete generee vers le jeton le plus
 permissif pour son module :
@@ -30,31 +30,40 @@ permissif pour son module :
 - `demo.magasinier@demo.widehalo.local` (role `magasinier` : view/add/change
   sur stocks+logistics, view/change sur mrp, view sur catalog) pour les
   endpoints `/stocks`, `/logistics`.
+- `demo.resp-commercial@demo.widehalo.local` (role `resp_commercial` : view
+  sur accounting) pour les endpoints `/accounting` — cf. la levee de
+  limitation ci-dessous.
 - le premier jeton (production) sert de repli pour tout le reste (auth,
   health, meta, tenants, search, notifications, exports, workflow, chat —
   aucun ne fait l'objet d'une politique RBAC par app, cf. docstring
   `rbac_policy`, chat en etant explicitement exclu).
 
-**Limitation de test documentee (pas un bug)** : aucun utilisateur non-MFA
-de la matrice RBAC n'a acces a `accounting` (seul `comptable`/`direction`/
-`admin` l'ont, tous les trois dans `CORE_MFA_REQUIRED_ROLES`). Les endpoints
-`/accounting/*` recoivent donc systematiquement une reponse 403 de cette
-campagne, jamais un vrai 200 — attendu et accepte tel quel : le critere de
-sortie du CDC (§8, T10) est "aucune violation de contrat, aucune erreur
-500", et un 403 n'est ni l'un ni l'autre (cf. `_schema_conformance_for_
-documented_status` plus bas : la conformite de schema n'est verifiee QUE
-lorsque le code de statut recu est explicitement documente dans le schema —
-ici, django-ninja ne documente que 200 sur chaque operation — donc un
-403/422/401/404 "attendu" ne peut jamais etre signale comme une violation de
-schema ; `response_schema_conformance` de schemathesis ne convient PAS tel
-quel ici, `skips_on_unexpected_http_status` ne s'applique qu'aux scenarios
-de generation negative explicites, pas a un code de reponse reellement
-recu mais non documente — verifie empiriquement, cf. rapport). Corriger
-cette limitation (accounting recevant 403 partout) demanderait d'ajouter un
-role demo supplementaire (ex. `resp_commercial`, qui a `accounting: view`)
-hors du perimetre autorise de cette tache (uniquement `requirements/dev.txt`
-et `tests/contract/`) — a considerer pour une prochaine iteration de T10
-premiere moitie plutot que contourne ici.
+**Limitation levee au lot T1.** Ce paragraphe disait, jusque-la, qu'aucun
+utilisateur non-MFA n'avait acces a `accounting`, que les endpoints
+`/accounting/*` recevaient donc un 403 systematique, et que corriger cela
+« demanderait d'ajouter un role demo supplementaire (ex. `resp_commercial`,
+qui a `accounting: view`) hors du perimetre autorise de cette tache ». C'est
+exactement ce que T1 a fait : `seed_core` cree desormais
+`demo.resp-commercial` (role `resp_commercial`, hors
+`CORE_MFA_REQUIRED_ROLES`), et `_ROUTING` lui confie `/api/v1/accounting`.
+Les ~90 endpoints comptables en LECTURE sont donc reellement exerces ; les
+ecritures restent hors de portee (elles exigent `comptable`/`direction`,
+donc un enrolement TOTP que Schemathesis ne sait pas faire), et c'est une
+limitation qui, elle, ne se leve pas par un role.
+
+**Ce que cette campagne accepte encore, et pourquoi.** Le critere de sortie
+du CDC (§8, T10) est « aucune violation de contrat, aucune erreur 500 » : un
+403, un 422 ou un 404 n'est ni l'un ni l'autre. La conformite de schema
+n'est d'ailleurs verifiee QUE lorsque le code recu est explicitement
+documente dans le schema (cf. `_schema_conformance_for_documented_status`
+plus bas) — django-ninja ne documente que 200 sur chaque operation, si bien
+qu'un 403/422/401/404 attendu ne peut jamais etre signale comme une
+violation. `response_schema_conformance` de schemathesis ne convient PAS
+telle quelle ici : verifie empiriquement, elle leve `UndefinedStatusCode`
+des qu'un code recu n'est pas documente, y compris pour ces 4xx metier
+parfaitement attendus, et son garde-fou `skips_on_unexpected_http_status`
+ne couvre que les scenarios de generation negative explicites du mode
+« coverage », pas un vrai code de reponse non documente.
 
 **Nombre d'exemples** : 309 operations dans le schema OpenAPI expose (101
 initialement pour accounting/crm/mrp/patronage/partners/catalog/chat +
@@ -269,11 +278,19 @@ COMMERCIAL_LOGIN = f"demo.commercial@{TENANT_CODE.lower()}.widehalo.local"
 # `logistics` dans `ROLE_APP_PERMISSIONS`).
 ACHETEUR_LOGIN = f"demo.acheteur@{TENANT_CODE.lower()}.widehalo.local"
 MAGASINIER_LOGIN = f"demo.magasinier@{TENANT_CODE.lower()}.widehalo.local"
+# T1 : le compte qui leve la limitation documentee ci-dessus. `resp_commercial`
+# porte `accounting: {"view"}` et reste hors `CORE_MFA_REQUIRED_ROLES` — les
+# endpoints `/accounting/*` en lecture sont donc REELLEMENT exerces a partir
+# de ce lot, la ou ils recevaient un 403 avant d'etre atteints. Les ecritures
+# comptables restent hors de portee de la campagne, et c'est correct : elles
+# exigent `comptable`/`direction`, donc un enrolement MFA.
+RESP_COMMERCIAL_LOGIN = f"demo.resp-commercial@{TENANT_CODE.lower()}.widehalo.local"
 
 # Prefixes de chemin -> login de demo le plus permissif pour ce module
 # (cf. docstring ci-dessus). Verifie dans l'ordre ; premiere correspondance
 # gagne, `PRODUCTION_LOGIN` sert de repli pour tout prefixe non liste.
 _ROUTING: tuple[tuple[str, str], ...] = (
+    ("/api/v1/accounting", RESP_COMMERCIAL_LOGIN),
     ("/api/v1/crm", COMMERCIAL_LOGIN),
     ("/api/v1/partners", COMMERCIAL_LOGIN),
     ("/api/v1/sales", COMMERCIAL_LOGIN),
@@ -347,10 +364,11 @@ def _access_token(base_url: str, email: str, password: str) -> str:
 
 @pytest.fixture(scope="module")
 def demo_tokens_and_tenant(live_server, django_db_blocker) -> Iterator[tuple[dict[str, str], str]]:
-    """Seede le tenant de demonstration puis authentifie les QUATRE comptes
-    non-MFA utilises par la campagne (retest des 14 couches, §8 : etendu de
-    2 a 4 avec sales/purchase/stocks/logistics) — retourne {login -> jeton
-    JWT} et l'identifiant du tenant demo (pour l'entete `X-Tenant-Id`).
+    """Seede le tenant de demonstration puis authentifie les CINQ comptes
+    non-MFA utilises par la campagne (2 a l'origine, 4 au retest des 14
+    couches avec sales/purchase/stocks/logistics, 5 depuis T1 qui ouvre
+    `accounting` en lecture) — retourne {login -> jeton JWT} et
+    l'identifiant du tenant demo (pour l'entete `X-Tenant-Id`).
 
     Scope module (pas function) : `@lazy_schema.parametrize()` genere un
     test pytest par operation du schema (au total) — reseeder les 11
@@ -368,6 +386,9 @@ def demo_tokens_and_tenant(live_server, django_db_blocker) -> Iterator[tuple[dic
             COMMERCIAL_LOGIN: _access_token(live_server.url, COMMERCIAL_LOGIN, DEMO_PASSWORD),
             ACHETEUR_LOGIN: _access_token(live_server.url, ACHETEUR_LOGIN, DEMO_PASSWORD),
             MAGASINIER_LOGIN: _access_token(live_server.url, MAGASINIER_LOGIN, DEMO_PASSWORD),
+            RESP_COMMERCIAL_LOGIN: _access_token(
+                live_server.url, RESP_COMMERCIAL_LOGIN, DEMO_PASSWORD
+            ),
         }
     yield tokens, tenant_id
 

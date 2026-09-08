@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 
+from apps.core.report_formats import parse_report_format
 from apps.patronage.models import PatPattern
 from apps.patronage.services.reports import (
     consumption_report,
@@ -37,7 +38,7 @@ def _report_response(data: bytes, format: str, filename: str) -> HttpResponse:
 @login_required
 def report_measurements(request: HttpRequest, pattern_id: str) -> HttpResponse:
     pattern = get_object_or_404(PatPattern, id=pattern_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = measurement_chart_report(pattern)
     fields = ["measurement_point", *pattern.size_chart.sizes]
     data = rows_to_bytes(rows, fields, format=format)
@@ -47,7 +48,7 @@ def report_measurements(request: HttpRequest, pattern_id: str) -> HttpResponse:
 @login_required
 def report_consumption(request: HttpRequest, pattern_id: str) -> HttpResponse:
     pattern = get_object_or_404(PatPattern, id=pattern_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = consumption_report(pattern)
     data = rows_to_bytes(
         rows, ["material_variant_id", "size", "length_m", "waste_pct"], format=format
@@ -58,7 +59,7 @@ def report_consumption(request: HttpRequest, pattern_id: str) -> HttpResponse:
 @login_required
 def report_marker(request: HttpRequest, pattern_id: str) -> HttpResponse:
     pattern = get_object_or_404(PatPattern, id=pattern_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = marker_report(pattern)
     data = rows_to_bytes(
         rows, ["fabric_width_cm", "size_ratio", "length_m", "efficiency_pct"], format=format
@@ -69,7 +70,7 @@ def report_marker(request: HttpRequest, pattern_id: str) -> HttpResponse:
 @login_required
 def report_versions(request: HttpRequest, pattern_id: str) -> HttpResponse:
     pattern = get_object_or_404(PatPattern, id=pattern_id)
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = version_comparison_report(pattern)
     data = rows_to_bytes(rows, ["version", "state", "pieces_count", "date_created"], format=format)
     return _report_response(data, format, f"{pattern.code}-versions")

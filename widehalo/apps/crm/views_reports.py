@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
+from apps.core.report_formats import parse_report_format
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmPipeline
 from apps.crm.services.reports import (
@@ -49,7 +50,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 @login_required
 def pipeline_report_download(request: HttpRequest) -> HttpResponse:
     pipeline = get_object_or_404(CrmPipeline, id=request.GET.get("pipeline_id"))
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = pipeline_breakdown(pipeline)
     data = rows_to_bytes(
         rows,
@@ -62,7 +63,7 @@ def pipeline_report_download(request: HttpRequest) -> HttpResponse:
 @login_required
 def conversion_report_download(request: HttpRequest) -> HttpResponse:
     pipeline = get_object_or_404(CrmPipeline, id=request.GET.get("pipeline_id"))
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = [conversion_rate(pipeline)]
     data = rows_to_bytes(rows, ["won", "lost", "closed", "conversion_rate_pct"], format=format)
     return _report_response(data, format, "conversion")
@@ -70,7 +71,7 @@ def conversion_report_download(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def activities_report_download(request: HttpRequest) -> HttpResponse:
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = activity_breakdown()
     data = rows_to_bytes(rows, ["activity_type", "count"], format=format)
     return _report_response(data, format, "activites")
@@ -78,7 +79,7 @@ def activities_report_download(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def lost_report_download(request: HttpRequest) -> HttpResponse:
-    format = request.GET.get("format", "json")
+    format = parse_report_format(request.GET.get("format"))
     rows = lost_reason_breakdown()
     data = rows_to_bytes(
         rows, ["lost_reason", "lead_count", "total_expected_revenue_mga"], format=format

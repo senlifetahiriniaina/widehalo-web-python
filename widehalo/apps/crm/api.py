@@ -13,6 +13,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
 
+from apps.core.report_formats import REPORT_CONTENT_TYPES, ReportFormat
 from apps.core.services.permissions import require_permission
 from apps.crm.models import CrmActivity, CrmLead, CrmLostReason, CrmPipeline, CrmStage
 from apps.crm.services.activities import complete_activity, lead_timeline, log_activity
@@ -237,7 +238,7 @@ def complete_activity_endpoint(request, activity_id: str):
 
 @router.get("/crm/reports/pipeline")
 @require_permission("crm.view_crmpipeline")
-def pipeline_report_endpoint(request, pipeline_id: str, format: str = "json"):
+def pipeline_report_endpoint(request, pipeline_id: str, format: ReportFormat = "json"):
     pipeline = get_object_or_404(CrmPipeline, id=pipeline_id)
     rows = pipeline_breakdown(pipeline)
     data = rows_to_bytes(
@@ -257,7 +258,7 @@ def conversion_report_endpoint(request, pipeline_id: str):
 
 @router.get("/crm/reports/activities")
 @require_permission("crm.view_crmactivity")
-def activities_report_endpoint(request, format: str = "json"):
+def activities_report_endpoint(request, format: ReportFormat = "json"):
     rows = activity_breakdown()
     data = rows_to_bytes(rows, ["activity_type", "count"], format=format)
     return _report_response(data, format)
@@ -268,7 +269,7 @@ def activities_report_endpoint(request, format: str = "json"):
 # motif de perte n'etant qu'un axe de regroupement.
 @router.get("/crm/reports/lost")
 @require_permission("crm.view_crmlead")
-def lost_report_endpoint(request, format: str = "json"):
+def lost_report_endpoint(request, format: ReportFormat = "json"):
     rows = lost_reason_breakdown()
     data = rows_to_bytes(
         rows, ["lost_reason", "lead_count", "total_expected_revenue_mga"], format=format
@@ -276,10 +277,5 @@ def lost_report_endpoint(request, format: str = "json"):
     return _report_response(data, format)
 
 
-def _report_response(data: bytes, format: str) -> HttpResponse:
-    content_type = {
-        "json": "application/json",
-        "csv": "text/csv",
-        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }[format]
-    return HttpResponse(data, content_type=content_type)
+def _report_response(data: bytes, format: ReportFormat) -> HttpResponse:
+    return HttpResponse(data, content_type=REPORT_CONTENT_TYPES[format])
