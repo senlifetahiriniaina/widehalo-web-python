@@ -301,12 +301,19 @@ MAGASINIER_LOGIN = f"demo.magasinier@{TENANT_CODE.lower()}.widehalo.local"
 # comptables restent hors de portee de la campagne, et c'est correct : elles
 # exigent `comptable`/`direction`, donc un enrolement MFA.
 RESP_COMMERCIAL_LOGIN = f"demo.resp-commercial@{TENANT_CODE.lower()}.widehalo.local"
+COMPTABLE_LOGIN = f"demo.comptable@{TENANT_CODE.lower()}.widehalo.local"
 
 # Prefixes de chemin -> login de demo le plus permissif pour ce module
 # (cf. docstring ci-dessus). Verifie dans l'ordre ; premiere correspondance
 # gagne, `PRODUCTION_LOGIN` sert de repli pour tout prefixe non liste.
 _ROUTING: tuple[tuple[str, str], ...] = (
-    ("/api/v1/accounting", RESP_COMMERCIAL_LOGIN),
+    # T4bis — le compte COMPTABLE et non plus `resp_commercial` : celui-ci
+    # ne portait que `accounting: {"view"}`, de sorte que les ~90 endpoints
+    # en lecture etaient exerces et AUCUNE ecriture ne l'etait. Les 40
+    # champs d'identifiant retypes dans ce module au meme lot seraient
+    # restes non mesures, et « aucune erreur 500 sur accounting » serait
+    # restee une affirmation invérifiable.
+    ("/api/v1/accounting", COMPTABLE_LOGIN),
     ("/api/v1/crm", COMMERCIAL_LOGIN),
     ("/api/v1/partners", COMMERCIAL_LOGIN),
     ("/api/v1/sales", COMMERCIAL_LOGIN),
@@ -362,6 +369,58 @@ def _seed_demo_tenant() -> None:
         call_command(f"seed_{module}", "--tenant-code", TENANT_CODE)
 
 
+def _mfa_access_token(base_url: str, email: str, password: str) -> str:
+    """Le jeton d'un compte SOUMIS au MFA obligatoire.
+
+    **La limitation que ceci leve, et pourquoi elle tenait.** Ce module
+    disait : « les ecritures restent hors de portee (elles exigent
+    `comptable`/`direction`, donc un enrolement TOTP que Schemathesis ne
+    sait pas faire), et c'est une limitation qui, elle, ne se leve pas par
+    un role ». C'etait vrai de SCHEMATHESIS et faux de la campagne : le
+    harnais, lui, cree l'utilisateur, donc il peut enroler son device et
+    calculer le code. `django_otp` expose la clef du device
+    (`TOTPDevice.bin_key`) et l'algorithme (`django_otp.oath.totp`).
+
+    **Ce qu'on refuse de faire, et c'est le point.** L'autre voie serait
+    d'ajouter un role demo qui ECRIT en comptabilite sans MFA. Elle
+    marcherait, elle serait plus simple, et elle paierait la mesure par une
+    regression de securite dans le jeu de demonstration — celui-la meme qui
+    sert de reference aux deploiements. Le MFA reste donc en place et c'est
+    le harnais qui s'y plie.
+
+    Sans cela, les ~40 champs d'identifiant retypes dans `accounting` au lot
+    T4bis resteraient non mesures, et « aucune erreur 500 sur accounting »
+    resterait une affirmation invérifiable."""
+    from apps.core.models.user import User
+    from apps.core.services import mfa as mfa_service
+    from django_otp.oath import totp
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    premiere = requests.post(
+        f"{base_url}/api/v1/auth/login",
+        json={"email": email, "password": password},
+        timeout=10,
+    )
+    premiere.raise_for_status()
+    if premiere.json().get("status") == "ok":
+        # Le role a cesse d'etre MFA-gated : ce n'est pas une erreur, mais
+        # il faut le SAVOIR plutot que de le decouvrir plus tard.
+        return str(premiere.json()["access"])
+
+    utilisateur = User.objects.get(email=email)
+    device: TOTPDevice = mfa_service.enroll_device(utilisateur)
+    code = totp(device.bin_key, device.step, device.t0, device.digits, device.drift)
+    reponse = requests.post(
+        f"{base_url}/api/v1/auth/mfa/confirm",
+        json={"email": email, "token": f"{code:0{device.digits}d}"},
+        timeout=10,
+    )
+    reponse.raise_for_status()
+    corps = reponse.json()
+    assert corps["status"] == "ok", f"confirmation MFA refusee pour {email} : {corps}"
+    return str(corps["access"])
+
+
 def _access_token(base_url: str, email: str, password: str) -> str:
     response = requests.post(
         f"{base_url}/api/v1/auth/login",
@@ -405,6 +464,8 @@ def demo_tokens_and_tenant(live_server, django_db_blocker) -> Iterator[tuple[dic
             RESP_COMMERCIAL_LOGIN: _access_token(
                 live_server.url, RESP_COMMERCIAL_LOGIN, DEMO_PASSWORD
             ),
+            # T4bis : le seul compte de cette campagne qui passe par le MFA.
+            COMPTABLE_LOGIN: _mfa_access_token(live_server.url, COMPTABLE_LOGIN, DEMO_PASSWORD),
         }
     yield tokens, tenant_id
 

@@ -57,6 +57,14 @@ DEMO_USERS: list[tuple[str, str]] = [
     ("demo.production", "resp_production"),
     ("demo.commercial", "commercial"),
     ("demo.resp-commercial", "resp_commercial"),
+    # T4bis : le compte qui rend les ECRITURES comptables mesurables. Il
+    # porte le role `comptable`, donc il EST soumis au MFA obligatoire
+    # (`settings.CORE_MFA_REQUIRED_ROLES`) — et c'est voulu : affaiblir la
+    # posture du jeu de demonstration pour arranger un test serait payer la
+    # mesure par une regression de securite. La campagne de contrat enrole
+    # elle-meme son device TOTP et calcule le code, ce que `django_otp`
+    # permet des lors qu'on possede la cle du device.
+    ("demo.comptable", "comptable"),
     ("demo.admin", "admin"),
 ]
 
