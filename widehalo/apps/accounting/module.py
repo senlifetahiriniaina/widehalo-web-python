@@ -23,6 +23,26 @@ MODULE = ModuleSpec(
     # `models.py::AccPartnerRoleAccount.role` (chantier "fiche partenaire a
     # onglets par role", PT2) via `apps.partners.services.public.
     # list_role_choices()` — jamais un import de `apps.partners.models`.
-    dependencies=("core", "partners", "stocks", "catalog", "accounting", "reporting"),
+    # "flows" ajoute par T4 (bloc C, e-facture) : `services.
+    # einvoice_submission` et `services.einvoice_verdict` consomment
+    # `apps.flows.services.public.sign_document`/
+    # `describe_signing_certificate`/`list_exchanges_for_document` —
+    # jamais un import de `apps.flows.models`. Le sens de la dependance
+    # est celui que la docstring du hub impose : c'est le module metier
+    # qui appelle le hub, et le hub ne rappelle jamais un module metier.
+    #
+    # La SIGNATURE traverse cette frontiere, jamais la CLEF : le cahier
+    # loge le secret dans `FlwCredential` (§13.2, « table a part,
+    # chiffree, jamais exportee ») et le hub rend le resultat, pas le
+    # moyen.
+    dependencies=(
+        "core",
+        "partners",
+        "stocks",
+        "catalog",
+        "accounting",
+        "reporting",
+        "flows",
+    ),
     verbose_name="Comptabilite",
 )

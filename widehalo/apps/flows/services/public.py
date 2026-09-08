@@ -225,11 +225,108 @@ def sign_document(tenant: Tenant, *, connector_code: str, payload: bytes) -> dic
     }
 
 
+def submit_document_for_verdict(
+    tenant: Tenant,
+    *,
+    connector_code: str,
+    document_type: str,
+    document_id: UUID,
+    body: str,
+    retain_until: Any = None,
+) -> dict[str, Any] | None:
+    """T4 (EFA-2) — met une piece en file pour validation par un tiers.
+
+    **Pourquoi cette fonction existe, et ce qu'elle repare.** Le module
+    `accounting` mettait en file en important lui-meme `flows.models` et
+    `flows.services.queue` — ce que la regle de couplage n°1 interdit, et
+    que la garde `test_module_boundaries` a refuse. Un module metier n'a
+    pas a connaitre `FlwLink`, `prepare_exchange` ni la machine a etats du
+    hub : il a une piece a faire valider, et c'est tout ce qu'il doit
+    savoir dire.
+
+    Rend `None` quand aucune liaison ACTIVE ne sert ce connecteur — le
+    mode d'attente d'EFA-2, ou « le document est produit, signe, archive
+    et mis en file ; aucune erreur n'est presentee a l'utilisateur ». Ne
+    pas avoir de raccordement n'est pas une panne.
+
+    `retain_until` porte la duree d'archivage reglementaire, que seul
+    l'appelant connait (elle vient de son profil pays, EFA-7). La colonne
+    existait sur `FlwPayload` depuis S1 en attendant ce premier
+    appelant."""
+    from apps.flows.operations import OP_SUBMIT_FOR_VERDICT
+    from apps.flows.services.exchange import prepare_exchange
+    from apps.flows.services.queue import queue_exchange
+
+    link = _active_link(tenant, connector_code)
+    if link is None:
+        return None
+
+    exchange = queue_exchange(
+        prepare_exchange(
+            tenant,
+            link,
+            operation=OP_SUBMIT_FOR_VERDICT,
+            document_type=document_type,
+            document_id=document_id,
+            body=body,
+            retain_until=retain_until,
+        )
+    )
+    return {
+        "id": exchange.id,
+        "state": exchange.state,
+        "operation": exchange.operation,
+        "correlation_key": exchange.correlation_key,
+    }
+
+
+def activate_link(tenant: Tenant, *, connector_code: str) -> bool:
+    """Ouvre le raccordement d'un connecteur pour ce tenant.
+
+    **C'est la confirmation initiale qu'EFA-3 tolere** : « sans
+    intervention manuelle autre que la confirmation initiale ». Le rejeu
+    de la file, lui, suit sans qu'on le demande — mais il appartient au
+    module metier, qui seul sait ce qu'il avait mis en attente.
+
+    Rend `True` si une liaison a change d'etat, `False` si elle etait deja
+    active ou n'existe pas. Une liaison deja active n'est pas une erreur :
+    rejouer la file d'un raccordement deja ouvert est exactement ce qu'on
+    veut pouvoir faire apres un incident, et refuser obligerait a
+    suspendre puis rouvrir pour rattraper un retard."""
+    link = (
+        FlwLink.objects.filter(tenant=tenant, connector__code=connector_code)
+        .exclude(state=FlwLink.STATE_ACTIVE)
+        .first()
+    )
+    if link is None:
+        return False
+    link.state = FlwLink.STATE_ACTIVE
+    link.save(update_fields=["state"])
+    return True
+
+
+def _active_link(tenant: Tenant, connector_code: str) -> FlwLink | None:
+    """La liaison ACTIVE servant ce connecteur, ou `None`.
+
+    C'est la LIAISON qui est interrogee, jamais le connecteur seul : sur
+    une instance multi-societes, deux tenants branches sur le meme
+    adaptateur ont deux enrolements independants."""
+    return (
+        FlwLink.objects.filter(
+            tenant=tenant, connector__code=connector_code, state=FlwLink.STATE_ACTIVE
+        )
+        .select_related("connector")
+        .first()
+    )
+
+
 __all__ = [
+    "activate_link",
     "count_exchanges_awaiting_verdict",
     "describe_signing_certificate",
     "has_active_link",
     "list_exchanges_for_document",
     "request_reference_lookup",
     "sign_document",
+    "submit_document_for_verdict",
 ]

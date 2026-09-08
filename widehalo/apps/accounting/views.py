@@ -14,7 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
@@ -25,6 +25,13 @@ from apps.accounting.models import (
     AccPayment,
     AccPaymentAllocation,
     AccPeriod,
+)
+from apps.accounting.services.einvoice_submission import CONNECTOR_CODE
+from apps.accounting.services.einvoice_verdict import (
+    MARKED_VARIANT,
+    refresh_from_exchanges,
+    render_marked_representation,
+    verdict_summary,
 )
 from apps.accounting.services.invoices import (
     ApprovalRequiredError,
@@ -41,6 +48,7 @@ from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
+from apps.flows.services.public import describe_signing_certificate
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -119,6 +127,20 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
         )
         return redirect("accounting:detail", invoice_id=invoice.id)
 
+    # T4 (EFA-4) — « l'identifiant attribué et le marquage vérifiable sont
+    # reportés sur la REPRÉSENTATION LISIBLE du document ». Elle est un
+    # second document, distinct de celui qui a été soumis : ce dernier
+    # reste figé et signé (RPT-9), celui-ci porte le marquage. Sans ce
+    # chemin, la représentation existerait sans que personne ne puisse
+    # l'atteindre — le critère ne serait pas tenu.
+    if request.GET.get("representation") == MARKED_VARIANT:
+        contenu = render_marked_representation(
+            invoice, actor=user if user.is_authenticated else None
+        )
+        if contenu is None:
+            raise Http404(_("Cette facture n'a pas encore reçu de verdict fiscal."))
+        return HttpResponse(contenu, content_type="text/plain; charset=utf-8")
+
     audit_entries = AuditLog.objects.filter(
         content_type=content_type, object_id=str(invoice.id)
     ).order_by("-created_at")[:20]
@@ -135,6 +157,15 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
     )
     default_payment_journal = payment_journals.first()
     default_cash_account = cash_accounts.first()
+
+    # T4 — relire les verdicts arrivés depuis le dernier affichage. C'est
+    # ce chemin qui donne un appelant de production à
+    # `refresh_from_exchanges` : sans lui, un verdict revenu du hub ne
+    # serait jamais inscrit sur la pièce, et l'écran afficherait
+    # indéfiniment « en attente » alors que l'administration a tranché.
+    refresh_from_exchanges(invoice)
+    certificat = describe_signing_certificate(invoice.tenant, connector_code=CONNECTOR_CODE)
+    verdict = verdict_summary(invoice)
 
     return render(
         request,
@@ -155,6 +186,20 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
             "allocations": allocations,
             "error": error,
             "today": date.today(),
+            # T4 — l'état fiscal est un TROISIÈME axe : il voisine l'état de
+            # règlement sans jamais le conditionner (EFA-6).
+            "fiscal_state": invoice.fiscal_state,
+            "fiscal_state_display": invoice.get_fiscal_state_display(),
+            "fiscal_reference": verdict.fiscal_reference,
+            "marked_available": bool(
+                invoice.fiscal_state == AccMove.FISCAL_STATE_ACCEPTED and verdict.fiscal_reference
+            ),
+            # `awaiting_link` distingue les deux attentes que le bandeau
+            # formule différemment : « le raccordement n'est pas ouvert »
+            # n'appelle aucune action de l'utilisateur, « en attente de
+            # verdict » dit quand la prochaine tentative aura lieu.
+            "awaiting_link": invoice.fiscal_state == AccMove.FISCAL_STATE_TO_SUBMIT,
+            "certificate": certificat,
         },
     )
 

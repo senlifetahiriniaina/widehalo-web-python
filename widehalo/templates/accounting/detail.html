@@ -22,6 +22,51 @@
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   </div>
 
+  {% comment %}
+    T4 (bloc C) — l'état FISCAL, à côté de l'état de règlement et jamais à
+    sa place. Le cahier nomme ce piège en premier (EFA-6) : « une facture
+    peut être encaissée avant d'avoir obtenu son verdict » — les deux
+    lignes coexistent donc, et aucune ne conditionne l'autre.
+  {% endcomment %}
+  {% if fiscal_state and fiscal_state != "non_concerne" %}
+    <div class="workflow-banner">
+      <strong>{% trans "Statut fiscal" %}:</strong>
+      {% include "flows/_exchange_badge.html" %}
+      {% if fiscal_reference %}
+        <span>{% trans "Identifiant attribué" %}: {{ fiscal_reference }}</span>
+      {% endif %}
+      {% if marked_available %}
+        <a href="?representation=marquee">{% trans "Représentation marquée" %}</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% include "flows/_waiting_banner.html" %}
+
+  {% comment %}
+    EFA-8 : « l'expiration prochaine du certificat de signature déclenche
+    une alerte AU MOINS trente jours avant échéance ». Une alerte que
+    personne ne voit n'est pas une alerte — c'est pourquoi elle est ici, sur
+    l'écran où le comptable travaille, et non dans un journal.
+
+    Elle ne s'affiche que lorsqu'il y a quelque chose à faire : un
+    certificat valable un an n'appelle rien, et alerter toute l'année
+    viderait l'alerte de son sens.
+  {% endcomment %}
+  {% if certificate.expired %}
+    <div class="bandeau bandeau--refus" role="alert">
+      <p>
+        {% blocktrans with date=certificate.expires_at|date:"d/m/Y" %}Le certificat de signature a expiré le {{ date }} : aucune facture ne peut plus être soumise tant qu'il n'est pas renouvelé auprès de votre autorité de certification.{% endblocktrans %}
+      </p>
+    </div>
+  {% elif certificate.expiring_soon %}
+    <div class="bandeau bandeau--attente" role="status">
+      <p>
+        {% blocktrans with jours=certificate.days_remaining date=certificate.expires_at|date:"d/m/Y" %}Le certificat de signature expire dans {{ jours }} jours, le {{ date }}. Demandez son renouvellement dès maintenant : sans lui, les factures ne pourront plus être soumises.{% endblocktrans %}
+      </p>
+    </div>
+  {% endif %}
+
   <div class="two-col">
     <div class="col-main">
       <div class="page-head">
