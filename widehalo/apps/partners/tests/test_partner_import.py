@@ -123,38 +123,61 @@ def test_import_matches_two_spellings_of_the_same_nif() -> None:
 
 
 def test_import_does_not_rescan_the_whole_referential_for_every_row() -> None:
-    """L'index des NIF est construit UNE fois, pas une fois par ligne.
+    """Le rapprochement canonique ne doit pas croitre AVEC LE NOMBRE DE LIGNES.
 
-    Le rapprochement canonique se fait en Python : le refaire par une
-    requete a chaque ligne creee rendrait l'import quadratique, sur un
-    chemin qui ne faisait aucune requete de ce genre avant T3. Ce test
-    mesure le nombre de requetes, seul moyen de figer la propriete —
-    une relecture du code ne l'aurait pas empechee de revenir.
+    Le rapprochement se fait en Python — comparer en SQL supposerait de
+    reproduire `canonical`, qui divergerait sur les valeurs anterieures a
+    T3 (aucune migration ne les a normalisees, deliberement). Le refaire
+    par une requete a chaque ligne creee rendrait l'import quadratique, sur
+    un chemin qui ne faisait aucune requete de ce genre avant T3.
 
-    Le budget est volontairement large : il n'est pas la pour figer un
-    nombre exact de requetes (que toute evolution ferait bouger sans
-    defaut), mais pour attraper une croissance PAR LIGNE."""
+    Ce test ne fige AUCUN nombre de requetes : un budget chiffre casserait
+    a la premiere evolution sans rapport. Il compare deux imports de
+    tailles differentes et exige que le nombre de BALAYAGES — les lectures
+    de la table sans filtre sur la clef primaire — ne suive pas la taille
+    du fichier. Avec l'ancien code, 5 lignes en produisaient 5 et 20 en
+    produisaient 20."""
     from django.db import connection
     from django.test.utils import CaptureQueriesContext
 
-    tenant = TenantFactory()
-    lignes = [
-        [f"P{index:03d}", f"Client {index}", f"MG-NIF-2000{index:02d}", "client", 0, "", "", ""]
-        for index in range(20)
-    ]
+    def _balayages(nombre_de_lignes: int) -> int:
+        tenant = TenantFactory()
+        lignes = [
+            [
+                f"P{index:03d}",
+                f"Client {index}",
+                f"MG-NIF-3{index:04d}",
+                "client",
+                0,
+                "",
+                "",
+                "",
+            ]
+            for index in range(nombre_de_lignes)
+        ]
+        file_bytes = _build_xlsx(lignes)
+        with use_tenant(tenant.id), CaptureQueriesContext(connection) as requetes:
+            summary = import_partners_xlsx(tenant, file_bytes)
+        assert summary.created_count == nombre_de_lignes
+        return len(
+            [
+                requete
+                for requete in requetes.captured_queries
+                # Une lecture de la table SANS filtre sur la clef primaire :
+                # c'est la signature d'un balayage, par opposition aux
+                # verifications d'existence que `save()` fait par ligne et
+                # qui existaient bien avant ce lot.
+                if 'FROM "partners_partner"' in requete["sql"]
+                and '"partners_partner"."id" =' not in requete["sql"]
+            ]
+        )
 
-    with use_tenant(tenant.id), CaptureQueriesContext(connection) as requetes:
-        summary = import_partners_xlsx(tenant, _build_xlsx(lignes))
-
-    assert summary.created_count == 20
-    scans = [
-        requete
-        for requete in requetes.captured_queries
-        if "partners_partner" in requete["sql"] and "SELECT" in requete["sql"].upper()
-    ]
-    # Un balayage par ligne creee ferait au moins 20 SELECT sur la table ;
-    # l'index construit une fois en laisse une poignee.
-    assert len(scans) < 20, f"{len(scans)} lectures de partners_partner pour 20 lignes"
+    petit = _balayages(5)
+    grand = _balayages(20)
+    assert grand == petit, (
+        f"{petit} balayage(s) pour 5 lignes mais {grand} pour 20 : le "
+        "rapprochement des doublons refait une lecture par ligne."
+    )
 
 
 def test_import_reports_row_errors_without_writing_anything() -> None:
