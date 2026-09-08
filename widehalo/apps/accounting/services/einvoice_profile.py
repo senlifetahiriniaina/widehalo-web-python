@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django.core.exceptions import ValidationError
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
 
@@ -82,9 +83,11 @@ class RequiredField:
 
     def __post_init__(self) -> None:
         if self.origin not in KNOWN_ORIGINS:
-            raise ValueError(f"Origine hors du jeu fermé : {self.origin}.")
+            raise ValidationError(
+                _("Origine hors du jeu fermé : %(origine)s.") % {"origine": self.origin}
+            )
         if not self.code:
-            raise ValueError("Un champ exigé sans code ne peut désigner personne.")
+            raise ValidationError(_("Un champ exigé sans code ne peut désigner personne."))
 
 
 @dataclass(frozen=True)
@@ -104,22 +107,26 @@ class EInvoiceProfile:
 
     def __post_init__(self) -> None:
         if len(self.reserve) < RESERVE_MINIMUM:
-            raise ValueError(
-                f"La réserve du profil « {self.country_code} » fait "
-                f"{len(self.reserve)} caractères ; il en faut au moins "
-                f"{RESERVE_MINIMUM}. Un profil sans réserve écrite se lit comme "
-                "une conformité vérifiée."
+            raise ValidationError(
+                _(
+                    "La réserve du profil « %(pays)s » fait %(n)s caractères ; il en "
+                    "faut au moins %(min)s. Un profil sans réserve écrite se lit "
+                    "comme une conformité vérifiée."
+                )
+                % {"pays": self.country_code, "n": len(self.reserve), "min": RESERVE_MINIMUM}
             )
         if self.archive_years < 1:
-            raise ValueError("Une durée d'archivage nulle n'est pas une durée.")
+            raise ValidationError(_("Une durée d'archivage nulle n'est pas une durée."))
         if not self.required_fields:
-            raise ValueError(
-                "Un profil sans aucun champ exigé rendrait le contrôle de "
-                "complétude toujours vert, donc inutile."
+            raise ValidationError(
+                _(
+                    "Un profil sans aucun champ exigé rendrait le contrôle de "
+                    "complétude toujours vert, donc inutile."
+                )
             )
         codes = [champ.code for champ in self.required_fields]
         if len(codes) != len(set(codes)):
-            raise ValueError("Deux champs exigés portent le même code.")
+            raise ValidationError(_("Deux champs exigés portent le même code."))
 
 
 _RESERVE_MG = (
