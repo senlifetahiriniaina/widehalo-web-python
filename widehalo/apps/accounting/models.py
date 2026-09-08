@@ -513,6 +513,37 @@ class AccMove(BaseModel, ReferenceMixin):
         (INVOICE_STATE_IN_DISPUTE, "En contentieux"),
     ]
 
+    # T4 (EFA-6) — le TROISIÈME axe, et le cahier nomme ce piège en premier
+    # (l.431) : « une facture peut être encaissée avant d'avoir obtenu son
+    # verdict, et un verdict peut arriver après l'encaissement, sans
+    # incohérence de statut ni blocage comptable ; le modèle ne doit donc
+    # pas les séquencer ».
+    #
+    # Les deux axes existants ne peuvent ni l'un ni l'autre porter ça :
+    # `state` régit l'immuabilité comptable (brouillon/publiée/annulée) et
+    # `invoice_state` MÊLE DÉJÀ validation et règlement (`validated`,
+    # `paid`, `overdue`...). Loger l'état fiscal dans le second forcerait un
+    # ordre entre « payée » et « acceptée par l'administration » — soit
+    # exactement ce que le critère interdit.
+    #
+    # `NON_CONCERNE` est le défaut, et ce n'est pas un « pas encore » : la
+    # majorité des pièces (écritures diverses, factures fournisseur, tenant
+    # dans un pays sans profil déclaré) ne sont jamais soumises. Confondre
+    # « hors du champ » et « en attente de soumission » ferait apparaître
+    # toute la comptabilité dans la file d'attente fiscale.
+    FISCAL_STATE_NOT_CONCERNED = "non_concerne"
+    FISCAL_STATE_TO_SUBMIT = "a_soumettre"
+    FISCAL_STATE_AWAITING = "attente_verdict"
+    FISCAL_STATE_ACCEPTED = "accepte"
+    FISCAL_STATE_REJECTED = "rejete"
+    FISCAL_STATE_CHOICES = [
+        (FISCAL_STATE_NOT_CONCERNED, "Hors du champ de la facturation électronique"),
+        (FISCAL_STATE_TO_SUBMIT, "À soumettre"),
+        (FISCAL_STATE_AWAITING, "En attente de validation fiscale"),
+        (FISCAL_STATE_ACCEPTED, "Acceptée par l'administration"),
+        (FISCAL_STATE_REJECTED, "Rejetée par l'administration"),
+    ]
+
     journal = models.ForeignKey(AccJournal, on_delete=models.PROTECT, related_name="moves")
     period = models.ForeignKey(AccPeriod, on_delete=models.PROTECT, related_name="moves")
     date = models.DateField()
@@ -522,6 +553,26 @@ class AccMove(BaseModel, ReferenceMixin):
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
     move_type = models.CharField(max_length=24, choices=TYPE_CHOICES, default=TYPE_ENTRY)
     invoice_state = FSMField(default=INVOICE_STATE_DRAFT, choices=INVOICE_STATE_CHOICES)
+    # T4 — un `CharField` et non un `FSMField`, à la différence d'
+    # `invoice_state`. La machine à états de django-fsm impose un graphe de
+    # transitions au SEIN d'un axe ; ici les transitions viennent du
+    # dehors — c'est l'administration qui tranche, pas nous — et l'échange
+    # du hub porte déjà sa propre machine à états, vérifiée depuis S2. En
+    # poser une seconde par-dessus ferait deux sources de vérité sur le
+    # même fait, qui divergeraient au premier verdict arrivé en retard.
+    fiscal_state = models.CharField(
+        max_length=24, choices=FISCAL_STATE_CHOICES, default=FISCAL_STATE_NOT_CONCERNED
+    )
+    # T4 (EFA-4) — « le verdict reçu est conservé DANS SA FORME D'ORIGINE,
+    # en plus de son interprétation ». `fiscal_state` ci-dessus EST
+    # l'interprétation ; ces deux champs sont la forme d'origine et ce que
+    # l'administration attribue. Les séparer n'est pas de la redondance :
+    # une interprétation est révisable, un verdict reçu ne l'est pas, et le
+    # jour d'un désaccord c'est la forme d'origine qui fait foi.
+    fiscal_verdict_raw = models.TextField(blank=True)
+    fiscal_reference = models.CharField(max_length=128, blank=True)
+    fiscal_marking = models.TextField(blank=True)
+    fiscal_settled_at = models.DateTimeField(null=True, blank=True)
     narration = models.TextField(blank=True)
     currency = models.CharField(max_length=3, default="MGA")
     exchange_rate = models.DecimalField(max_digits=18, decimal_places=6, default=1)

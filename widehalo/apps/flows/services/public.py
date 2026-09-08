@@ -171,9 +171,65 @@ def request_reference_lookup(
     }
 
 
+def describe_signing_certificate(tenant: Tenant, *, connector_code: str) -> dict[str, Any]:
+    """T4 (EFA-8) — ce qu'un module metier peut savoir du certificat.
+
+    **Aucune matiere secrete ne franchit cette frontiere.** Le retour porte
+    un libelle, une date d'echeance, un indice deja prevu pour l'affichage
+    (« se termine par 4f2a ») et deux drapeaux. La clef privee, elle, ne
+    sort jamais de `apps.flows.services.signing` — c'est pourquoi la
+    SIGNATURE est rendue par `sign_document` ci-dessous plutot que la clef
+    par cette fonction : ce qui sort est le resultat, ce qui reste est le
+    moyen.
+
+    Premier appelant : l'ecran de facture du bloc C, qui doit alerter
+    « au moins trente jours avant echeance » — un module metier ne peut pas
+    alerter sur ce qu'il n'a pas le droit de lire."""
+    from apps.flows.services.signing import certificate_status
+
+    etat = certificate_status(tenant, connector_code=connector_code)
+    return {
+        "present": etat.present,
+        "label": etat.label,
+        "hint": etat.hint,
+        "expires_at": etat.expires_at,
+        "expired": etat.expired,
+        "expiring_soon": etat.expiring_soon,
+        "days_remaining": etat.days_remaining,
+    }
+
+
+def sign_document(tenant: Tenant, *, connector_code: str, payload: bytes) -> dict[str, Any] | None:
+    """T4 (EFA-2, EFA-8) — signe des octets, ou refuse.
+
+    Rend `None` quand aucun certificat n'est fourni : le document est alors
+    produit et archive sans signature, ce qui est l'etat normal d'une
+    installation sans raccordement — EFA-2 exige qu'aucune erreur ne soit
+    presentee dans ce cas.
+
+    LEVE sur un certificat perime, parce que le critere l'exige (« une
+    signature avec certificat expire est refusee AVANT soumission ») et
+    parce que les deux situations n'ont rien de commun : « pas encore
+    equipe » n'appelle aucune action, « equipe d'un moyen sans valeur » en
+    appelle une tout de suite."""
+    from apps.flows.services.signing import sign_payload
+
+    signature = sign_payload(tenant, connector_code=connector_code, payload=payload)
+    if signature is None:
+        return None
+    return {
+        "algorithm": signature.algorithm,
+        "value": signature.value,
+        "certificate_hint": signature.certificate_hint,
+        "signed_at": signature.signed_at,
+    }
+
+
 __all__ = [
     "count_exchanges_awaiting_verdict",
+    "describe_signing_certificate",
     "has_active_link",
     "list_exchanges_for_document",
     "request_reference_lookup",
+    "sign_document",
 ]
