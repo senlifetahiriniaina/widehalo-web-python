@@ -25,6 +25,7 @@ from apps.catalog.services.public import (
     is_variant_sellable,
     list_sellable_variants,
 )
+from apps.core.identifiers import parse_optional_uuid, parse_uuid
 from apps.core.models.user import User
 from apps.core.services.permissions import user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
@@ -116,7 +117,7 @@ def _resolve_line(variant_id_raw: str, description_raw: str) -> dict[str, Any]:
     `description_{i}`)."""
     variant_id_raw = (variant_id_raw or "").strip()
     if variant_id_raw:
-        variant_id = uuid.UUID(variant_id_raw)
+        variant_id = parse_uuid(variant_id_raw, champ=_("produit"))
         if not is_variant_sellable(variant_id):
             raise ValidationError(_("Ce produit n'est pas vendable."))
         description = description_raw or get_variant_reference(variant_id)
@@ -129,8 +130,9 @@ def _resolve_line_from_post(post) -> dict[str, Any]:
 
 
 def _parse_optional_uuid(raw: str) -> uuid.UUID | None:
-    raw = (raw or "").strip()
-    return uuid.UUID(raw) if raw else None
+    """T4bis — délègue à `core.identifiers`, qui refuse par un 400 nommant
+    le champ au lieu de laisser `ValueError` remonter en 500."""
+    return parse_optional_uuid(raw, champ=_("identifiant"))
 
 
 def _parse_lines_from_post(post) -> list[dict[str, Any]]:
@@ -175,7 +177,7 @@ def quotation_create(request: HttpRequest) -> HttpResponse:
             with transaction.atomic():
                 quotation = create_quotation(
                     tenant=tenant,
-                    partner_id=uuid.UUID(request.POST.get("partner_id", "")),
+                    partner_id=parse_uuid(request.POST.get("partner_id"), champ=_("client")),
                     date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
                     salesperson=user,
                     contact=request.POST.get("contact", ""),
@@ -291,7 +293,7 @@ def order_create(request: HttpRequest) -> HttpResponse:
             with transaction.atomic():
                 order = create_order(
                     tenant=tenant,
-                    partner_id=uuid.UUID(request.POST.get("partner_id", "")),
+                    partner_id=parse_uuid(request.POST.get("partner_id"), champ=_("client")),
                     date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
                     salesperson=user,
                     contact=request.POST.get("contact", ""),

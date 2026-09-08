@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
-import uuid
 from decimal import Decimal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -144,7 +144,7 @@ class InvoiceIn(Schema):
     journal_id: str
     period_id: str
     date: dt.date
-    partner_id: str | None = None
+    partner_id: UUID | None = None
     receivable_account_id: str
     currency: str = "MGA"
     lines: list[InvoiceLineIn]
@@ -247,7 +247,7 @@ class ImportRowResolveIn(Schema):
 
 class ImportRowQualifyIn(Schema):
     account_id: str | None = None
-    partner_id: str | None = None
+    partner_id: UUID | None = None
 
 
 class ReconcileRuleIn(Schema):
@@ -280,7 +280,7 @@ class LandedCostLineIn(Schema):
     description: str
     qty: Decimal
     purchase_value_mga: Decimal
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     weight_kg: Decimal | None = None
 
 
@@ -392,7 +392,7 @@ def create_invoice_endpoint(request, payload: InvoiceIn):
         journal=journal,
         period=period,
         date=payload.date,
-        partner_id=uuid.UUID(payload.partner_id) if payload.partner_id else None,
+        partner_id=payload.partner_id,
         receivable_account=receivable_account,
         income_lines=income_lines,
         currency=payload.currency,
@@ -1681,7 +1681,7 @@ def add_landed_cost_line_endpoint(request, batch_id: str, payload: LandedCostLin
             description=payload.description,
             qty=payload.qty,
             purchase_value_mga=payload.purchase_value_mga,
-            variant_id=uuid.UUID(payload.variant_id) if payload.variant_id else None,
+            variant_id=payload.variant_id,
             weight_kg=payload.weight_kg,
         )
     except ValidationError as exc:
@@ -1848,7 +1848,7 @@ def qualify_cash_journal_import_row_endpoint(request, row_id: str, payload: Impo
     un nouvel endpoint de decision ici."""
     row = get_object_or_404(AccImportRow, id=row_id)
     account = get_object_or_404(AccAccount, id=payload.account_id) if payload.account_id else None
-    partner_id = uuid.UUID(payload.partner_id) if payload.partner_id else None
+    partner_id = payload.partner_id
     try:
         qualified = qualify_import_row(
             row, account=account, partner_id=partner_id, qualified_by=request.auth
@@ -1865,10 +1865,10 @@ def qualify_cash_journal_import_row_endpoint(request, row_id: str, payload: Impo
 
 
 class InvoiceImportRowQualifyIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     account_id: str | None = None
     tax_account_id: str | None = None
-    partner_id: str | None = None
+    partner_id: UUID | None = None
 
 
 def _serialize_invoice_import_row(row: AccInvoiceImportRow) -> dict:
@@ -1936,8 +1936,8 @@ def qualify_invoice_import_row_endpoint(request, row_id: str, payload: InvoiceIm
     tax_account = (
         get_object_or_404(AccAccount, id=payload.tax_account_id) if payload.tax_account_id else None
     )
-    variant_id = uuid.UUID(payload.variant_id) if payload.variant_id else None
-    partner_id = uuid.UUID(payload.partner_id) if payload.partner_id else None
+    variant_id = payload.variant_id
+    partner_id = payload.partner_id
     try:
         qualified = qualify_invoice_import_row(
             row,

@@ -5,9 +5,9 @@ plan."""
 from __future__ import annotations
 
 import datetime as dt
-import uuid
 from decimal import Decimal
 from typing import Any, Literal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -35,7 +35,7 @@ router = Router(tags=["crm"])
 
 
 class LeadLineIn(Schema):
-    variant_id: str | None = None
+    variant_id: UUID | None = None
     description: str = ""
     qty: Decimal = Decimal(1)
     unit_price: Decimal | None = None
@@ -45,7 +45,7 @@ class LeadLineIn(Schema):
 
 class LeadIn(Schema):
     name: str
-    partner_id: str | None = None
+    partner_id: UUID | None = None
     pipeline_id: str | None = None
     contact_name: str = ""
     email: str = ""
@@ -124,7 +124,7 @@ def create_lead_endpoint(request, payload: LeadIn):
     )
     lines = [
         {
-            "variant_id": uuid.UUID(line.variant_id) if line.variant_id else None,
+            "variant_id": line.variant_id,
             "description": line.description,
             "qty": line.qty,
             "unit_price": line.unit_price,
@@ -136,7 +136,7 @@ def create_lead_endpoint(request, payload: LeadIn):
     lead = create_lead_quick(
         tenant=tenant,
         name=payload.name,
-        partner_id=uuid.UUID(payload.partner_id) if payload.partner_id else None,
+        partner_id=payload.partner_id,
         pipeline=pipeline,
         salesperson=request.auth,
         contact_name=payload.contact_name,
