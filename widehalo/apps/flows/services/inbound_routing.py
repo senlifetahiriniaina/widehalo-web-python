@@ -42,18 +42,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
-from django.db import connection, transaction
 
+from apps.core.db.webhook_lookup import LOOKUP_ON, LOOKUP_SETTING, webhook_lookup_window
 from apps.core.identifiers import parse_uuid
 from apps.flows.models import FlwLink
 
 if TYPE_CHECKING:
     from uuid import UUID
 
-#: Le reglage de session qui ouvre la fenetre de lecture. Le nom est celui
-#: que la policy interroge ; les deux se lisent ensemble ou pas du tout.
-LOOKUP_SETTING = "app.webhook_lookup"
-LOOKUP_ON = "on"
+#: Reexportes depuis `core.db.webhook_lookup`, ou la fenetre vit depuis que
+#: le lot T9 a trouve le meme defaut sur le webhook transporteur de
+#: `logistics` — qui ne declare pas `flows` dans ses dependances, a juste
+#: titre. Un module metier n'a pas a dependre du hub pour ouvrir une
+#: transaction ; recopier la fenetre aurait produit deux mecanismes qui
+#: divergent au premier correctif.
+__all_settings__ = (LOOKUP_SETTING, LOOKUP_ON)
 
 
 def resolve_tenant_for_inbound_call(link_id: Any) -> UUID | None:
@@ -78,20 +81,8 @@ def resolve_tenant_for_inbound_call(link_id: Any) -> UUID | None:
         # dernier endroit ou on veut le voir revenir.
         return None
 
-    if connection.vendor != "postgresql":
-        # SQLite (et tout moteur sans RLS) n'a pas de policy a contourner :
-        # la lecture ordinaire suffit, et ouvrir une fenetre qui n'existe
-        # pas echouerait sur une instruction inconnue.
+    with webhook_lookup_window():
         return _read_tenant_id(identifiant)
-
-    with transaction.atomic():
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(f"SET LOCAL {LOOKUP_SETTING} = %s", [LOOKUP_ON])
-            return _read_tenant_id(identifiant)
-        finally:
-            with connection.cursor() as cursor:
-                cursor.execute(f"SET LOCAL {LOOKUP_SETTING} = ''")
 
 
 def _read_tenant_id(link_id: Any) -> UUID | None:

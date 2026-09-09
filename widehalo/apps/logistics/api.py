@@ -29,6 +29,7 @@ from ninja.files import UploadedFile
 
 from apps.core.services.permissions import require_permission
 from apps.core.services.workflow import TransitionPermissionError
+from apps.core.tenant_context import activate_tenant
 from apps.logistics.models import (
     LogCustomsFile,
     LogCustomsLine,
@@ -90,6 +91,7 @@ from apps.logistics.services.vehicles import (
     create_vehicle,
     record_vehicle_cost,
 )
+from apps.logistics.services.webhook_routing import resolve_tenant_for_carrier_call
 from apps.logistics.services.webhooks import verify_carrier_webhook_signature
 
 router = Router(tags=["logistics"])
@@ -1254,13 +1256,31 @@ def carrier_webhook_endpoint(request, provider_id: str):
     completer si un futur besoin de mapping precis se presente,
     deviation documentee plutot que devinee.
 
-    `LogServiceProvider.all_objects` (jamais le manager `objects`, filtre
-    par tenant courant) : cet endpoint est appele par le transporteur SANS
-    contexte tenant applicatif (pas d'en-tete `X-Tenant-Id`, pas de session)
-    — meme necessite que `apps.core.services.tenant_export`/`sandbox.py`,
-    seuls autres appelants documentes de ce manager non filtre."""
-    provider = get_object_or_404(LogServiceProvider.all_objects, id=provider_id)
-    signature = request.headers.get("X-Signature", "")
-    if not verify_carrier_webhook_signature(provider, payload=request.body, signature=signature):
-        return HttpResponse(status=403)
+    **T9 — cet endpoint rendait 404 sur CHAQUE appel authentique.** La
+    version precedente lisait `LogServiceProvider.all_objects` sans
+    contexte de societe, en s'en expliquant : le transporteur n'en envoie
+    pas. Le raisonnement etait juste et la conclusion fausse — `all_objects`
+    ne contourne que la RLS APPLICATIVE de `TenantManager`, jamais celle de
+    PostgreSQL, et `log_service_provider` est en `FORCE ROW LEVEL
+    SECURITY`. Mesure en `django_db(transaction=True)` : 404 sur un appel
+    correctement signe, et 404 aussi sur une signature invalide — le refus
+    tombait avant meme la verification, ce qui rendait le test de securite
+    existant faussement rassurant.
+
+    Le remede est celui du lot T5 pour le hub : une policy `FOR SELECT`
+    conditionnee a un reglage de session (`logistics/0009`), une fenetre qui
+    ne rend QUE l'identifiant de societe, puis une lecture normale sous
+    contexte. Le secret ne sort jamais de la fenetre : il se lit sous la
+    societe du prestataire, et la signature juge apres."""
+    tenant_id = resolve_tenant_for_carrier_call(provider_id)
+    if tenant_id is None:
+        return HttpResponse(status=404)
+
+    with activate_tenant(tenant_id):
+        provider = get_object_or_404(LogServiceProvider.objects, id=provider_id)
+        signature = request.headers.get("X-Signature", "")
+        if not verify_carrier_webhook_signature(
+            provider, payload=request.body, signature=signature
+        ):
+            return HttpResponse(status=403)
     return {"status": "ok"}
