@@ -47,6 +47,12 @@ ROLE_FALLBACK_TYPE: dict[str, str] = {
     AccTenantDefaultAccount.ROLE_CASH_DIFFERENCE: AccAccount.TYPE_EXPENSE,
     AccTenantDefaultAccount.ROLE_PAYROLL_EXPENSE: AccAccount.TYPE_EXPENSE,
     AccTenantDefaultAccount.ROLE_PAYROLL_PAYABLE: AccAccount.TYPE_PAYABLE,
+    # T5 (PAY-5) — la commission d'encaissement est une CHARGE. Sans
+    # cette entree, `resolve_default_account` rendait `None` des qu'un
+    # tenant n'avait rien configure, et le rapprochement de second
+    # niveau refusait de s'ecrire pour un motif de parametrage plutot
+    # que pour un motif comptable.
+    AccTenantDefaultAccount.ROLE_PAYMENT_FEE: AccAccount.TYPE_EXPENSE,
 }
 
 

@@ -55,6 +55,8 @@ from apps.accounting.models import (
     AccPartnerRoleAccount,
     AccPayment,
     AccPaymentAllocation,
+    AccPaymentIntent,
+    AccPaymentNotification,
     AccPaymentTerm,
     AccPaymentTermLine,
     AccPeriod,
@@ -548,3 +550,43 @@ class AccVatDeclarationLineFactory(factory.django.DjangoModelFactory):
     )
     tax = factory.SubFactory(AccTaxFactory, tenant=factory.SelfAttribute("..tenant"))
     sens = AccVatDeclarationLine.SENS_COLLECTED
+
+
+class AccPaymentIntentFactory(factory.django.DjangoModelFactory):
+    """T5 — l'intention de reglement.
+
+    `external_reference` est rendue UNIQUE par la sequence : la contrainte
+    `uniq_acc_payment_intent_external_reference` refuse deux intentions
+    partageant la reference du tiers, et une factory qui les rendrait
+    identiques ferait echouer tout test qui en cree deux — pour une raison
+    sans rapport avec ce qu'il verifie."""
+
+    class Meta:
+        model = AccPaymentIntent
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    document_type = "accounting.AccMove"
+    document_id = factory.LazyFunction(uuid.uuid4)
+    provider_code = "agregateur"
+    amount = Decimal("1000.0000")
+    currency = "MGA"
+    external_reference = factory.Sequence(lambda n: f"INTENT-{n:06d}")
+
+
+class AccPaymentNotificationFactory(factory.django.DjangoModelFactory):
+    """T5 — la notification recue.
+
+    `state` vaut ORPHELINE par defaut, qui est l'etat d'arrivee reel : une
+    notification nait sans rapprochement, et c'est la correlation qui la
+    change. Poser MATCHED par defaut ferait passer les tests de PAY-3 pour
+    la mauvaise raison."""
+
+    class Meta:
+        model = AccPaymentNotification
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    provider_code = "agregateur"
+    external_reference = factory.Sequence(lambda n: f"NOTIF-{n:06d}")
+    amount = Decimal("1000.0000")
+    currency = "MGA"
+    state = AccPaymentNotification.STATE_ORPHAN

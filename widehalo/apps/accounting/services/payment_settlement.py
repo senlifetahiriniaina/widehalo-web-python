@@ -53,9 +53,11 @@ from django.utils.translation import gettext as _
 if TYPE_CHECKING:
     from apps.accounting.models import (
         AccAccount,
+        AccJournal,
         AccMove,
         AccPayment,
         AccPaymentIntent,
+        AccPeriod,
     )
     from apps.core.models.tenant import Tenant
 
@@ -230,7 +232,9 @@ def _settle(
         return SettlementResult(outcome=OUTCOME_ORPHAN, notification_id=notification.id)
 
     with transaction.atomic():
-        paiement = _register(facture, amount=amount, reference=reference, now=now)
+        paiement = _register(
+            facture, amount=amount, fee_amount=fee_amount, reference=reference, now=now
+        )
         notification = AccPaymentNotification.objects.create(
             tenant=tenant,
             intent=intention,
@@ -254,7 +258,12 @@ def _settle(
 
 
 def _register(
-    facture: AccMove, *, amount: Decimal, reference: str, now: dt.datetime | None
+    facture: AccMove,
+    *,
+    amount: Decimal,
+    fee_amount: Decimal,
+    reference: str,
+    now: dt.datetime | None,
 ) -> AccPayment:
     """Délègue à `register_payment`, qui sait déjà tout faire.
 
@@ -263,6 +272,7 @@ def _register(
     d'encaisser une facture — donc deux comportements à maintenir, et un
     jour deux comportements différents."""
     from apps.accounting.models import AccJournal, AccPeriod, AccTenantDefaultAccount
+    from apps.accounting.services.default_accounts import resolve_default_account
     from apps.accounting.services.payments import register_payment
 
     tenant = facture.tenant
@@ -283,14 +293,17 @@ def _register(
     if journal is None:
         raise ValidationError(_("Aucun journal de trésorerie configuré."))
 
-    def _compte(role: str) -> AccAccount | None:
-        defaut = AccTenantDefaultAccount.objects.filter(tenant=tenant, role=role).first()
-        return defaut.account if defaut else None
-
-    tresorerie = _compte(AccTenantDefaultAccount.ROLE_BANK) or _compte(
-        AccTenantDefaultAccount.ROLE_CASH
-    )
-    ecart = _compte(AccTenantDefaultAccount.ROLE_CASH_DIFFERENCE)
+    # `resolve_default_account` plutôt qu'une résolution à la main : la
+    # première rédaction de cette fonction refaisait le `filter(...).first()`
+    # elle-même, ce qui perdait les deux moitiés utiles du service — le
+    # repli par TYPE de compte quand rien n'est configuré, et
+    # l'avertissement journalisé qui dit à l'exploitant que le repli a
+    # servi. Deux résolveurs pour la même question finissent par répondre
+    # deux choses différentes.
+    tresorerie = resolve_default_account(
+        tenant, AccTenantDefaultAccount.ROLE_BANK
+    ) or resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CASH)
+    ecart = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CASH_DIFFERENCE)
     if tresorerie is None or ecart is None:
         raise ValidationError(
             _(
@@ -301,7 +314,7 @@ def _register(
 
     from apps.accounting.models import AccPayment
 
-    return register_payment(
+    paiement = register_payment(
         invoice=facture,
         period=periode,
         journal=journal,
@@ -313,6 +326,80 @@ def _register(
         method=AccPayment.METHOD_MOBILE_MONEY,
         reference_external=reference,
     )
+    if fee_amount:
+        _book_fee(
+            facture,
+            periode=periode,
+            journal=journal,
+            tresorerie=tresorerie,
+            fee_amount=fee_amount,
+            date=(now.date() if now else dt.date.today()),
+            reference=reference,
+        )
+    return paiement
+
+
+def _book_fee(
+    facture: AccMove,
+    *,
+    periode: AccPeriod,
+    journal: AccJournal,
+    tresorerie: AccAccount,
+    fee_amount: Decimal,
+    date: dt.date,
+    reference: str,
+) -> AccMove:
+    """La commission prélevée à la source, sur SON PROPRE compte de charge.
+
+    **PAY-5 : « la commission étant isolée sur son propre compte de
+    charge ».** Le mot « isolée » décide de tout : la fondre dans
+    l'encaissement — en créditant la créance du brut et en débitant la
+    trésorerie du net — ferait disparaître un coût contractuel dans un
+    montant de règlement. Le contrôle de gestion ne le verrait plus, et le
+    rapprochement du versement groupé ne retomberait jamais juste.
+
+    **Une écriture SÉPARÉE, et non deux lignes de plus dans celle de
+    l'encaissement.** `register_payment` produit une pièce dont l'équilibre
+    est celui du règlement d'une créance ; y ajouter la commission
+    obligerait à réécrire sa logique de lettrage et d'écart de change pour
+    un cas qui n'est pas le sien. Deux pièces, reliées par la même
+    `reference_external`, se lisent mieux qu'une pièce qui mélange deux
+    faits."""
+    from apps.accounting.models import AccTenantDefaultAccount
+    from apps.accounting.services.default_accounts import resolve_default_account
+    from apps.accounting.services.moves import add_line, create_draft_move, post_move
+
+    tenant = facture.tenant
+    compte_commission = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_PAYMENT_FEE)
+    if compte_commission is None:
+        raise ValidationError(
+            _(
+                "Aucun compte de commission d'encaissement configuré : la commission "
+                "ne peut pas être isolée, et la fondre dans l'encaissement la rendrait "
+                "invisible au contrôle de gestion."
+            )
+        )
+
+    piece = create_draft_move(
+        tenant=tenant,
+        journal=journal,
+        period=periode,
+        date=date,
+        narration=_("Commission d'encaissement — %(ref)s") % {"ref": reference},
+    )
+    add_line(
+        piece,
+        account=compte_commission,
+        label=_("Commission d'encaissement"),
+        debit=fee_amount,
+    )
+    add_line(
+        piece,
+        account=tresorerie,
+        label=_("Commission prélevée à la source"),
+        credit=fee_amount,
+    )
+    return post_move(piece)
 
 
 __all__ = [

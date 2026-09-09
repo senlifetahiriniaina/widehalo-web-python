@@ -144,6 +144,25 @@ class Tenant(models.Model):
     # pour les deploiements mono-societe qui n'ont rien a router.
     whatsapp_phone_number_id = models.CharField(max_length=64, blank=True, default="")
 
+    # T5 (bloc D, PAY-1) — la voie d'encaissement mobile de CETTE societe :
+    # agregateur (versement groupe, commission deduite) ou raccordement
+    # direct (versement a l'unite). Le critere exige que le basculement se
+    # fasse « par parametre, sans modification de code », d'ou un champ et
+    # non une constante de deploiement.
+    #
+    # Vide = ce tenant n'encaisse pas par mobile. C'est l'etat NORMAL de la
+    # majorite des installations, et surtout pas une voie par defaut :
+    # attribuer l'agregateur a qui n'a rien choisi ferait partir de l'argent
+    # par un chemin que personne n'a decide.
+    #
+    # `choices` non declare ici : le jeu ferme vit dans
+    # `accounting.services.payment_providers.PROVIDER_CHOICES`, et `core` ne
+    # peut pas importer un module metier (regle de couplage n°1). C'est
+    # `resolve_tenant_provider` qui refuse un code inconnu — meme discipline
+    # que `fiscal_regime`, dont les libelles vivent ici mais dont
+    # l'interpretation vit dans `accounting.services.taxes`.
+    mobile_payment_provider = models.CharField(max_length=32, blank=True, default="")
+
     is_sandbox = models.BooleanField(default=False)
     sandbox_source = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="sandboxes"
