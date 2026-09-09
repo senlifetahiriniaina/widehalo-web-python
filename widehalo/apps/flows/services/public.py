@@ -320,12 +320,46 @@ def _active_link(tenant: Tenant, connector_code: str) -> FlwLink | None:
     )
 
 
+def read_inbound_payload(tenant: Tenant, *, exchange_id: Any) -> str | None:
+    """T5 — le corps d'un echange ENTRANT, pour le module qui doit le lire.
+
+    **Le chemin entrant s'arretait ici.** `receive_event` ecrivait un
+    echange et sa charge utile ; aucun module metier ne pouvait les lire,
+    parce que la surface publique n'exposait que des LISTES d'echanges —
+    etat, horodatage, clef de correlation — jamais le contenu. Une
+    notification de paiement arrivait donc, etait tracee, et restait
+    illisible.
+
+    **Seulement un echange ENTRANT.** Rendre le corps d'un echange sortant
+    n'apprendrait rien a personne — c'est le module metier qui l'a
+    construit — et ouvrirait une lecture dont aucun critere n'a besoin.
+
+    Rend `None` quand la charge utile a ete purgee (FLX-5) : c'est un etat
+    NORMAL, pas une erreur. L'echange reste, son empreinte aussi ; il n'y
+    a simplement plus rien a lire, et l'appelant doit pouvoir le
+    distinguer d'un echange introuvable — les deux rendent `None`, et
+    aucun des deux n'est un incident."""
+    from apps.flows.models import FlwPayload
+
+    payload = (
+        FlwPayload.objects.filter(
+            tenant=tenant,
+            exchange_id=exchange_id,
+            exchange__direction=FlwExchange.DIRECTION_INBOUND,
+        )
+        .only("body")
+        .first()
+    )
+    return payload.body if payload is not None else None
+
+
 __all__ = [
     "activate_link",
     "count_exchanges_awaiting_verdict",
     "describe_signing_certificate",
     "has_active_link",
     "list_exchanges_for_document",
+    "read_inbound_payload",
     "request_reference_lookup",
     "sign_document",
     "submit_document_for_verdict",

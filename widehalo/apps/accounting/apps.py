@@ -19,6 +19,9 @@ class AccountingConfig(AppConfig):
         from apps.accounting.services.flow_schema_registration import (
             register_outbound_schemas,
         )
+        from apps.accounting.services.payment_registration import (
+            register_payment_subscribers,
+        )
         from apps.accounting.services.reports_registration import register_reports
 
         register_reports()
@@ -41,3 +44,8 @@ class AccountingConfig(AppConfig):
         # de sorte qu'un defaut du bloc C ne peut jamais mettre en peril
         # une transition comptable (FLX-2).
         register_einvoice_subscribers()
+        # T5 (bloc D, PAY-2) : l'abonne qui relie le point d'entree entrant
+        # au moteur de reglement. Sans lui, une notification authentique
+        # arrivait, etait tracee, et ne produisait rien — le hub publie,
+        # mais personne n'ecoutait.
+        register_payment_subscribers()
