@@ -23,6 +23,7 @@ import factory
 
 from apps.accounting.models import (
     AccAccount,
+    AccAggregatorPayout,
     AccAnalyticAccount,
     AccAnalyticLine,
     AccAnalyticPlan,
@@ -590,3 +591,25 @@ class AccPaymentNotificationFactory(factory.django.DjangoModelFactory):
     amount = Decimal("1000.0000")
     currency = "MGA"
     state = AccPaymentNotification.STATE_ORPHAN
+
+
+class AccAggregatorPayoutFactory(factory.django.DjangoModelFactory):
+    """T5 (PAY-5) — le versement groupe de l'agregateur.
+
+    Les trois montants sont poses COHERENTS par defaut (net + commission =
+    brut) : `settle_payout` refuse d'ecrire un versement qui ne s'equilibre
+    pas, et une factory incoherente ferait echouer, pour cette raison-la,
+    tout test qui parle d'autre chose. Le cas discordant est construit
+    explicitement par le test qui le verifie."""
+
+    class Meta:
+        model = AccAggregatorPayout
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    provider_code = "agregateur"
+    external_reference = factory.Sequence(lambda n: f"PAYOUT-{n:06d}")
+    payout_date = factory.LazyFunction(lambda: datetime.date(2026, 1, 31))
+    gross_amount = Decimal("1000.0000")
+    fee_amount = Decimal("20.0000")
+    net_amount = Decimal("980.0000")
+    currency = "MGA"

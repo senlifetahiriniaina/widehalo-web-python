@@ -361,6 +361,17 @@ class AccTenantDefaultAccount(BaseModel):
     # previsible pour une anomalie de caisse — ce qui la rendrait invisible
     # au controle de gestion et fausserait le suivi des ecarts reels.
     ROLE_PAYMENT_FEE = "commission_encaissement"
+    # T5 (bloc D, PAY-5) : le compte de PASSAGE d'un agregateur. Il porte
+    # ce que l'agregateur nous doit entre l'encaissement et son versement
+    # groupe — c'est-a-dire ce qui a ete paye par le client mais n'est pas
+    # encore sur notre compte en banque.
+    #
+    # **Sans lui, le rapprochement de second niveau n'a rien a rapprocher.**
+    # Debiter directement la banque a la notification ferait apparaitre en
+    # banque un argent qui n'y est pas encore, et le versement groupe
+    # n'aurait plus de contrepartie a solder : il n'y aurait plus qu'un
+    # doublon a eviter, jamais un lot a lettrer. PAY-5 devient inapplicable.
+    ROLE_PAYMENT_CLEARING = "passage_encaissement"
     ROLE_CHOICES = [
         (ROLE_SALE_INCOME, "Produit des ventes"),
         (ROLE_PURCHASE_EXPENSE, "Charge des achats"),
@@ -375,6 +386,7 @@ class AccTenantDefaultAccount(BaseModel):
         (ROLE_PAYROLL_EXPENSE, "Charge de personnel"),
         (ROLE_PAYROLL_PAYABLE, "Dette envers le personnel"),
         (ROLE_PAYMENT_FEE, "Commission d'encaissement"),
+        (ROLE_PAYMENT_CLEARING, "Compte de passage d'encaissement"),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES)
@@ -2062,11 +2074,20 @@ class AccPaymentIntent(BaseModel, ReferenceMixin):
     caisse (`pos.PosOrder`), et `accounting` n'a pas le droit d'importer
     `pos` (regle de couplage n°1).
 
-    **`external_reference` porte ce que le TIERS appelle cette
-    transaction.** C'est par elle que la notification retrouve l'intention,
-    et c'est pourquoi elle est indexee et unique par tenant : deux
-    intentions partageant la reference du tiers rendraient la correlation
-    ambigue, donc l'ecriture automatique impossible a justifier."""
+    **`external_reference` est EMISE PAR NOUS, transmise au payeur, et
+    renvoyee telle quelle par l'operateur.** Une premiere redaction de
+    cette docstring disait qu'elle « porte ce que le TIERS appelle cette
+    transaction » — et cette lecture-la viderait de son fondement la seule
+    ecriture automatique du produit. L'interdit du §4.3 n'autorise
+    l'automatisme que sous « une regle metier deja eprouvee » et refuse le
+    rapprochement par similarite : retrouver dans nos livres une valeur que
+    le tiers a inventee serait une devinette, tandis que retrouver une
+    valeur que nous avons generee est une clef.
+
+    Elle est donc indexee et unique par tenant, et c'est nous qui garantissons
+    cette unicite — `payment_intents.create_payment_intent` la derive de la
+    clef primaire. Deux intentions partageant une reference rendraient la
+    correlation ambigue, donc l'ecriture automatique impossible a justifier."""
 
     STATE_CREATED = "creee"
     STATE_SENT = "transmise"
@@ -2112,6 +2133,95 @@ class AccPaymentIntent(BaseModel, ReferenceMixin):
 
     def __str__(self) -> str:
         return f"{self.reference} — {self.amount} {self.currency}"
+
+
+class AccAggregatorPayout(BaseModel, ReferenceMixin):
+    """T5 (bloc D, PAY-5) — le versement groupe de l'agregateur.
+
+    **Le critere** : « le versement groupe de l'agregateur est rapproche du
+    lot d'encaissements qu'il couvre, la commission etant ISOLEE sur son
+    propre compte de charge ». Le cahier designe ce rapprochement comme
+    « la partie du bloc D que l'on sous-estime systematiquement », et la
+    mesure lui donne raison : rien dans le depot ne savait faire 1 versement
+    -> N pieces. `AccPaymentAllocation` est structurellement N mais n'est
+    jamais cree qu'a un exemplaire, et `matching_number` n'etait applique
+    qu'a exactement deux lignes.
+
+    **Les trois montants sont portes SEPAREMENT, et pas deduits l'un de
+    l'autre.** `gross_amount` est ce que les payeurs ont paye,
+    `fee_amount` ce que l'agregateur retient, `net_amount` ce qui arrive
+    reellement en banque. Les recalculer l'un depuis les deux autres
+    supposerait qu'ils s'accordent — or le seul interet de ce modele est
+    de constater qu'ils NE s'accordent PAS, le jour ou cela arrive : un
+    versement dont le net ne fait pas brut moins commission est
+    exactement ce qu'un exploitant doit voir, et non ce qu'un calcul doit
+    masquer.
+
+    **Pourquoi un etat, et seulement trois.** `annonce` : l'agregateur a
+    dit qu'il verserait. `regle` : l'ecriture consolidee existe. `conteste`
+    : les montants ne tombent pas juste, et personne n'ecrit tant que ce
+    n'est pas tranche — meme discipline que la notification orpheline, qui
+    ne produit aucune ecriture tant qu'elle n'est pas affectee (PAY-3)."""
+
+    STATE_ANNOUNCED = "annonce"
+    STATE_SETTLED = "regle"
+    STATE_DISPUTED = "conteste"
+    STATE_CHOICES = [
+        (STATE_ANNOUNCED, "Annonce par l'agregateur"),
+        (STATE_SETTLED, "Rapproche et comptabilise"),
+        (STATE_DISPUTED, "Conteste"),
+    ]
+
+    provider_code = models.CharField(max_length=32)
+    #: Ce que l'AGREGATEUR appelle ce versement — contrairement a
+    #: `AccPaymentIntent.external_reference`, celle-ci vient bien de lui :
+    #: c'est lui qui verse, et nous ne pouvons pas nommer un mouvement que
+    #: nous n'initions pas. Elle sert a ne pas comptabiliser deux fois le
+    #: meme versement, d'ou l'unicite.
+    external_reference = models.CharField(max_length=128, db_index=True)
+    payout_date = models.DateField()
+    gross_amount = models.DecimalField(max_digits=18, decimal_places=4)
+    fee_amount = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    net_amount = models.DecimalField(max_digits=18, decimal_places=4)
+    currency = models.CharField(max_length=3, default="MGA")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_ANNOUNCED)
+    #: Le numero de lettrage PARTAGE par les N encaissements et le
+    #: versement. C'est l'extension naturelle du lettrage existant, et l'un
+    #: des deux seuls champs qu'un trigger d'immuabilite laisse mutables
+    #: apres publication — ce qui rend ce rapprochement possible sans
+    #: toucher a des pieces publiees.
+    matching_number = models.CharField(max_length=32, blank=True, db_index=True)
+    move = models.ForeignKey(
+        "accounting.AccMove",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="aggregator_payouts",
+    )
+    statement_line = models.ForeignKey(
+        "accounting.AccBankStatementLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="aggregator_payouts",
+    )
+
+    class Meta:
+        db_table = "acc_aggregator_payout"
+        indexes = [models.Index(fields=["state", "payout_date"])]
+        constraints = [
+            # Deux lignes ne peuvent pas revendiquer le meme versement chez
+            # l'agregateur : sans quoi le meme argent serait comptabilise
+            # deux fois, et le compte de passage ne se solderait jamais.
+            models.UniqueConstraint(
+                fields=["tenant", "external_reference"],
+                condition=~models.Q(external_reference=""),
+                name="uniq_acc_aggregator_payout_external_reference",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.external_reference} — {self.net_amount} {self.currency}"
 
 
 class AccPaymentNotification(BaseModel):
@@ -2166,6 +2276,17 @@ class AccPaymentNotification(BaseModel):
     # que fondue dans l'encaissement.
     fee_amount = models.DecimalField(max_digits=18, decimal_places=4, default=0)
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_ORPHAN)
+    #: Le versement groupe qui couvre cet encaissement, quand il est arrive.
+    #: **C'est le seul mecanisme 1 versement -> N pieces du depot** : sans
+    #: lui, PAY-5 n'a rien a rapprocher, et le compte de passage porte un
+    #: solde que personne ne sait justifier ligne a ligne.
+    payout = models.ForeignKey(
+        "accounting.AccAggregatorPayout",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="notifications",
+    )
     raw = models.TextField(blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
 

@@ -51,12 +51,15 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from apps.accounting.models import (
         AccAccount,
         AccJournal,
         AccMove,
         AccPayment,
         AccPaymentIntent,
+        AccPaymentNotification,
         AccPeriod,
     )
     from apps.core.models.tenant import Tenant
@@ -73,11 +76,21 @@ OUTCOME_NO_INTENT = "sans_intention"
 
 @dataclass(frozen=True)
 class SettlementResult:
-    """Ce qu'il est advenu, et de quoi le présenter."""
+    """Ce qu'il est advenu, et de quoi le présenter.
+
+    **`document_type` / `document_id` ne sont renseignés que sur
+    corrélation réussie**, et ils ne sont pas décoratifs : l'appelant s'en
+    sert pour rattacher l'échange ENTRANT à la pièce (`flows.services.
+    public.correlate_inbound_exchange`). Sans eux, la notification qui a
+    tranché resterait hors de la lignée de la facture, et « qu'est devenue
+    cette facture ? » rendrait la soumission et ses réessais sans jamais
+    dire qu'elle a été payée."""
 
     outcome: str
     notification_id: object = None
     payment_id: object = None
+    document_type: str = ""
+    document_id: UUID | None = None
 
     @property
     def produced_an_entry(self) -> bool:
@@ -176,6 +189,77 @@ def receive_payment_notification(
     )
 
 
+def assign_orphan_notification(
+    notification: AccPaymentNotification,
+    *,
+    invoice_id: str,
+    now: dt.datetime | None = None,
+) -> SettlementResult:
+    """PAY-3 — un humain affecte une orpheline, et C'EST LUI qui décide.
+
+    « Un paiement reçu sans correspondance est placé en attente de
+    rapprochement, visible dans un écran dédié, et ne produit aucune
+    écriture **tant qu'il n'est pas affecté**. » Cette fonction est
+    l'affectation, et elle n'existe que pour être appelée depuis un écran.
+
+    **Elle ne devine RIEN, et c'est tout l'écart avec la corrélation
+    automatique.** La facture est DÉSIGNÉE : aucun rapprochement par
+    montant, par date ou par ressemblance de référence. La corrélation
+    automatique a échoué précisément parce qu'aucune référence émise par
+    nous ne correspondait ; lui substituer une heuristique serait
+    exactement ce que l'interdit du §4.3 refuse, et le fait qu'un humain
+    ait cliqué ne transformerait pas une devinette de la machine en
+    décision humaine.
+
+    **Elle n'est jamais atteignable depuis le bus** — la garde
+    `tests/architecture/test_automatic_entries_are_correlated.py` le
+    vérifie. Un abonné qui l'appellerait produirait des écritures
+    automatiques sur des notifications que rien n'a corrélées, en passant
+    par la porte prévue pour un humain."""
+    from apps.accounting.models import AccMove, AccPaymentNotification
+    from apps.core.identifiers import parse_uuid
+
+    if notification.state != AccPaymentNotification.STATE_ORPHAN:
+        raise ValidationError(
+            _(
+                "Seule une notification en attente de rapprochement peut être "
+                "affectée ; celle-ci est « %(etat)s »."
+            )
+            % {"etat": notification.get_state_display()}
+        )
+
+    facture = AccMove.objects.filter(
+        id=parse_uuid(invoice_id, champ="facture"),
+        move_type=AccMove.TYPE_CUSTOMER_INVOICE,
+        state=AccMove.STATE_POSTED,
+    ).first()
+    if facture is None:
+        raise ValidationError(
+            _("Facture client publiée introuvable : l'affectation ne peut pas aboutir.")
+        )
+
+    with transaction.atomic():
+        paiement = _register(
+            facture,
+            amount=notification.amount,
+            fee_amount=notification.fee_amount,
+            reference=notification.external_reference,
+            provider_code=notification.provider_code,
+            now=now,
+        )
+        notification.payment = paiement
+        notification.state = AccPaymentNotification.STATE_MATCHED
+        notification.save(update_fields=["payment", "state"])
+
+    return SettlementResult(
+        outcome=OUTCOME_SETTLED,
+        notification_id=notification.id,
+        payment_id=paiement.id,
+        document_type="accounting.AccMove",
+        document_id=facture.id,
+    )
+
+
 def _settle(
     tenant: Tenant,
     *,
@@ -233,7 +317,12 @@ def _settle(
 
     with transaction.atomic():
         paiement = _register(
-            facture, amount=amount, fee_amount=fee_amount, reference=reference, now=now
+            facture,
+            amount=amount,
+            fee_amount=fee_amount,
+            reference=reference,
+            provider_code=intention.provider_code,
+            now=now,
         )
         notification = AccPaymentNotification.objects.create(
             tenant=tenant,
@@ -254,6 +343,8 @@ def _settle(
         outcome=OUTCOME_SETTLED,
         notification_id=notification.id,
         payment_id=paiement.id,
+        document_type=intention.document_type,
+        document_id=intention.document_id,
     )
 
 
@@ -263,6 +354,7 @@ def _register(
     amount: Decimal,
     fee_amount: Decimal,
     reference: str,
+    provider_code: str,
     now: dt.datetime | None,
 ) -> AccPayment:
     """Délègue à `register_payment`, qui sait déjà tout faire.
@@ -270,9 +362,31 @@ def _register(
     Il porte l'écart de change, le lettrage partiel et la transition de
     `invoice_state`. Réécrire cela ici aurait produit une seconde façon
     d'encaisser une facture — donc deux comportements à maintenir, et un
-    jour deux comportements différents."""
+    jour deux comportements différents.
+
+    **`amount` est le montant BRUT payé par le client**, jamais le net
+    reçu, et la distinction décide de la justesse des livres. Le client qui
+    règle 1 000 a éteint 1 000 de créance, même si l'opérateur n'en reverse
+    que 980 : encaisser le net laisserait 20 de créance ouverte sur un
+    client qui ne doit plus rien, et la relance automatique irait le
+    réclamer.
+
+    **Où va l'argent dépend de la VOIE, et c'est le seul lecteur de
+    `settles_in_batch`.** Un raccordement direct verse sur le compte en
+    banque : la trésorerie est la banque, et la commission prélevée à la
+    source est écrite tout de suite. Un agrégateur, lui, ne verse pas
+    encore — il encaisse pour notre compte et reversera groupé. Débiter la
+    banque à cet instant y ferait apparaître un argent qui n'y est pas, et
+    surtout **le versement groupé n'aurait plus rien à solder** : PAY-5
+    deviendrait inapplicable, faute de contrepartie. La trésorerie est donc
+    le compte de PASSAGE, et la commission attend le versement, où le
+    critère demande précisément qu'elle soit isolée.
+
+    Lire la voie sur l'INTENTION et non sur le tenant : PAY-1 exige qu'un
+    basculement de paramètre ne reprenne pas les intentions en cours."""
     from apps.accounting.models import AccJournal, AccPeriod, AccTenantDefaultAccount
     from apps.accounting.services.default_accounts import resolve_default_account
+    from apps.accounting.services.payment_providers import get_provider
     from apps.accounting.services.payments import register_payment
 
     tenant = facture.tenant
@@ -300,9 +414,14 @@ def _register(
     # l'avertissement journalisé qui dit à l'exploitant que le repli a
     # servi. Deux résolveurs pour la même question finissent par répondre
     # deux choses différentes.
-    tresorerie = resolve_default_account(
-        tenant, AccTenantDefaultAccount.ROLE_BANK
-    ) or resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CASH)
+    voie = get_provider(provider_code)
+    en_lot = bool(voie and voie.settles_in_batch)
+    if en_lot:
+        tresorerie = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_PAYMENT_CLEARING)
+    else:
+        tresorerie = resolve_default_account(
+            tenant, AccTenantDefaultAccount.ROLE_BANK
+        ) or resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CASH)
     ecart = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_CASH_DIFFERENCE)
     if tresorerie is None or ecart is None:
         raise ValidationError(
@@ -326,7 +445,12 @@ def _register(
         method=AccPayment.METHOD_MOBILE_MONEY,
         reference_external=reference,
     )
-    if fee_amount:
+    if fee_amount and not en_lot:
+        # Voie groupée : la commission est retenue par l'agrégateur SUR SON
+        # VERSEMENT, pas sur chaque transaction. L'écrire ici la
+        # compterait deux fois — une fois à l'encaissement, une fois au
+        # rapprochement du lot — et le compte de passage ne se solderait
+        # jamais.
         _book_fee(
             facture,
             periode=periode,
@@ -408,5 +532,6 @@ __all__ = [
     "OUTCOME_ORPHAN",
     "OUTCOME_SETTLED",
     "SettlementResult",
+    "assign_orphan_notification",
     "receive_payment_notification",
 ]

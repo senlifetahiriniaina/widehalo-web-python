@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Encaissements mobiles" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:quick_entry_list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Encaissements mobiles" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Encaissements mobiles" %}</h1>
+  </div>
+
+  {% comment %}
+    PAY-3 — « un paiement reçu sans correspondance est placé en attente de
+    rapprochement, VISIBLE DANS UN ÉCRAN DÉDIÉ, et ne produit aucune
+    écriture tant qu'il n'est pas affecté ». Cet écran est cette
+    visibilité ; sans lui, « en attente » voudrait dire « perdu ».
+  {% endcomment %}
+
+  {% if request.GET.error %}<p class="form-error">{{ request.GET.error }}</p>{% endif %}
+
+  <form method="get" class="filters">
+    <label for="state">{% trans "État" %}</label>
+    <select id="state" name="state" onchange="this.form.submit()">
+      {% for value, label in states %}
+        <option value="{{ value }}" {% if value == state_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+      <option value="toutes" {% if state_filter == "toutes" %}selected{% endif %}>{% trans "Toutes" %}</option>
+    </select>
+  </form>
+
+  {% include "components/_smart_table.html" %}
+
+  {% comment %}
+    PAY-3, la seconde moitié du critère — « ne produit aucune écriture TANT
+    QU'IL N'EST PAS AFFECTÉ ». L'affectation est ici, et c'est un humain qui
+    la fait : la corrélation automatique a échoué parce qu'aucune référence
+    émise par nous ne correspondait, et lui substituer une heuristique —
+    « le montant et la date collent » — serait exactement ce que l'interdit
+    du §4.3 refuse.
+
+    La facture est CHOISIE dans une liste, jamais devinée : c'est ce qui
+    distingue une décision d'un rapprochement approximatif.
+  {% endcomment %}
+  <h2>{% trans "Affecter un encaissement orphelin" %}</h2>
+  {% if orphans %}
+    <form method="post" action="" id="assign-form">
+      {% csrf_token %}
+      <label for="notification">{% trans "Encaissement reçu" %}</label>
+      <select id="notification" name="notification_id"
+              onchange="document.getElementById('assign-form').action = this.value;">
+        <option value="">{% trans "Choisir…" %}</option>
+        {% for orphan in orphans %}
+          <option value="{% url 'accounting:payment_notification_assign' orphan.id %}">
+            {{ orphan.external_reference }} — {{ orphan.amount }} {{ orphan.currency }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <label for="invoice">{% trans "À affecter sur la facture" %}</label>
+      <select id="invoice" name="invoice_id">
+        {% for invoice in open_invoices %}
+          <option value="{{ invoice.id }}">{{ invoice.reference }} — {{ invoice.date }}</option>
+        {% endfor %}
+      </select>
+
+      <c-button type="submit">{% trans "Affecter" %}</c-button>
+    </form>
+  {% else %}
+    <p>{% trans "Aucun encaissement en attente d'affectation." %}</p>
+  {% endif %}
+
+  {% comment %}
+    PAY-5 — le versement groupé, sur le MÊME écran que les notifications.
+    C'est la même question posée à deux échelles : « cet argent, à quoi
+    correspond-il ? ». Deux écrans obligeraient l'exploitant à faire
+    lui-même le lien entre un compte de passage qui ne se solde pas et un
+    versement qu'il n'a pas rapproché.
+  {% endcomment %}
+  <h2>{% trans "Versements groupés à rapprocher" %}</h2>
+  {% if payouts %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Référence" %}</th>
+          <th>{% trans "Date" %}</th>
+          <th>{% trans "Brut" %}</th>
+          <th>{% trans "Commission" %}</th>
+          <th>{% trans "Net reçu" %}</th>
+          <th>{% trans "État" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payout in payouts %}
+          <tr>
+            <td>{{ payout.external_reference }}</td>
+            <td>{{ payout.payout_date }}</td>
+            <td>{{ payout.gross_amount }}</td>
+            <td>{{ payout.fee_amount }}</td>
+            <td>{{ payout.net_amount }}</td>
+            <td>{{ payout.state }}</td>
+            <td>
+              <form method="post" action="{% url 'accounting:payout_settle' payout.id %}">
+                {% csrf_token %}
+                <c-button type="submit">{% trans "Rapprocher le lot" %}</c-button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% trans "Aucun versement en attente de rapprochement." %}</p>
+  {% endif %}
+{% endblock %}

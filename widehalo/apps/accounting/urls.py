@@ -1,6 +1,12 @@
 from django.urls import path
 
-from apps.accounting import views, views_config, views_imports, views_reports
+from apps.accounting import (
+    views,
+    views_config,
+    views_imports,
+    views_payments,
+    views_reports,
+)
 
 app_name = "accounting"
 
@@ -28,6 +34,25 @@ urlpatterns = [
         "reports/vat-declaration/",
         views_reports.vat_declaration_screen,
         name="vat_declaration",
+    ),
+    # T5 (bloc D) — PAY-3 « visible dans un ecran dedie », et PAY-5 dont
+    # le rapprochement de second niveau n'aurait, sans cette route, aucun
+    # appelant. Declarees AVANT `<uuid:invoice_id>` : un prefixe litteral
+    # place apres un motif attrape-tout ne serait jamais atteint.
+    path(
+        "payments/notifications/",
+        views_payments.payment_notification_list,
+        name="payment_notifications",
+    ),
+    path(
+        "payments/notifications/<uuid:notification_id>/assign/",
+        views_payments.payment_notification_assign,
+        name="payment_notification_assign",
+    ),
+    path(
+        "payments/payouts/<uuid:payout_id>/settle/",
+        views_payments.aggregator_payout_settle,
+        name="payout_settle",
     ),
     path("<uuid:invoice_id>/", views.invoice_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),

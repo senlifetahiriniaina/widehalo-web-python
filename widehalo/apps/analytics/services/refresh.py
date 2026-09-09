@@ -28,6 +28,7 @@ from django.utils import timezone
 
 from apps.accounting.services.public import (
     list_move_lines_for_warehouse,
+    list_payment_notifications_for_warehouse,
     list_payments_for_warehouse,
 )
 from apps.analytics.models import (
@@ -37,6 +38,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactNotificationEncaissement,
     AnFactOrdreFabrication,
     AnFactPaie,
     AnFactReception,
@@ -241,6 +243,47 @@ def _refresh_fact_encaissement(
         if latest_watermark is None or row["updated_at"] > latest_watermark:
             latest_watermark = row["updated_at"]
     state.watermark_acc_payment = latest_watermark
+    return len(rows)
+
+
+def _refresh_fact_notification_encaissement(
+    tenant: Tenant,
+    state: AnWarehouseState,
+    dim_temps_cache: dict[dt.date, AnDimTemps],
+) -> int:
+    """T5 (PAY-8) — alimente le fait des notifications d'encaissement.
+
+    **Pas de `dim_tiers`, et ce n'est pas un oubli.** Une notification
+    d'operateur ne porte pas de tiers : elle porte une reference et un
+    montant. Le tiers se deduit de la facture, donc SEULEMENT quand la
+    correlation a reussi — l'inscrire ici ferait un axe vide pour les
+    orphelines, c'est-a-dire pour exactement les lignes que cet indicateur
+    existe pour compter.
+
+    **`update_or_create` et non `create`** : une notification change d'etat
+    quand un humain l'affecte (PAY-3), et le fait doit suivre. Sans quoi le
+    taux resterait fige sur ce qu'il valait a la reception, et une
+    affectation manuelle n'apparaitrait jamais dans l'indicateur."""
+    rows = list_payment_notifications_for_warehouse(
+        tenant, updated_since=state.watermark_acc_payment_notification
+    )
+    latest_watermark = state.watermark_acc_payment_notification
+    for row in rows:
+        dim_temps = _ensure_dim_temps(tenant, row["date"], dim_temps_cache)
+        AnFactNotificationEncaissement.objects.update_or_create(
+            tenant=tenant,
+            source_notification_id=row["notification_id"],
+            defaults={
+                "dim_temps": dim_temps,
+                "connecteur_code": row["provider_code"],
+                "etat": row["state"],
+                "recue": row["recue"],
+                "rapprochee": row["rapprochee"],
+            },
+        )
+        if latest_watermark is None or row["updated_at"] > latest_watermark:
+            latest_watermark = row["updated_at"]
+    state.watermark_acc_payment_notification = latest_watermark
     return len(rows)
 
 
@@ -481,6 +524,9 @@ def refresh_warehouse_for_tenant(
                     tenant, state, dim_temps_cache, dim_tiers
                 )
                 rows_processed += _refresh_fact_ecriture(tenant, state, dim_temps_cache, dim_tiers)
+                rows_processed += _refresh_fact_notification_encaissement(
+                    tenant, state, dim_temps_cache
+                )
                 rows_processed += _refresh_fact_mouvement_stock(
                     tenant, state, dim_temps_cache, dim_article
                 )

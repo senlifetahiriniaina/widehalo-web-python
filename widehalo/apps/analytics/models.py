@@ -254,6 +254,51 @@ class AnFactEncaissement(BaseModel):
         return f"{self.reference} — {self.montant_mga}"
 
 
+class AnFactNotificationEncaissement(BaseModel):
+    """T5 (PAY-8) — grain = `accounting.AccPaymentNotification`.
+
+    **Pourquoi un fait de plus, et non une colonne sur
+    `AnFactEncaissement`.** Ce dernier a pour grain le REGLEMENT ; une
+    notification orpheline n'en produit aucun. La compter la-bas est
+    impossible, et le taux de rapprochement calcule sur les seuls
+    reglements vaudrait toujours 100 % — l'indicateur dirait l'inverse de
+    ce qu'il mesure.
+
+    **Deux mesures SOMMABLES, jamais un taux stocke.** `aggregate_fact` ne
+    connait que `Sum` ; et un taux ligne a ligne ne s'agrege pas — la
+    moyenne des taux n'est pas le taux du total des que deux periodes ont
+    des volumes differents, ce qui est toujours le cas. Le rapport se fait
+    chez le consommateur, sur deux sommes justes.
+
+    **`connecteur_code` est un axe, pas un attribut decoratif** : PAY-8
+    demande le taux « par connecteur », et c'est la seule ventilation qui
+    dise quoi faire — un taux global qui baisse ne designe personne, un
+    taux qui baisse sur UNE voie designe l'operateur a appeler."""
+
+    source_notification_id = models.UUIDField()
+    dim_temps = models.ForeignKey(
+        AnDimTemps, on_delete=models.PROTECT, related_name="notifications_encaissement"
+    )
+    connecteur_code = models.CharField(max_length=32, blank=True)
+    etat = models.CharField(max_length=16, blank=True)
+    #: Vaut toujours 1 : c'est le denominateur du taux, et le compter par
+    #: `Count` plutot que par `Sum` obligerait `aggregate_fact` a connaitre
+    #: une seconde primitive pour un seul indicateur.
+    recue = models.IntegerField(default=1)
+    #: 1 quand la correlation automatique a abouti, 0 sinon. Numerateur.
+    rapprochee = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "an_fact_notification_encaissement"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "source_notification_id"],
+                name="uniq_an_fact_notification_encaissement",
+            )
+        ]
+        indexes = [models.Index(fields=["dim_temps"])]
+
+
 class AnFactEcriture(BaseModel):
     """Grain = `accounting.AccMoveLine`. Ne couvre que les écritures
     `state=posted` (`services/refresh.py`) : une écriture brouillon est par
@@ -579,6 +624,11 @@ class AnWarehouseState(BaseModel):
     watermark_pos_orderline = models.DateTimeField(null=True, blank=True)
     watermark_acc_payment = models.DateTimeField(null=True, blank=True)
     watermark_acc_moveline = models.DateTimeField(null=True, blank=True)
+    # T5 (PAY-8) : le jalon des NOTIFICATIONS d'encaissement, distinct de
+    # celui des reglements. Les deux sources n'ont ni le meme grain ni la
+    # meme cadence — une notification orpheline ne produit aucun reglement,
+    # et c'est precisement elle que le taux de rapprochement doit compter.
+    watermark_acc_payment_notification = models.DateTimeField(null=True, blank=True)
     # Bloc Transverse, T1.
     watermark_stk_move = models.DateTimeField(null=True, blank=True)
     # Bloc Transverse, T2.

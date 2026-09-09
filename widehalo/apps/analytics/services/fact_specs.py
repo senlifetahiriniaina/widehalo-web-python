@@ -24,6 +24,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactNotificationEncaissement,
     AnFactOrdreFabrication,
     AnFactPaie,
     AnFactReception,
@@ -69,6 +70,29 @@ FACT_SPECS: dict[str, FactSpec] = {
         value_field="montant_mga",
         dimension_fields={"temps": "dim_temps__date", "tiers": "dim_tiers__nom"},
         detail_extra_fields=("reference", "method"),
+    ),
+    # T5 (PAY-8) — DEUX faits sur le meme modele, et c'est deliberé.
+    # `FactSpec.value_field` est unique par fait, et `aggregate_fact` ne
+    # connait que `Sum` : le taux de rapprochement se lit donc comme le
+    # rapport de deux sommes, chez le consommateur. Lui ajouter une
+    # primitive de ratio pour un seul indicateur donnerait au dictionnaire
+    # une capacite que rien d'autre n'utilise — et un taux moyenne de taux
+    # serait faux des que deux periodes ont des volumes differents.
+    "notif_encaissement": FactSpec(
+        queryset_factory=lambda tenant: AnFactNotificationEncaissement.objects.filter(
+            tenant=tenant
+        ),
+        value_field="recue",
+        dimension_fields={"temps": "dim_temps__date", "connecteur": "connecteur_code"},
+        detail_extra_fields=("etat", "rapprochee"),
+    ),
+    "notif_encaissement_rapproche": FactSpec(
+        queryset_factory=lambda tenant: AnFactNotificationEncaissement.objects.filter(
+            tenant=tenant
+        ),
+        value_field="rapprochee",
+        dimension_fields={"temps": "dim_temps__date", "connecteur": "connecteur_code"},
+        detail_extra_fields=("etat", "recue"),
     ),
     "ecriture": FactSpec(
         queryset_factory=lambda tenant: AnFactEcriture.objects.filter(tenant=tenant),

@@ -343,7 +343,41 @@ class FlwLink(BaseModel):
     n'importe quelle clef, ne se valide pas, ne s'indexe pas et ne se
     migre pas : y loger A5 rendrait la politique d'echec invisible a
     toute verification. Le `settings` reste pour ce qui appartient a
-    l'adaptateur, jamais pour ce que le cahier a nomme."""
+    l'adaptateur, jamais pour ce que le cahier a nomme.
+
+    **La liaison doit etre lisible AVANT que la societe soit connue, et ce
+    n'est pas `FORCE ROW LEVEL SECURITY` qu'on desarme pour autant.** Un
+    operateur qui appelle `/api/v1/flows/webhooks/{link_id}` n'a ni
+    session, ni jeton applicatif, ni en-tete de societe — lui en faire
+    envoyer un reviendrait a laisser l'appelant choisir la societe dans
+    laquelle il ecrit. Aucun `app.tenant_id` n'est donc pose, et la lecture
+    de la liaison rend zero ligne : `all_objects` ne contourne que la RLS
+    APPLICATIVE de `TenantManager`, jamais celle de PostgreSQL. Le point
+    d'entree rendait 404 sur CHAQUE appel authentique.
+
+    La reponse retenue n'est PAS la derogation `RLS_FORCE_FOR_OWNER =
+    False` de `PrjGuestAccess` : elle rendrait la table lisible ET
+    ECRIVABLE hors societe par le proprietaire, et FLX-7 — « l'isolation
+    est refusee par PostgreSQL, pas seulement par l'application » — cesse
+    d'etre vraie pour `flw_link`. Un critere ne se troque pas contre une
+    commodite.
+
+    Ce qui est pose a la place (migration `flows/0009`) est une seconde
+    policy `webhook_lookup_policy`, **en LECTURE SEULE** (`FOR SELECT`) et
+    conditionnee a un reglage de session que seul
+    `services/inbound_routing.py` sait poser, pour la duree d'une seule
+    requete. `FORCE` reste actif, la policy d'isolation reste la seule a
+    gouverner les ECRITURES, et l'ouverture est exactement de la taille du
+    besoin : retrouver une ligne par son identifiant pour savoir quelle
+    societe activer.
+
+    **Le defaut etait invisible en test**, et c'est ce qui le rend
+    interessant : sous `pytest.mark.django_db` ordinaire, pytest-django
+    tient une transaction englobante, le `SET LOCAL` pose par la fixture
+    survit a la sortie du bloc, et la requete lit la liaison grace a un
+    contexte qui n'existe QUE dans le harnais. Seul un test en
+    `transaction=True` — donc sans transaction englobante, comme une vraie
+    requete — le montre."""
 
     STATE_DRAFT = "brouillon"
     STATE_ACTIVE = "active"

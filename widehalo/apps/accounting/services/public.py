@@ -49,6 +49,7 @@ from apps.accounting.models import (
     AccMoveLine,
     AccPartnerRoleAccount,
     AccPayment,
+    AccPaymentNotification,
     AccPaymentTerm,
     AccPeriod,
     AccTax,
@@ -1404,6 +1405,53 @@ def list_payments_for_warehouse(
             "state": payment.state,
         }
         for payment in qs.order_by("updated_at")
+    ]
+
+
+def list_payment_notifications_for_warehouse(
+    tenant: Tenant, *, updated_since: Any = None
+) -> list[dict[str, Any]]:
+    """T5 (PAY-8) — les notifications d'encaissement, pour l'entrepôt.
+
+    **Ce que l'indicateur gouverné a besoin de compter, et que
+    `list_payments_for_warehouse` ne peut pas donner.** Ce dernier extrait
+    les RÈGLEMENTS publiés ; or PAY-8 demande « le taux de rapprochement
+    automatique », c'est-à-dire un rapport dont le dénominateur inclut les
+    notifications qui n'ont produit AUCUN règlement — les orphelines. Les
+    compter depuis les paiements reviendrait à diviser un nombre par
+    lui-même : le taux vaudrait toujours 100 %, et l'indicateur dirait
+    l'inverse de ce qu'il mesure.
+
+    **Toutes les notifications, quel que soit leur état.** Filtrer sur
+    `rapprochee` reproduirait exactement le défaut ci-dessus. Le doublon
+    est inclus lui aussi : PAY-4 en fait un fait normal, et une
+    installation qui en reçoit beaucoup a un problème que le décisionnel
+    doit pouvoir montrer.
+
+    **Aucun montant en sortie.** L'indicateur compte des ÉVÉNEMENTS, pas
+    de l'argent — l'argent est déjà porté par `AnFactEncaissement`, au
+    grain du règlement. Sortir les deux ferait deux vérités sur le même
+    chiffre d'affaires encaissé, et la première divergence serait
+    inexplicable."""
+    qs = AccPaymentNotification.objects.filter(tenant=tenant)
+    if updated_since is not None:
+        qs = qs.filter(updated_at__gt=updated_since)
+    return [
+        {
+            "notification_id": notification.id,
+            "updated_at": notification.updated_at,
+            "date": notification.received_at.date(),
+            "provider_code": notification.provider_code,
+            "state": notification.state,
+            # Deux mesures SOMMABLES plutôt qu'un taux. `aggregate_fact` ne
+            # connaît que `Sum` ; et un taux stocké ligne à ligne ne
+            # s'agrège pas — la moyenne de taux n'est pas le taux du total
+            # dès que les périodes ont des volumes différents, ce qui est
+            # toujours le cas. Le rapport se fait chez le consommateur.
+            "recue": 1,
+            "rapprochee": (1 if notification.state == AccPaymentNotification.STATE_MATCHED else 0),
+        }
+        for notification in qs.order_by("updated_at")
     ]
 
 

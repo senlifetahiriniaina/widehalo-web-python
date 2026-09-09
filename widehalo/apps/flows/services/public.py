@@ -305,6 +305,174 @@ def activate_link(tenant: Tenant, *, connector_code: str) -> bool:
     return True
 
 
+def initiate_payment(
+    tenant: Tenant,
+    *,
+    connector_code: str,
+    document_type: str,
+    document_id: UUID,
+    body: str,
+    occurrence: str,
+) -> dict[str, Any] | None:
+    """T5 (PAY-1) — met une intention de reglement en file (OP5).
+
+    **Pourquoi elle existe.** `accounting` doit demander un mouvement
+    d'argent a un tiers ; la regle de couplage n°1 lui interdit d'emettre
+    l'appel lui-meme, et de connaitre `FlwLink`, `prepare_exchange` ou la
+    machine a etats. Il a une piece et un montant, et c'est tout ce qu'il
+    doit savoir dire — meme forme que `submit_document_for_verdict` au lot
+    T4, pour la meme raison.
+
+    **`occurrence` est OBLIGATOIRE ici, et c'est le meme defaut que T3 a
+    paye une fois.** La clef d'idempotence se calcule sur (liaison, piece,
+    operation, rang de rejeu, occurrence) : pour une meme facture sur une
+    meme liaison, elle NE CHANGE PAS. Une facture peut pourtant donner lieu
+    a plusieurs intentions successives — la premiere expire sans etre
+    payee, le payeur en redemande une —, et la seconde emission heurterait
+    alors `uniq_flw_exchange_idempotency_key` par une `IntegrityError`.
+    C'est exactement ce qui faisait mourir la commande nocturne d'OP8 au
+    deuxieme passage.
+
+    L'appelant passe donc ce qui distingue SON emission : la reference
+    externe de l'intention, qui est unique par tenant et que nous emettons
+    nous-memes. Deux emissions de LA MEME intention gardent la meme clef —
+    et c'est bien ce qu'on veut : re-emettre une intention deja transmise
+    est le double debit que PAY-7 interdit, et la base le refuse.
+
+    **Ce qui protege du double debit n'est donc pas cette clef seule** :
+    c'est la regle metier de `create_payment_intent`, qui refuse une
+    seconde intention vivante sur la meme piece. Une contrainte de base
+    qui remonterait en 500 ne serait pas une protection, seulement une
+    panne mieux placee.
+
+    Rend `None` quand aucune liaison ACTIVE ne sert ce connecteur. Ne pas
+    avoir de raccordement d'encaissement est l'etat de toute installation
+    qui encaisse au comptoir, pas une panne."""
+    from apps.flows.operations import OP_INITIATE_PAYMENT
+    from apps.flows.services.exchange import prepare_exchange
+    from apps.flows.services.queue import queue_exchange
+
+    link = _active_link(tenant, connector_code)
+    if link is None:
+        return None
+
+    exchange = queue_exchange(
+        prepare_exchange(
+            tenant,
+            link,
+            operation=OP_INITIATE_PAYMENT,
+            document_type=document_type,
+            document_id=document_id,
+            body=body,
+        ),
+        occurrence=occurrence,
+    )
+    return {
+        "id": exchange.id,
+        "state": exchange.state,
+        "operation": exchange.operation,
+        "correlation_key": exchange.correlation_key,
+    }
+
+
+def correlate_inbound_exchange(
+    tenant: Tenant, *, exchange_id: Any, document_type: str, document_id: UUID
+) -> str:
+    """T5 — rattache un echange ENTRANT a la piece qu'il concerne.
+
+    **Le defaut que cette fonction ferme, et il rendait faux le seul
+    service que la clef existe pour rendre.** `FlwExchange.correlation_key`
+    est documentee ainsi : « relie l'echange sortant, la notification
+    entrante qui lui repond et la piece — c'est elle qui permet de
+    repondre a "qu'est devenue cette facture ?" sans parcourir trois
+    journaux ». Or `assign_keys` ne pose la clef qu'a la MISE EN FILE,
+    c'est-a-dire sur le seul chemin sortant : tout echange entrant ecrit
+    par `receive_event` naissait donc avec une clef VIDE. `lineage()`
+    rendait la soumission et ses reessais, et jamais la notification qui
+    les a tranches — la seule des trois qui dise ce que la facture est
+    DEVENUE.
+
+    **Pourquoi c'est l'appelant metier qui la pose, et pas le hub.** Le
+    hub ne lit jamais le corps d'un echange : il transporte une charge
+    utile opaque, et lui faire deviner a quelle piece elle se rapporte
+    reviendrait a lui faire connaitre le format de chaque tiers. C'est le
+    module metier qui a corrèle — par une reference QU'IL A EMISE — et lui
+    seul peut nommer la piece sans deviner.
+
+    **La PIECE est posee en meme temps que la clef, et l'oublier ne
+    corrigeait le defaut qu'a moitie.** Une premiere redaction n'ecrivait
+    que `correlation_key`. `lineage()` rendait alors bien les deux
+    echanges — mais `list_exchanges_for_document`, qui interroge
+    `document_type`/`document_id` et non la clef, n'en rendait qu'un. Or
+    c'est CETTE fonction-la que le fragment d'ecran de CON-1 appelle depuis
+    la fiche d'une piece : « depuis toute piece metier, l'etat de ses
+    echanges est atteignable en un clic ». La facture aurait affiche la
+    demande partie, jamais le paiement recu. Mesure faite par le test de
+    bout en bout, en comparant les deux lectures — aucune des deux seule ne
+    le montrait.
+
+    **Un echange deja rattache n'est jamais deplace**, et la valeur
+    existante est rendue. Deplacer un echange d'une lignee vers une autre
+    reecrirait l'histoire d'une piece a laquelle il a reellement
+    appartenu ; et une seconde distribution du meme evenement par le bus —
+    qui reessaie trois fois — ne doit rien changer.
+
+    Rend la clef effectivement portee par l'echange, ou la chaine vide si
+    l'echange est introuvable ou sortant."""
+    from apps.flows.services.idempotency import compute_correlation_key
+
+    exchange = FlwExchange.objects.filter(
+        tenant=tenant, id=exchange_id, direction=FlwExchange.DIRECTION_INBOUND
+    ).first()
+    if exchange is None:
+        return ""
+    if exchange.correlation_key:
+        return exchange.correlation_key
+
+    exchange.correlation_key = compute_correlation_key(
+        document_type=document_type, document_id=document_id
+    )
+    exchange.document_type = document_type
+    exchange.document_id = document_id
+    exchange.save(update_fields=["correlation_key", "document_type", "document_id"])
+    return exchange.correlation_key
+
+
+def has_settled_reference_lookup(
+    tenant: Tenant, *, document_type: str, document_id: UUID, since: Any = None
+) -> bool:
+    """T5 (PAY-7) — une interrogation de referentiel a-t-elle recu sa reponse ?
+
+    **Pourquoi cette fonction plutot qu'une lecture chez l'appelant.** Le
+    module metier a besoin de savoir si le tiers a repondu avant de
+    re-emettre une demande de paiement. Il a d'abord ete ecrit qu'il lise
+    lui-meme la liste des echanges et compare `operation` a `OP8` et
+    `state` a `accepte` — ce qui lui faisait importer `flows.models` et
+    `flows.operations`, et la garde de couplage l'a refuse. Elle a raison :
+    un module metier qui connait le nom de nos etats se casse le jour ou
+    la machine a etats change, sans que rien ne le previenne.
+
+    La question posee ici est donc formulee dans les termes de l'appelant —
+    « ai-je une reponse ? » — et c'est le hub qui sait ce qu'« avoir une
+    reponse » veut dire.
+
+    `since` ecarte les reponses ANTERIEURES a ce qu'on interroge : une piece
+    peut donner lieu a plusieurs demandes successives, et la reponse
+    obtenue pour la precedente ne dit rien de celle-ci."""
+    from apps.flows.operations import OP_QUERY_REFERENCE
+
+    lectures = FlwExchange.objects.filter(
+        tenant=tenant,
+        document_type=document_type,
+        document_id=document_id,
+        operation=OP_QUERY_REFERENCE,
+        state=FlwExchange.STATE_ACCEPTED,
+    )
+    if since is not None:
+        lectures = lectures.filter(settled_at__gte=since)
+    return lectures.exists()
+
+
 def _active_link(tenant: Tenant, connector_code: str) -> FlwLink | None:
     """La liaison ACTIVE servant ce connecteur, ou `None`.
 
@@ -355,9 +523,12 @@ def read_inbound_payload(tenant: Tenant, *, exchange_id: Any) -> str | None:
 
 __all__ = [
     "activate_link",
+    "correlate_inbound_exchange",
     "count_exchanges_awaiting_verdict",
     "describe_signing_certificate",
     "has_active_link",
+    "has_settled_reference_lookup",
+    "initiate_payment",
     "list_exchanges_for_document",
     "read_inbound_payload",
     "request_reference_lookup",

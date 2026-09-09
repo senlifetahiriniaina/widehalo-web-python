@@ -38,13 +38,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.http import Http404, HttpResponse
 from ninja import Router
 
 from apps.core.events import publish_event
 from apps.core.tenant_context import activate_tenant
 from apps.flows.models import FlwLink
+from apps.flows.services.inbound_routing import resolve_tenant_for_inbound_call
 from apps.flows.services.webhook_auth import (
     HEADER_SIGNATURE,
     HEADER_TIMESTAMP,
@@ -75,24 +75,32 @@ def inbound_webhook(request: Any, link_id: str) -> HttpResponse:
     tant qu'il ne l'obtient pas, et faire dépendre l'accusé d'un traitement
     métier transformerait une lenteur comptable en tempête de re-livraisons.
     """
-    liaison = get_object_or_404(FlwLink.all_objects, id=link_id)
+    # **Le routage AVANT tout le reste, et c'est la seule lecture du hub
+    # qui ait lieu sans société active.** Un opérateur n'envoie pas de
+    # `X-Tenant-Id` — le lui faire envoyer reviendrait à laisser l'appelant
+    # choisir la société dans laquelle il écrit —, donc aucun middleware
+    # n'a posé la session Postgres. `resolve_tenant_for_inbound_call` ouvre
+    # une fenêtre de lecture SEULE, le temps de lire UNE colonne d'UNE
+    # ligne, et la referme.
+    #
+    # Le défaut que cela ferme était total et invisible en test : sans
+    # `app.tenant_id`, la policy `tenant_isolation_policy` ne rendait
+    # aucune ligne, et le point d'entrée répondait 404 à CHAQUE appel
+    # authentique. Les tests ne le voyaient pas parce que pytest-django
+    # tient une transaction englobante : le réglage posé par la fixture y
+    # survivait à sa sortie, et la requête lisait la liaison grâce à un
+    # contexte qui n'existe que dans le harnais.
+    tenant_id = resolve_tenant_for_inbound_call(link_id)
+    if tenant_id is None:
+        raise Http404
 
-    # **Le contexte de société est posé ICI, avant toute lecture.** Un
-    # opérateur n'envoie pas de `X-Tenant-Id` — le lui faire envoyer
-    # reviendrait à laisser l'appelant choisir la société dans laquelle il
-    # écrit — donc aucun middleware n'a posé la session Postgres, et tout
-    # `TenantManager` (refus par défaut) rend vide.
-    #
-    # Le défaut que cela ferme était silencieux et coûteux : la lecture du
-    # secret rendait vide, la vérification concluait « aucun secret
-    # configuré », et un appel PARFAITEMENT SIGNÉ était refusé. Un
-    # raccordement réel n'aurait jamais fonctionné, et le journal aurait
-    # accusé une configuration absente qui, elle, était bien là.
-    #
-    # Poser le contexte plutôt que lire en `all_objects` : le manager en
-    # refus par défaut reste actif pour tout ce qui suit, y compris
-    # l'écriture de l'échange, au lieu d'ouvrir une porte par commodité.
-    with activate_tenant(liaison.tenant_id):
+    # Sous contexte, tout le reste se lit NORMALEMENT — par le manager en
+    # refus par défaut, jamais par `all_objects`. La fenêtre de routage
+    # n'ouvre rien de plus que ce qu'elle a rendu.
+    with activate_tenant(tenant_id):
+        liaison = FlwLink.objects.filter(id=link_id).select_related("connector", "tenant").first()
+        if liaison is None:
+            raise Http404
         return _handle_authenticated_call(request, liaison, link_id)
 
 

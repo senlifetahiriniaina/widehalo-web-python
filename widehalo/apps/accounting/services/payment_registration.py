@@ -61,7 +61,10 @@ def register_payment_subscribers() -> None:
         )
         from apps.core.models.tenant import Tenant
         from apps.core.tenant_context import activate_tenant
-        from apps.flows.services.public import read_inbound_payload
+        from apps.flows.services.public import (
+            correlate_inbound_exchange,
+            read_inbound_payload,
+        )
 
         payload = event.get("payload") or {}
         if payload.get("connector_code") != CONNECTOR_CODE:
@@ -98,7 +101,7 @@ def register_payment_subscribers() -> None:
                 logger.warning("charge utile d'encaissement illisible (échange %s)", exchange_id)
                 return
 
-            receive_payment_notification(
+            resultat = receive_payment_notification(
                 tenant,
                 provider_code=notification["provider_code"],
                 external_reference=notification["external_reference"],
@@ -107,6 +110,23 @@ def register_payment_subscribers() -> None:
                 fee_amount=notification["fee_amount"],
                 raw=corps,
             )
+
+            if resultat.document_id:
+                # **C'est ici que la lignee se referme, et nulle part
+                # ailleurs.** Le hub ne lit jamais le corps d'un echange :
+                # il ne peut donc pas savoir a quelle facture une
+                # notification se rapporte. Nous venons de l'apprendre — par
+                # une reference que nous avons nous-memes emise — et nous
+                # sommes les seuls a pouvoir le lui dire. Sans cet appel,
+                # `lineage()` rend la soumission et ses reessais, et jamais
+                # la notification qui les a tranches : la seule des trois qui
+                # dise ce que la facture est DEVENUE.
+                correlate_inbound_exchange(
+                    tenant,
+                    exchange_id=exchange_id,
+                    document_type=resultat.document_type,
+                    document_id=resultat.document_id,
+                )
 
 
 def _parse(corps: str) -> dict[str, Any] | None:

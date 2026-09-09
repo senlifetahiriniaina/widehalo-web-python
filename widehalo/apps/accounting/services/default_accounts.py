@@ -53,6 +53,17 @@ ROLE_FALLBACK_TYPE: dict[str, str] = {
     # niveau refusait de s'ecrire pour un motif de parametrage plutot
     # que pour un motif comptable.
     AccTenantDefaultAccount.ROLE_PAYMENT_FEE: AccAccount.TYPE_EXPENSE,
+    # T5 (PAY-5) — le compte de passage est un ACTIF : il porte ce que
+    # l'agregateur nous doit tant qu'il n'a pas verse.
+    #
+    # **Pas `TYPE_BANK`, et le repli est la raison.** `resolve_default_
+    # account` retombe sur le premier compte du type quand rien n'est
+    # configure ; declarer le passage en `bank` ferait retomber sur le
+    # compte en banque lui-meme, c'est-a-dire exactement l'ecriture que ce
+    # role existe pour empecher — un argent porte en banque avant d'y etre.
+    # Le repli serait silencieux, et le compte de passage ne se solderait
+    # jamais parce qu'il n'aurait jamais existe.
+    AccTenantDefaultAccount.ROLE_PAYMENT_CLEARING: AccAccount.TYPE_ASSET,
 }
 
 

@@ -146,6 +146,42 @@ STARTING_METRICS: list[dict[str, Any]] = [
             "par employe : cout employeur agrege uniquement."
         ),
     },
+    # T5 (PAY-8) — « le taux de rapprochement automatique des
+    # encaissements est un INDICATEUR GOUVERNE ». Deux entrees sommables
+    # plutot qu'un taux : le dictionnaire ne sait faire que des sommes, et
+    # un taux stocke ne s'agregerait pas (la moyenne des taux n'est pas le
+    # taux du total). Le rapport se lit chez le consommateur, sur deux
+    # chiffres justes a toute maille.
+    {
+        "code": "flows.encaissements_notifies",
+        "libelle": "Encaissements notifies",
+        "module_source": "accounting",
+        "fait_source": "notif_encaissement",
+        "unite": "nombre",
+        "axes_autorises": ["temps", "connecteur"],
+        "roles_autorises": _COMPTA,
+        "formule": (
+            "Nombre de notifications d'encaissement recues, tous etats confondus "
+            "(rapprochees, orphelines et doublons). Denominateur du taux de "
+            "rapprochement automatique."
+        ),
+    },
+    {
+        "code": "flows.encaissements_rapproches",
+        "libelle": "Encaissements rapproches automatiquement",
+        "module_source": "accounting",
+        "fait_source": "notif_encaissement_rapproche",
+        "unite": "nombre",
+        "axes_autorises": ["temps", "connecteur"],
+        "roles_autorises": _COMPTA,
+        "formule": (
+            "Nombre de notifications correlees a une intention emise par nous, "
+            "donc ayant produit une ecriture sans intervention comptable. "
+            "Numerateur du taux de rapprochement automatique ; le taux est le "
+            "rapport de cet indicateur a `flows.encaissements_notifies`, a maille "
+            "egale."
+        ),
+    },
 ]
 
 # Un indicateur descriptif (sans fait rattache) est un etat legitime du
