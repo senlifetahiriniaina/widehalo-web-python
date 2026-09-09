@@ -353,6 +353,14 @@ class AccTenantDefaultAccount(BaseModel):
     ROLE_CASH_DIFFERENCE = "ecart_caisse"
     ROLE_PAYROLL_EXPENSE = "charge_personnel"
     ROLE_PAYROLL_PAYABLE = "dette_personnel"
+    # T5 (bloc D, PAY-5) : « le versement groupe de l'agregateur est
+    # rapproche du lot d'encaissements qu'il couvre, LA COMMISSION ETANT
+    # ISOLEE SUR SON PROPRE COMPTE DE CHARGE ». Aucun role existant ne
+    # convenait : `ecart_caisse` dit un ecart CONSTATE, pas un cout
+    # contractuel connu d'avance, et les fondre ferait passer une charge
+    # previsible pour une anomalie de caisse — ce qui la rendrait invisible
+    # au controle de gestion et fausserait le suivi des ecarts reels.
+    ROLE_PAYMENT_FEE = "commission_encaissement"
     ROLE_CHOICES = [
         (ROLE_SALE_INCOME, "Produit des ventes"),
         (ROLE_PURCHASE_EXPENSE, "Charge des achats"),
@@ -366,6 +374,7 @@ class AccTenantDefaultAccount(BaseModel):
         (ROLE_CASH_DIFFERENCE, "Ecart de caisse"),
         (ROLE_PAYROLL_EXPENSE, "Charge de personnel"),
         (ROLE_PAYROLL_PAYABLE, "Dette envers le personnel"),
+        (ROLE_PAYMENT_FEE, "Commission d'encaissement"),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES)
