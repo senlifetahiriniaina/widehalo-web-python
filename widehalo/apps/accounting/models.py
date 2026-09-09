@@ -2028,3 +2028,141 @@ class AccInvoiceImportRow(BaseModel):
 
     def __str__(self) -> str:
         return f"Ligne {self.row_number} du lot {self.batch_id}"
+
+
+class AccPaymentIntent(BaseModel, ReferenceMixin):
+    """T5 (bloc D, PAY-1 et PAY-7) — l'intention de reglement.
+
+    **Ce qu'elle est, et ce qu'elle n'est pas.** Une intention n'est PAS un
+    encaissement : c'est une demande adressee au payeur, avec un lien et un
+    code transmissibles. Tant qu'aucune notification n'est revenue, aucune
+    ecriture n'existe — c'est l'interdit du §4.4, et PAY-3 le redit :
+    « un paiement recu sans correspondance ne produit aucune ecriture tant
+    qu'il n'est pas affecte ».
+
+    **`provider_code` est ecrit A LA CREATION et jamais relu depuis le
+    tenant.** PAY-1 exige que le basculement agregateur/direct se fasse
+    « sans reprise des intentions en cours » : une intention emise hier par
+    l'agregateur doit rester servie par lui, meme si le parametre a change
+    ce matin. Relire le tenant a chaque lecture rendrait orphelines toutes
+    les intentions en vol au moment du basculement.
+
+    **La piece est designee sans cle etrangere** (`document_type` +
+    `document_id`), meme convention que `FlwExchange` : une intention peut
+    porter sur une facture (`accounting.AccMove`) ou sur un ticket de
+    caisse (`pos.PosOrder`), et `accounting` n'a pas le droit d'importer
+    `pos` (regle de couplage n°1).
+
+    **`external_reference` porte ce que le TIERS appelle cette
+    transaction.** C'est par elle que la notification retrouve l'intention,
+    et c'est pourquoi elle est indexee et unique par tenant : deux
+    intentions partageant la reference du tiers rendraient la correlation
+    ambigue, donc l'ecriture automatique impossible a justifier."""
+
+    STATE_CREATED = "creee"
+    STATE_SENT = "transmise"
+    STATE_SETTLED = "reglee"
+    STATE_EXPIRED = "expiree"
+    STATE_CANCELLED = "annulee"
+    STATE_CHOICES = [
+        (STATE_CREATED, "Creee"),
+        (STATE_SENT, "Transmise au payeur"),
+        (STATE_SETTLED, "Reglee"),
+        (STATE_EXPIRED, "Expiree"),
+        (STATE_CANCELLED, "Annulee"),
+    ]
+
+    document_type = models.CharField(max_length=64)
+    document_id = models.UUIDField()
+    provider_code = models.CharField(max_length=32)
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    currency = models.CharField(max_length=3, default="MGA")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_CREATED)
+    # Ce qu'on transmet au payeur. Vides tant que la voie n'a pas repondu :
+    # une intention sans lien est une intention qui n'est pas encore
+    # transmissible, pas une intention cassee.
+    payment_link = models.URLField(blank=True)
+    payment_code = models.CharField(max_length=64, blank=True)
+    external_reference = models.CharField(max_length=128, blank=True, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "acc_payment_intent"
+        indexes = [models.Index(fields=["document_type", "document_id"])]
+        constraints = [
+            # PAY-7 : « aucun double debit n'est possible ». Deux intentions
+            # ne peuvent pas revendiquer la meme reference chez le tiers —
+            # sans quoi une notification ne saurait pas laquelle regler, et
+            # un rejeu en creerait une seconde silencieusement.
+            models.UniqueConstraint(
+                fields=["tenant", "external_reference"],
+                condition=~models.Q(external_reference=""),
+                name="uniq_acc_payment_intent_external_reference",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reference} — {self.amount} {self.currency}"
+
+
+class AccPaymentNotification(BaseModel):
+    """T5 (bloc D, PAY-2 a PAY-4) — la notification recue, telle quelle.
+
+    **`raw` et `state` disent deux choses differentes**, et les separer
+    n'est pas de la redondance — c'est la meme discipline que
+    `AccMove.fiscal_verdict_raw` au lot T4. `state` est notre lecture ;
+    `raw` est ce que le tiers a envoye. Le jour d'un litige sur un
+    encaissement, c'est `raw` qui fait foi, et une interpretation revisee
+    ne doit pas l'avoir ecrase.
+
+    **`ORPHAN` n'est pas un echec.** PAY-3 : « un paiement recu sans
+    correspondance est place en attente de rapprochement, visible dans un
+    ecran dedie, et NE PRODUIT AUCUNE ECRITURE tant qu'il n'est pas
+    affecte ». C'est un etat de travail, pas une anomalie a corriger dans
+    l'urgence — un payeur qui se trompe de reference est un cas courant.
+
+    **`DUPLICATE` non plus.** PAY-4 : « une double notification du meme
+    paiement produit un seul encaissement et une seule ecriture ». La
+    seconde est enregistree — l'interdit du §4.3 exige une trace pour
+    TOUT ce qui arrive — et marquee, jamais silencieusement jetee."""
+
+    STATE_MATCHED = "rapprochee"
+    STATE_ORPHAN = "orpheline"
+    STATE_DUPLICATE = "doublon"
+    STATE_REJECTED = "refusee"
+    STATE_CHOICES = [
+        (STATE_MATCHED, "Rapprochee"),
+        (STATE_ORPHAN, "En attente de rapprochement"),
+        (STATE_DUPLICATE, "Doublon"),
+        (STATE_REJECTED, "Refusee"),
+    ]
+
+    intent = models.ForeignKey(
+        AccPaymentIntent,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="notifications",
+    )
+    payment = models.ForeignKey(
+        AccPayment, null=True, blank=True, on_delete=models.PROTECT, related_name="notifications"
+    )
+    provider_code = models.CharField(max_length=32)
+    external_reference = models.CharField(max_length=128, db_index=True)
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    currency = models.CharField(max_length=3, default="MGA")
+    # La commission PRELEVEE A LA SOURCE, quand la voie en preleve une. Le
+    # montant recu est alors inferieur au montant du, et PAY-5 exige que
+    # cette difference soit isolee sur son propre compte de charge plutot
+    # que fondue dans l'encaissement.
+    fee_amount = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_ORPHAN)
+    raw = models.TextField(blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "acc_payment_notification"
+        indexes = [models.Index(fields=["state", "received_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.external_reference} — {self.amount} ({self.state})"
