@@ -33,6 +33,7 @@ from apps.core.errors import register_exception_handlers  # noqa: E402
 from apps.crm.api import router as crm_router  # noqa: E402
 from apps.feasibility.api import router as feasibility_router  # noqa: E402
 from apps.financing.api import router as financing_router  # noqa: E402
+from apps.flows.api_webhooks import router as flows_webhooks_router  # noqa: E402
 from apps.forecast.api import router as forecast_router  # noqa: E402
 from apps.helpdesk.api import router as helpdesk_router  # noqa: E402
 from apps.logistics.api import router as logistics_router  # noqa: E402
@@ -73,6 +74,13 @@ api.add_router("", payroll_router)
 api.add_router("", reporting_router)
 api.add_router("", strategy_router)
 api.add_router("", financing_router)
+# T5 (API-3/API-5) — le point d'entree entrant du hub. Monte sur la
+# surface INTERNE et non sur `api_public` : ce n'est pas un integrateur
+# qui l'appelle avec une cle client, c'est un tiers qui signe en HMAC
+# contre le secret d'une liaison. Les deux authentifications n'ont rien
+# de commun, et les melanger ferait porter a la surface publique une
+# operation qui n'y a pas sa place.
+api.add_router("", flows_webhooks_router)
 api.add_router("", forecast_router)
 api.add_router("", automation_router)
 api.add_router("", feasibility_router)

@@ -49,6 +49,10 @@ Handler = Callable[[dict[str, Any]], None]
 PUBLISHED_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "workflow.transitioned",  # apps/core/workflows.py — toute transition FSM, tous modules
+        # T5 (API-3/API-5) : un appel entrant AUTHENTIFIE est arrive et a ete
+        # enregistre. Le hub publie ce qui EST arrive, jamais ce qu'il faut en
+        # faire — deux abonnes peuvent en tirer deux conclusions differentes.
+        "flows.inbound_received",  # apps/flows/api_webhooks.py
         "notification.created",  # apps/core/services/notifications.py
         "chat.message_created",  # apps/chat/services/messaging.py
         "risk.flagged",  # apps/core/services/risk.py — RiskItem de score eleve (RSK1-2)
