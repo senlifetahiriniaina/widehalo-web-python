@@ -813,6 +813,64 @@ class FlwExchange(BaseModel):
         return value.replace(day=1)
 
     @property
+    def document_label(self) -> str:
+        """Le nom LISIBLE de la piece designee, pour le journal (CON-1).
+
+        `accounting.AccMove` n'est pas un mot de la langue d'un comptable, et
+        le §10.3 refuse de remonter le vocabulaire technique tel quel. Le
+        libelle vient du registre que le module metier alimente lui-meme
+        (`core.services.document_screens`) : le hub ne connait toujours
+        aucun module."""
+        from apps.core.services.document_screens import document_label
+
+        if not self.document_type:
+            # Une publication planifiee — un jeu de donnees, une
+            # disponibilite de boutique — ne designe aucune piece. Etat
+            # normal, pas une anomalie : le dire vaut mieux qu'une cellule
+            # vide, qu'un exploitant lirait comme une donnee manquante.
+            return str(_("Aucune pièce rattachée"))
+        return document_label(self.document_type)
+
+    @property
+    def connector_code(self) -> str:
+        """A QUI cet echange est parti, pour la colonne « Destinataire » du
+        journal.
+
+        Sans cette propriete, le composant de liste rendait la cellule VIDE
+        et sans rien dire : `core_extras.getattr` vaut
+        `getattr(objet, cle, "")`, donc une colonne qui designe un attribut
+        inexistant s'affiche vide plutot que de lever. Defaut trouve en
+        relisant le diff, jamais par un test — celui-ci verifiait ce qu'il
+        s'attendait a trouver, pas ce qui devait etre dans chaque cellule."""
+        return self.link.connector.code
+
+    @property
+    def operation_label(self) -> str:
+        """Le libelle de l'operation, jamais son code.
+
+        §10.3 : le vocabulaire technique du tiers — ici le notre — n'est
+        jamais remonte tel quel. « push_document » dans une colonne d'ecran
+        est exactement ce que le cahier refuse."""
+        return str(self.get_operation_display())
+
+    @property
+    def state_label(self) -> str:
+        """Le libelle de l'etat, meme motif que `operation_label`."""
+        return str(self.get_state_display())
+
+    @property
+    def smart_table_url(self) -> str:
+        """L'ecran de la piece designee — le second sens de CON-1, « et
+        reciproquement depuis toute ligne du journal ».
+
+        Chaine vide quand il n'y a rien a atteindre : aucune piece designee,
+        ou un module qui n'a pas declare d'ecran. Le data grid n'affiche
+        alors pas de lien, plutot qu'un lien mort."""
+        from apps.core.services.document_screens import resolve_document_url
+
+        return resolve_document_url(self.document_type, self.document_id) or ""
+
+    @property
     def payload_is_purged(self) -> bool:
         """FLX-5 : distingue « charge utile PURGEE » de « charge utile
         JAMAIS ECRITE », sans colonne supplementaire.

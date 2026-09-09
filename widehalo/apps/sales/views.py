@@ -31,7 +31,9 @@ from apps.core.services.permissions import user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
+from apps.flows.services.public import document_exchange_panel
 from apps.sales.models import SalesOrder, SalesQuotation
+from apps.sales.services.flow_schema_registration import DOCUMENT_ORDER, DOCUMENT_QUOTATION
 from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.orders import (
     add_order_line,
@@ -252,6 +254,13 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
             "can_see_margin": _can_see_margin(user),
             "sellable_variants": list_sellable_variants(),
             "error": error,
+            # T8 (CON-1) — « depuis TOUTE pièce métier ». Le devis est une
+            # pièce liable déclarée depuis T0 : il peut partir chez un tiers
+            # comme une facture, et il n'a aucun état fiscal — c'est
+            # pourquoi le fragment de T4 n'était pas réutilisable ici.
+            **document_exchange_panel(
+                quotation.tenant, document_type=DOCUMENT_QUOTATION, document_id=quotation.id
+            ),
         },
     )
 
@@ -377,10 +386,23 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
             "can_see_margin": _can_see_margin(user),
             "sellable_variants": list_sellable_variants(),
             "error": error,
+            # T8 (CON-1) — « depuis TOUTE pièce métier ». Une commande de
+            # vente part chez la boutique (T7) comme une facture part chez
+            # l'administration ; elle n'a en revanche aucun état fiscal, et
+            # c'est pourquoi le fragment de T4 n'était pas réutilisable ici.
+            **document_exchange_panel(
+                order.tenant, document_type=DOCUMENT_ORDER, document_id=order.id
+            ),
             # Chatter (Sprint 3 / L2, cf.
             # docs/planning/2026-refonte-ux-sprints.md §5) : premiere
             # utilisation reelle du composant <c-chatter>, cf.
             # templates/cotton/chatter.html.
+            # T8 (CON-1) — l'autre moitié de « toute pièce métier » : une
+            # commande de vente part chez la boutique (T7), et son état
+            # d'échange se lit ici plutôt que dans un journal séparé.
+            **document_exchange_panel(
+                order.tenant, document_type=DOCUMENT_ORDER, document_id=order.id
+            ),
             "chatter_app_label": order._meta.app_label,
             "chatter_model": order._meta.model_name,
             "chatter_object_id": str(order.id),

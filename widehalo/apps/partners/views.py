@@ -21,6 +21,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
+from apps.flows.services.public import document_exchange_panel
 from apps.partners.models import DuplicateAlert, Partner, PartnerContact
 from apps.partners.services.accounts import (
     assign_partner_account,
@@ -33,6 +34,7 @@ from apps.partners.services.contacts import (
     list_contacts,
     update_contact,
 )
+from apps.partners.services.fiscal_verification import DOCUMENT_TYPE
 from apps.partners.services.merge import merge_partners
 from apps.partners.services.onboarding import create_partner
 from apps.partners.services.tab_data import build_commercial_summary, build_role_tab_data
@@ -129,6 +131,13 @@ def partner_detail(request: HttpRequest, partner_id: str) -> HttpResponse:
         "partners/detail.html",
         {
             "partner": partner,
+            # T8 (CON-1) — la fiche tiers reçoit des échanges par l'opération
+            # OP8 (vérification d'identifiant fiscal, T3). C'était jusqu'ici
+            # le seul module qui interrogeait le hub sans que rien n'en
+            # montre le résultat sur l'écran du tiers concerné.
+            **document_exchange_panel(
+                partner.tenant, document_type=DOCUMENT_TYPE, document_id=partner.id
+            ),
             "audit_entries": audit_entries,
             "documents": documents,
             "chat_channel_id": chat_channel_id,

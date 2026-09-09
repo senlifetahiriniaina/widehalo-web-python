@@ -50,6 +50,10 @@ urlpatterns = [
     path("catalog/", include("apps.catalog.urls")),
     path("chat/", include("apps.chat.urls")),
     path("accounting/", include("apps.accounting.urls")),
+    # T8 (bloc H, CON-1) : le journal des echanges. Premier ecran du hub —
+    # il n'avait jusqu'ici ni `views.py` ni `urls.py`, donc aucune ligne
+    # d'ou revenir vers une piece.
+    path("flows/", include("apps.flows.urls")),
     path("crm/", include("apps.crm.urls")),
     path("mrp/", include("apps.mrp.urls")),
     path("patronage/", include("apps.patronage.urls")),

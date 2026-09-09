@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Journal des échanges" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    {% trans "Console de flux" %}
+    <span>/</span> {% trans "Journal des échanges" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Journal des échanges" %}</h1>
+  </div>
+
+  {% comment %}
+    T8 (bloc H) — CON-1 : « Depuis toute pièce métier, l'état de ses échanges
+    est atteignable en un clic, ET RÉCIPROQUEMENT DEPUIS TOUTE LIGNE DU
+    JOURNAL. » Cet écran est la seconde moitié : la colonne « Pièce » est un
+    lien vers l'écran de la pièce concernée.
+
+    §10.2 décrit le composant : « la liste des échanges, avec recherche par
+    pièce, tiers, statut, période ». Les quatre filtres sont ci-dessous ; la
+    recherche plein texte et le tri viennent du data grid de la Phase 1.
+  {% endcomment %}
+
+  <form method="get" class="filters">
+    <label for="state">{% trans "État" %}</label>
+    <select id="state" name="state">
+      <option value="">{% trans "Tous les états" %}</option>
+      {% for value, label in states %}
+        <option value="{{ value }}" {% if value == state_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="connector">{% trans "Destinataire" %}</label>
+    <select id="connector" name="connector">
+      <option value="">{% trans "Tous les destinataires" %}</option>
+      {% for code in connectors %}
+        <option value="{{ code }}" {% if code == connector_filter %}selected{% endif %}>{{ code }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="since">{% trans "Du" %}</label>
+    <input type="date" id="since" name="since" value="{{ since }}">
+    <label for="until">{% trans "Au" %}</label>
+    <input type="date" id="until" name="until" value="{{ until }}">
+
+    {% if document_id %}
+      {% comment %}
+        Filtre arrivé depuis la fiche d'une pièce. Conservé en champ caché
+        pour que changer d'état ne fasse pas silencieusement sortir du
+        périmètre demandé — et affiché, avec le moyen de l'enlever, pour
+        qu'on ne cherche pas pourquoi le journal paraît vide.
+      {% endcomment %}
+      <input type="hidden" name="document_id" value="{{ document_id }}">
+    {% endif %}
+
+    <c-button type="submit">{% trans "Filtrer" %}</c-button>
+    {% if document_id %}
+      <a href="{% url 'flows:journal' %}">{% trans "Voir tous les échanges" %}</a>
+    {% endif %}
+  </form>
+
+  {% if document_id %}
+    <p class="text-muted" role="status">
+      {% trans "Seuls les échanges d'une pièce précise sont affichés." %}
+    </p>
+  {% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% comment %}
+    Toutes les lignes ne mènent pas à une pièce, et ce n'est pas un défaut :
+    une publication planifiée — un jeu de données, une disponibilité de
+    boutique — ne désigne aucun document. La colonne le dit (« Aucune pièce
+    rattachée ») plutôt que d'afficher un lien mort.
+  {% endcomment %}
+{% endblock %}

@@ -19,6 +19,9 @@ class SalesConfig(AppConfig):
         from apps.sales.services.ai_context_registration import register_ai_context
         from apps.sales.services.ai_data_query_registration import register_ai_data_query_tools
         from apps.sales.services.ai_insight_registration import register_ai_insight_sources
+        from apps.sales.services.document_screen_registration import (
+            register_document_screens,
+        )
         from apps.sales.services.flow_schema_registration import register_outbound_schemas
         from apps.sales.services.reports_registration import register_reports
         from apps.sales.services.scheduling_registration import register_scheduled_commands
@@ -54,3 +57,8 @@ class SalesConfig(AppConfig):
         # ingeree. La garde `test_ingested_orders_stay_at_the_initial_
         # state.py` le verifie.
         register_shop_subscribers()
+        # T8 (bloc H, CON-1) : ou se voit une piece de ce module, pour que
+        # chaque ligne du journal des echanges y renvoie. Le hub ne peut pas
+        # le savoir — il ne declare que `core` — c'est donc ce module qui se
+        # declare, comme pour ses rapports et ses schemas de sortie.
+        register_document_screens()

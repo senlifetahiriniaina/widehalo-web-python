@@ -104,6 +104,8 @@
               {% if "bi" in visible_app_labels %}<li><a href="/bi/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layout-dashboard"></use></svg>{% trans "Business Intelligence" %}</a></li>{% endif %}
               {% if "strategy" in visible_app_labels %}<li><a href="/strategy/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-landmark"></use></svg>{% trans "Stratégie et pilotage" %}</a></li>{% endif %}
               {% if "helpdesk" in visible_app_labels %}<li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>{% endif %}
+              {# T8 (bloc H, CON-1) : sans cette entrée, le journal des échanges existerait et personne ne pourrait l'atteindre. Visible pour `admin` et `direction` seuls (RBAC). #}
+              {% if "flows" in visible_app_labels %}<li><a href="{% url 'flows:journal' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Journal des échanges" %}</a></li>{% endif %}
             </ul>
           </li>
           {% endif %}

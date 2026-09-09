@@ -44,3 +44,12 @@ class FlowsConfig(AppConfig):
         # echange, ce qui est exactement le sens de dependance que
         # `services/public.py` decrit.
         subscribe_all(dispatch_event_to_triggers)
+
+        # T8 (bloc H, §10.2) : le jeu ferme « quatre couleurs au maximum »
+        # est verifie AU DEMARRAGE, pas au premier affichage. Un etat
+        # d'echange ajoute sans couleur declaree tomberait sinon en neutre
+        # — c'est-a-dire qu'un etat cree parce qu'il dit quelque chose de
+        # neuf s'afficherait comme « rien a signaler ».
+        from apps.flows.exchange_display import assert_badge_vocabulary_is_complete
+
+        assert_badge_vocabulary_is_complete()

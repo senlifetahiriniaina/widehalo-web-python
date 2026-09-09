@@ -44,6 +44,15 @@
   {% include "flows/_waiting_banner.html" %}
 
   {% comment %}
+    T8 (CON-1) — les ÉCHANGES de cette facture, à côté de son état fiscal.
+    Deux fragments distincts et non un seul : `_exchange_badge.html` rend
+    l'axe fiscal (EFA-6), qui n'existe que pour une facture ;
+    `_document_exchanges.html` rend ce que le hub a fait de la pièce, ce
+    qu'une commande de vente et une fiche tiers ont aussi.
+  {% endcomment %}
+  {% include "flows/_document_exchanges.html" %}
+
+  {% comment %}
     EFA-8 : « l'expiration prochaine du certificat de signature déclenche
     une alerte AU MOINS trente jours avant échéance ». Une alerte que
     personne ne voit n'est pas une alerte — c'est pourquoi elle est ici, sur

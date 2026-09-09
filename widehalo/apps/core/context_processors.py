@@ -71,6 +71,12 @@ _MODULE_APP_LABELS: tuple[str, ...] = (
     # sa tuile de launchpad resterait invisible pour tout le monde sauf un
     # superutilisateur.
     "quality",
+    # T8 (Phase 4, bloc H) : `flows` etait absent pour la meme raison que
+    # `quality` avant L11 — le hub n'avait aucune URL a pointer. Le journal
+    # des echanges (CON-1) est son premier ecran ; sans entree ici, il
+    # existerait et personne ne pourrait l'atteindre. Le RBAC ne le rend
+    # visible qu'a `admin` et `direction` (`rbac_policy`).
+    "flows",
     "strategy",
     "financing",
     "automation",
@@ -86,7 +92,12 @@ _RISK_PERMISSION_CODENAME = "core.view_riskitem"
 # cf. static/js/ui_patterns.js), chacun associe aux app labels/cles
 # `visible_app_labels` de ses liens.
 _MENU_GROUPS: dict[str, tuple[str, ...]] = {
-    "pour-tous": ("reporting", "strategy", "helpdesk", "bi"),
+    # T8 : la console de flux rejoint le groupe transverse plutot que
+    # « finance-pilotage ». Un journal d'echanges n'est pas un ecran de
+    # finance : il dit ce que le produit a envoye et recu, pour la
+    # comptabilite comme pour la boutique, la banque ou le transporteur.
+    # Sa visibilite reelle reste celle du RBAC — `admin` et `direction`.
+    "pour-tous": ("reporting", "strategy", "helpdesk", "bi", "flows"),
     "commercial": ("crm", "sales", "pos", "feasibility"),
     "achats-logistique": ("purchase", "stocks", "logistics"),
     # L11 : `quality` (HACCP) rejoint le groupe production plutot que

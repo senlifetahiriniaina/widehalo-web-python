@@ -19,6 +19,9 @@ class CrmConfig(AppConfig):
             register_actions as register_automation_actions,
         )
         from apps.crm.services.chatter_registration import register_chatter_guards
+        from apps.crm.services.document_screen_registration import (
+            register_document_screens,
+        )
         from apps.crm.services.flow_schema_registration import register_outbound_schemas
         from apps.crm.services.reports_registration import register_reports
 
@@ -46,3 +49,8 @@ class CrmConfig(AppConfig):
         # correspondance de champs ne peut designer une piece de ce
         # module : la fermeture est deny-by-default.
         register_outbound_schemas()
+        # T8 (bloc H, CON-1) : ou se voit une piece de ce module, pour que
+        # chaque ligne du journal des echanges y renvoie. Le hub ne peut pas
+        # le savoir — il ne declare que `core` — c'est donc ce module qui se
+        # declare, comme pour ses rapports et ses schemas de sortie.
+        register_document_screens()

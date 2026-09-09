@@ -26,7 +26,7 @@ from apps.accounting.models import (
     AccPaymentAllocation,
     AccPeriod,
 )
-from apps.accounting.services.einvoice_submission import CONNECTOR_CODE
+from apps.accounting.services.einvoice_submission import CONNECTOR_CODE, DOCUMENT_TYPE
 from apps.accounting.services.einvoice_verdict import (
     MARKED_VARIANT,
     refresh_from_exchanges,
@@ -48,7 +48,7 @@ from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
-from apps.flows.services.public import describe_signing_certificate
+from apps.flows.services.public import describe_signing_certificate, document_exchange_panel
 
 COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -186,6 +186,13 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
             "allocations": allocations,
             "error": error,
             "today": date.today(),
+            # T8 (CON-1) — l'état des ÉCHANGES de la pièce, à côté de l'axe
+            # fiscal et jamais à sa place : le fragment fiscal de T4 rend
+            # `fiscal_state` (EFA-6), celui-ci rend ce que le hub a fait de
+            # cette facture, opération par opération.
+            **document_exchange_panel(
+                invoice.tenant, document_type=DOCUMENT_TYPE, document_id=invoice.id
+            ),
             # T4 — l'état fiscal est un TROISIÈME axe : il voisine l'état de
             # règlement sans jamais le conditionner (EFA-6).
             "fiscal_state": invoice.fiscal_state,

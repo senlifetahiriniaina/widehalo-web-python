@@ -135,4 +135,11 @@
       <c-chatter app_label="{{ chatter_app_label }}" model="{{ chatter_model }}" object_id="{{ chatter_object_id }}" />
     </div>
   </section>
+
+  {% comment %}
+    T8 (bloc H, CON-1) — « depuis TOUTE pièce métier, l'état de ses échanges
+    est atteignable en un clic ». Le fragment est générique : il ne connaît
+    ni cette pièce ni ce module, il rend ce que le hub a fait d'elle.
+  {% endcomment %}
+  {% include "flows/_document_exchanges.html" %}
 {% endblock %}

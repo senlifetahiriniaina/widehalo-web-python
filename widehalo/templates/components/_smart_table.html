@@ -112,6 +112,21 @@
               <td {% if column.format|is_numeric_column_format %}class="col-num"{% endif %}>
                 {% if forloop.first and row_url_name %}
                   <a href="{{ row|reverse_with_pk:row_url_name }}">{{ row|getattr:column.key|smart_table_format:column.format }}</a>
+                {% elif forloop.first and row.smart_table_url %}
+                  {% comment %}
+                    T8 (bloc H, CON-1) — la destination varie D'UNE LIGNE A
+                    L'AUTRE. `row_url_name` suppose une route unique pour
+                    toute la table, ce qui est vrai des ~198 ecrans de liste
+                    existants et faux du journal des echanges : une ligne
+                    mene a une facture, la suivante a une fiche tiers, la
+                    troisieme a rien du tout (une publication planifiee ne
+                    designe aucune piece).
+
+                    Additif et sans effet ailleurs : un objet qui ne definit
+                    pas `smart_table_url` resout la variable a la chaine
+                    vide, et cette branche n'est pas prise.
+                  {% endcomment %}
+                  <a href="{{ row.smart_table_url }}">{{ row|getattr:column.key|smart_table_format:column.format }}</a>
                 {% else %}
                   {{ row|getattr:column.key|smart_table_format:column.format }}
                 {% endif %}

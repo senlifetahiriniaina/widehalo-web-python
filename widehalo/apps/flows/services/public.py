@@ -26,6 +26,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from django.urls import reverse
+
+from apps.flows.exchange_display import WAITING_STATES, badge_class_for_state
 from apps.flows.models import FlwExchange, FlwLink
 from apps.flows.operations import OP_QUERY_REFERENCE
 
@@ -47,17 +50,47 @@ def list_exchanges_for_document(
 
     Liste vide, jamais une exception, si la piece n'a jamais donne lieu a un
     echange : c'est le cas NORMAL pour l'immense majorite des pieces, pas
-    une anomalie a signaler."""
-    exchanges = FlwExchange.objects.filter(
-        tenant=tenant, document_type=document_type, document_id=document_id
-    ).order_by("-created_at")[:limit]
+    une anomalie a signaler.
+
+    **Les cinq clefs ajoutees au lot T8 (CON-1), et pourquoi elles ne sont
+    pas cosmetiques.** Le fragment d'ecran ne peut pas appeler
+    `get_state_display()` : il recoit des dictionnaires, pas des objets ORM
+    (regle de couplage n°1). Sans `state_display` et `operation_display`, un
+    ecran afficherait « en_file » a un comptable, ce que §10.3 refuse
+    explicitement — « les remonter telles quelles est la maniere la plus
+    sure de rendre la console inutilisable ». `connector_code` dit A QUI la
+    piece est partie, sans quoi la pastille annonce un etat sans dire de qui
+    on l'attend. Et `next_attempt_at` tient l'exigence la plus forte du
+    §10.1 : « tout etat d'attente affiche ce qui va se passer ensuite ET
+    QUAND ».
+
+    `select_related` sur la liaison et son connecteur : sans lui, une piece
+    portant vingt echanges produirait quarante requetes de plus pour
+    afficher vingt codes de connecteur."""
+    exchanges = (
+        FlwExchange.objects.filter(
+            tenant=tenant, document_type=document_type, document_id=document_id
+        )
+        .select_related("link__connector")
+        .order_by("-created_at")[:limit]
+    )
     return [
         {
             "id": exchange.id,
             "direction": exchange.direction,
             "operation": exchange.operation,
+            "operation_display": exchange.get_operation_display(),
             "state": exchange.state,
+            "state_display": exchange.get_state_display(),
+            # La couleur est CALCULEE ici et non dans le gabarit : « aucune
+            # logique dans les gabarits » (§7.3), et le filtre generique du
+            # depot se trompe sur six des neuf etats du hub (mesure inscrite
+            # dans `exchange_display`).
+            "state_badge": badge_class_for_state(exchange.state),
+            "is_waiting": exchange.state in WAITING_STATES,
+            "connector_code": exchange.link.connector.code,
             "attempt": exchange.attempt,
+            "next_attempt_at": exchange.next_attempt_at,
             "result_code": exchange.result_code,
             "correlation_key": exchange.correlation_key,
             "sent_at": exchange.sent_at,
@@ -65,6 +98,30 @@ def list_exchanges_for_document(
         }
         for exchange in exchanges
     ]
+
+
+def document_exchange_panel(
+    tenant: Tenant, *, document_type: str, document_id: UUID
+) -> dict[str, Any]:
+    """Le contexte du fragment `flows/_document_exchanges.html`, en un appel.
+
+    **Pourquoi une fonction et non quatre lignes recopiees dans chaque vue.**
+    CON-1 dit « depuis TOUTE piece metier » : le fragment est pose sur la
+    facture, la commande et la fiche tiers, et il le sera sur les suivantes.
+    Recopier la construction du contexte a chaque fois ferait diverger les
+    trois ecrans au premier changement — et c'est la sorte de divergence
+    qu'on ne remarque que le jour ou un seul des trois affiche encore la
+    bonne chose.
+
+    Le lien pointe le journal FILTRE sur cette piece : c'est le « en un
+    clic » du critere, et c'est la meme URL qu'un exploitant peut copier
+    dans un courriel."""
+    return {
+        "document_exchanges": list_exchanges_for_document(
+            tenant, document_type=document_type, document_id=document_id
+        ),
+        "document_exchanges_link": f"{reverse('flows:journal')}?document_id={document_id}",
+    }
 
 
 def count_exchanges_awaiting_verdict(tenant: Tenant) -> int:
@@ -587,6 +644,7 @@ __all__ = [
     "has_active_link",
     "has_settled_reference_lookup",
     "initiate_payment",
+    "document_exchange_panel",
     "list_exchanges_for_document",
     "publish_dataset",
     "read_inbound_payload",

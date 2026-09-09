@@ -1,0 +1,85 @@
+{% comment %}
+T8 (bloc H, CON-1) — l'état des échanges d'UNE pièce, sur la fiche de cette
+pièce.
+
+**Le critère** : « Depuis toute pièce métier, l'état de ses échanges est
+atteignable en un clic, et réciproquement depuis toute ligne du journal. »
+
+**Pourquoi un second fragment alors que T4 en a livré un.**
+`flows/_exchange_badge.html` attend `fiscal_state` et
+`fiscal_state_display` : il rend l'axe FISCAL d'une facture (EFA-6), pas
+l'état des ÉCHANGES d'une pièce. Une commande de vente et une fiche tiers
+n'ont aucun état fiscal — les brancher dessus n'afficherait rien. Les deux
+fragments coexistent donc sur la facture, côte à côte et jamais l'un à la
+place de l'autre.
+
+**Ce que ce gabarit ne fait pas.** Aucun calcul : la couleur
+(`state_badge`), le libellé (`state_display`) et la qualité d'attente
+(`is_waiting`) arrivent tout faits de
+`flows.services.public.list_exchanges_for_document`. C'est la règle du
+§7.3 — « aucune logique dans les gabarits » — et c'est aussi ce qui permet à
+l'écran de journal d'afficher exactement la même chose sans dupliquer une
+seule condition.
+
+**Le libellé est le contenu, la couleur ne fait que le doubler** (§10.2,
+« la couleur seule ne porte jamais l'information »).
+
+**Rien du tout quand il n'y a rien.** L'immense majorité des pièces n'ont
+jamais donné lieu à un échange. Afficher « aucun échange » sur chacune
+ajouterait un bloc vide à tous les écrans du produit pour ne rien
+apprendre.
+
+Contexte attendu : `document_exchanges` (liste de dicts) et, facultativement,
+`document_exchanges_link` (URL du journal filtré sur cette pièce).
+{% endcomment %}
+{% load i18n %}
+{% if document_exchanges %}
+  <section class="card" aria-labelledby="titre-echanges-piece">
+    <h3 id="titre-echanges-piece">{% trans "Échanges avec les tiers" %}</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Opération" %}</th>
+          <th scope="col">{% trans "Destinataire" %}</th>
+          <th scope="col">{% trans "État" %}</th>
+          <th scope="col">{% trans "Envoyé le" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for echange in document_exchanges %}
+          <tr>
+            <td>{{ echange.operation_display }}</td>
+            <td>{{ echange.connector_code }}</td>
+            <td>
+              <span class="badge {{ echange.state_badge }}">{{ echange.state_display }}</span>
+              {% if echange.is_waiting %}
+                {% comment %}
+                  §10.1, l'exigence la plus forte de la phase : « tout état
+                  d'attente affiche ce qui va se passer ensuite ET QUAND ».
+                  Un « en attente » sans suite fait appeler le support pour
+                  une situation parfaitement normale.
+                {% endcomment %}
+                {% if echange.next_attempt_at %}
+                  <span class="text-muted">{% blocktrans with heure=echange.next_attempt_at|time:"H\hi" %}Nouvelle tentative à {{ heure }}.{% endblocktrans %}</span>
+                {% else %}
+                  <span class="text-muted">{% trans "Nous attendons la réponse du destinataire ; vous n'avez rien à faire." %}</span>
+                {% endif %}
+              {% endif %}
+              {% if echange.result_code %}
+                <span class="text-muted">{{ echange.result_code }}</span>
+              {% endif %}
+            </td>
+            <td>{{ echange.sent_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if document_exchanges_link %}
+      {% comment %}
+        Le « en un clic » de CON-1, dans son premier sens. Le second sens —
+        du journal vers la pièce — est tenu par l'écran de journal lui-même.
+      {% endcomment %}
+      <a href="{{ document_exchanges_link }}">{% trans "Voir ces échanges dans le journal" %}</a>
+    {% endif %}
+  </section>
+{% endif %}
