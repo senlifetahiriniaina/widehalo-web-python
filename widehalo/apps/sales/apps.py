@@ -22,6 +22,7 @@ class SalesConfig(AppConfig):
         from apps.sales.services.flow_schema_registration import register_outbound_schemas
         from apps.sales.services.reports_registration import register_reports
         from apps.sales.services.scheduling_registration import register_scheduled_commands
+        from apps.sales.services.shop_registration import register_shop_subscribers
 
         register_reports()
         # AI2 (assistant contextuel par page/action) : meme patron, registre
@@ -43,3 +44,13 @@ class SalesConfig(AppConfig):
         # correspondance de champs ne peut designer une piece de ce
         # module : la fermeture est deny-by-default.
         register_outbound_schemas()
+        # T7 (bloc G, COM-1) : l'abonne qui fait entrer les commandes de
+        # boutique. Le hub publie `flows.inbound_received` ; c'est `sales`
+        # qui decide que cela le concerne, jamais l'inverse.
+        #
+        # Il ingere AU STATUT INITIAL et ne confirme rien : confirmer
+        # declenche la qualification d'approvisionnement, donc des
+        # mouvements de stock — ce que COM-1 interdit a une commande
+        # ingeree. La garde `test_ingested_orders_stay_at_the_initial_
+        # state.py` le verifie.
+        register_shop_subscribers()

@@ -438,6 +438,64 @@ def correlate_inbound_exchange(
     return exchange.correlation_key
 
 
+def publish_dataset(
+    tenant: Tenant,
+    *,
+    connector_code: str,
+    body: str,
+    occurrence: str,
+    document_type: str = "",
+    document_id: UUID | None = None,
+) -> dict[str, Any] | None:
+    """T7 (COM-3) — publie un jeu de donnees chez un tiers (OP2).
+
+    **Le vide que cette fonction ferme.** `OP_PUBLISH_DATASET` appartient au
+    jeu ferme des huit operations depuis S1, l'adaptateur de reference sait
+    la servir — et AUCUNE fonction de la surface publique ne permettait de
+    la demander. Exactement le meme vide qu'`initiate_payment` avant le bloc
+    D : une operation declaree que personne ne pouvait invoquer.
+
+    **`occurrence` est obligatoire, et c'est la troisieme fois que ce defaut
+    se presente.** Une publication de disponibilite se REFAIT — toutes les
+    heures, a chaque mouvement de stock. Sans occurrence, la clef
+    d'idempotence serait constante et la seconde publication heurterait
+    `uniq_flw_exchange_idempotency_key` par une `IntegrityError` : la
+    planification mourrait au deuxieme passage, en silence. C'est le defaut
+    paye par OP8 au lot T3, puis retrouve sur OP5 au lot T5.
+
+    **`document_type`/`document_id` restent facultatifs**, et c'est ce qui
+    distingue OP2 des autres : un catalogue publie ne se rattache a aucune
+    piece metier. La correlation reste vide, ce que
+    `compute_correlation_key` traite deja explicitement — « correler ce qui
+    ne se rattache a rien produirait des grappes d'echanges sans lien entre
+    eux »."""
+    from apps.flows.operations import OP_PUBLISH_DATASET
+    from apps.flows.services.exchange import prepare_exchange
+    from apps.flows.services.queue import queue_exchange
+
+    link = _active_link(tenant, connector_code)
+    if link is None:
+        return None
+
+    exchange = queue_exchange(
+        prepare_exchange(
+            tenant,
+            link,
+            operation=OP_PUBLISH_DATASET,
+            document_type=document_type,
+            document_id=document_id,
+            body=body,
+        ),
+        occurrence=occurrence,
+    )
+    return {
+        "id": exchange.id,
+        "state": exchange.state,
+        "operation": exchange.operation,
+        "correlation_key": exchange.correlation_key,
+    }
+
+
 def has_settled_reference_lookup(
     tenant: Tenant, *, document_type: str, document_id: UUID, since: Any = None
 ) -> bool:
@@ -530,6 +588,7 @@ __all__ = [
     "has_settled_reference_lookup",
     "initiate_payment",
     "list_exchanges_for_document",
+    "publish_dataset",
     "read_inbound_payload",
     "request_reference_lookup",
     "sign_document",

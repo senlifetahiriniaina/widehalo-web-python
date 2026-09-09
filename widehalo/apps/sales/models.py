@@ -249,8 +249,47 @@ class SalesOrder(BaseModel, ReferenceMixin):
     # `confirm_order`).
     is_export = models.BooleanField(default=False)
 
+    # T7 (bloc G, COM-4) : « une commande recue en double, identifiee par sa
+    # REFERENCE DE BOUTIQUE, ne cree qu'un seul document ». Le champ
+    # n'existait pas — donc rien ne rendait la deduplication possible, et
+    # une boutique qui re-livre son evenement (ce que toute boutique fait
+    # quand elle n'obtient pas de 2xx) creait une seconde commande.
+    #
+    # `shop_code` distingue DEUX boutiques : la meme reference « 1042 » chez
+    # deux marchands designe deux commandes differentes, et les confondre
+    # ferait disparaitre l'une des deux. L'unicite porte donc sur le
+    # couple, jamais sur la seule reference.
+    shop_code = models.CharField(max_length=64, blank=True, db_index=True)
+    external_reference = models.CharField(max_length=128, blank=True, db_index=True)
+
+    # T7 (COM-2) : « un article de boutique sans correspondance dans le
+    # referentiel interne place la commande EN ANOMALIE sans bloquer
+    # l'ingestion des autres ».
+    #
+    # **Un champ a part, jamais un etat de la machine.** `state` decrit ou
+    # en est la commande dans son cycle de vie ; « je n'ai pas su
+    # reconnaitre un article » n'est pas une etape de ce cycle, c'est une
+    # qualite de la donnee recue. Les melanger obligerait a inventer une
+    # transition de retour depuis chaque etat, et rendrait impossible une
+    # commande a la fois `draft` et en anomalie — c'est-a-dire le cas
+    # normal d'une commande ingeree qu'il faut corriger avant de
+    # confirmer.
+    ingestion_anomaly = models.TextField(blank=True)
+
     class Meta:
         db_table = "sales_order"
+        constraints = [
+            # COM-4 rendu opposable par la BASE, pas seulement par le code :
+            # deux commandes ne peuvent pas revendiquer la meme reference
+            # chez la meme boutique. La condition exclut les commandes
+            # saisies a la main, qui n'ont pas de reference externe et sont
+            # aussi nombreuses qu'on veut.
+            models.UniqueConstraint(
+                fields=["tenant", "shop_code", "external_reference"],
+                condition=~models.Q(external_reference=""),
+                name="uniq_sales_order_shop_reference",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.reference or str(self.id)
