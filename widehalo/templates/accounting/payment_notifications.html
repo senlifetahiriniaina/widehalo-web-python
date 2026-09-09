@@ -71,6 +71,44 @@
   {% endif %}
 
   {% comment %}
+    PAY-7 — « aucun double débit n'est possible ». La relance n'est
+    proposée QUE pour une demande dont l'échéance est passée : tant que le
+    payeur a le lien en main, une seconde demande est exactement le double
+    débit que le critère interdit. Le service le refuserait de toute
+    façon — mais un bouton qui refuse apprend à ignorer les refus.
+  {% endcomment %}
+  <h2>{% trans "Demandes de règlement expirées" %}</h2>
+  {% if stale_intents %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Référence" %}</th>
+          <th>{% trans "Montant" %}</th>
+          <th>{% trans "Échéance" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for intent in stale_intents %}
+          <tr>
+            <td>{{ intent.external_reference }}</td>
+            <td>{{ intent.amount }} {{ intent.currency }}</td>
+            <td>{{ intent.expires_at }}</td>
+            <td>
+              <form method="post" action="{% url 'accounting:payment_intent_reemit' intent.id %}">
+                {% csrf_token %}
+                <c-button type="submit">{% trans "Relancer le payeur" %}</c-button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>{% trans "Aucune demande de règlement expirée." %}</p>
+  {% endif %}
+
+  {% comment %}
     PAY-5 — le versement groupé, sur le MÊME écran que les notifications.
     C'est la même question posée à deux échelles : « cet argent, à quoi
     correspond-il ? ». Deux écrans obligeraient l'exploitant à faire

@@ -25,8 +25,19 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 
-from apps.accounting.models import AccAggregatorPayout, AccMove, AccPaymentNotification
+from apps.accounting.models import (
+    AccAggregatorPayout,
+    AccMove,
+    AccPaymentIntent,
+    AccPaymentNotification,
+)
+from apps.accounting.services.payment_intents import (
+    LIVE_STATES,
+    REEMIT_REPLACED,
+    reemit_intent,
+)
 from apps.accounting.services.payment_payouts import settle_payout
 from apps.accounting.services.payment_settlement import assign_orphan_notification
 from apps.core.views.smart_table import Column, smart_table_response
@@ -72,6 +83,12 @@ def payment_notification_list(request: HttpRequest) -> HttpResponse:
             # d'appelant.
             "orphans": _orphan_notifications(),
             "open_invoices": _unpaid_invoices(),
+            # PAY-7 : les demandes que le payeur n'a jamais honorées et
+            # dont l'échéance est passée. Sans cette liste, `reemit_intent`
+            # n'aurait aucun appelant — et une facture resterait impayée
+            # avec, pour seule trace, une intention expirée que personne ne
+            # voit.
+            "stale_intents": _stale_intents(),
         },
     )
 
@@ -111,6 +128,40 @@ def aggregator_payout_settle(request: HttpRequest, payout_id: str) -> HttpRespon
 
     resultat = settle_payout(versement)
     return _back_to_list("" if resultat.produced_an_entry else resultat.detail or resultat.outcome)
+
+
+@login_required
+def payment_intent_reemit(request: HttpRequest, intent_id: str) -> HttpResponse:
+    """PAY-7 — redemande le paiement, APRÈS avoir vérifié où en est le premier.
+
+    L'écran ne décide de rien : le service refuse tout seul une intention
+    déjà réglée, une intention dont une notification est arrivée, et une
+    intention encore payable. Refaire ces contrôles ici produirait deux
+    vérités sur la question qui coûte le plus cher à trancher — « cet
+    argent est-il déjà parti ? »."""
+    intention = get_object_or_404(AccPaymentIntent, id=intent_id)
+    if request.method != "POST":
+        return redirect("accounting:payment_notifications")
+
+    resultat = reemit_intent(intention)
+    if resultat.outcome == REEMIT_REPLACED:
+        return _back_to_list("")
+    return _back_to_list(resultat.outcome)
+
+
+def _stale_intents() -> list[AccPaymentIntent]:
+    """Les demandes de règlement vivantes dont l'échéance est passée.
+
+    **Filtrées sur l'échéance, pas sur l'âge.** Une intention encore
+    payable ne doit pas être proposée à la relance : le payeur a le lien en
+    main, et une seconde demande est exactement le double débit que PAY-7
+    interdit. `reemit_intent` le refuserait de toute façon — mais proposer
+    un bouton qui refuse apprend à l'exploitant à ignorer les refus."""
+    return list(
+        AccPaymentIntent.objects.filter(
+            state__in=LIVE_STATES, expires_at__lt=timezone.now()
+        ).order_by("expires_at")[:50]
+    )
 
 
 def _orphan_notifications() -> list[AccPaymentNotification]:
@@ -182,6 +233,7 @@ def _back_to_list(erreur: str) -> HttpResponse:
 
 __all__ = [
     "aggregator_payout_settle",
+    "payment_intent_reemit",
     "payment_notification_assign",
     "payment_notification_list",
 ]

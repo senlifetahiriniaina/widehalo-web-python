@@ -32,12 +32,13 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -61,6 +62,8 @@ if TYPE_CHECKING:
 #: au comptoir saisi par un vendeur, par exemple) et n'a aucune raison de
 #: corréler.
 REFERENCE_PREFIX = "WH"
+
+logger = logging.getLogger(__name__)
 
 #: Combien de temps une demande de règlement reste payable.
 #:
@@ -324,14 +327,45 @@ def _transmit(tenant: Tenant, intention: AccPaymentIntent) -> None:
     from apps.accounting.models import AccPaymentIntent
     from apps.flows.services.public import initiate_payment
 
-    accuse = initiate_payment(
-        tenant,
-        connector_code=CONNECTOR_CODE,
-        document_type=intention.document_type,
-        document_id=intention.document_id,
-        body=json.dumps(_payload(intention), sort_keys=True),
-        occurrence=intention.external_reference,
-    )
+    try:
+        # **Le `atomic()` interne n'est pas décoratif : sans lui, le
+        # rattrapage ci-dessous ne rattrape rien.** PostgreSQL abandonne la
+        # transaction entière au premier `IntegrityError` ; attraper
+        # l'exception sans point de sauvegarde laisse la connexion en
+        # « needs_rollback », et la première requête suivante — ici le
+        # `save()` de l'état — lève `TransactionManagementError`. Le
+        # remède serait alors plus dur à lire que le mal : une erreur
+        # serveur, mais sur une autre ligne. Trouvé par le test, jamais par
+        # la relecture.
+        with transaction.atomic():
+            accuse = initiate_payment(
+                tenant,
+                connector_code=CONNECTOR_CODE,
+                document_type=intention.document_type,
+                document_id=intention.document_id,
+                body=json.dumps(_payload(intention), sort_keys=True),
+                occurrence=intention.external_reference,
+            )
+    except IntegrityError:
+        # **Cette intention est DÉJÀ partie, et c'est la seule lecture
+        # possible de cette collision.** La clef d'idempotence se calcule
+        # sur (liaison, pièce, opération, occurrence), et l'occurrence est
+        # la référence externe — unique par société, émise par nous, propre
+        # à CETTE intention. Une collision ne peut donc désigner que sa
+        # propre émission précédente.
+        #
+        # Sans ce rattrapage, une seconde tentative de transmission
+        # remonte en `IntegrityError` jusqu'à l'écran, c'est-à-dire en 500
+        # sur un bouton — trouvé par le test de relance, jamais par une
+        # relecture. Marquer « transmise » est ce que l'état RÉEL commande :
+        # l'échange existe, il est en file, et le nier ferait redemander
+        # éternellement l'état d'une demande bel et bien partie.
+        logger.info(
+            "intention %s déjà transmise (clef d'idempotence existante)",
+            intention.external_reference,
+        )
+        accuse = {"deja_transmise": True}
+
     if accuse is None:
         return
     intention.state = AccPaymentIntent.STATE_SENT

@@ -17,6 +17,7 @@ from apps.analytics.models import (
     AnFactEcriture,
     AnFactEncaissement,
     AnFactMouvementStock,
+    AnFactNotificationEncaissement,
     AnFactOrdreFabrication,
     AnFactPaie,
     AnFactReception,
@@ -119,6 +120,26 @@ class AnFactEncaissementFactory(factory.django.DjangoModelFactory):
     method = "especes"
     montant_mga = Decimal("10000")
     state = "posted"
+
+
+class AnFactNotificationEncaissementFactory(factory.django.DjangoModelFactory):
+    """T5 (PAY-8) — le fait des notifications d'encaissement.
+
+    `recue` vaut 1 et `rapprochee` 0 : c'est l'etat d'ARRIVEE reel d'une
+    notification, celui qui fait baisser le taux. Poser 1 et 1 par defaut
+    ferait passer pour la mauvaise raison tout test qui verifie que le
+    denominateur compte aussi les orphelines."""
+
+    class Meta:
+        model = AnFactNotificationEncaissement
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    source_notification_id = factory.LazyFunction(uuid.uuid4)
+    dim_temps = factory.SubFactory(AnDimTempsFactory, tenant=factory.SelfAttribute("..tenant"))
+    connecteur_code = "agregateur"
+    etat = "orpheline"
+    recue = 1
+    rapprochee = 0
 
 
 class AnFactEcritureFactory(factory.django.DjangoModelFactory):

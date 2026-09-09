@@ -57,7 +57,13 @@ from apps.accounting.services.invoices import (
     ensure_default_approval_thresholds,
     validate_invoice,
 )
-from apps.accounting.services.payment_intents import create_payment_intent
+from apps.accounting.services.payment_intents import (
+    REEMIT_NOTIFIED,
+    REEMIT_SETTLED,
+    REEMIT_STILL_PAYABLE,
+    create_payment_intent,
+    reemit_intent,
+)
 from apps.accounting.services.payment_payouts import (
     OUTCOME_MISMATCH,
     announce_payout,
@@ -664,6 +670,135 @@ def test_the_same_payment_notified_twice_settles_once(societe) -> None:
         )
         assert AccPayment.objects.count() == 1
         assert _du(facture) == du_avant - MONTANT_FACTURE
+
+
+def test_a_still_payable_request_is_never_re_emitted(societe) -> None:
+    """**PAY-7, le cas qui coûte de l'argent.** Tant que l'échéance n'est
+    pas atteinte, le payeur a le lien en main. Relancer produirait deux
+    liens honorables, et l'argent parti ne se reprend pas par une
+    transaction de base de données.
+
+    C'est aussi le seul lecteur d'`expires_at` — sans lui, ce champ serait
+    une décoration de plus."""
+    with use_tenant(societe["tenant"].id):
+        facture = _facture_validee(societe)
+        intention = create_payment_intent(
+            societe["tenant"],
+            document_type="accounting.AccMove",
+            document_id=facture.id,
+            amount=MONTANT_FACTURE,
+        )
+        resultat = reemit_intent(intention)
+
+        assert not resultat.emitted_again
+        assert resultat.outcome == REEMIT_STILL_PAYABLE
+        assert AccPaymentIntent.objects.count() == 1
+
+
+def test_a_request_already_paid_is_never_re_emitted(societe) -> None:
+    """Une notification est arrivée sur cette référence : l'argent a bougé.
+
+    **L'orpheline compte autant que la rapprochée.** « Orpheline » veut
+    dire « nous ne savons pas à quoi la rattacher », jamais « elle n'a pas
+    eu lieu » — relancer sur cette base redemanderait un paiement déjà
+    effectué."""
+    with use_tenant(societe["tenant"].id):
+        facture = _facture_validee(societe)
+        intention = create_payment_intent(
+            societe["tenant"],
+            document_type="accounting.AccMove",
+            document_id=facture.id,
+            amount=MONTANT_FACTURE,
+        )
+
+    _notifier(societe, reference=intention.external_reference)
+
+    with use_tenant(societe["tenant"].id):
+        intention.refresh_from_db()
+        # Même échéance dépassée, la notification prime.
+        intention.expires_at = timezone.now() - dt.timedelta(days=1)
+        intention.save(update_fields=["expires_at"])
+
+        resultat = reemit_intent(intention)
+        assert not resultat.emitted_again
+        assert resultat.outcome in (REEMIT_SETTLED, REEMIT_NOTIFIED)
+
+
+def test_an_expired_untransmitted_request_goes_out_again(societe) -> None:
+    """Une demande qu'aucun tiers n'a jamais reçue repart, telle quelle.
+
+    **Le scénario est réel, pas construit.** La liaison est suspendue au
+    moment de la demande — un raccordement en cours d'ouverture, un
+    opérateur qui a coupé —, l'intention est donc créée sans partir. Quand
+    la liaison rouvre et que l'échéance est passée, la relance la
+    transmet enfin.
+
+    Elle garde SA référence : ce n'est pas une seconde demande, c'est la
+    même qui part. Lui en donner une nouvelle laisserait la première
+    corrélable pour toujours."""
+    with use_tenant(societe["tenant"].id):
+        liaison = societe["liaison"]
+        liaison.state = FlwLink.STATE_SUSPENDED
+        liaison.save(update_fields=["state"])
+
+        facture = _facture_validee(societe)
+        intention = create_payment_intent(
+            societe["tenant"],
+            document_type="accounting.AccMove",
+            document_id=facture.id,
+            amount=MONTANT_FACTURE,
+        )
+        assert intention.state == AccPaymentIntent.STATE_CREATED, (
+            "Sans liaison active, l'intention doit exister sans partir — c'est le "
+            "mode d'attente, pas une panne."
+        )
+        reference_dorigine = intention.external_reference
+
+        liaison.state = FlwLink.STATE_ACTIVE
+        liaison.save(update_fields=["state"])
+        intention.expires_at = timezone.now() - dt.timedelta(days=1)
+        intention.save(update_fields=["expires_at"])
+
+        resultat = reemit_intent(intention)
+
+        assert resultat.emitted_again
+        assert resultat.intent is not None
+        assert resultat.intent.external_reference == reference_dorigine
+        assert AccPaymentIntent.objects.count() == 1
+        resultat.intent.refresh_from_db()
+        assert resultat.intent.state == AccPaymentIntent.STATE_SENT
+
+
+def test_re_transmitting_an_already_sent_request_never_raises(societe) -> None:
+    """**Un bouton d'écran ne rend jamais 500**, et c'est le test qui l'a
+    trouvé.
+
+    La clef d'idempotence se calcule sur (liaison, pièce, opération,
+    occurrence) et l'occurrence EST la référence de l'intention : une
+    seconde transmission de la même demande heurte donc
+    `uniq_flw_exchange_idempotency_key`. Laisser remonter cette collision
+    transformait la relance en erreur serveur — alors que la collision ne
+    peut désigner qu'une chose : cette demande est déjà partie."""
+    from apps.accounting.services.payment_intents import _transmit
+
+    with use_tenant(societe["tenant"].id):
+        facture = _facture_validee(societe)
+        intention = create_payment_intent(
+            societe["tenant"],
+            document_type="accounting.AccMove",
+            document_id=facture.id,
+            amount=MONTANT_FACTURE,
+        )
+        avant = FlwExchange.objects.filter(operation=OP_INITIATE_PAYMENT).count()
+
+        _transmit(societe["tenant"], intention)
+
+        intention.refresh_from_db()
+        assert intention.state == AccPaymentIntent.STATE_SENT
+        assert FlwExchange.objects.filter(operation=OP_INITIATE_PAYMENT).count() == avant, (
+            "Une seconde transmission a créé un second échange : le tiers "
+            "recevrait deux fois la même demande de paiement."
+        )
 
 
 def test_a_second_intent_is_never_emitted_while_the_first_can_be_paid(societe) -> None:
