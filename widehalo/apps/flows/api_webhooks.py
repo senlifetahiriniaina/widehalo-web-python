@@ -76,6 +76,28 @@ def inbound_webhook(request: Any, link_id: str) -> HttpResponse:
     métier transformerait une lenteur comptable en tempête de re-livraisons.
     """
     liaison = get_object_or_404(FlwLink.all_objects, id=link_id)
+
+    # **Le contexte de société est posé ICI, avant toute lecture.** Un
+    # opérateur n'envoie pas de `X-Tenant-Id` — le lui faire envoyer
+    # reviendrait à laisser l'appelant choisir la société dans laquelle il
+    # écrit — donc aucun middleware n'a posé la session Postgres, et tout
+    # `TenantManager` (refus par défaut) rend vide.
+    #
+    # Le défaut que cela ferme était silencieux et coûteux : la lecture du
+    # secret rendait vide, la vérification concluait « aucun secret
+    # configuré », et un appel PARFAITEMENT SIGNÉ était refusé. Un
+    # raccordement réel n'aurait jamais fonctionné, et le journal aurait
+    # accusé une configuration absente qui, elle, était bien là.
+    #
+    # Poser le contexte plutôt que lire en `all_objects` : le manager en
+    # refus par défaut reste actif pour tout ce qui suit, y compris
+    # l'écriture de l'échange, au lieu d'ouvrir une porte par commodité.
+    with activate_tenant(liaison.tenant_id):
+        return _handle_authenticated_call(request, liaison, link_id)
+
+
+def _handle_authenticated_call(request: Any, liaison: FlwLink, link_id: str) -> HttpResponse:
+    """La suite, SOUS le contexte de la société de la liaison."""
     verdict = verify_inbound_call(
         liaison,
         payload=request.body,
@@ -99,10 +121,7 @@ def inbound_webhook(request: Any, link_id: str) -> HttpResponse:
 
     from apps.flows.adapters.reference import receive_event
 
-    with activate_tenant(liaison.tenant_id):
-        echange = receive_event(
-            liaison.tenant, liaison, body=request.body.decode("utf-8", "replace")
-        )
+    echange = receive_event(liaison.tenant, liaison, body=request.body.decode("utf-8", "replace"))
 
     publish_event(
         EVENT_INBOUND_RECEIVED,
