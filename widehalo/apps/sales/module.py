@@ -23,6 +23,15 @@ MODULE = ModuleSpec(
         "stocks",
         "purchase",
         "reporting",
+        # "flows" ajoute par T7 (bloc G) : `services.shop_publication`
+        # consomme `apps.flows.services.public.publish_dataset` (OP2) pour
+        # COM-3, et `services.shop_registration` s'abonne a
+        # `flows.inbound_received` pour COM-1 — jamais `apps.flows.models`.
+        # La garde `test_declared_dependencies_match_module_spec` a refuse
+        # l'usage non declare, ce qui est exactement son role : une
+        # dependance qui s'installe sans etre ecrite finit par etre
+        # decouverte le jour ou on essaie de retirer le module.
+        "flows",
     ),
     verbose_name="Ventes",
 )

@@ -146,3 +146,52 @@ def test_without_a_shop_link_nothing_is_published(boutique_raccordee) -> None:
         FlwLink.objects.update(state=FlwLink.STATE_SUSPENDED)
         assert publish_availability(tenant, variant_ids=[variante.id]) is None
         assert not FlwExchange.objects.filter(operation=OP_PUBLISH_DATASET).exists()
+
+
+def test_the_periodic_command_publishes_for_connected_tenants_only(boutique_raccordee) -> None:
+    """**La commande est ce qui rend la publication non décorative** : sans
+    elle, `publish_availability` n'aurait aucun appelant de production.
+
+    Elle est donc exercée comme le reste. Deux propriétés en une : elle
+    publie pour la société raccordée, et elle ne tombe pas sur celle qui ne
+    l'est pas — sans quoi une seule société sans boutique empêcherait de
+    publier pour toutes les autres."""
+    from django.core.management import call_command
+
+    tenant, _variante = boutique_raccordee
+    sans_boutique = Tenant.objects.create(code="SAL-T7X", name="Sans boutique")
+    with use_tenant(sans_boutique.id):
+        gamme = ProductTemplateFactory(tenant=sans_boutique, name="Autre")
+        ProductVariantFactory(tenant=sans_boutique, template=gamme, reference="SKU-AUTRE")
+
+    call_command("publish_shop_availability")
+
+    with use_tenant(tenant.id):
+        assert FlwExchange.objects.filter(operation=OP_PUBLISH_DATASET).count() == 1
+    with use_tenant(sans_boutique.id):
+        assert not FlwExchange.objects.filter(operation=OP_PUBLISH_DATASET).exists()
+
+
+def test_only_sellable_variants_are_published(boutique_raccordee) -> None:
+    """Publier une matière première ou un composant interne offrirait à la
+    vente ce qui n'est pas vendable.
+
+    `catalog` sait déjà répondre à cette question (`list_sellable_variants`,
+    qui filtre sur `template.is_sellable`) — et c'est par sa surface
+    publique que la commande la pose, jamais en lisant ses modèles."""
+    from django.core.management import call_command
+
+    tenant, variante = boutique_raccordee
+    with use_tenant(tenant.id):
+        interne = ProductTemplateFactory(tenant=tenant, name="Matière", is_sellable=False)
+        ProductVariantFactory(tenant=tenant, template=interne, reference="SKU-INTERNE")
+
+    call_command("publish_shop_availability")
+
+    with use_tenant(tenant.id):
+        corps = _corps_publie(tenant)
+    references = {ligne["sku"] for ligne in corps["availability"]}
+    assert "SKU-DISPO" in references
+    assert "SKU-INTERNE" not in references, (
+        "Un article non vendable est publié comme disponible : la boutique l'offrirait à la vente."
+    )

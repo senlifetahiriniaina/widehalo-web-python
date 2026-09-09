@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from apps.catalog.models import ProductVariant
+from apps.catalog.services.public import list_sellable_variants
 from apps.core.models.tenant import Tenant
 from apps.core.services.scheduled_commands import tenant_step
 from apps.sales.services.shop_publication import publish_availability
@@ -40,9 +40,13 @@ class Command(BaseCommand):
         publiees = 0
         for tenant in Tenant.objects.all():
             with tenant_step(self, tenant):
-                variant_ids = list(
-                    ProductVariant.objects.filter(tenant=tenant).values_list("id", flat=True)
-                )
+                # **`list_sellable_variants` et non toutes les variantes.**
+                # Publier une matiere premiere ou un composant interne
+                # offrirait a la vente ce qui n'est pas vendable — et
+                # `catalog` sait deja repondre a cette question, par sa
+                # surface publique (regle de couplage n°1 : jamais
+                # `catalog.models` depuis ici, ce que la garde a refuse).
+                variant_ids = [vendable["id"] for vendable in list_sellable_variants()]
                 if not variant_ids:
                     continue
                 accuse = publish_availability(tenant, variant_ids=variant_ids)
