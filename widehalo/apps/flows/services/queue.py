@@ -55,6 +55,7 @@ from django.utils.translation import gettext as _
 
 from apps.core.services.redaction import redact_secrets
 from apps.flows.models import FlwExchange, FlwIncident, FlwLink
+from apps.flows.services.cost_cap import CapBudget, budget_for, mark_alerted
 from apps.flows.services.exchange import transition_exchange
 from apps.flows.services.incidents import record_failure
 
@@ -228,6 +229,55 @@ def record_call_failure(
     return incident
 
 
+def _alert_cost_cap(link: FlwLink, budget: CapBudget, *, reached: bool, now: Any = None) -> None:
+    """CON-5 — « une alerte est emise a l'approche d'un plafond, AVANT son
+    atteinte, au destinataire configure ».
+
+    Meme destinataire que l'ouverture du disjoncteur, jamais un second
+    reglage : un exploitant qui a dit ou joindre l'a dit une fois. Et meme
+    discipline — sans destinataire configure, rien n'est emis plutot que
+    d'envoyer a un role par defaut une alerte qu'il n'a pas demandee.
+
+    L'echec de la notification n'echoue JAMAIS la vidange : perdre la passe
+    en cours parce qu'un courriel ne part pas transformerait un
+    avertissement en panne."""
+    recipient = link.alert_recipient
+    if recipient is None:
+        if not reached:
+            # La marque est posee meme sans destinataire : sans elle, chaque
+            # echange de chaque passe reevaluerait l'approche et le jour ou
+            # un destinataire serait configure, il recevrait d'un coup
+            # l'alerte de tout un mois.
+            mark_alerted(link, now=now)
+        return
+
+    from apps.core.services.notifications import dispatch_notification
+
+    try:
+        dispatch_notification(
+            recipient,
+            "flows.cost_cap_reached" if reached else "flows.cost_cap_approaching",
+            {
+                "link": link.name,
+                "connector": link.connector.code,
+                "spent": str(budget.spent),
+                "cap": str(budget.cap),
+                "ratio_pct": budget.ratio_pct,
+                "threshold_pct": budget.threshold_pct,
+            },
+            tenant_id=str(link.tenant_id),
+        )
+    except Exception:  # noqa: BLE001 - une alerte perdue ne doit pas coûter la passe
+        import logging
+
+        logging.getLogger(__name__).exception(
+            "Alerte de plafond non délivrée pour la liaison %s", link.id
+        )
+    finally:
+        if not reached:
+            mark_alerted(link, now=now)
+
+
 def _alert_breaker_opened(link: FlwLink, incident: FlwIncident) -> None:
     """« Une alerte sur l'ouverture d'un disjoncteur » (§7.6), adressee au
     destinataire regle sur l'axe A5.
@@ -368,12 +418,14 @@ def drain_outbound_queue(
         "sent": 0,
         "failed": 0,
         "skipped_breaker": 0,
+        "skipped_cost_cap": 0,
         "skipped_cap": 0,
         "skipped_no_adapter": 0,
         "budget_exhausted": 0,
     }
     calls_by_connector: dict[Any, int] = {}
     links: dict[Any, FlwLink] = {}
+    budgets: dict[Any, CapBudget] = {}
 
     for exchange in due_exchanges(tenant, now=moment):
         if clock() - started >= pass_budget:
@@ -402,8 +454,42 @@ def drain_outbound_queue(
             counts["skipped_breaker"] += 1
             continue
 
+        # T9 (CON-5, §15.2) — le plafond, evalue AVANT l'appel comme les
+        # trois autres bornes. Le budget est lu UNE fois par liaison et
+        # impute au fil de la passe : le relire a chaque echange rendrait la
+        # vidange quadratique.
+        budget = budgets.get(link.id)
+        if budget is None:
+            budget = budgets[link.id] = budget_for(link, now=moment)
+
+        if budget.reached:
+            # « Plafond atteint : suspension notifiee. Les echanges passent
+            # au statut suspendu, l'utilisateur est averti, et la reprise
+            # est une decision explicite » (§15.2). Aucun incident : ce
+            # n'est pas une panne, c'est une decision — invariant 3 de la
+            # machine a etats, ecrit depuis S2 et jamais exerce jusqu'ici.
+            transition_exchange(exchange, to_state=FlwExchange.STATE_SUSPENDED)
+            counts["skipped_cost_cap"] += 1
+            _alert_cost_cap(link, budget, reached=True, now=moment)
+            continue
+
         outcome, elapsed = _call_adapter(sender, exchange, call_budget, clock)
         calls_by_connector[connector.id] = calls_by_connector.get(connector.id, 0) + 1
+        # L'echange vient peut-etre de coûter : l'imputer au budget en cours
+        # plutot que de relire le total. Sans cela, une passe unique pourrait
+        # depasser le plafond de toute sa longueur.
+        exchange.refresh_from_db(fields=["cost_ariary"])
+        budget.charge(exchange.cost_ariary)
+
+        # LE critere CON-5, et il tient dans le mot « avant » — evalue APRES
+        # l'imputation, et c'est tout le sujet. La premiere version testait
+        # l'approche AVANT l'appel : le seuil n'etait alors franchi qu'aux
+        # yeux de l'echange SUIVANT, et le dernier envoi d'un mois — celui
+        # qui franchit le seuil sans que rien ne suive — n'alertait
+        # personne. Le test l'a montre ; la relecture ne l'avait pas vu.
+        if budget.approaching and not budget.already_alerted:
+            _alert_cost_cap(link, budget, reached=False, now=moment)
+            budget.already_alerted = True
 
         if elapsed > call_budget:
             # L'adaptateur a ignore le delai qu'on lui a passe. L'echange,

@@ -53,3 +53,12 @@ class FlowsConfig(AppConfig):
         from apps.flows.exchange_display import assert_badge_vocabulary_is_complete
 
         assert_badge_vocabulary_is_complete()
+
+        # T9 (§15.2) : le jeu ferme des trois regimes tarifaires, et surtout
+        # la coherence de `REGIMES_REQUIRING_A_CAP` avec lui. Une entree mal
+        # orthographiee la-dedans ne correspondrait a aucun connecteur, et
+        # l'obligation « plafond avant activation » cesserait de s'appliquer
+        # sans qu'aucun test ne tombe.
+        from apps.flows.pricing_regimes import assert_regime_vocabulary_is_closed
+
+        assert_regime_vocabulary_is_closed()

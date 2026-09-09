@@ -62,6 +62,7 @@ from apps.core.cost_units import COST_UNIT_CHOICES
 from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel
 from apps.flows.operations import OPERATION_CHOICES, validate_supported_operations
+from apps.flows.pricing_regimes import REGIME_CHOICES, validate_pricing_regime
 from apps.flows.public_operations import validate_scopes
 
 if TYPE_CHECKING:
@@ -135,6 +136,29 @@ class FlwConnector(BaseModel):
     # la semantique cible, et elle n'oblige a rien renommer ensuite.
     max_in_flight = models.PositiveSmallIntegerField(default=20)
 
+    # T9 — les trois declarations que le consentement de sortie (CON-2) et
+    # le plafond (CON-5) exigent, et qui n'existaient pas.
+    #
+    # `country_code` : « vers quel tiers, DANS QUEL PAYS » (§9.1). Meme
+    # forme que `Tenant.country_code` — deux lettres, aucun jeu ferme :
+    # inventer une liste de pays serait une regle inventee, et le depot ne
+    # le fait pas davantage ici qu'ailleurs. Vide = non declare, et
+    # l'activation le refuse plutot que d'afficher un pays devine.
+    country_code = models.CharField(max_length=2, blank=True)
+    # `pricing_regime` : les trois regimes du §15.1. AUCUN defaut — mettre
+    # « socle inclus » exempterait silencieusement du plafond un connecteur
+    # qui coute a chaque appel, et « a l'usage » imposerait un plafond a un
+    # connecteur gratuit. Vide tant que personne n'a tranche.
+    pricing_regime = models.CharField(
+        max_length=20, choices=REGIME_CHOICES, blank=True, validators=[validate_pricing_regime]
+    )
+    # `retention_days` : « pour quelle duree de conservation CONNUE »
+    # (§9.1). `None` signifie « inconnue », et c'est un etat legitime que
+    # l'ecran doit dire — le cahier ecrit « connue » precisement parce
+    # qu'elle ne l'est pas toujours. Y mettre un chiffre par defaut ferait
+    # affirmer au produit une duree que le tiers n'a jamais annoncee.
+    retention_days = models.PositiveSmallIntegerField(null=True, blank=True)
+
     class Meta:
         db_table = "flw_connector"
         constraints = [
@@ -155,6 +179,11 @@ class FlwConnector(BaseModel):
         deplacerait la faute d'un ecran de configuration vers une passe de
         vidange nocturne — la ou personne ne la lit."""
         validate_supported_operations(self.supported_operations)
+        # Meme raison que ci-dessus, et meme piege : Django ne fait tourner
+        # les validateurs de champ que dans `full_clean()`, jamais dans
+        # `save()`. Le laisser sur le seul `validators=[...]` protegerait
+        # les formulaires et laisserait passer toute ecriture de service.
+        validate_pricing_regime(self.pricing_regime)
         super().save(*args, **kwargs)
 
 
@@ -461,6 +490,28 @@ class FlwLink(BaseModel):
     # dictionnaire du cahier en fait un attribut LU sur l'incident
     # (« etat du disjoncteur ») : une seule source de verite, affichee
     # ailleurs, plutot que deux qui divergent.
+    # T9 (CON-5, §15.2) — le plafond opposable, et son alerte anticipee.
+    #
+    # `None` = aucun plafond configure, JAMAIS un plafond implicite a zero
+    # qui bloquerait tout envoi par defaut — meme convention et meme motif
+    # que `Tenant.whatsapp_monthly_cost_cap_ariary`, seul autre plafond de
+    # cout du depot. Et c'est cette valeur `None` que l'activation refuse
+    # sur un connecteur du regime a l'usage : « plafond obligatoire avant
+    # activation ».
+    monthly_cost_cap_ariary = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    # Le seuil d'alerte ANTICIPEE, en pourcentage du plafond. Le critere
+    # CON-5 tient dans le mot « avant » : « une alerte est emise a
+    # l'approche d'un plafond, AVANT SON ATTEINTE ». Alerter a 100 % serait
+    # tenir la lettre du mot « alerte » et manquer le critere.
+    cost_alert_threshold_pct = models.PositiveSmallIntegerField(default=80)
+    # Le mois pour lequel l'alerte d'approche a deja ete emise. Sans lui,
+    # chaque echange au-dela du seuil realerterait — et le §10.1 refuse
+    # qu'un avertissement devienne du bruit : « un plafond atteint un 28 du
+    # mois sans avertissement est vecu comme une panne », mais trente
+    # avertissements le sont tout autant.
+    cost_alerted_for_month = models.DateField(null=True, blank=True)
     breaker_state = models.CharField(max_length=12, choices=BREAKER_CHOICES, default=BREAKER_CLOSED)
     # « N echecs CONSECUTIFS » : un succes remet ce compteur a zero. Un
     # compteur cumulatif ouvrirait le disjoncteur sur une liaison qui
