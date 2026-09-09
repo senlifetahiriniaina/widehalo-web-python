@@ -416,10 +416,19 @@ class FlwLink(BaseModel):
     STATE_DRAFT = "brouillon"
     STATE_ACTIVE = "active"
     STATE_SUSPENDED = "suspendue"
+    # T9 (CON-3) — REVOQUEE, et c'est un etat distinct de SUSPENDUE, pas un
+    # synonyme. Une liaison suspendue reprend : c'est une pause, decidee
+    # pour un plafond atteint ou une panne. Une liaison revoquee ne reprend
+    # pas : le client a retire son consentement de sortie, et la reouvrir
+    # demanderait un nouveau consentement. Les confondre reviendrait a
+    # laisser une reprise d'exploitation rouvrir un canal que quelqu'un a
+    # ferme deliberement.
+    STATE_REVOKED = "revoquee"
     STATE_CHOICES = [
         (STATE_DRAFT, _("Brouillon")),
         (STATE_ACTIVE, _("Active")),
         (STATE_SUSPENDED, _("Suspendue")),
+        (STATE_REVOKED, _("Révoquée")),
     ]
 
     #: Axe A5, dernier reglage : « comportement au-dela : mise en attente
@@ -457,6 +466,20 @@ class FlwLink(BaseModel):
     # Motif de suspension : une liaison coupee sans raison ecrite est une
     # panne dont personne ne retrouve la cause trois semaines plus tard.
     suspended_reason = models.TextField(blank=True)
+    # T9 (CON-3) — la revocation est un FAIT DATE, avec son auteur et son
+    # motif. Meme raisonnement que `FlwApiKey.revoked_at` : savoir qu'une
+    # liaison a ete revoquee le 12 a 14 h est ce qui permet de dire si un
+    # echange du 12 a 13 h etait legitime. Un simple changement d'etat
+    # efface cette question.
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="revoked_flow_links",
+    )
+    revoked_reason = models.TextField(blank=True)
     settings = models.JSONField(default=dict, blank=True)
 
     # --- Axe A5 du cahier (§4.3) : la politique d'echec, reglee par le
@@ -530,6 +553,67 @@ class FlwLink(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class FlwConsent(BaseModel):
+    """T9 (CON-2, §9.1) — le consentement de sortie d'une liaison.
+
+    « Aucun connecteur n'est actif par defaut. Son activation est une
+    decision explicite, par tenant, prise sur un ecran qui affiche EN CLAIR,
+    AVANT VALIDATION, quatre informations : quelles categories de donnees
+    sortiront, vers quel tiers, dans quel pays, pour quelle duree de
+    conservation connue. »
+
+    **Pourquoi un modele et pas seulement une ligne de journal d'audit.**
+    Le critere dit « la decision est journalisee avec son auteur », et le
+    journal d'audit enregistre deja toute ecriture. Mais un consentement
+    doit etre RELU : par l'exploitant qui veut savoir ce qu'il a accepte,
+    par la revocation qui doit dire ce qu'elle coupe, et par le client qui
+    part avec son export de garantie de sortie. Une entree de journal
+    d'audit n'est pas consultable comme telle depuis l'ecran d'une liaison.
+
+    **Les quatre informations sont FIGEES a l'acceptation, pas relues.**
+    C'est le point qui a demande le plus de reflexion, et le cahier tranche
+    dans l'autre sens de ce qu'on ferait spontanement. Deriver les
+    categories a l'affichage est ce que le §10.2 exige — « le texte des
+    categories est genere depuis la declaration de l'adaptateur, jamais
+    redige a la main, sinon il devient faux a la premiere evolution ». Mais
+    ce qui a ete CONSENTI, lui, ne doit pas changer sous les pieds de celui
+    qui a consenti : si une correspondance ajoutee demain fait sortir une
+    categorie de plus, le consentement d'hier ne la couvre pas. Les deux
+    exigences ne s'opposent donc pas — la derivation sert l'ECRAN, le gel
+    sert la PREUVE — et l'ecart entre les deux est precisement ce qu'un
+    exploitant doit voir avant de reconsentir.
+
+    **Pas de `revoked_at` ici.** La revocation vit sur la LIAISON (CON-3) :
+    c'est elle qu'on coupe, et un consentement revoque reste ce qu'il etait
+    au moment ou il a ete donne. Dater la revocation ici ferait de la preuve
+    un etat courant."""
+
+    link = models.ForeignKey(FlwLink, on_delete=models.CASCADE, related_name="consents")
+    # Les quatre informations du §9.1, figees. `categories` porte des CODES
+    # de `core.services.outbound_schemas.CATEGORIES` — jamais des libelles,
+    # qui sont traduisibles et changeraient de langue d'une relecture a
+    # l'autre.
+    categories = models.JSONField(default=list, blank=True)
+    third_party = models.CharField(max_length=150)
+    country_code = models.CharField(max_length=2, blank=True)
+    retention_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    # L'auteur de la decision. PROTECT : supprimer le compte de celui qui a
+    # consenti effacerait la reponse a « qui a accepte que ces donnees
+    # sortent ? », c'est-a-dire toute la valeur de l'enregistrement.
+    granted_by = models.ForeignKey(
+        "core.User", on_delete=models.PROTECT, related_name="flow_consents"
+    )
+    granted_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "flw_consent"
+        ordering = ["-granted_at"]
+        indexes = [models.Index(fields=["link", "-granted_at"])]
+
+    def __str__(self) -> str:
+        return f"consentement {self.link_id} ({self.granted_at:%Y-%m-%d})"
 
 
 class FlwMapping(BaseModel):

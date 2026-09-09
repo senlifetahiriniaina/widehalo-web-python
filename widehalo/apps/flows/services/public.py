@@ -26,7 +26,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.utils.translation import gettext as _
 
 from apps.flows.exchange_display import WAITING_STATES, badge_class_for_state
 from apps.flows.models import FlwExchange, FlwLink
@@ -349,7 +351,24 @@ def activate_link(tenant: Tenant, *, connector_code: str) -> bool:
     active ou n'existe pas. Une liaison deja active n'est pas une erreur :
     rejouer la file d'un raccordement deja ouvert est exactement ce qu'on
     veut pouvoir faire apres un incident, et refuser obligerait a
-    suspendre puis rouvrir pour rattraper un retard."""
+    suspendre puis rouvrir pour rattraper un retard.
+
+    **T9 — deux refus s'ajoutent ici, et nulle part ailleurs.** C'est le
+    SEUL chemin d'activation du depot : une garde posee sur un ecran se
+    contournerait en appelant cette fonction, et deux gardes a deux endroits
+    divergeraient au premier correctif.
+
+    - CON-2 : sans consentement de sortie enregistre, l'activation est
+      refusee. « Aucun connecteur n'est actif par defaut. Son activation est
+      une decision explicite » (§9.1).
+    - §15.2 : sans plafond defini, un connecteur du regime **a l'usage** ne
+      s'active pas. « Plafond obligatoire avant activation. »
+
+    Un refus leve `ValidationError` plutot que de rendre `False` : `False`
+    signifie deja « rien a faire », et confondre « c'etait deja ouvert »
+    avec « on refuse de l'ouvrir » ferait echouer une activation en
+    silence.
+    """
     link = (
         FlwLink.objects.filter(tenant=tenant, connector__code=connector_code)
         .exclude(state=FlwLink.STATE_ACTIVE)
@@ -357,9 +376,53 @@ def activate_link(tenant: Tenant, *, connector_code: str) -> bool:
     )
     if link is None:
         return False
+
+    _refuse_activation_without_governance(link)
+
     link.state = FlwLink.STATE_ACTIVE
     link.save(update_fields=["state"])
     return True
+
+
+def _refuse_activation_without_governance(link: FlwLink) -> None:
+    """Les deux conditions d'ouverture, nommees dans le refus.
+
+    Nommer ce qui manque plutot que refuser sec : un exploitant qui lit
+    « activation refusee » sans savoir quoi corriger appelle le support."""
+    from apps.flows.pricing_regimes import requires_a_cap
+    from apps.flows.services.consent import current_consent
+
+    connector = link.connector
+
+    if not connector.pricing_regime:
+        raise ValidationError(
+            _(
+                "Le connecteur « %(code)s » ne declare pas son regime tarifaire. "
+                "Sans lui, le produit ne peut ni exiger le plafond la ou le "
+                "cahier l'impose, ni s'en dispenser la ou il ne sert a rien."
+            )
+            % {"code": connector.code}
+        )
+
+    if current_consent(link) is None:
+        raise ValidationError(
+            _(
+                "Aucun consentement de sortie n'a ete enregistre pour la liaison "
+                "« %(name)s ». L'activation d'un connecteur est une decision "
+                "explicite, prise apres affichage des donnees qui sortiront, du "
+                "tiers, du pays et de la duree de conservation."
+            )
+            % {"name": link.name}
+        )
+
+    if requires_a_cap(connector.pricing_regime) and link.monthly_cost_cap_ariary is None:
+        raise ValidationError(
+            _(
+                "Le connecteur « %(code)s » est facture a l'usage : un plafond "
+                "mensuel doit etre defini sur la liaison avant son activation."
+            )
+            % {"code": connector.code}
+        )
 
 
 def initiate_payment(
