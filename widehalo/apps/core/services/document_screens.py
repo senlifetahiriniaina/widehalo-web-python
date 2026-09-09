@@ -68,14 +68,14 @@ class DocumentScreen:
     def __post_init__(self) -> None:
         if self.code.count(".") != 1 or not all(self.code.split(".")):
             raise ValidationError(
-                _("Le code d'une piece s'ecrit « app.Modele » — recu « %(code)s ».")
+                _("Le code d'une pièce s'écrit « app.Modele » — reçu « %(code)s ».")
                 % {"code": self.code}
             )
         if ":" not in self.url_name:
             raise ValidationError(
                 _(
-                    "« %(url)s » n'est pas une route nommee d'application "
-                    "(« app:nom ») : le journal ne pourrait pas la resoudre."
+                    "« %(url)s » n'est pas une route nommée d'application "
+                    "(« app:nom ») : le journal ne pourrait pas la résoudre."
                 )
                 % {"url": self.url_name}
             )
@@ -95,9 +95,9 @@ def register_document_screen(screen: DocumentScreen) -> None:
     if existant is not None and existant != screen:
         raise ValidationError(
             _(
-                "La piece « %(code)s » est deja rattachee a « %(vieux)s » ; "
+                "La pièce « %(code)s » est déjà rattachée à « %(vieux)s » ; "
                 "« %(neuf)s » la rattacherait ailleurs. Le lien du journal "
-                "dependrait alors de l'ordre de chargement des applications."
+                "dépendrait alors de l'ordre de chargement des applications."
             )
             % {"code": screen.code, "vieux": existant.url_name, "neuf": screen.url_name}
         )
