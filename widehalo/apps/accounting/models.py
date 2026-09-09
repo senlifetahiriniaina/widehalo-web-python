@@ -1613,6 +1613,17 @@ class AccBankStatementLine(BaseModel):
 
     bank_account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
     import_batch_id = models.UUIDField()
+    # T6 (BNK-1) : l'empreinte du RELEVE dont cette ligne vient, partagee
+    # par tout le lot. C'est elle qui repond a « ce releve a-t-il deja ete
+    # charge ? » — question qu'aucun champ ne permettait de poser, chaque
+    # import generant un `import_batch_id` neuf.
+    #
+    # Calculee sur le contenu normalise et trie (cf.
+    # `services/bank_reconciliation.py::_statement_fingerprint`), jamais
+    # sur les octets : une banque qui re-exporte le meme releve change
+    # volontiers l'ordre des colonnes ou la casse d'un libelle sans
+    # qu'aucune operation n'ait bouge.
+    import_fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
     statement_date = models.DateField()
     reference_external = models.CharField(max_length=100, blank=True)
     label = models.CharField(max_length=255, blank=True)
@@ -1623,6 +1634,30 @@ class AccBankStatementLine(BaseModel):
         AccMoveLine, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_UNMATCHED)
+    # T6 (BNK-3) : « le moteur produit des propositions HORODATEES avec un
+    # NIVEAU DE CONFIANCE ». Les deux mots du critere que le moteur ne
+    # portait pas, et ils ne disent pas la meme chose.
+    #
+    # `suggested_at` : sans lui, on ne sait pas si une proposition precede
+    # la derniere ecriture passee sur le compte — donc si elle vaut encore.
+    # Une proposition d'il y a trois semaines sur un compte mouvemente
+    # chaque jour n'est pas une proposition, c'est un souvenir.
+    suggested_at = models.DateTimeField(null=True, blank=True)
+    # `match_confidence` : une correspondance sur le seul montant et une
+    # correspondance sur montant + reference + tiers se presentaient
+    # exactement pareil. L'exploitant confirmait donc les deux du meme
+    # geste, ce qui vide la confirmation humaine de son sens.
+    match_confidence = models.PositiveSmallIntegerField(default=0)
+    # La regle qui a propose. Sans elle, une proposition douteuse ne
+    # designe pas la regle a corriger — et c'est la seule action utile
+    # quand une regle propose mal de facon repetee.
+    matched_by_rule = models.ForeignKey(
+        "accounting.AccReconcileRule",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="suggestions",
+    )
 
     class Meta:
         db_table = "acc_bank_statement_line"
@@ -1633,6 +1668,120 @@ class AccBankStatementLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.statement_date} — {self.reference_external} ({self.amount_mga})"
+
+
+class AccTransferOrder(BaseModel, ReferenceMixin):
+    """T6 (bloc E, BNK-4) — l'ordre de virement, et ce qu'il devient.
+
+    **Le critere** : « un ordre de virement exporte est RATTACHE AUX PIECES
+    QU'IL REGLE, et son ETAT DE REMISE est SUIVI JUSQU'AU RAPPROCHEMENT DU
+    DEBIT correspondant ». Trois exigences, et la mesure dit qu'aucune
+    n'etait tenue : rien de tel n'existait. `payroll` produisait un fichier
+    de virement — une chaine de caracteres, rendue a l'appelant, rattachee
+    a rien et suivie par personne.
+
+    **Ce que l'absence coutait.** Un fichier remis a la banque et jamais
+    execute ne se voyait qu'au moment ou un salarie signalait ne pas avoir
+    ete paye. Entre les deux, aucun ecran ne pouvait montrer « remis le 3,
+    toujours pas debite » — parce qu'aucune donnee ne le portait.
+
+    **Les quatre etats, et pourquoi chacun existe.** `brouillon` : l'ordre
+    se compose. `exporte` : le fichier a ete produit ; a partir de la son
+    contenu ne bouge plus, sans quoi la banque et nous n'aurions plus le
+    meme ordre. `remis` : un humain atteste l'avoir depose — la banque ne
+    nous le dit pas, et l'inventer serait une affirmation sans source.
+    `rapproche` : le debit correspondant est apparu au releve, seule preuve
+    que l'argent est parti.
+
+    **`statement_line` est la fin du parcours**, et c'est ce que « jusqu'au
+    rapprochement du debit » designe. Tant qu'elle est nulle, l'ordre est
+    en vol."""
+
+    STATE_DRAFT = "brouillon"
+    STATE_EXPORTED = "exporte"
+    STATE_REMITTED = "remis"
+    STATE_RECONCILED = "rapproche"
+    STATE_CHOICES = [
+        (STATE_DRAFT, "Brouillon"),
+        (STATE_EXPORTED, "Exporte"),
+        (STATE_REMITTED, "Remis a la banque"),
+        (STATE_RECONCILED, "Rapproche du debit"),
+    ]
+
+    #: D'ou vient l'ordre. Jamais une cle etrangere vers `payroll` ou
+    #: `purchase` : la regle de couplage n°1 l'interdit, et un ordre de
+    #: virement de paie n'est pas un objet de paie — c'est un mouvement
+    #: d'argent, qui appartient a la comptabilite.
+    ORIGIN_PAYROLL = "paie"
+    ORIGIN_PURCHASE = "achats"
+    ORIGIN_MANUAL = "saisie"
+    ORIGIN_CHOICES = [
+        (ORIGIN_PAYROLL, "Paie"),
+        (ORIGIN_PURCHASE, "Achats"),
+        (ORIGIN_MANUAL, "Saisie manuelle"),
+    ]
+
+    bank_account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
+    origin = models.CharField(max_length=16, choices=ORIGIN_CHOICES, default=ORIGIN_MANUAL)
+    execution_date = models.DateField()
+    total_amount = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+    currency = models.CharField(max_length=3, default="MGA")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
+    exported_at = models.DateTimeField(null=True, blank=True)
+    remitted_at = models.DateTimeField(null=True, blank=True)
+    statement_line = models.ForeignKey(
+        "accounting.AccBankStatementLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transfer_orders",
+    )
+
+    class Meta:
+        db_table = "acc_transfer_order"
+        indexes = [models.Index(fields=["state", "execution_date"])]
+
+    def __str__(self) -> str:
+        return f"{self.reference or self.id} — {self.total_amount} {self.currency}"
+
+    @property
+    def is_in_flight(self) -> bool:
+        """Remis a la banque, et le debit n'est pas encore apparu.
+
+        C'est la question que BNK-4 fait poser, et le seul etat ou une
+        alerte a du sens : un ordre exporte mais jamais remis n'attend que
+        nous, un ordre rapproche est clos."""
+        return self.state == self.STATE_REMITTED
+
+
+class AccTransferOrderLine(BaseModel):
+    """Une ligne d'ordre : un beneficiaire, un montant, et LA PIECE REGLEE.
+
+    **`document_type` / `document_id` tiennent la premiere moitie du
+    critere** — « rattache aux pieces qu'il regle ». Designation opaque,
+    meme convention que `FlwExchange` et `AccPaymentIntent` : un ordre de
+    paie regle des bulletins (`payroll.PayPayslip`), un ordre d'achats des
+    factures fournisseur (`accounting.AccMove`), et `accounting` n'a pas le
+    droit d'importer `payroll`.
+
+    **`beneficiary_label` porte un NOM, jamais une rubrique** (BNK-5) : ce
+    modele est ce qui sera exporte, et ce qui n'y figure pas ne peut pas
+    fuir."""
+
+    order = models.ForeignKey(AccTransferOrder, on_delete=models.CASCADE, related_name="lines")
+    document_type = models.CharField(max_length=64)
+    document_id = models.UUIDField()
+    beneficiary_label = models.CharField(max_length=150)
+    beneficiary_account = models.CharField(max_length=64, blank=True)
+    amount = models.DecimalField(max_digits=18, decimal_places=4)
+    reference = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        db_table = "acc_transfer_order_line"
+        indexes = [models.Index(fields=["document_type", "document_id"])]
+
+    def __str__(self) -> str:
+        return f"{self.beneficiary_label} — {self.amount}"
 
 
 class AccReconcileRule(BaseModel, ReferenceMixin):

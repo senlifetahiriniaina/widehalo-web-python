@@ -1408,6 +1408,68 @@ def list_payments_for_warehouse(
     ]
 
 
+#: T6 (BNK-4) — les origines d'ordre de virement, exposées ICI et pas
+#: seulement sur le modèle. `payroll` doit pouvoir nommer la sienne sans
+#: importer `accounting.models`, ce que la règle de couplage n°1 interdit ;
+#: sans cette exposition il recopierait la chaîne, et deux chaînes recopiées
+#: finissent par diverger d'un caractère — après quoi un ordre de paie ne se
+#: retrouve plus dans un filtre par origine.
+TRANSFER_ORIGIN_PAYROLL = "paie"
+TRANSFER_ORIGIN_PURCHASE = "achats"
+TRANSFER_ORIGIN_MANUAL = "saisie"
+
+
+def record_transfer_order(
+    tenant: Tenant,
+    *,
+    bank_account_id: UUID,
+    execution_date: dt.date,
+    lines: list[dict[str, Any]],
+    origin: str,
+    currency: str = "MGA",
+) -> dict[str, Any] | None:
+    """T6 (BNK-4) — enregistre un ordre de virement, et rend son fichier.
+
+    **Le gap qui manquait, et il manquait des deux côtés.** `payroll` sait
+    produire un fichier de virement depuis PAY-VIR — mais **aucun appelant
+    de production ne l'invoque**, et le fichier produit n'était rattaché à
+    aucune pièce ni suivi par personne. BNK-4 exige les deux : « rattaché
+    aux pièces qu'il règle », « suivi jusqu'au rapprochement du débit ».
+
+    `lines` désigne les pièces réglées par un couple opaque
+    (`document_type`, `document_id`) — un bulletin de paie, une facture
+    fournisseur. `accounting` n'a pas le droit d'importer `payroll`, et
+    n'en a pas besoin : il transporte la désignation et la rend.
+
+    Rend `None` si le compte bancaire est introuvable, jamais une
+    exception : même discipline de « gap de configuration à la charge du
+    tenant » que le reste de cette surface."""
+    from apps.accounting.services.transfer_orders import (
+        create_transfer_order,
+        export_transfer_order,
+    )
+
+    bank_account = AccAccount.objects.filter(id=bank_account_id).first()
+    if bank_account is None:
+        return None
+
+    ordre = create_transfer_order(
+        tenant,
+        bank_account=bank_account,
+        execution_date=execution_date,
+        lines=lines,
+        origin=origin,
+        currency=currency,
+    )
+    return {
+        "order_id": ordre.id,
+        "reference": ordre.reference,
+        "state": ordre.state,
+        "total_amount": ordre.total_amount,
+        "file": export_transfer_order(ordre),
+    }
+
+
 def list_payment_notifications_for_warehouse(
     tenant: Tenant, *, updated_since: Any = None
 ) -> list[dict[str, Any]]:

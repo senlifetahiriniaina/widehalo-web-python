@@ -7,6 +7,7 @@ direction/admin voient tout ; les roles "manager" (`resp_production`/
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from decimal import Decimal
 from typing import Any
@@ -46,6 +47,7 @@ from apps.payroll.services.payslip import compute_payslip
 from apps.payroll.services.pdf import payslip_pdf
 from apps.payroll.services.periods import close_period, compute_period, mark_period_paid
 from apps.payroll.services.periods import create_period as create_period_service
+from apps.payroll.services.transfer_orders import emit_payroll_transfer_order
 
 router = Router(tags=["payroll"])
 
@@ -334,6 +336,62 @@ def acknowledge_anomaly_endpoint(
     except ValidationError as exc:
         return _error_response(exc)
     return {"acknowledged": True}
+
+
+class TransferOrderIn(Schema):
+    """Ce qu'il faut pour émettre un ordre de virement de paie.
+
+    `coordinates_by_employee` est fourni PAR L'APPELANT, comme les
+    générateurs de fichier le faisaient déjà : aucun module du dépôt ne
+    porte le numéro mobile money ni l'IBAN d'un salarié (réserve écrite
+    depuis PAY-MM1). C'est un écart assumé, pas un oubli, et le déplacer
+    ici ne le corrigerait pas."""
+
+    bank_account_id: uuid.UUID
+    method: str
+    coordinates_by_employee: dict[str, str] = {}  # noqa: RUF012 - schéma ninja, jamais mutée.
+    execution_date: dt.date | None = None
+
+
+@router.post("/payroll/batches/{batch_id}/transfer-order")
+@require_permission("payroll.change_paybatch")
+def emit_transfer_order_endpoint(
+    request: Any, batch_id: uuid.UUID, payload: TransferOrderIn
+) -> dict[str, Any] | JsonResponse:
+    """T6 (BNK-4) — émet l'ordre de virement du lot, et rend son fichier.
+
+    **Ce point d'entrée n'existait pas, et son absence rendait la paie
+    impayable.** `services/mobile_money.py` produisait un fichier de
+    virement depuis PAY-VIR/PAY-MM1, mais AUCUN appelant de production ne
+    l'invoquait : ni vue, ni API, ni commande. La fonctionnalité était
+    écrite, documentée, testée — et inatteignable depuis l'application.
+
+    BNK-4 rend cela bloquant : « un ordre de virement **exporté** est
+    rattaché aux pièces qu'il règle, et son état de remise est suivi
+    jusqu'au rapprochement du débit correspondant » suppose qu'exporter
+    soit possible.
+
+    Le fichier rendu ne porte que bénéficiaire, compte, montant et
+    référence (BNK-5) : ce qui n'est pas dans l'ordre ne peut pas en
+    sortir."""
+    batch = get_object_or_404(PayBatch, id=batch_id)
+    try:
+        resultat = emit_payroll_transfer_order(
+            batch,
+            bank_account_id=payload.bank_account_id,
+            method=payload.method,
+            coordinates_by_employee=payload.coordinates_by_employee,
+            execution_date=payload.execution_date,
+        )
+    except ValidationError as exc:
+        return _error_response(exc)
+    return {
+        "order_id": str(resultat["order_id"]),
+        "reference": resultat["reference"],
+        "state": resultat["state"],
+        "total_amount": str(resultat["total_amount"]),
+        "file": resultat["file"],
+    }
 
 
 @router.post("/payroll/periods/{period_id}/pay")

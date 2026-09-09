@@ -120,6 +120,7 @@ from apps.accounting.services.reports import (
 )
 from apps.accounting.services.tax_calendar import create_tax_calendar_entry
 from apps.accounting.services.tax_returns import generate_liasse_ir, generate_liasse_is
+from apps.accounting.services.transfer_orders import orders_in_flight
 from apps.accounting.services.vat_declaration import (
     build_vat_declaration,
     declaration_for,
@@ -1502,6 +1503,45 @@ def _serialize_bank_statement_line(line: AccBankStatementLine) -> dict:
             str(line.matched_move_line_id) if line.matched_move_line_id else None
         ),
         "state": line.state,
+        # T6 (BNK-3) : « des propositions HORODATEES avec un NIVEAU DE
+        # CONFIANCE ». Les poser sur le modele sans les exposer ici les
+        # aurait rendus illisibles — un champ qu'aucune surface ne rend est
+        # un champ que personne ne lit, et le critere demande justement que
+        # l'exploitant VOIE la difference entre une correspondance sur le
+        # seul montant et une correspondance sur les trois conditions.
+        "suggested_at": line.suggested_at.isoformat() if line.suggested_at else None,
+        "match_confidence": line.match_confidence,
+        "matched_by_rule_id": (str(line.matched_by_rule_id) if line.matched_by_rule_id else None),
+    }
+
+
+@router.get("/accounting/transfer-orders/in-flight")
+@require_permission("accounting.view_accbankstatementline")
+def transfer_orders_in_flight_endpoint(request):
+    """T6 (BNK-4) — les ordres remis dont le debit n'est pas encore apparu.
+
+    **C'est la question que le critere fait poser**, et la seule ou une
+    alerte a du sens : un ordre exporte mais jamais remis attend un geste de
+    notre cote, un ordre rapproche est clos. Entre les deux, l'argent est
+    cense etre parti et ne se voit nulle part — c'est la qu'un suivi sert,
+    et c'est ce que « suivi jusqu'au rapprochement du debit » demande.
+
+    Sans ce point d'entree, `orders_in_flight` n'aurait aucun appelant : le
+    suivi existerait en base et nulle part ailleurs."""
+    tenant = Tenant.objects.get(id=request.headers.get("X-Tenant-Id"))
+    return {
+        "results": [
+            {
+                "id": str(ordre.id),
+                "reference": ordre.reference,
+                "origin": ordre.origin,
+                "execution_date": ordre.execution_date.isoformat(),
+                "total_amount": str(ordre.total_amount),
+                "currency": ordre.currency,
+                "remitted_at": ordre.remitted_at.isoformat() if ordre.remitted_at else None,
+            }
+            for ordre in orders_in_flight(tenant)
+        ]
     }
 
 
@@ -1547,13 +1587,35 @@ def import_bank_statement_endpoint(
     """Import multipart d'un relevé bancaire CSV (colonnes
     `date`/`reference`/`label`/`amount`/`direction`, format placeholder
     documente sur `services/bank_reconciliation.py`). Meme idiome multipart
-    que `import_mobile_money_endpoint`/`apps.chat.api.create_message`."""
+    que `import_mobile_money_endpoint`/`apps.chat.api.create_message`.
+
+    **Rend le RAPPORT de chargement, jamais la seule liste des lignes
+    entrees (T6, BNK-2).** « Une ligne en anomalie est isolee dans un
+    rapport de chargement exploitable » : renvoyer les seules lignes
+    chargees laisserait l'appelant croire que le fichier ne portait que
+    celles-la. Les lignes rejetees et les doublons ecartes partent donc
+    avec leur numero de ligne et leur motif.
+
+    Le 400 ne subsiste que pour un refus qui porte sur le COMPTE — un
+    compte qui n'est pas un compte de banque —, jamais sur le contenu du
+    fichier : une anomalie de contenu est desormais un resultat, pas une
+    erreur."""
     bank_account = get_object_or_404(AccAccount, id=bank_account_id)
     try:
-        lines = import_bank_statement(bank_account, statement.read())
+        report = import_bank_statement(bank_account, statement.read())
     except ValidationError as exc:
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
-    return {"results": [_serialize_bank_statement_line(line) for line in lines]}
+    return {
+        "results": [_serialize_bank_statement_line(line) for line in report.lines],
+        "already_imported": report.already_imported,
+        "rejected": [
+            {"line_number": rejet.line_number, "reason": rejet.reason} for rejet in report.rejected
+        ],
+        "duplicates": [
+            {"line_number": doublon.line_number, "reason": doublon.reason}
+            for doublon in report.duplicates
+        ],
+    }
 
 
 @router.post("/accounting/bank-reconciliation/{bank_account_id}/suggest-matches")

@@ -23,6 +23,9 @@ class AccountingConfig(AppConfig):
             register_payment_subscribers,
         )
         from apps.accounting.services.reports_registration import register_reports
+        from apps.accounting.services.transfer_orders import (
+            _assert_origin_vocabulary_matches,
+        )
 
         register_reports()
         # AI2 (assistant contextuel par page/action) : meme patron, registre
@@ -49,3 +52,12 @@ class AccountingConfig(AppConfig):
         # arrivait, etait tracee, et ne produisait rien — le hub publie,
         # mais personne n'ecoutait.
         register_payment_subscribers()
+        # T6 (bloc E, BNK-4) : les origines d'ordre de virement sont
+        # declarees a DEUX endroits — sur le modele, qui les stocke, et sur
+        # `services/public.py`, que `payroll` lit sans avoir le droit
+        # d'importer `accounting.models`. Deux vocabulaires pour la meme
+        # notion ne se contredisent jamais bruyamment : ils divergent d'une
+        # valeur, et un ordre de paie cesse d'apparaitre dans le filtre par
+        # origine. La verification a la construction transforme cette
+        # divergence silencieuse en refus de demarrage.
+        _assert_origin_vocabulary_matches()

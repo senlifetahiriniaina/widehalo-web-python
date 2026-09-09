@@ -81,10 +81,22 @@ _SAMPLE_CSV = (
 )
 
 
+def _lignes_importees(bank_account, csv_bytes):
+    """Les lignes RETENUES par un chargement.
+
+    T6 a changé la sortie de `import_bank_statement` : elle rend désormais
+    un rapport (lignes chargées, lignes rejetées, doublons écartés), parce
+    que BNK-2 exige qu'une ligne fautive soit isolée plutôt que de faire
+    échouer le lot. Ces tests-ci ne parlent que des lignes retenues ; ce
+    raccourci les garde lisibles sans leur faire ignorer le reste du
+    rapport, que `test_t6_releve_bancaire.py` vérifie pour sa part."""
+    return import_bank_statement(bank_account, csv_bytes).lines
+
+
 def test_import_bank_statement_creates_unmatched_lines(bare_ledger) -> None:
     tenant, _fiscal_year, _period, _journal, bank = bare_ledger
     with use_tenant(tenant.id):
-        lines = import_bank_statement(bank, _SAMPLE_CSV)
+        lines = import_bank_statement(bank, _SAMPLE_CSV).lines
 
         assert len(lines) == 2
         batch_ids = {line.import_batch_id for line in lines}
@@ -95,12 +107,29 @@ def test_import_bank_statement_creates_unmatched_lines(bare_ledger) -> None:
         assert all(line.bank_account_id == bank.id for line in lines)
 
 
-def test_import_bank_statement_rejects_an_invalid_direction(bare_ledger) -> None:
+def test_import_bank_statement_isolates_an_invalid_direction(bare_ledger) -> None:
+    """**Le comportement a changé au lot T6, et c'est le critère qui l'a
+    voulu.** Ce test exigeait auparavant une `ValidationError` : un sens de
+    transaction inconnu faisait échouer le lot entier. BNK-2 l'interdit —
+    « une ligne de relevé en anomalie n'interrompt pas le chargement du
+    lot ; elle est isolée dans un rapport de chargement exploitable ».
+
+    Le refus n'a pas disparu, il a changé de portée : il porte sur la
+    LIGNE, il la nomme, et le reste du relevé entre."""
     tenant, _fiscal_year, _period, _journal, bank = bare_ledger
     with use_tenant(tenant.id):
-        bad_csv = b"date,reference,label,amount,direction\n2026-02-01,VIR-1,X,5000,sideways\n"
-        with pytest.raises(ValidationError):
-            import_bank_statement(bank, bad_csv)
+        bad_csv = (
+            b"date,reference,label,amount,direction\n"
+            b"2026-02-01,VIR-1,X,5000,sideways\n"
+            b"2026-02-02,VIR-2,Y,3000,in\n"
+        )
+        report = import_bank_statement(bank, bad_csv)
+
+        assert len(report.lines) == 1
+        assert report.lines[0].reference_external == "VIR-2"
+        assert len(report.rejected) == 1
+        assert report.rejected[0].line_number == 2
+        assert "sideways" in report.rejected[0].reason
 
 
 def test_import_bank_statement_rejects_a_non_bank_account(bare_ledger) -> None:
@@ -136,7 +165,7 @@ def test_amount_only_rule_never_guesses_between_two_equal_amount_candidates(bare
         post_bank_line("Virement client Rakoto")
         post_bank_line("Virement client Rabe")
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank,
             b"date,reference,label,amount,direction\n"
             b"2026-02-01,VIR-1,Virement client Rakoto,5000,in\n",
@@ -173,7 +202,7 @@ def test_adding_match_on_reference_resolves_the_ambiguity(bare_ledger) -> None:
         target_line = post_bank_line("Virement client Rakoto")
         post_bank_line("Virement client Rabe")
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank, b"date,reference,label,amount,direction\n2026-02-01,Rakoto,Virement,5000,in\n"
         )
 
@@ -211,7 +240,7 @@ def test_priority_tries_next_rule_when_the_first_rule_is_ambiguous(bare_ledger) 
         target_line = post_bank_line("Virement client Rakoto")
         post_bank_line("Virement client Rabe")
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank, b"date,reference,label,amount,direction\n2026-02-01,Rakoto,Virement,5000,in\n"
         )
 
@@ -252,7 +281,7 @@ def test_global_rule_applies_to_a_bank_account_with_no_scope(bare_ledger) -> Non
         post_move(move)
         target_line = move.lines.get(account=bank)
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank,
             b"date,reference,label,amount,direction\n2026-02-01,VIR-3,Virement unique,3000,in\n",
         )
@@ -289,7 +318,7 @@ def test_confirm_reconciliation_requires_a_rule_suggestion_or_explicit_move_line
         post_move(move)
         target_line = move.lines.get(account=bank)
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank, b"date,reference,label,amount,direction\n2026-02-01,VIR-1,Virement,1000,in\n"
         )
 
@@ -314,7 +343,7 @@ def test_confirm_reconciliation_accepts_a_rule_suggested_line(bare_ledger) -> No
         add_line(move, account=equity, label="Contrepartie", credit=Decimal("1000"))
         post_move(move)
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank, b"date,reference,label,amount,direction\n2026-02-01,VIR-1,Virement,1000,in\n"
         )
         AccReconcileRule.objects.create(tenant=tenant, name="Montant seul", match_on_amount=True)
@@ -341,7 +370,7 @@ def test_manual_match_without_any_rule(bare_ledger) -> None:
         post_move(move)
         target_line = move.lines.get(account=bank)
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank,
             b"date,reference,label,amount,direction\n2026-02-01,VIR-X,Sans rapport,777,in\n",
         )
@@ -378,7 +407,7 @@ def test_partner_matching_with_partner_id(bare_ledger) -> None:
         post_bank_line(partner_a)
         target_line = post_bank_line(partner_b)
 
-        (statement_line,) = import_bank_statement(
+        (statement_line,) = _lignes_importees(
             bank, b"date,reference,label,amount,direction\n2026-02-01,VIR-1,Virement,4000,in\n"
         )
         statement_line.partner_id = partner_b
@@ -411,7 +440,7 @@ def test_already_reconciled_move_lines_are_not_offered_as_candidates(bare_ledger
         post_move(move)
         target_line = move.lines.get(account=bank)
 
-        lines = import_bank_statement(
+        lines = _lignes_importees(
             bank,
             b"date,reference,label,amount,direction\n"
             b"2026-02-01,VIR-1,Virement,1500,in\n"

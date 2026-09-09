@@ -66,6 +66,8 @@ from apps.accounting.models import (
     AccTax,
     AccTaxCalendar,
     AccTenantDefaultAccount,
+    AccTransferOrder,
+    AccTransferOrderLine,
     AccVatDeclaration,
     AccVatDeclarationLine,
 )
@@ -613,3 +615,41 @@ class AccAggregatorPayoutFactory(factory.django.DjangoModelFactory):
     fee_amount = Decimal("20.0000")
     net_amount = Decimal("980.0000")
     currency = "MGA"
+
+
+class AccTransferOrderFactory(factory.django.DjangoModelFactory):
+    """T6 (BNK-4) — l'ordre de virement.
+
+    `state` vaut BROUILLON par defaut, qui est l'etat de naissance reel : un
+    ordre nait en composition, et c'est l'export qui le fige. Le poser
+    « remis » par defaut ferait passer pour la mauvaise raison tout test
+    parlant du suivi de remise."""
+
+    class Meta:
+        model = AccTransferOrder
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    bank_account = factory.SubFactory(AccAccountFactory, tenant=factory.SelfAttribute("..tenant"))
+    origin = AccTransferOrder.ORIGIN_MANUAL
+    execution_date = factory.LazyFunction(lambda: datetime.date(2026, 1, 31))
+    total_amount = Decimal("1000.0000")
+    currency = "MGA"
+    state = AccTransferOrder.STATE_DRAFT
+
+
+class AccTransferOrderLineFactory(factory.django.DjangoModelFactory):
+    """Une ligne d'ordre, avec la piece qu'elle regle.
+
+    La piece est designee de facon OPAQUE (`document_type` + `document_id`),
+    jamais par une cle etrangere : un ordre de paie regle des bulletins, et
+    `accounting` n'a pas le droit d'importer `payroll`."""
+
+    class Meta:
+        model = AccTransferOrderLine
+
+    tenant = factory.SubFactory("apps.core.tests.factories.TenantFactory")
+    order = factory.SubFactory(AccTransferOrderFactory, tenant=factory.SelfAttribute("..tenant"))
+    document_type = "payroll.PayPayslip"
+    document_id = factory.LazyFunction(uuid.uuid4)
+    beneficiary_label = factory.Sequence(lambda n: f"Beneficiaire {n}")
+    amount = Decimal("1000.0000")
