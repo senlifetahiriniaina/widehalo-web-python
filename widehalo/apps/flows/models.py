@@ -255,8 +255,13 @@ class FlwCredential(BaseModel):
     distinctes et aucune ne se deduit des autres :
 
     - *table a part*, pour que le droit de lire une liaison ne donne pas le
-      droit de lire son secret, et pour qu'un export de configuration
-      n'emporte pas les identifiants ;
+      droit de lire son secret. **La table a part ne suffisait pas** a tenir
+      la seconde moitie de la promesse : `tenant_export.
+      export_tenant_archive` parcourt TOUTE sous-classe concrete de
+      `BaseModel`, et `EncryptedCharField` dechiffre a la lecture — le clair
+      partait donc dans l'archive de garantie de sortie (mesure du lot T8).
+      C'est desormais `core.services.secret_redaction` qui tient
+      « jamais exportee », avec sa garde ;
     - *chiffree*, via `EncryptedCharField` (Fernet), deja employe pour
       `PrsEmployee.cin` et `PrsAbsence.reason` — l'audit relevait justement
       que `LogServiceProvider.webhook_secret` et `PrjGuestAccess.token`

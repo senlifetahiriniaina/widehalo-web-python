@@ -28,6 +28,7 @@ from apps.core.services.object_remap import (
     regenerate_secret_token_fields,
     remap_all_references,
 )
+from apps.core.services.secret_redaction import redact_secret_fields
 from apps.core.tenant_context import activate_tenant
 
 FORMAT_VERSION = 1
@@ -66,13 +67,25 @@ def export_tenant_archive(tenant: Tenant) -> bytes:
 
         with activate_tenant(tenant.id):
             for model in iter_concrete_basemodel_subclasses():
-                queryset = model.all_objects.filter(tenant=tenant)
-                if not queryset.exists():
+                rows = list(model.all_objects.filter(tenant=tenant))
+                if not rows:
                     continue
+
+                # CON-6 / §13.2 : l'archive n'emporte AUCUN identifiant
+                # d'acces a un tiers. La redaction se fait sur les instances
+                # deja chargees, en memoire, et n'est jamais sauvegardee —
+                # cf. `secret_redaction` pour les deux familles concernees et
+                # l'unique derogation.
+                #
+                # `list(...)` plutot que le queryset : le serialiseur doit
+                # recevoir les objets REDIGES, et un queryset les rechargerait
+                # depuis la base en les redechiffrant au passage.
+                for row in rows:
+                    redact_secret_fields(row)
 
                 content_type = ContentType.objects.get_for_model(model)
                 label = f"{content_type.app_label}.{content_type.model}"
-                data = serializers.serialize("json", queryset)
+                data = serializers.serialize("json", rows)
                 archive.writestr(f"data/{label}.json", data)
                 exported_labels.append(label)
 

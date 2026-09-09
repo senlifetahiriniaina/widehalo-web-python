@@ -48,6 +48,7 @@ from django.db.models import Field, ForeignKey, Model
 from apps.core.models.base import BaseModel
 from apps.core.models.tenant import Tenant
 from apps.core.services.object_remap import SECRET_TOKEN_FIELD_NAMES
+from apps.core.services.secret_redaction import secret_field_names
 from apps.core.services.tenant_export import export_tenant_archive, import_tenant_archive
 from apps.core.tests.utils import use_tenant
 
@@ -299,6 +300,19 @@ def _assert_field_matches(
         # representative isolee (pas de graphe de reference generique
         # construit dans le test), la valeur doit donc rester identique.
         assert getattr(imported, name) == getattr(original, name)
+        return
+
+    if name in secret_field_names(model):
+        # T8 (CON-6, §13.2 « jamais exportee ») : un secret d'acces a un
+        # tiers ne traverse PAS l'archive. Le tour complet doit donc le
+        # retrouver VIDE — et c'est une propriete a tenir, pas une exception
+        # a passer sous silence : un simple ajout a `_ALWAYS_SKIPPED_FIELDS`
+        # passerait aussi bien le jour ou la redaction serait retiree.
+        assert _normalize(getattr(imported, name)) in ("", None), (
+            f"{model.__name__}.{name} a traverse l'archive : le §13.2 dit "
+            f"« jamais exportee », et une archive se telecharge depuis un "
+            f"ecran d'administration."
+        )
         return
 
     # Champ scalaire "normal" (CharField, DecimalField, JSONField, dates,
