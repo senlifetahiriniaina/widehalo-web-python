@@ -740,16 +740,44 @@ def test_an_acceptance_without_an_identifier_produces_nothing(societe) -> None:
 
 def _liaison_fiscale(societe, *, active: bool):
     """Une liaison vers le connecteur fiscal, construite SOUS la société
-    active — `FlwLink` hérite de la RLS."""
+    active — `FlwLink` hérite de la RLS.
+
+    **T9 — le connecteur déclare son régime et la liaison porte un
+    consentement.** Depuis CON-2, `activate_link` refuse d'ouvrir un
+    raccordement sans consentement de sortie enregistré, et sans régime
+    tarifaire déclaré. Ce n'est pas une contrainte de test : c'est ce qu'un
+    exploitant fait sur la console avant d'ouvrir un canal vers
+    l'administration fiscale, et ce que le §9.1 exige — « aucun connecteur
+    n'est actif par défaut ».
+
+    Le régime retenu est l'ABONNEMENT DE MODULE, celui que le §15.1 attribue
+    nommément à la conformité e-facture : « le coût est un coût de veille et
+    d'entretien réglementaire, pas un coût par message ». Il n'exige donc
+    aucun plafond — le plafond n'est obligatoire que pour le régime à
+    l'usage."""
+    from apps.core.models.user import User
     from apps.flows.models import FlwLink
+    from apps.flows.pricing_regimes import REGIME_SUBSCRIPTION
+    from apps.flows.services.consent import record_consent
     from apps.flows.tests.factories import FlwConnectorFactory, FlwLinkFactory
 
-    connecteur = FlwConnectorFactory(tenant=societe, code=CONNECTOR_CODE)
-    return FlwLinkFactory(
+    connecteur = FlwConnectorFactory(
+        tenant=societe,
+        code=CONNECTOR_CODE,
+        country_code="MG",
+        pricing_regime=REGIME_SUBSCRIPTION,
+        retention_days=3650,
+    )
+    liaison = FlwLinkFactory(
         tenant=societe,
         connector=connecteur,
         state=FlwLink.STATE_ACTIVE if active else FlwLink.STATE_DRAFT,
     )
+    comptable, _cree = User.objects.get_or_create(
+        email="comptable-t4@example.com", defaults={"is_active": True}
+    )
+    record_consent(liaison, granted_by=comptable)
+    return liaison
 
 
 def test_opening_the_link_replays_what_was_waiting_in_chronological_order(societe) -> None:
