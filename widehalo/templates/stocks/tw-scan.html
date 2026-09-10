@@ -140,7 +140,6 @@
             </div>
           </div>
           <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le scan" %}</c-button>
-          <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
         </form>
 
         {% if recent_moves %}
@@ -197,7 +196,6 @@
           </div>
 
           <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le rangement" %}</c-button>
-          <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
         </form>
 
         {% if recent_putaways %}
@@ -215,6 +213,14 @@
       {% comment %} Reconciliation explicite (cahier §7.3) : les lignes rejetees restent
          visibles jusqu'a ce qu'un nouveau scan corrige reussisse — pas
          d'edition en ligne dans ce sprint, l'utilisateur rescanne. {% endcomment %}
+      {% comment %} Le retour visuel de STK-10, rendu UNE SEULE FOIS. `justScanned` est
+         un etat unique du composant ; le rendre dans chaque panneau produisait
+         plusieurs elements portant le meme texte — ce que le mode strict de
+         Playwright a refuse, a juste titre : un lecteur d'ecran aurait rencontre
+         la meme ambiguite. Place apres les panneaux, il suit immediatement le
+         bouton de validation du panneau actif, qui est seul visible. {% endcomment %}
+      <p x-show="justScanned" data-scan-feedback class="text-success font-semibold text-center text-lg" x-cloak>{% trans "✓ Enregistré" %}</p>
+
       {% if pending_arbitration %}
       <div class="rounded-box border border-error/40 bg-error/5 p-4">
         <h2 class="font-semibold text-error">{% trans "À traiter" %}</h2>
