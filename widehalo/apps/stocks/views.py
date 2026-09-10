@@ -29,6 +29,7 @@ seule la CIBLE du rendu final differe (toujours le meme fichier)."""
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -63,7 +64,6 @@ from apps.stocks.models import (
 )
 from apps.stocks.services import scan
 from apps.stocks.services.abc_classification import compute_abc_classification
-from apps.stocks.services.barcodes import lookup_by_barcode
 from apps.stocks.services.expiry_alerts import list_expiring_lots
 from apps.stocks.services.inventory import (
     add_inventory_line,
@@ -811,23 +811,6 @@ def abc_view(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_scanned_location(tenant: Tenant, raw: str) -> StkLocation | None:
-    """Un lecteur de codes-barres est vu comme un clavier — une valeur
-    scannee et une saisie manuelle du CODE produisent la meme chaine en
-    entree (cahier §9.1), donc la meme resolution ici : code-barres
-    (`services.barcodes.lookup_by_barcode`) d'abord, code d'emplacement
-    en repli — restreint aux emplacements INTERNES (un magasinier ne
-    receptionne jamais directement sur un emplacement virtuel)."""
-    if not raw:
-        return None
-    location = lookup_by_barcode(tenant, raw)
-    if location is not None:
-        return location
-    return StkLocation.objects.filter(
-        tenant=tenant, code=raw, type=StkLocation.TYPE_INTERNE, is_active=True
-    ).first()
-
-
 @login_required
 def scan_screen(request: HttpRequest) -> HttpResponse:
     """STK-9/STK-10 (Phase 3 §7.3/§13.1, sprint A6) : ecran magasinier
@@ -844,7 +827,7 @@ def scan_screen(request: HttpRequest) -> HttpResponse:
     warehouse_uuid = _uuid_or_none(warehouse_id)
 
     warehouses = StkWarehouse.objects.filter(tenant=tenant, is_active=True).order_by("code")
-    location_to = _resolve_scanned_location(tenant, location_scan)
+    location_to = scan.resolve_scanned_location(tenant, location_scan)
     suppliers = (
         StkLocation.objects.filter(
             tenant=tenant, warehouse_id=warehouse_uuid, type=StkLocation.TYPE_FOURNISSEUR
@@ -859,14 +842,51 @@ def scan_screen(request: HttpRequest) -> HttpResponse:
         if location_to is not None
         else StkMove.objects.none()
     )
+    # Le mode d'ouverture. La bascule elle-meme est CLIENTE (voir le
+    # gabarit) ; ce parametre ne sert qu'a l'acces direct et aux tests. Un
+    # mode non cable retombe sur la reception plutot que d'ouvrir un
+    # panneau vide.
+    mode = request.GET.get("mode", "")
+    if mode not in scan.SCAN_MODES_DISPONIBLES:
+        mode = scan.SCAN_MODE_RECEVOIR
+
+    libelles = {
+        scan.SCAN_MODE_RECEVOIR: _("Recevoir"),
+        scan.SCAN_MODE_RANGER: _("Ranger"),
+        scan.SCAN_MODE_PRELEVER: _("Prélever"),
+        scan.SCAN_MODE_COMPTER: _("Compter"),
+    }
+    modes = [
+        {
+            "cle": cle,
+            "libelle": libelles[cle],
+            "disponible": cle in scan.SCAN_MODES_DISPONIBLES,
+        }
+        for cle in scan.SCAN_MODES
+    ]
+
+    recent_putaways = StkMove.objects.filter(
+        tenant=tenant, move_type=StkMove.TYPE_TRANSFERT_INTERNE
+    ).order_by("-created_at")[:10]
+
     # Panneau "a traiter" (rejeu explicite, cahier §7.3) — les lignes
     # rejetees recentes du tenant, quel que soit l'emplacement, pour que
     # rien ne se perde meme si le magasinier a change de destination
     # entre-temps. Journalisees dans `AuditLog` (pas un modele stocks
     # dedie, cf. docstring `services.scan`) : `tenant_id` y est un UUID
     # simple (pas de FK Django), filtre donc sur `tenant.id`.
+    # `REJECTED_ACTIONS` plutot qu'un litteral : une action de scan ajoutee
+    # sans etre inscrite dans le tuple produirait des rejets que personne ne
+    # verrait, et la reconciliation explicite du §7.3 tomberait en silence.
+    #
+    # Borne a 24 h : le panneau montrait les dix derniers rejets du tenant
+    # sans limite de date, indefiniment — une ligne corrigee par un nouveau
+    # scan y restait. Avec plusieurs actions qui l'alimentent, il deviendrait
+    # du bruit en une journee, et un panneau d'arbitrage que l'on cesse de
+    # lire ne vaut pas mieux qu'un rejet silencieux.
+    depuis = timezone.now() - dt.timedelta(hours=24)
     pending_arbitration = AuditLog.objects.filter(
-        tenant_id=tenant.id, action=scan.ACTION_REJECTED
+        tenant_id=tenant.id, action__in=scan.REJECTED_ACTIONS, created_at__gte=depuis
     ).order_by("-created_at")[:10]
 
     return render(
@@ -879,10 +899,66 @@ def scan_screen(request: HttpRequest) -> HttpResponse:
             "location_to": location_to,
             "suppliers": suppliers,
             "recent_moves": recent_moves,
+            "recent_putaways": recent_putaways,
             "pending_arbitration": pending_arbitration,
+            "mode": mode,
+            "modes": modes,
             "today": timezone.now().date().isoformat(),
         },
     )
+
+
+@login_required
+def scan_putaway_submit(request: HttpRequest) -> HttpResponse:
+    """Ranger : POST ordinaire, comme la reception, et pour la meme raison.
+
+    Jamais `fetch` — c'est la condition pour que `offline_queue.js`
+    intercepte la soumission hors ligne sans une ligne de JS propre a cet
+    ecran (cahier §7.3, protocole POS reutilise).
+
+    **Les emplacements sont lus en CODE, pas en identifiant**, et resolus
+    par le service au moment du rejeu : un rangement change d'etagere a
+    chaque palette, et la tablette hors ligne n'a rien pour resoudre un
+    code. Un code introuvable devient un rejet journalise qui reparait
+    dans « a traiter » plutot qu'une ligne perdue.
+
+    Redirige TOUJOURS vers l'ecran, succes comme echec, et EN MODE
+    « ranger » — renvoyer le magasinier sur la reception apres chaque
+    palette lui ferait rebasculer a la main cinquante fois par jour."""
+    if request.method != "POST" or not request.user.has_perm("stocks.add_stkmove"):
+        return HttpResponse(status=403)
+
+    tenant = resolve_tenant(request)
+    if not _scan_societe_concordante(request, tenant):
+        return HttpResponse(status=403)
+
+    user = cast(User, request.user)
+    warehouse_id = request.POST.get("warehouse_id", "")
+    location_scan = request.POST.get("location_scan", "")
+    redirect_url = (
+        f"/stocks/scan/?warehouse_id={warehouse_id}"
+        f"&location_scan={location_scan}&mode={scan.SCAN_MODE_RANGER}"
+    )
+
+    try:
+        client_uuid = parse_uuid(request.POST.get("client_uuid"), champ=_("ticket client"))
+        scan.sync_scan_putaway_line(
+            tenant,
+            client_uuid=client_uuid,
+            location_from_code=request.POST.get("location_from_code", ""),
+            location_to_code=request.POST.get("location_to_code", ""),
+            ean13=request.POST.get("ean13", ""),
+            qty=Decimal(request.POST.get("qty") or "1"),
+            date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
+            operator=user,
+        )
+    except _EXC:
+        # Deja journalise par le service pour toute erreur de validation ;
+        # seule une entree de formulaire illisible y echappe, cas limite
+        # non atteignable depuis l'ecran (champs generes, jamais saisis).
+        pass
+
+    return redirect(redirect_url)
 
 
 def _scan_societe_concordante(request: HttpRequest, tenant: Tenant) -> bool:

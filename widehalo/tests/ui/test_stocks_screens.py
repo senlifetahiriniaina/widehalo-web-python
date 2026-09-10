@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import uuid
 from decimal import Decimal
 
@@ -485,3 +486,97 @@ def test_a_queue_filled_before_this_guard_is_still_accepted(
 
     with use_tenant(tenant.id):
         assert StkMove.objects.filter(client_uuid=uuid.UUID(client_uuid)).count() == 1
+
+
+def test_the_warehouse_screen_offers_exactly_four_actions(stocks_screens_setup) -> None:
+    """« Quatre actions au maximum : recevoir, ranger, prélever, compter »
+    (cahier §13.1).
+
+    **Le plafond fait partie du critère**, et c'est ce que ce test défend :
+    la consultation de stock, l'étiquetage ou un transfert distinct du
+    rangement sont tous des candidats plausibles à une cinquième tuile, et
+    chacun violerait l'exigence. Le persona du §3.1 cite d'ailleurs cinq
+    écrans — la tentation est écrite noir sur blanc dans le cahier
+    lui-même."""
+    client, _tenant, _user, warehouse, _supplier, internal = stocks_screens_setup
+
+    contenu = client.get(f"/stocks/scan/?warehouse_id={warehouse.id}").content.decode()
+    tuiles = re.findall(r'data-scan-mode="([a-z]+)"', contenu)
+
+    assert len(tuiles) == 4, f"l'écran offre {len(tuiles)} actions : {tuiles}"
+    assert set(tuiles) == {"receive", "putaway", "pick", "count"}
+
+
+def test_a_mode_that_is_not_wired_is_named_as_such(stocks_screens_setup) -> None:
+    """Une tuile qui bascule vers un panneau vide est pire qu'une tuile
+    marquée indisponible : le magasinier essaie, ne comprend pas, et
+    recommence. Tant que « Prélever » et « Compter » ne sont pas câblés,
+    l'écran le dit — et le dit EN TEXTE, jamais par la seule couleur
+    (§7.1 : lumière variable, écran sale, gants)."""
+    client, _tenant, _user, warehouse, _supplier, _internal = stocks_screens_setup
+
+    contenu = client.get(f"/stocks/scan/?warehouse_id={warehouse.id}").content.decode()
+
+    assert contenu.count("Bientôt disponible") == 2
+    assert 'data-scan-mode="pick"' in contenu
+    assert "disabled" in contenu
+
+
+def test_a_putaway_round_trip_moves_the_stock_and_stays_idempotent(
+    stocks_screens_setup,
+) -> None:
+    """Preuve au niveau HTTP, pas seulement service : le formulaire de
+    rangement envoie bien ce que la vue attend, et deux envois du même
+    ticket ne produisent qu'un mouvement."""
+    client, tenant, user, warehouse, supplier, quai = stocks_screens_setup
+    with use_tenant(tenant.id):
+        _grant(user, app_label="stocks", codename="add_stkmove")
+        ProductVariantFactory(tenant=tenant, ean13="1234567890128")
+        rayon = create_location(
+            tenant=tenant,
+            warehouse=warehouse,
+            code="B2",
+            name="Rayon B2",
+            type=StkLocation.TYPE_INTERNE,
+        )
+
+    # Du stock reel sur le quai, sans quoi la garde anti-negatif refuserait.
+    client.post(
+        "/stocks/scan/receive/",
+        {
+            "warehouse_id": str(warehouse.id),
+            "location_scan": quai.code,
+            "location_to_id": str(quai.id),
+            "location_from_id": str(supplier.id),
+            "client_uuid": str(uuid.uuid4()),
+            "ean13": "1234567890128",
+            "qty": "5",
+            "date": "2026-03-01",
+            "tenant_id": str(tenant.id),
+        },
+        follow=True,
+    )
+
+    ticket = str(uuid.uuid4())
+    rangement = {
+        "warehouse_id": str(warehouse.id),
+        "location_scan": quai.code,
+        "client_uuid": ticket,
+        "location_from_code": quai.code,
+        "location_to_code": rayon.code,
+        "ean13": "1234567890128",
+        "qty": "2",
+        "date": "2026-03-02",
+        "tenant_id": str(tenant.id),
+    }
+    client.post("/stocks/scan/putaway/", rangement, follow=True)
+    client.post("/stocks/scan/putaway/", rangement, follow=True)
+
+    with use_tenant(tenant.id):
+        moves = StkMove.objects.filter(client_uuid=uuid.UUID(ticket))
+        assert moves.count() == 1
+        move = moves.get()
+        assert move.move_type == StkMove.TYPE_TRANSFERT_INTERNE
+        assert move.location_from_id == quai.id
+        assert move.location_to_id == rayon.id
+        assert move.state == StkMove.STATE_DONE

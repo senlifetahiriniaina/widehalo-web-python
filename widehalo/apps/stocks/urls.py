@@ -52,6 +52,7 @@ urlpatterns = [
     path("abc/", views.abc_view, name="abc_view"),
     path("scan/", views.scan_screen, name="scan"),
     path("scan/receive/", views.scan_receive_submit, name="scan_receive_submit"),
+    path("scan/putaway/", views.scan_putaway_submit, name="scan_putaway_submit"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/warehouses/", views_config.config_warehouses, name="config_warehouses"),
     path("config/defect-types/", views_config.config_defect_types, name="config_defect_types"),

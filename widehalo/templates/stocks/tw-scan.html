@@ -39,7 +39,7 @@
     </div>
 
     {# STK-9/cahier §7.3 : file "persistante et visible" — jamais masquee. #}
-    <div x-data="stockScan({ today: '{{ today }}' })" x-init="init()" class="flex flex-col gap-6">
+    <div x-data="stockScan({ today: '{{ today }}', mode: '{{ mode }}' })" x-init="init()" class="flex flex-col gap-6">
       <div x-show="pendingCount > 0" class="alert alert-warning py-2 px-4 text-sm" role="status">
         <span x-text="pendingCount + ' '"></span>{% trans "ligne(s) en attente de synchronisation." %}
         {% comment %} §7.3 : « combien de saisies attendent d'etre envoyees ET DEPUIS
@@ -49,23 +49,35 @@
         <span x-show="pendingSince" x-text="pendingAge"></span>
       </div>
 
-      {# Quatre actions au maximum (cahier §13.1) — seule "Recevoir" est cablee dans ce sprint. #}
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="rounded-box bg-primary text-primary-content p-4 text-center font-semibold min-h-[64px] flex items-center justify-center">
-          {% trans "Recevoir" %}
-        </div>
-        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
-          <span>{% trans "Ranger" %}</span>
-          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
-        </div>
-        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
-          <span>{% trans "Prélever" %}</span>
-          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
-        </div>
-        <div class="rounded-box bg-base-200 text-base-content/50 p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1">
-          <span>{% trans "Compter" %}</span>
-          <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
-        </div>
+      {% comment %} Quatre actions au maximum (cahier §13.1), et le PLAFOND fait partie
+         du critere : une cinquieme tuile le violerait.
+
+         Des BOUTONS, jamais des liens : `offline_queue.js` refuse de mettre en file
+         autre chose qu'un POST, et le service worker ne met en cache que les URL de
+         la coquille. Une tuile `<a href="?mode=...">` ne ferait donc rien du tout
+         hors ligne — sur l'ecran dont c'est la raison d'etre.
+
+         Le mode actif porte `aria-current` ET un marqueur textuel : le §7.1 interdit
+         qu'une information soit portee par la seule couleur, sur un ecran lu sous
+         lumiere variable, ecran sale et gants. Cibles a 64 px, au-dela des 44 px
+         exiges. {% endcomment %}
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" role="group" aria-label="{% trans 'Actions du magasinier' %}">
+        {% for m in modes %}
+          <button type="button"
+                  data-scan-mode="{{ m.cle }}"
+                  {% if not m.disponible %}disabled aria-disabled="true"{% endif %}
+                  @click="basculer('{{ m.cle }}')"
+                  :aria-current="mode === '{{ m.cle }}' ? 'true' : 'false'"
+                  :class="mode === '{{ m.cle }}' ? 'bg-primary text-primary-content font-semibold' : 'bg-base-200 text-base-content'"
+                  class="rounded-box p-4 text-center min-h-[64px] flex flex-col items-center justify-center gap-1 disabled:opacity-60">
+            <span>{{ m.libelle }}</span>
+            {% if m.disponible %}
+              <span class="text-xs" x-show="mode === '{{ m.cle }}'">{% trans "— en cours" %}</span>
+            {% else %}
+              <span class="badge badge-ghost badge-sm">{% trans "Bientôt disponible" %}</span>
+            {% endif %}
+          </button>
+        {% endfor %}
       </div>
 
       {% comment %} Configuration (une fois par session terrain — pas une action repetee au scan,
@@ -86,7 +98,7 @@
       </form>
 
       {% if location_to %}
-      <div class="rounded-box border border-base-300 p-4 flex flex-col gap-3">
+      <div x-show="mode === 'receive'" data-scan-panel="receive" class="rounded-box border border-base-300 p-4 flex flex-col gap-3" x-cloak>
         <h2 class="font-semibold">
           {% trans "2. Réception" %} — <span class="text-success">{{ location_to.code }} — {{ location_to.name }}</span>
         </h2>
@@ -100,7 +112,12 @@
           <input type="hidden" name="warehouse_id" value="{{ warehouse_id }}">
           <input type="hidden" name="location_scan" value="{{ location_scan }}">
           <input type="hidden" name="location_to_id" value="{{ location_to.id }}">
-          <input type="hidden" name="client_uuid" x-ref="clientUuid">
+          <input type="hidden" name="client_uuid">
+          {% comment %} La societe de SAISIE, pas celle de la session au rejeu : une ligne
+             prise lundi peut partir mercredi, apres un changement de societe dans
+             l'interface. L'unite, elle, n'est plus envoyee du tout — elle se lit sur
+             l'article, seul endroit qui la connaisse. {% endcomment %}
+          <input type="hidden" name="tenant_id" value="{{ current_tenant.id }}">
 
           <label class="text-sm font-medium">{% trans "Fournisseur (origine)" %}</label>
           <select name="location_from_id" class="select w-full" required>
@@ -110,7 +127,7 @@
           </select>
 
           <label class="text-sm font-medium">{% trans "Code-barres article (EAN13)" %}</label>
-          <input type="text" name="ean13" x-model="scanValue" placeholder="{% trans 'Scanner l’article…' %}" class="input w-full text-2xl" autofocus inputmode="numeric">
+          <input type="text" name="ean13" x-model="scanValue" data-scan-input placeholder="{% trans 'Scanner l’article…' %}" class="input w-full text-2xl" inputmode="numeric">
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -122,12 +139,6 @@
               <input type="date" name="date" x-model="date" class="input w-full">
             </div>
           </div>
-          {% comment %} La societe de SAISIE, pas celle de la session au rejeu : une
-           ligne prise lundi peut partir mercredi, apres un changement de societe
-           dans l'interface. L'unite, elle, n'est plus envoyee du tout — elle se lit
-           sur l'article, seul endroit qui la connaisse. {% endcomment %}
-        <input type="hidden" name="tenant_id" value="{{ current_tenant.id }}">
-
           <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le scan" %}</c-button>
           <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
         </form>
@@ -144,6 +155,62 @@
         {% endif %}
       </div>
       {% endif %}
+
+      {% comment %} Ranger — le transfert du §13.1 : « scan de l'emplacement d'origine,
+         de l'article, de l'emplacement de destination ».
+
+         Les deux emplacements partent en CODE, jamais en identifiant : un rangement
+         change d'etagere a chaque palette, et la tablette hors ligne n'a rien pour
+         resoudre un code. Le serveur tranche au rejeu ; un code introuvable devient
+         un rejet qui reparait dans « a traiter », jamais une ligne perdue.
+
+         Ce panneau ne depend PAS de `location_to` : contrairement a la reception,
+         il n'a pas de destination fixee pour la journee. {% endcomment %}
+      <div x-show="mode === 'putaway'" data-scan-panel="putaway" class="rounded-box border border-base-300 p-4 flex flex-col gap-3" x-cloak>
+        <h2 class="font-semibold">{% trans "Ranger" %}</h2>
+
+        <form method="post" action="{% url 'stocks:scan_putaway_submit' %}" @submit="onScanSubmit($event)" class="flex flex-col gap-3">
+          {% csrf_token %}
+          <input type="hidden" name="warehouse_id" value="{{ warehouse_id }}">
+          <input type="hidden" name="location_scan" value="{{ location_scan }}">
+          <input type="hidden" name="client_uuid">
+          <input type="hidden" name="tenant_id" value="{{ current_tenant.id }}">
+
+          <label class="text-sm font-medium" for="putaway-from">{% trans "Emplacement de départ" %}</label>
+          <input type="text" id="putaway-from" name="location_from_code" x-model="fromCode" placeholder="{% trans 'Scanner l’emplacement d’où l’on prend…' %}" class="input w-full text-lg" required>
+
+          <label class="text-sm font-medium" for="putaway-ean">{% trans "Code-barres article (EAN13)" %}</label>
+          <input type="text" id="putaway-ean" name="ean13" x-model="scanValue" data-scan-input placeholder="{% trans 'Scanner l’article…' %}" class="input w-full text-2xl" inputmode="numeric">
+
+          <label class="text-sm font-medium" for="putaway-to">{% trans "Emplacement de destination" %}</label>
+          <input type="text" id="putaway-to" name="location_to_code" x-model="toCode" placeholder="{% trans 'Scanner l’emplacement où l’on pose…' %}" class="input w-full text-lg" required>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium" for="putaway-qty">{% trans "Quantité" %}</label>
+              <input type="number" id="putaway-qty" name="qty" x-model="qty" min="0.0001" step="0.0001" class="input w-full">
+            </div>
+            <div>
+              <label class="text-sm font-medium" for="putaway-date">{% trans "Date d’effet" %}</label>
+              <input type="date" id="putaway-date" name="date" x-model="date" class="input w-full">
+            </div>
+          </div>
+
+          <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le rangement" %}</c-button>
+          <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
+        </form>
+
+        {% if recent_putaways %}
+        <div>
+          <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide">{% trans "Rangé à l’instant" %}</h3>
+          <ul class="text-sm">
+            {% for move in recent_putaways %}
+              <li>{{ move.reference }} — {{ move.qty }} {{ move.uom }} — {{ move.date }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
 
       {% comment %} Reconciliation explicite (cahier §7.3) : les lignes rejetees restent
          visibles jusqu'a ce qu'un nouveau scan corrige reussisse — pas
@@ -166,11 +233,31 @@
 function stockScan(config) {
   return {
     scanValue: "",
+    fromCode: "",
+    toCode: "",
     qty: "1",
     date: config.today,
+    mode: config.mode,
     pendingCount: 0,
     pendingSince: "",
     justScanned: false,
+
+    // Le focus se pose ICI, jamais par `autofocus` : quatre panneaux
+    // cohabitent dans un seul document, et le navigateur n'honore que le
+    // premier `autofocus` qu'il rencontre. Sans cela, la promesse « sans
+    // clavier » casserait en silence sur les modes autres que le premier.
+    basculer(cle) {
+      this.mode = cle;
+      this.focusScan();
+    },
+
+    focusScan() {
+      var self = this;
+      window.setTimeout(function () {
+        var champ = document.querySelector('[data-scan-panel="' + self.mode + '"] [data-scan-input]');
+        if (champ) { champ.focus(); }
+      }, 0);
+    },
 
     init() {
       this.refreshPendingCount();
@@ -212,10 +299,17 @@ function stockScan(config) {
 
     onScanSubmit(event) {
       if (!this.scanValue) { event.preventDefault(); return; }
-      this.$refs.clientUuid.value = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-        var r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      }));
+      // Le champ du formulaire SOUMIS, jamais une reference nommee : quatre
+      // panneaux cohabitent, et une reference unique n'aurait rempli que le
+      // premier — les trois autres seraient partis sans ticket, donc rejetes
+      // ou, pire, sans protection contre le rejeu.
+      var ticket = event.target.querySelector('input[name="client_uuid"]');
+      if (ticket) {
+        ticket.value = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        }));
+      }
       // STK-10 : retour visuel immediat, independant de l'etat du reseau —
       // ne dépend jamais du round-trip serveur (qui peut suivre ou etre
       // mis en file par offline_queue.js si hors ligne).

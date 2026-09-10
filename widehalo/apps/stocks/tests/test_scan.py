@@ -27,10 +27,14 @@ from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkLocation, StkMove
 from apps.stocks.services import scan
+from apps.stocks.services.barcodes import set_location_barcode
 from apps.stocks.services.scan import (
+    ACTION_PUTAWAY_REJECTED,
     OUTCOME_ACCEPTED,
+    OUTCOME_DUPLICATE,
     UOM_PAR_DEFAUT,
     resolve_scan_uom,
+    sync_scan_putaway_line,
     sync_scan_reception_line,
 )
 from apps.stocks.services.warehouses import create_location, create_warehouse
@@ -169,3 +173,169 @@ def test_an_article_without_a_declared_unit_falls_back_rather_than_refusing(
     incomplet n'est pas la faute du magasinier. Le repli est celui que le
     gabarit imposait a TOUT article jusqu'ici : il ne degrade rien."""
     assert resolve_scan_uom(uuid7()) == UOM_PAR_DEFAUT
+
+
+# --------------------------------------------------------------------------
+# Ranger (B-2) — cahier §13.1 « transfert », STK-5, STK-1, STK-9
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def putaway_setup(scan_setup):
+    """Deux etageres INTERNES et du stock sur la premiere.
+
+    Un rangement part de stock existant : sans quoi la garde anti-negatif
+    refuserait, et le test passerait pour la mauvaise raison."""
+    tenant, supplier, quai, variant = scan_setup
+    with use_tenant(tenant.id):
+        rayon = create_location(
+            tenant=tenant,
+            warehouse=quai.warehouse,
+            code="B2",
+            name="Rayon B2",
+            type=StkLocation.TYPE_INTERNE,
+        )
+        # Du stock reel sur le quai, pose par une reception normale.
+        sync_scan_reception_line(
+            tenant,
+            **_line_kwargs(
+                uuid.uuid4(), ean13="1234567890128", location_from=supplier, location_to=quai
+            ),
+        )
+    return tenant, quai, rayon, variant
+
+
+def _putaway_kwargs(client_uuid, *, depart, destination, ean13="1234567890128", qty="1"):
+    return {
+        "client_uuid": client_uuid,
+        "location_from_code": depart.code,
+        "location_to_code": destination.code,
+        "ean13": ean13,
+        "qty": Decimal(qty),
+        "date": dt.date(2026, 3, 2),
+    }
+
+
+def test_a_putaway_is_a_single_move_carrying_both_locations(putaway_setup) -> None:
+    """STK-5, et c'est le coeur du critere : « un transfert interrompu
+    laisse la quantite en transit, ni dans le depot d'origine ni dans celui
+    de destination, et JAMAIS PERDUE NI COMPTEE DEUX FOIS ».
+
+    Le cahier §12.1 dit comment on l'obtient : « un transfert est un
+    mouvement UNIQUE a deux emplacements, et non deux mouvements
+    apparies. C'est ce qui garantit qu'il ne peut pas etre a moitie
+    realise, y compris apres une coupure reseau en mode degrade. »
+
+    On mesure donc le NOMBRE de mouvements produits, pas seulement leur
+    effet : deux mouvements apparies auraient le meme effet sur le stock,
+    et ouvriraient exactement le trou que le critere ferme."""
+    tenant, quai, rayon, variant = putaway_setup
+
+    with use_tenant(tenant.id):
+        avant = StkMove.objects.filter(move_type=StkMove.TYPE_TRANSFERT_INTERNE).count()
+        move, outcome = sync_scan_putaway_line(
+            tenant, **_putaway_kwargs(uuid.uuid4(), depart=quai, destination=rayon)
+        )
+        apres = StkMove.objects.filter(move_type=StkMove.TYPE_TRANSFERT_INTERNE).count()
+
+    assert outcome == OUTCOME_ACCEPTED
+    assert apres - avant == 1, "un transfert doit produire UN mouvement, jamais deux"
+    assert move is not None
+    assert move.location_from_id == quai.id
+    assert move.location_to_id == rayon.id
+    assert move.state == StkMove.STATE_DONE
+
+
+def test_replaying_a_putaway_never_creates_a_second_move(putaway_setup) -> None:
+    """STK-9 : « sans doublon ni perte ». Le rejeu d'une file hors ligne
+    n'est pas un cas rare — c'est le cas NOMINAL du mode degrade."""
+    tenant, quai, rayon, _variant = putaway_setup
+    ticket = uuid.uuid4()
+    kwargs = _putaway_kwargs(ticket, depart=quai, destination=rayon)
+
+    with use_tenant(tenant.id):
+        premier, issue1 = sync_scan_putaway_line(tenant, **kwargs)
+        second, issue2 = sync_scan_putaway_line(tenant, **kwargs)
+        total = StkMove.objects.filter(client_uuid=ticket).count()
+
+    assert issue1 == OUTCOME_ACCEPTED
+    assert issue2 == OUTCOME_DUPLICATE
+    assert premier is not None and second is not None
+    assert premier.id == second.id
+    assert total == 1
+
+
+def test_an_unknown_location_is_refused_and_journalized_never_lost(putaway_setup) -> None:
+    """Un code d'emplacement illisible ne doit pas faire disparaitre une
+    saisie deja prise sur le terrain.
+
+    C'est la reconciliation explicite du §7.3 : « la ligne concernee est
+    presentee pour arbitrage plutot qu'appliquee en force ou rejetee en
+    silence ». Le journal porte les deux codes, parce qu'un magasinier
+    doit savoir LEQUEL des deux scans etait mauvais."""
+    tenant, quai, _rayon, _variant = putaway_setup
+    ticket = uuid.uuid4()
+
+    with use_tenant(tenant.id), pytest.raises(ValidationError):
+        sync_scan_putaway_line(
+            tenant,
+            client_uuid=ticket,
+            location_from_code=quai.code,
+            location_to_code="ETAGERE-QUI-N-EXISTE-PAS",
+            ean13="1234567890128",
+            qty=Decimal(1),
+            date=dt.date(2026, 3, 2),
+        )
+
+    with use_tenant(tenant.id):
+        assert not StkMove.objects.filter(client_uuid=ticket).exists()
+        journal = AuditLog.objects.filter(action=ACTION_PUTAWAY_REJECTED).first()
+    assert journal is not None
+    assert journal.metadata["to"] == "ETAGERE-QUI-N-EXISTE-PAS"
+    assert journal.metadata["from"] == quai.code
+
+
+def test_a_virtual_location_is_never_a_putaway_destination(putaway_setup) -> None:
+    """Un rangement va d'une etagere a une autre.
+
+    Sans ce controle, le code-barres d'un emplacement de rebut ou de
+    fournisseur scanne par erreur produirait un mouvement d'une tout autre
+    nature que celle demandee — et un stock faux qui se propage dans la
+    valorisation.
+
+    **Ce test a d'abord passe pour la mauvaise raison, et la falsification
+    l'a demasque.** Il scannait le CODE d'un emplacement de rebut ; or le
+    repli de `resolve_scanned_location` ne cherche que parmi les
+    emplacements INTERNES, si bien que le refus venait de la resolution —
+    « introuvable » — et non du controle de type. Retirer le controle ne
+    faisait donc rien tomber.
+
+    Le rebut porte desormais un CODE-BARRES, et c'est lui qu'on scanne :
+    `lookup_by_barcode` trouve n'importe quel type d'emplacement, donc la
+    resolution reussit et seul le controle de type peut refuser. Le message
+    est verifie pour la meme raison — sans quoi le test se remettrait a
+    passer sur le mauvais refus."""
+    tenant, quai, _rayon, _variant = putaway_setup
+    with use_tenant(tenant.id):
+        virtuel = create_location(
+            tenant=tenant,
+            warehouse=quai.warehouse,
+            code="REBUT",
+            name="Rebut",
+            type=StkLocation.TYPE_REBUT,
+        )
+        set_location_barcode(virtuel, value="REBUT-CB-0001")
+        assert virtuel.barcode == "REBUT-CB-0001", "le temoin doit etre trouvable au scan"
+
+        with pytest.raises(ValidationError) as refus:
+            sync_scan_putaway_line(
+                tenant,
+                client_uuid=uuid.uuid4(),
+                location_from_code=quai.code,
+                location_to_code="REBUT-CB-0001",
+                ean13="1234567890128",
+                qty=Decimal(1),
+                date=dt.date(2026, 3, 2),
+            )
+
+    assert "emplacement de stockage" in "; ".join(refus.value.messages)
