@@ -24,6 +24,7 @@ from apps.core.tests.factories import TenantFactory
 from apps.flows.models import (
     FlwApiKey,
     FlwConnector,
+    FlwConsent,
     FlwCredential,
     FlwExchange,
     FlwIncident,
@@ -161,3 +162,24 @@ class FlwIncidentFactory(factory.django.DjangoModelFactory):
     state = FlwIncident.STATE_OPEN
     first_seen_at = factory.LazyFunction(lambda: dt.datetime.now(tz=dt.UTC))
     last_seen_at = factory.LazyFunction(lambda: dt.datetime.now(tz=dt.UTC))
+
+
+class FlwConsentFactory(factory.django.DjangoModelFactory):
+    """T9 (CON-2) — le consentement de sortie.
+
+    `categories` est laisse VIDE par defaut : un consentement de test qui
+    couvrirait d'office toutes les categories rendrait
+    `consent_covers_current_scope` toujours vrai, et le gel — tout l'objet
+    du modele — cesserait d'etre exerce."""
+
+    class Meta:
+        model = FlwConsent
+
+    tenant = factory.SubFactory(TenantFactory)
+    link = factory.SubFactory(FlwLinkFactory, tenant=factory.SelfAttribute("..tenant"))
+    categories: list[str] = []
+    third_party = "Tiers de test"
+    country_code = "MG"
+    retention_days = 365
+    granted_by = factory.SubFactory("apps.core.tests.factories.UserFactory")
+    granted_at = factory.LazyFunction(lambda: dt.datetime.now(tz=dt.UTC))
