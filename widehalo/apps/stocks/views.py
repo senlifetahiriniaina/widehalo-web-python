@@ -885,6 +885,25 @@ def scan_screen(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _scan_societe_concordante(request: HttpRequest, tenant: Tenant) -> bool:
+    """La ligne rejouee vise-t-elle bien la societe active ?
+
+    **Le defaut que cela ferme est propre au mode degrade.** Une ligne
+    scannee lundi peut etre rejouee mercredi, apres que l'operateur a
+    change de societe dans l'interface : `resolve_tenant` rendrait alors
+    la NOUVELLE societe, et le mouvement serait ecrit chez elle. Pire,
+    l'idempotence ne le rattraperait pas — la contrainte d'unicite de
+    `client_uuid` est posee PAR SOCIETE, donc le doublon n'en serait pas
+    un et la ligne existerait deux fois, dans deux societes.
+
+    Le formulaire emporte donc la societe de saisie, et un ecart vaut un
+    refus. Une charge utile sans ce champ est acceptee : elle vient d'une
+    file constituee avant ce correctif, et la refuser ferait perdre des
+    saisies deja prises — exactement ce que STK-9 interdit."""
+    saisie = request.POST.get("tenant_id", "")
+    return not saisie or saisie == str(tenant.id)
+
+
 @login_required
 def scan_receive_submit(request: HttpRequest) -> HttpResponse:
     """POST ordinaire (jamais `fetch`) — condition necessaire pour que
@@ -906,6 +925,9 @@ def scan_receive_submit(request: HttpRequest) -> HttpResponse:
         return HttpResponse(status=403)
 
     tenant = resolve_tenant(request)
+    if not _scan_societe_concordante(request, tenant):
+        return HttpResponse(status=403)
+
     user = cast(User, request.user)
     warehouse_id = request.POST.get("warehouse_id", "")
     location_scan = request.POST.get("location_scan", "")
@@ -922,7 +944,6 @@ def scan_receive_submit(request: HttpRequest) -> HttpResponse:
             location_to=location_to,
             ean13=request.POST.get("ean13", ""),
             qty=Decimal(request.POST.get("qty") or "1"),
-            uom=request.POST.get("uom", "pc"),
             date=parse_date(request.POST.get("date", "")) or timezone.now().date(),
             operator=user,
         )

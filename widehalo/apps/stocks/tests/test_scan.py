@@ -16,13 +16,23 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.catalog.tests.factories import ProductVariantFactory
+from apps.catalog.tests.factories import (
+    ProductTemplateFactory,
+    ProductVariantFactory,
+    UnitOfMeasureFactory,
+)
+from apps.core.db.uuid7 import uuid7
 from apps.core.models.audit import AuditLog
 from apps.core.models.tenant import Tenant
 from apps.core.tests.utils import use_tenant
 from apps.stocks.models import StkLocation, StkMove
 from apps.stocks.services import scan
-from apps.stocks.services.scan import sync_scan_reception_line
+from apps.stocks.services.scan import (
+    OUTCOME_ACCEPTED,
+    UOM_PAR_DEFAUT,
+    resolve_scan_uom,
+    sync_scan_reception_line,
+)
 from apps.stocks.services.warehouses import create_location, create_warehouse
 
 pytestmark = pytest.mark.django_db
@@ -58,7 +68,6 @@ def _line_kwargs(client_uuid, *, ean13, location_from, location_to):
         "location_to": location_to,
         "ean13": ean13,
         "qty": Decimal(1),
-        "uom": "pc",
         "date": dt.date(2026, 3, 1),
     }
 
@@ -118,3 +127,45 @@ def test_unknown_ean13_is_rejected_and_leaves_no_partial_move(scan_setup) -> Non
         assert log.metadata["client_uuid"] == str(client_uuid)
         assert "0000000000000" in log.metadata["detail"]
         assert log.content_type is None
+
+
+def test_the_unit_comes_from_the_article_never_from_the_caller(scan_setup) -> None:
+    """L'ecran envoyait `uom` dans un champ cache fige a « pc ».
+
+    Consequence mesurable, et elle n'a rien de theorique : **toute
+    reception d'un article au metre ou au kilo etait enregistree en
+    pieces**. La valeur se lit desormais sur l'article, une fois le
+    code-barres resolu — le seul endroit qui la connaisse. Ce test
+    l'etablit sur un article dont l'unite de base n'est PAS « pc », sans
+    quoi il passerait pour la mauvaise raison."""
+    tenant, supplier, internal, _variant = scan_setup
+
+    with use_tenant(tenant.id):
+        metre = UnitOfMeasureFactory(tenant=tenant, code="m", name="Metre")
+        gabarit = ProductTemplateFactory(tenant=tenant, base_uom=metre)
+        au_metre = ProductVariantFactory(tenant=tenant, template=gabarit, ean13="4006381333931")
+        assert au_metre.template.base_uom.code == "m", "l'article temoin n'est pas au metre"
+
+        move, outcome = sync_scan_reception_line(
+            tenant,
+            **_line_kwargs(
+                uuid.uuid4(),
+                ean13="4006381333931",
+                location_from=supplier,
+                location_to=internal,
+            ),
+        )
+
+    assert outcome == OUTCOME_ACCEPTED
+    assert move is not None
+    assert move.uom == "m", f"unite enregistree : {move.uom!r} — l'article est au metre"
+
+
+def test_an_article_without_a_declared_unit_falls_back_rather_than_refusing(
+    scan_setup,
+) -> None:
+    """Un article mal configure ne doit pas faire perdre une saisie deja
+    prise sur le terrain — STK-9 dit « sans perte », et un referentiel
+    incomplet n'est pas la faute du magasinier. Le repli est celui que le
+    gabarit imposait a TOUT article jusqu'ici : il ne degrade rien."""
+    assert resolve_scan_uom(uuid7()) == UOM_PAR_DEFAUT

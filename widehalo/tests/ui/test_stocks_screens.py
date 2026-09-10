@@ -398,7 +398,6 @@ def test_scan_receive_submit_round_trip_is_idempotent_on_client_uuid(
         "client_uuid": client_uuid,
         "ean13": "1234567890128",
         "qty": "1",
-        "uom": "pc",
         "date": "2026-03-01",
     }
 
@@ -411,3 +410,78 @@ def test_scan_receive_submit_round_trip_is_idempotent_on_client_uuid(
         move = moves.get()
         assert move.variant_id == variant.id
         assert move.state == StkMove.STATE_DONE
+
+
+def test_a_replay_aimed_at_another_company_is_refused_and_writes_nothing(
+    stocks_screens_setup,
+) -> None:
+    """Le defaut est propre au mode degrade, et l'idempotence ne le
+    rattrape pas.
+
+    Une ligne scannee lundi peut partir mercredi, apres que l'operateur a
+    change de societe dans l'interface : `resolve_tenant` rendrait alors la
+    NOUVELLE societe, et le mouvement serait ecrit chez elle. Pire, la
+    contrainte d'unicite de `client_uuid` etant posee PAR SOCIETE, le
+    doublon n'en serait pas un — la meme saisie existerait deux fois, dans
+    deux societes.
+
+    Le formulaire emporte donc la societe de SAISIE, et un ecart vaut un
+    refus."""
+    client, tenant, user, warehouse, supplier, internal = stocks_screens_setup
+    with use_tenant(tenant.id):
+        _grant(user, app_label="stocks", codename="add_stkmove")
+        ProductVariantFactory(tenant=tenant, ean13="1234567890128")
+
+    client_uuid = str(uuid.uuid4())
+    payload = {
+        "warehouse_id": str(warehouse.id),
+        "location_scan": internal.code,
+        "location_to_id": str(internal.id),
+        "location_from_id": str(supplier.id),
+        "client_uuid": client_uuid,
+        "ean13": "1234567890128",
+        "qty": "1",
+        "date": "2026-03-01",
+        # La societe de saisie, qui n'est PAS celle de la session.
+        "tenant_id": str(uuid.uuid4()),
+    }
+
+    reponse = client.post("/stocks/scan/receive/", payload)
+
+    assert reponse.status_code == 403
+    with use_tenant(tenant.id):
+        assert not StkMove.objects.filter(client_uuid=uuid.UUID(client_uuid)).exists()
+
+
+def test_a_queue_filled_before_this_guard_is_still_accepted(
+    stocks_screens_setup,
+) -> None:
+    """Une charge utile SANS societe vient d'une file constituee avant ce
+    correctif. La refuser ferait perdre des saisies deja prises sur le
+    terrain — exactement ce que STK-9 interdit (« sans perte »).
+
+    Ce test existe parce que la garde precedente, ecrite trop strictement,
+    aurait vide la file de tout appareil non recharge."""
+    client, tenant, user, warehouse, supplier, internal = stocks_screens_setup
+    with use_tenant(tenant.id):
+        _grant(user, app_label="stocks", codename="add_stkmove")
+        ProductVariantFactory(tenant=tenant, ean13="1234567890128")
+
+    client_uuid = str(uuid.uuid4())
+    client.post(
+        "/stocks/scan/receive/",
+        {
+            "warehouse_id": str(warehouse.id),
+            "location_scan": internal.code,
+            "location_to_id": str(internal.id),
+            "location_from_id": str(supplier.id),
+            "client_uuid": client_uuid,
+            "ean13": "1234567890128",
+            "qty": "1",
+            "date": "2026-03-01",
+        },
+        follow=True,
+    )
+
+    with use_tenant(tenant.id):
+        assert StkMove.objects.filter(client_uuid=uuid.UUID(client_uuid)).count() == 1

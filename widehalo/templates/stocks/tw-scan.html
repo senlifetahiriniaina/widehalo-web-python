@@ -42,6 +42,11 @@
     <div x-data="stockScan({ today: '{{ today }}' })" x-init="init()" class="flex flex-col gap-6">
       <div x-show="pendingCount > 0" class="alert alert-warning py-2 px-4 text-sm" role="status">
         <span x-text="pendingCount + ' '"></span>{% trans "ligne(s) en attente de synchronisation." %}
+        {% comment %} §7.3 : « combien de saisies attendent d'etre envoyees ET DEPUIS
+           QUAND ». Un nombre seul ne dit pas si la file avance ou si elle est
+           bloquee — et « une file invisible produit une confiance qui s'effondre
+           au premier doute ». {% endcomment %}
+        <span x-show="pendingSince" x-text="pendingAge"></span>
       </div>
 
       {# Quatre actions au maximum (cahier §13.1) — seule "Recevoir" est cablee dans ce sprint. #}
@@ -117,7 +122,11 @@
               <input type="date" name="date" x-model="date" class="input w-full">
             </div>
           </div>
-          <input type="hidden" name="uom" value="pc">
+          {% comment %} La societe de SAISIE, pas celle de la session au rejeu : une
+           ligne prise lundi peut partir mercredi, apres un changement de societe
+           dans l'interface. L'unite, elle, n'est plus envoyee du tout — elle se lit
+           sur l'article, seul endroit qui la connaisse. {% endcomment %}
+        <input type="hidden" name="tenant_id" value="{{ current_tenant.id }}">
 
           <c-button variant="primary" type="submit" class="min-h-[56px] text-lg">{% trans "Valider le scan" %}</c-button>
           <p x-show="justScanned" class="text-success font-semibold text-center" x-cloak>{% trans "✓ Enregistré" %}</p>
@@ -160,6 +169,7 @@ function stockScan(config) {
     qty: "1",
     date: config.today,
     pendingCount: 0,
+    pendingSince: "",
     justScanned: false,
 
     init() {
@@ -168,14 +178,36 @@ function stockScan(config) {
       window.setInterval(function () { self.refreshPendingCount(); }, 5000);
     },
 
+    // Le prefixe, et non "/stocks/scan/receive/" en dur : le compteur doit
+    // dire ce qui attend POUR L'ECRAN, toutes actions confondues. Filtre sur
+    // la reception seule, un rangement en attente serait invisible et le
+    // magasinier partirait en croyant sa file vide.
+    // Lecteur de `pendingSince`. Rend une duree en clair plutot qu'un
+    // horodatage ISO : « depuis 12 min » se lit d'un coup d'oeil sur une
+    // tablette tenue d'une main, pas « 2026-03-01T08:14:22.301Z ».
+    get pendingAge() {
+      if (!this.pendingSince) { return ""; }
+      var minutes = Math.floor((Date.now() - new Date(this.pendingSince).getTime()) / 60000);
+      if (isNaN(minutes) || minutes < 1) { return " — depuis moins d’une minute."; }
+      if (minutes < 60) { return " — depuis " + minutes + " min."; }
+      return " — depuis " + Math.floor(minutes / 60) + " h " + (minutes % 60) + " min.";
+    },
+
     refreshPendingCount() {
       try {
         var raw = window.localStorage.getItem("wh-offline-queue");
         var queue = raw ? JSON.parse(raw) : [];
-        this.pendingCount = queue.filter(function (entry) {
-          return entry.action && entry.action.indexOf("/stocks/scan/receive/") !== -1;
-        }).length;
-      } catch (e) { this.pendingCount = 0; }
+        var enAttente = queue.filter(function (entry) {
+          return entry.action && entry.action.indexOf("/stocks/scan/") !== -1;
+        });
+        this.pendingCount = enAttente.length;
+        // La plus ancienne : le §7.3 demande "combien de saisies attendent
+        // d'etre envoyees ET DEPUIS QUAND". Un nombre seul ne dit pas si la
+        // file avance ou si elle est bloquee.
+        this.pendingSince = enAttente.length
+          ? enAttente.map(function (e) { return e.queued_at || ""; }).sort()[0]
+          : "";
+      } catch (e) { this.pendingCount = 0; this.pendingSince = ""; }
     },
 
     onScanSubmit(event) {

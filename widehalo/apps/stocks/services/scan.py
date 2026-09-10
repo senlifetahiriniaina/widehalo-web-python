@@ -26,7 +26,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
-from apps.catalog.services.public import get_variant_id_by_ean13
+from apps.catalog.services.public import get_variant_base_uom_code, get_variant_id_by_ean13
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.audit import log_action
@@ -42,6 +42,22 @@ ACTION_DUPLICATE = "stocks.scan.duplicate"
 ACTION_REJECTED = "stocks.scan.rejected"
 
 
+#: Repli quand l'article ne declare aucune unite de base. `"pc"` est
+#: l'unite la plus courante du referentiel et celle que le gabarit imposait
+#: jusqu'ici a TOUT article : le repli ne degrade donc rien par rapport a
+#: l'existant, et il ne s'applique qu'a un article mal configure.
+UOM_PAR_DEFAUT = "pc"
+
+
+def resolve_scan_uom(variant_id: object) -> str:
+    """L'unite de stock d'un article scanne, lue sur l'article.
+
+    Jamais recue du client : une tablette hors ligne ne connait pas
+    l'unite d'un code-barres qu'elle vient de lire, et un champ cache est
+    une valeur que l'appelant peut mentir."""
+    return get_variant_base_uom_code(variant_id) or UOM_PAR_DEFAUT
+
+
 def sync_scan_reception_line(
     tenant: Tenant,
     *,
@@ -50,7 +66,6 @@ def sync_scan_reception_line(
     location_to: StkLocation,
     ean13: str,
     qty: Decimal,
-    uom: str,
     date: dt.date,
     operator: User | None = None,
 ) -> tuple[StkMove | None, str]:
@@ -75,7 +90,16 @@ def sync_scan_reception_line(
 
     `unit_cost_mga=0` par défaut (une réception au scan sans clavier n'a
     pas de coût de revient saisissable dans ce sprint — rapprochement
-    ultérieur avec le bon de commande, hors périmètre explicite d'A6)."""
+    ultérieur avec le bon de commande, hors périmètre explicite d'A6).
+
+    **L'unité n'est plus un paramètre, et c'est une correction.** Le
+    gabarit l'envoyait dans un champ caché figé à `"pc"` : toute réception
+    au mètre ou au kilo était donc enregistrée en pièces. Elle se lit
+    désormais sur l'article lui-même, une fois le code-barres résolu —
+    c'est-à-dire au seul endroit qui la connaisse. Deux bénéfices, et le
+    second compte autant que le premier : la tablette hors ligne n'a pas à
+    connaître l'unité d'un article qu'elle vient de scanner, et une valeur
+    que le client pouvait mentir disparaît de la charge utile."""
     existing = StkMove.objects.filter(tenant=tenant, client_uuid=client_uuid).first()
     if existing is not None:
         log_action(
@@ -100,7 +124,7 @@ def sync_scan_reception_line(
                 tenant=tenant,
                 variant_id=variant_id,
                 qty=qty,
-                uom=uom,
+                uom=resolve_scan_uom(variant_id),
                 location_from=location_from,
                 location_to=location_to,
                 date=date,
