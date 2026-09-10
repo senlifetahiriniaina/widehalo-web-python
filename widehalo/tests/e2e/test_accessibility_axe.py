@@ -23,6 +23,7 @@ import pytest
 from apps.core.tests.utils import use_tenant
 from apps.sales.tests.factories import SalesOrderFactory
 from axe_playwright_python.sync_playwright import Axe
+from django.contrib.auth.models import Permission
 
 pytestmark = pytest.mark.playwright
 
@@ -164,7 +165,51 @@ def test_dark_mode_has_no_blocking_axe_violations(logged_in_page, live_server) -
     _assert_no_blocking_violations(page, "launchpad (dark mode)")
 
 
-def test_flows_console_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
+@pytest.fixture
+def _droits_console_flux(e2e_tenant_and_user):
+    """Les trois ecrans de flux sont les SEULS de cet echantillon gardes par
+    une permission — il faut donc la donner, sinon l'audit ne voit qu'un 403.
+
+    **C'est le defaut que la passe complete a trouve.** Ce test a ete ecrit
+    au lot T9 sans jamais etre execute : `e2e_tenant_and_user` cree un
+    utilisateur SANS AUCUN ROLE, `link_list` exige `flows.change_flwlink`,
+    et Playwright echouait des la premiere navigation. Un test
+    d'accessibilite qui n'atteint jamais l'ecran qu'il pretend auditer est
+    pire qu'absent : il donne le change.
+
+    **Pourquoi la permission nue plutot que le role `direction`.** Les deux
+    seuls roles qui portent `flows.change_flwlink` — `admin` et `direction`
+    — sont dans `CORE_MFA_REQUIRED_ROLES` : passer par eux obligerait ce
+    test a jouer un parcours TOTP complet dans le navigateur pour auditer
+    du HTML. Or les trois gabarits de flux ne comportent AUCUN branchement
+    par role (verifie : les seuls `role=` qu'ils portent sont des attributs
+    ARIA) — la permission nue rend donc exactement le meme balisage, qui
+    est ce que ce test mesure.
+
+    Reserve ecrite, comme partout ailleurs dans ce fichier : cet
+    utilisateur n'a pas de role, donc sa barre laterale est vide. C'est
+    deja le cas de tous les autres tests de ce fichier — l'echantillon axe
+    n'audite pas encore un menu peuple, et cela reste a faire."""
+    _tenant, user = e2e_tenant_and_user
+    user.user_permissions.add(
+        *Permission.objects.filter(
+            content_type__app_label="flows",
+            codename__in=("change_flwlink", "view_flwexchange"),
+        )
+    )
+    # `has_perm` met en cache les permissions au premier appel, par requete —
+    # ici l'objet est neuf, mais on vide par principe : le jour ou la fixture
+    # sera reutilisee apres une lecture, l'oubli couterait une heure.
+    if hasattr(user, "_perm_cache"):
+        del user._perm_cache
+    if hasattr(user, "_user_perm_cache"):
+        del user._user_perm_cache
+    return user
+
+
+def test_flows_console_has_no_blocking_axe_violations(
+    logged_in_page, live_server, _droits_console_flux
+) -> None:
     """T9 — la console de gouvernance des flux (bloc H).
 
     Elle est ajoutee a l'echantillon parce qu'elle introduit deux familles
@@ -182,6 +227,25 @@ def test_flows_console_has_no_blocking_axe_violations(logged_in_page, live_serve
 
     _goto_bypassing_service_worker(page, f"{live_server.url}/flows/")
     _assert_no_blocking_violations(page, "flows:journal")
+
+
+def test_ai_module_entrance_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
+    """T10 — l'accueil du module IA, ecran neuf de ce lot.
+
+    Il entre dans l'echantillon parce qu'il introduit une famille que les
+    sept ecrans precedents ne couvraient pas : une GRILLE DE TUILES
+    cliquables (`.tile-grid`/`.tile`), c'est-a-dire des liens dont la zone
+    de clic est un bloc entier portant icone, titre et libelle secondaire.
+    C'est exactement la forme ou un nom accessible se perd — l'icone est en
+    `aria-hidden`, et si le titre venait a etre rendu autrement que par du
+    texte, le lien n'aurait plus de nom du tout.
+
+    Aucune permission a donner ici : `rbac_policy` declare les fonctions IA
+    a usage large ouvertes a tout utilisateur authentifie, et cet ecran
+    n'expose la tuile de budget qu'a `admin`/`direction`."""
+    page = logged_in_page
+    _goto_bypassing_service_worker(page, f"{live_server.url}/ai/")
+    _assert_no_blocking_violations(page, "ai:index")
 
 
 def test_ai_data_query_screen_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
