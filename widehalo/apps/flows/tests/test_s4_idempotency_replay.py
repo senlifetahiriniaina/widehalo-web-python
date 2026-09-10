@@ -368,7 +368,12 @@ def test_a_selection_ignores_what_can_no_longer_be_replayed(setup) -> None:
         transition_exchange(tranche, to_state=FlwExchange.STATE_SENT)
         transition_exchange(tranche, to_state=FlwExchange.STATE_ACCEPTED)
 
-        successeurs = replay_selection(tenant, ids=[rejouable.id, tranche.id])
+        # T9 (CON-4) : l'estimation vue est desormais OPPOSABLE — elle est
+        # passee au rejeu et confrontee a l'estimation courante. Un rejeu de
+        # masse declenchable sans elle rendrait le critere decoratif.
+        identifiants = [rejouable.id, tranche.id]
+        vue = estimate_replay(tenant, ids=identifiants)
+        successeurs = replay_selection(tenant, ids=identifiants, acknowledged=vue)
 
     assert len(successeurs) == 1
     assert successeurs[0].correlation_key == rejouable.correlation_key

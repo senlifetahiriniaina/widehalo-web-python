@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ link.name }} — {% trans "Gouvernance du raccordement" %}{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'flows:journal' %}">{% trans "Console de flux" %}</a>
+    <span>/</span> {{ link.name }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{{ link.name }}</h1>
+  </div>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <div class="workflow-banner">
+    <strong>{% trans "État" %} :</strong> {{ link.get_state_display }}
+    {% if link.state == "revoquee" %}
+      <span class="text-muted">
+        {% blocktrans with date=link.revoked_at|date:"d/m/Y H:i" %}Révoquée le {{ date }}.{% endblocktrans %}
+      </span>
+    {% endif %}
+  </div>
+
+  {% comment %}
+    CON-2 (§9.1) — les QUATRE informations, affichées en clair AVANT
+    validation. Elles sont dérivées : les catégories se lisent sur les
+    correspondances de la liaison, jamais rédigées à la main — « sinon le
+    texte devient faux à la première évolution » (§10.2).
+  {% endcomment %}
+  <section class="card">
+    <h2>{% trans "Ce qui sortira de chez vous" %}</h2>
+    {% if consent_preview.categories %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{% trans "Catégorie de données" %}</th>
+            <th scope="col">{% trans "Règle applicable" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for categorie in consent_preview.categories %}
+            <tr><td>{{ categorie.label }}</td><td>{{ categorie.rule }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>{% trans "Aucune correspondance n'est déclarée : cette liaison ne ferait sortir aucune donnée en l'état." %}</p>
+    {% endif %}
+
+    <dl>
+      <dt>{% trans "Vers quel tiers" %}</dt><dd>{{ consent_preview.third_party }}</dd>
+      <dt>{% trans "Dans quel pays" %}</dt>
+      <dd>
+        {% if consent_preview.country_code %}{{ consent_preview.country_code }}
+        {% else %}<em>{% trans "Non déclaré — l'activation est refusée tant qu'il ne l'est pas." %}</em>{% endif %}
+      </dd>
+      <dt>{% trans "Durée de conservation chez le tiers" %}</dt>
+      <dd>
+        {% if consent_preview.retention_days %}
+          {% blocktrans with jours=consent_preview.retention_days %}{{ jours }} jours{% endblocktrans %}
+        {% else %}
+          {% comment %}
+            Le cahier écrit « durée de conservation CONNUE » : l'inconnu est
+            un état légitime, et afficher un chiffre par défaut ferait
+            affirmer au produit une durée que le tiers n'a jamais annoncée.
+          {% endcomment %}
+          <em>{% trans "Inconnue — le tiers ne l'a pas annoncée." %}</em>
+        {% endif %}
+      </dd>
+    </dl>
+
+    {% if consent %}
+      <p>
+        {% blocktrans with qui=consent.granted_by date=consent.granted_at|date:"d/m/Y H:i" %}Consentement donné par {{ qui }} le {{ date }}.{% endblocktrans %}
+      </p>
+      {% if not consent_covers_scope %}
+        <div class="bandeau bandeau--attente" role="status">
+          <p>{% trans "Une correspondance ajoutée depuis fait sortir une catégorie que ce consentement ne mentionne pas. Il faut consentir à nouveau." %}</p>
+        </div>
+      {% endif %}
+    {% else %}
+      <p><em>{% trans "Aucun consentement enregistré." %}</em></p>
+    {% endif %}
+
+    {% if link.state != "revoquee" %}
+      <form method="post">
+        {% csrf_token %}
+        <c-button type="submit" name="action" value="consent">{% trans "J'accepte que ces données sortent" %}</c-button>
+      </form>
+    {% endif %}
+  </section>
+
+  {% comment %}
+    CON-5 (§15.2) — la jauge. « Consommation face au plafond, par catégorie
+    et par période. Alerte à l'approche, pas seulement à l'atteinte. »
+  {% endcomment %}
+  <section class="card">
+    <h2>{% trans "Plafond mensuel" %}</h2>
+    {% if budget.is_capped %}
+      <p>
+        {% blocktrans with depense=budget.spent plafond=budget.cap ratio=budget.ratio_pct %}{{ depense }} Ar sur {{ plafond }} Ar — {{ ratio }} %.{% endblocktrans %}
+      </p>
+      {% if budget.reached %}
+        <div class="bandeau bandeau--refus" role="alert">
+          <p>{% trans "Le plafond est atteint : les échanges sont suspendus et attendent une décision. Ce n'est pas une panne." %}</p>
+        </div>
+      {% elif budget.approaching %}
+        <div class="bandeau bandeau--attente" role="status">
+          <p>{% blocktrans with seuil=budget.threshold_pct %}Le seuil d'alerte de {{ seuil }} % est franchi.{% endblocktrans %}</p>
+        </div>
+      {% endif %}
+      {% if not budget.complete %}
+        {% comment %}
+          `is_fully_priced` distingue « rien n'a coûté » de « rien n'a
+          encore été tarifé ». Le total connu est une BORNE INFÉRIEURE, et
+          le dire vaut mieux que de laisser croire à un chiffre définitif.
+        {% endcomment %}
+        <p class="text-muted">{% trans "Des échanges de la période n'ont pas encore reçu leur coût : le total affiché est un minimum." %}</p>
+      {% endif %}
+    {% else %}
+      <p>
+        <em>{% trans "Aucun plafond configuré." %}</em>
+        {% if cap_required %}
+          {% trans "Ce connecteur est facturé à l'usage : un plafond est obligatoire avant activation." %}
+        {% endif %}
+      </p>
+    {% endif %}
+
+    {% if link.state != "revoquee" %}
+      <form method="post">
+        {% csrf_token %}
+        <label for="cap">{% trans "Plafond mensuel (Ar)" %}</label>
+        <input type="text" id="cap" name="cap" value="{{ link.monthly_cost_cap_ariary|default_if_none:'' }}">
+        <label for="threshold">{% trans "Alerter à (% du plafond)" %}</label>
+        <input type="number" id="threshold" name="threshold" min="1" max="99"
+               value="{{ link.cost_alert_threshold_pct }}">
+        <c-button type="submit" name="action" value="set_cap">{% trans "Enregistrer le plafond" %}</c-button>
+      </form>
+    {% endif %}
+  </section>
+
+  {% comment %}
+    L'activation, et les deux refus qu'elle oppose. Elle est ici plutôt que
+    sur un écran séparé parce que c'est le geste qui suit immédiatement le
+    consentement — et parce que `activate_link` est le seul chemin
+    d'activation du dépôt.
+  {% endcomment %}
+  {% if link.state == "brouillon" or link.state == "suspendue" %}
+    <section class="card">
+      <h2>{% trans "Activation" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <c-button type="submit" name="action" value="activate">{% trans "Activer le raccordement" %}</c-button>
+      </form>
+    </section>
+  {% endif %}
+
+  {% comment %}
+    CON-3 — « une révocation coupe le connecteur immédiatement, conserve
+    les échanges passés et PROPOSE la purge des charges utiles restantes ».
+    Proposer, jamais faire : le contenu échangé peut encore servir à une
+    réclamation ou à un contrôle.
+  {% endcomment %}
+  {% if link.state != "revoquee" %}
+    <section class="card">
+      <h2>{% trans "Révocation" %}</h2>
+      <p>{% trans "Une liaison révoquée ne reprend pas d'elle-même : la rouvrir demandera un nouveau consentement. Les échanges déjà partis sont conservés." %}</p>
+      <form method="post">
+        {% csrf_token %}
+        <label for="reason">{% trans "Motif de la révocation" %}</label>
+        <textarea id="reason" name="reason" rows="3"></textarea>
+        <c-button variant="danger" type="submit" name="action" value="revoke">{% trans "Révoquer ce raccordement" %}</c-button>
+      </form>
+    </section>
+  {% else %}
+    <section class="card">
+      <h2>{% trans "Charges utiles restantes" %}</h2>
+      <p>{{ link.revoked_reason }}</p>
+      {% if remaining_payloads %}
+        <p>{% blocktrans count nombre=remaining_payloads %}{{ nombre }} charge utile est encore conservée pour cette liaison.{% plural %}{{ nombre }} charges utiles sont encore conservées pour cette liaison.{% endblocktrans %}</p>
+        <p class="text-muted">{% trans "La purge efface le contenu échangé et conserve la preuve de l'échange : empreinte, horodatage et verdict restent lisibles." %}</p>
+        <form method="post">
+          {% csrf_token %}
+          <c-button variant="danger" type="submit" name="action" value="purge">{% trans "Purger les charges utiles restantes" %}</c-button>
+        </form>
+      {% else %}
+        <p>{% trans "Aucune charge utile n'est conservée pour cette liaison." %}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

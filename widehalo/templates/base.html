@@ -106,6 +106,8 @@
               {% if "helpdesk" in visible_app_labels %}<li><a href="/helpdesk/"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-life-buoy"></use></svg>{% trans "Support et suivi opérationnel" %}</a></li>{% endif %}
               {# T8 (bloc H, CON-1) : sans cette entrée, le journal des échanges existerait et personne ne pourrait l'atteindre. Visible pour `admin` et `direction` seuls (RBAC). #}
               {% if "flows" in visible_app_labels %}<li><a href="{% url 'flows:journal' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-workflow"></use></svg>{% trans "Journal des échanges" %}</a></li>{% endif %}
+              {# T9 (bloc H, CON-2 à CON-5) : la console de gouvernance — consentement, plafond, révocation, rejeu. Sans cette entrée, les écrans existeraient à des URL que personne ne connaît. #}
+              {% if "flows" in visible_app_labels %}<li><a href="{% url 'flows:link_list' %}"><svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-settings"></use></svg>{% trans "Raccordements et plafonds" %}</a></li>{% endif %}
             </ul>
           </li>
           {% endif %}

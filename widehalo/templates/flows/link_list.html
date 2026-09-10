@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Raccordements" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'flows:journal' %}">{% trans "Console de flux" %}</a>
+    <span>/</span> {% trans "Raccordements" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Raccordements" %}</h1>
+    <a href="{% url 'flows:replay_panel' %}">{% trans "Rejeu supervisé" %}</a>
+  </div>
+
+  {% comment %}
+    Cet écran est ce qui rend la console atteignable : sans lui, la fiche de
+    gouvernance vivrait à une URL que personne ne connaît. Volontairement
+    minimal — le catalogue de connecteurs et la fiche de liaison complète du
+    §10.2 ne sont couverts par aucun critère CON.
+  {% endcomment %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">{% trans "Raccordement" %}</th>
+        <th scope="col">{% trans "Destinataire" %}</th>
+        <th scope="col">{% trans "État" %}</th>
+        <th scope="col">{% trans "Consentement" %}</th>
+        <th scope="col">{% trans "Plafond du mois" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ligne in rows %}
+        <tr>
+          <td><a href="{% url 'flows:link_console' ligne.link.id %}">{{ ligne.link.name }}</a></td>
+          <td>{{ ligne.link.connector.code }}</td>
+          <td>{{ ligne.link.get_state_display }}</td>
+          <td>
+            {% if ligne.consent %}
+              {{ ligne.consent.granted_at|date:"d/m/Y" }}
+            {% else %}
+              <em>{% trans "Aucun" %}</em>
+            {% endif %}
+          </td>
+          <td>
+            {% if ligne.budget.is_capped %}
+              {{ ligne.budget.ratio_pct }} %
+            {% else %}
+              <em>{% trans "Aucun plafond" %}</em>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "Aucun raccordement n'est déclaré." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -187,14 +187,50 @@ def replay_exchange(exchange: FlwExchange, *, replay_rank: int | None = None) ->
     return successeur
 
 
-def replay_selection(tenant: Tenant, *, ids: Sequence[UUID]) -> list[FlwExchange]:
+def replay_selection(
+    tenant: Tenant, *, ids: Sequence[UUID], acknowledged: ReplayEstimate
+) -> list[FlwExchange]:
     """Rejoue une selection, et renvoie les successeurs crees.
 
     Chaque echange est rejoue dans SA propre transaction (celle de
     `replay_exchange`) : une selection de deux cents lignes dont une
     echoue ne doit pas annuler les cent quatre-vingt-dix-neuf autres, sans
     quoi l'exploitant recommencerait indefiniment une operation qui
-    reussit presque."""
+    reussit presque.
+
+    **T9 (CON-4) — `acknowledged` est OBLIGATOIRE, et c'est tout le
+    critere.** « Le panneau de rejeu affiche volume et cout estime avant
+    confirmation ; **aucun rejeu de masse n'est declenchable sans cette
+    estimation**. »
+
+    Faire porter cette regle a l'ecran seul l'aurait rendue contournable en
+    appelant cette fonction — exactement la faiblesse refusee pour la garde
+    d'activation. L'estimation vue est donc PASSEE ICI, et confrontee a
+    l'estimation courante : si la selection a change entre l'affichage et la
+    confirmation, les chiffres ne correspondent plus et le rejeu est refuse.
+    C'est ce qui distingue une estimation opposable d'un chiffre affiche.
+
+    Le rejeu d'UN echange isole passe par `replay_exchange` et n'a pas
+    besoin de panneau : le §15.2 vise « tout rejeu ou envoi GROUPE », et
+    demander une estimation pour une ligne unique ferait d'une protection
+    contre la facture surprise une formalite."""
+    courant = estimate_replay(tenant, ids=ids)
+    if (acknowledged.count, acknowledged.cost_ariary) != (courant.count, courant.cost_ariary):
+        raise ValidationError(
+            _(
+                "La sélection a changé depuis l'estimation affichée "
+                "(%(vus)d échange(s) pour %(cout_vu)s Ar, désormais %(reels)d pour "
+                "%(cout_reel)s Ar). Le rejeu est refusé : une estimation périmée "
+                "n'est plus une estimation."
+            )
+            % {
+                "vus": acknowledged.count,
+                "cout_vu": acknowledged.cost_ariary,
+                "reels": courant.count,
+                "cout_reel": courant.cost_ariary,
+            }
+        )
+
     successeurs = []
     for exchange in replayable_exchanges(tenant, ids=ids):
         successeurs.append(replay_exchange(exchange))

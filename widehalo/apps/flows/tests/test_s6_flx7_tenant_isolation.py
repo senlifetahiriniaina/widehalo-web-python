@@ -245,8 +245,13 @@ def test_the_replay_services_never_reach_the_other_company_s_exchange(deux_socie
     ids = [d["echange_b"].id]
     with use_tenant(d["a"].id):
         assert replayable_exchanges(d["a"], ids=ids) == []
-        assert estimate_replay(d["a"], ids=ids).count == 0
-        assert replay_selection(d["a"], ids=ids) == []
+        vue = estimate_replay(d["a"], ids=ids)
+        assert vue.count == 0
+        # T9 (CON-4) : l'estimation vue est passée au rejeu. Ici elle vaut
+        # zéro — l'échange de B n'est pas visible depuis A — et le rejeu
+        # rend donc une liste vide sans rien créer. Le critère d'isolation
+        # est inchangé ; c'est la SIGNATURE qui a bougé.
+        assert replay_selection(d["a"], ids=ids, acknowledged=vue) == []
 
 
 def test_passing_the_other_company_as_an_argument_changes_nothing(deux_societes) -> None:
