@@ -8,6 +8,14 @@ class LogisticsConfig(AppConfig):
     verbose_name = "Logistique"
 
     def ready(self) -> None:
+        # C-3 : declare comment calculer les suites possibles des
+        # documents de ce module (registre `core.services.next_steps`).
+        # `core` ne depend d'aucun module metier : c'est le module qui
+        # se declare, jamais le socle qui l'importe.
+        from apps.logistics.services.next_steps_registration import register as register_next_steps
+
+        register_next_steps()
+
         # §5.11 reporting (REP5) : auto-enregistrement dans le registre
         # partage `core.services.reports_registry`, meme patron que
         # `core.events` — jamais un import direct par `apps.reporting`.

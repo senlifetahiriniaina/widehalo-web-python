@@ -8,6 +8,14 @@ class SalesConfig(AppConfig):
     verbose_name = "Ventes"
 
     def ready(self) -> None:
+        # C-3 : declare comment calculer les suites possibles des
+        # documents de ce module (registre `core.services.next_steps`).
+        # `core` ne depend d'aucun module metier : c'est le module qui
+        # se declare, jamais le socle qui l'importe.
+        from apps.sales.services.next_steps_registration import register as register_next_steps
+
+        register_next_steps()
+
         # L0-3 : declaration des commandes periodiques de ce module
         # (registre `core.services.scheduled_commands`). Declare seulement —
         # l'ecriture des planifications est faite au deploiement par
