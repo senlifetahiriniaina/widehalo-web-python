@@ -10,6 +10,7 @@ import os
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
+from apps.core.tests.utils import grant_module_access
 
 # Playwright (API sync) laisse une boucle asyncio active dans le thread
 # principal pendant toute la duree de vie du navigateur (session scope) :
@@ -57,6 +58,16 @@ def e2e_tenant_and_user(live_server):
     et le thread Playwright voient les memes ecritures committees."""
     tenant = Tenant.objects.create(code="E2E", name="E2E Tenant")
     user = User.objects.create_user(email="e2e@example.com", password=PASSWORD)
+    # C-1 : les ecrans de `crm`, `sales`, `accounting` et `logistics`
+    # verifient desormais un droit. Sans permissions, TOUS les parcours de
+    # bout en bout recoivent 403 et n'auditent plus rien — c'est ce que la
+    # passe complete a trouve, et qu'aucun de mes essais cibles n'avait vu.
+    #
+    # `grant_module_access` plutot que `grant_role` : les trois roles qui
+    # detiennent `accounting` en ecriture sont soumis au MFA obligatoire, et
+    # `logged_in_page` se connecte par le VRAI formulaire — le middleware
+    # renverrait vers /mfa/ et `wait_for_url("/dashboard/")` expirerait.
+    grant_module_access(user, "accounting", "crm", "sales", "logistics")
     UserTenantMembership.objects.create(user=user, tenant=tenant, is_default=True)
     return tenant, user
 
