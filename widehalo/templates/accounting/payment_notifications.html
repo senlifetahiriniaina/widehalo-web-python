@@ -44,28 +44,30 @@
   {% endcomment %}
   <h2>{% trans "Affecter un encaissement orphelin" %}</h2>
   {% if orphans %}
-    <form method="post" action="" id="assign-form">
-      {% csrf_token %}
-      <label for="notification">{% trans "Encaissement reçu" %}</label>
-      <select id="notification" name="notification_id"
-              onchange="document.getElementById('assign-form').action = this.value;">
-        <option value="">{% trans "Choisir…" %}</option>
-        {% for orphan in orphans %}
-          <option value="{% url 'accounting:payment_notification_assign' orphan.id %}">
-            {{ orphan.external_reference }} — {{ orphan.amount }} {{ orphan.currency }}
-          </option>
-        {% endfor %}
-      </select>
+    {% if perms.accounting.change_accpaymentnotification %}
+      <form method="post" action="" id="assign-form">
+        {% csrf_token %}
+        <label for="notification">{% trans "Encaissement reçu" %}</label>
+        <select id="notification" name="notification_id"
+                onchange="document.getElementById('assign-form').action = this.value;">
+          <option value="">{% trans "Choisir…" %}</option>
+          {% for orphan in orphans %}
+            <option value="{% url 'accounting:payment_notification_assign' orphan.id %}">
+              {{ orphan.external_reference }} — {{ orphan.amount }} {{ orphan.currency }}
+            </option>
+          {% endfor %}
+        </select>
 
-      <label for="invoice">{% trans "À affecter sur la facture" %}</label>
-      <select id="invoice" name="invoice_id">
-        {% for invoice in open_invoices %}
-          <option value="{{ invoice.id }}">{{ invoice.reference }} — {{ invoice.date }}</option>
-        {% endfor %}
-      </select>
+        <label for="invoice">{% trans "À affecter sur la facture" %}</label>
+        <select id="invoice" name="invoice_id">
+          {% for invoice in open_invoices %}
+            <option value="{{ invoice.id }}">{{ invoice.reference }} — {{ invoice.date }}</option>
+          {% endfor %}
+        </select>
 
-      <c-button type="submit">{% trans "Affecter" %}</c-button>
-    </form>
+        <c-button type="submit">{% trans "Affecter" %}</c-button>
+      </form>
+    {% endif %}
   {% else %}
     <p>{% trans "Aucun encaissement en attente d'affectation." %}</p>
   {% endif %}
@@ -95,10 +97,12 @@
             <td>{{ intent.amount }} {{ intent.currency }}</td>
             <td>{{ intent.expires_at }}</td>
             <td>
-              <form method="post" action="{% url 'accounting:payment_intent_reemit' intent.id %}">
-                {% csrf_token %}
-                <c-button type="submit">{% trans "Relancer le payeur" %}</c-button>
-              </form>
+              {% if perms.accounting.change_accpaymentintent %}
+                <form method="post" action="{% url 'accounting:payment_intent_reemit' intent.id %}">
+                  {% csrf_token %}
+                  <c-button type="submit">{% trans "Relancer le payeur" %}</c-button>
+                </form>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -139,10 +143,12 @@
             <td>{{ payout.net_amount }}</td>
             <td>{{ payout.state }}</td>
             <td>
-              <form method="post" action="{% url 'accounting:payout_settle' payout.id %}">
-                {% csrf_token %}
-                <c-button type="submit">{% trans "Rapprocher le lot" %}</c-button>
-              </form>
+              {% if perms.accounting.change_accaggregatorpayout %}
+                <form method="post" action="{% url 'accounting:payout_settle' payout.id %}">
+                  {% csrf_token %}
+                  <c-button type="submit">{% trans "Rapprocher le lot" %}</c-button>
+                </form>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}

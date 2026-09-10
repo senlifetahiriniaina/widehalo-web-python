@@ -10,7 +10,9 @@
     <h1>{% trans "Saisie comptable rapide" %}</h1>
   </div>
   <p>
-    <a href="{% url 'accounting:quick_entry_create' %}" class="btn btn-primary">{% trans "Nouvelle écriture" %}</a>
+    {% if perms.accounting.add_accmove %}
+      <a href="{% url 'accounting:quick_entry_create' %}" class="btn btn-primary">{% trans "Nouvelle écriture" %}</a>
+    {% endif %}
     <a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a>
   </p>
 

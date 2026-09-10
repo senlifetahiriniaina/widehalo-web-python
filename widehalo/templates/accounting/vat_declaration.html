@@ -65,11 +65,13 @@
       {% if declaration.is_reconciled %}
         <p class="form-success">{% trans "Rapproché à l'ariary près." %}</p>
         {% if declaration.state != "filed" %}
-          <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="file">
-            <c-button variant="primary" type="submit">{% trans "Déposer la déclaration" %}</c-button>
-          </form>
+          {% if perms.accounting.add_accvatdeclaration %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="file">
+              <c-button variant="primary" type="submit">{% trans "Déposer la déclaration" %}</c-button>
+            </form>
+          {% endif %}
         {% else %}
           <p><em>{% trans "Déclaration déposée : elle ne se régénère plus." %}</em></p>
         {% endif %}

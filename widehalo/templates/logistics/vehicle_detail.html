@@ -34,18 +34,20 @@
       {% endfor %}
     </tbody>
   </table>
-  <form method="post">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="add_document">
-    <select name="doc_type" required>
-      {% for value, label in doc_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-    </select>
-    <input type="text" name="reference" placeholder="{% trans 'Reference' %}">
-    <input type="date" name="issue_date" placeholder="{% trans 'Date d emission' %}">
-    <input type="date" name="expiry_date" placeholder="{% trans 'Date d echeance' %}">
-    <input type="number" name="alert_days_before" value="30">
-    <c-button variant="primary" type="submit">{% trans "Ajouter un document" %}</c-button>
-  </form>
+  {% if perms.logistics.add_logvehicledocument %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_document">
+      <select name="doc_type" required>
+        {% for value, label in doc_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input type="text" name="reference" placeholder="{% trans 'Reference' %}">
+      <input type="date" name="issue_date" placeholder="{% trans 'Date d emission' %}">
+      <input type="date" name="expiry_date" placeholder="{% trans 'Date d echeance' %}">
+      <input type="number" name="alert_days_before" value="30">
+      <c-button variant="primary" type="submit">{% trans "Ajouter un document" %}</c-button>
+    </form>
+  {% endif %}
 
   <h2>{% trans "Coûts" %}</h2>
   <table class="smart-table">
@@ -68,16 +70,18 @@
       {% endfor %}
     </tbody>
   </table>
-  <form method="post">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="add_cost">
-    <input type="date" name="date" required>
-    <select name="cost_type" required>
-      {% for value, label in cost_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-    </select>
-    <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant' %}" required>
-    <input type="number" name="odometer_km" step="0.01" placeholder="{% trans 'Kilometrage' %}">
-    <input type="text" name="note" placeholder="{% trans 'Note' %}">
-    <c-button variant="primary" type="submit">{% trans "Ajouter un coût" %}</c-button>
-  </form>
+  {% if perms.logistics.add_logvehiclecost %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_cost">
+      <input type="date" name="date" required>
+      <select name="cost_type" required>
+        {% for value, label in cost_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input type="number" name="amount_mga" step="0.0001" placeholder="{% trans 'Montant' %}" required>
+      <input type="number" name="odometer_km" step="0.01" placeholder="{% trans 'Kilometrage' %}">
+      <input type="text" name="note" placeholder="{% trans 'Note' %}">
+      <c-button variant="primary" type="submit">{% trans "Ajouter un coût" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

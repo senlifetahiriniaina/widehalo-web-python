@@ -33,18 +33,20 @@
   </table>
 
   <h2>{% trans "Nouveau pipeline" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="name">{% trans "Nom" %}</label>
-      <input id="name" type="text" name="name" required>
-    </div>
-    <div class="form-field">
-      <label for="is_default">
-        <input id="is_default" type="checkbox" name="is_default" value="1">
-        {% trans "Pipeline par défaut" %}
-      </label>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.crm.add_crmpipeline %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="is_default">
+          <input id="is_default" type="checkbox" name="is_default" value="1">
+          {% trans "Pipeline par défaut" %}
+        </label>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

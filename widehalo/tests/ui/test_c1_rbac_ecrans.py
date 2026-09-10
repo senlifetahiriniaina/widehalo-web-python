@@ -154,3 +154,39 @@ def test_the_refusal_page_says_what_is_missing_and_to_whom_to_turn() -> None:
     assert "accounting.view_accmove" in contenu
     assert "comptable" in contenu, "la page ne dit pas a quel role s'adresser"
     assert "Accès refusé" in contenu or "Acc&#xE8;s refus&#xE9;" in contenu
+
+
+def test_a_screen_never_offers_an_action_the_guard_will_refuse() -> None:
+    """C-1d — l'ecran cesse de proposer ce qu'il refusera.
+
+    Le cas n'est pas exotique, c'est le plus courant : `direction` detient
+    `view` et `change` sur les quatre modules mais **pas `add`** (mesure
+    directe de `ROLE_APP_PERMISSIONS`). Sans ce volet, un dirigeant voit
+    « Nouveau devis », clique, et recoit un refus — l'ecran lui a promis
+    une action que la garde lui interdit.
+
+    On eprouve avec `controleur_gestion`, qui n'a que `view` sur `sales` :
+    la liste doit se rendre, et ne proposer aucune creation. `direction`
+    ferait le meme office mais exige un enrolement MFA."""
+    client, _ = _client_pour("controleur_gestion", "c1-boutons@example.com")
+    contenu = client.get("/sales/").content.decode()
+    assert "Nouveau devis" not in contenu, (
+        "L'ecran propose la creation d'un devis a un role qui n'a pas le droit `add` : "
+        "il promet une action que la garde refusera."
+    )
+    assert "/sales/new/" not in contenu
+
+    contenu = client.get("/accounting/").content.decode()
+    assert "Nouvelle facture" not in contenu
+    assert "/accounting/new/" not in contenu
+
+
+def test_a_role_that_may_create_still_sees_the_button() -> None:
+    """La falsification du test precedent : une garde qui cacherait le
+    bouton a TOUT LE MONDE le ferait passer sans rien prouver."""
+    client, _ = _client_pour("magasinier", "c1-boutons-ok@example.com")
+    contenu = client.get("/logistics/").content.decode()
+    assert "/logistics/vehicles/new/" in contenu, (
+        "`magasinier` detient `logistics.add_logvehicle` : le bouton de creation "
+        "doit lui rester visible."
+    )

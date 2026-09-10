@@ -10,20 +10,24 @@
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ trip.status|state_badge_class }}">{{ trip.get_status_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     {% if trip.status == "planned" %}
-      <form method="post" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="start">
-        <input type="number" name="start_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de depart' %}" required>
-        <c-button variant="primary" type="submit">{% trans "Démarrer" %}</c-button>
-      </form>
+      {% if perms.logistics.change_logtrip %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="start">
+          <input type="number" name="start_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de depart' %}" required>
+          <c-button variant="primary" type="submit">{% trans "Démarrer" %}</c-button>
+        </form>
+      {% endif %}
     {% endif %}
     {% if trip.status == "in_progress" %}
-      <form method="post" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="close">
-        <input type="number" name="end_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de fin' %}" required>
-        <c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button>
-      </form>
+      {% if perms.logistics.change_logtrip %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="close">
+          <input type="number" name="end_odometer_km" step="0.01" placeholder="{% trans 'Kilometrage de fin' %}" required>
+          <c-button variant="primary" type="submit">{% trans "Clôturer" %}</c-button>
+        </form>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -58,15 +62,17 @@
   </table>
 
   <h3>{% trans "Enregistrer une preuve de livraison (RG-LOG-3)" %}</h3>
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="complete_stop">
-    <select name="stop_id" required>
-      {% for stop in stops %}<option value="{{ stop.id }}">{{ stop.sequence }} — {{ stop.address }}</option>{% endfor %}
-    </select>
-    <input type="datetime-local" name="actual_time" required>
-    <input type="text" name="signed_by" placeholder="{% trans 'Signe par' %}">
-    <input type="file" name="proof_file">
-    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
-  </form>
+  {% if perms.logistics.change_logtrip %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="complete_stop">
+      <select name="stop_id" required>
+        {% for stop in stops %}<option value="{{ stop.id }}">{{ stop.sequence }} — {{ stop.address }}</option>{% endfor %}
+      </select>
+      <input type="datetime-local" name="actual_time" required>
+      <input type="text" name="signed_by" placeholder="{% trans 'Signe par' %}">
+      <input type="file" name="proof_file">
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

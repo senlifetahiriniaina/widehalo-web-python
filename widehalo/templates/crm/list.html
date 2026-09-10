@@ -7,7 +7,9 @@
     <h1>{% trans "Opportunités" %}</h1>
   </div>
   <p>
-    <a href="{% url 'crm:create' %}" class="btn btn-primary">{% trans "Nouvelle opportunité" %}</a>
+    {% if perms.crm.add_crmlead %}
+      <a href="{% url 'crm:create' %}" class="btn btn-primary">{% trans "Nouvelle opportunité" %}</a>
+    {% endif %}
     <a href="{% url 'crm:kanban' %}">{% trans "Pipeline (kanban)" %}</a>
     <a href="{% url 'crm:reports_index' %}">{% trans "Rapports" %}</a>
   </p>
@@ -23,11 +25,20 @@
     second cacherait la barre de recherche a qui veut la corriger.
   {% endcomment %}
   {% if not query and page_obj.paginator.count == 0 %}
-    <c-empty-state
-      title="{% trans 'Aucune opportunité pour l’instant' %}"
-      body="{% trans 'Une opportunité suit une affaire de sa qualification à sa conclusion : montant attendu, étape, activités de relance. Créez la première, puis suivez-la depuis le pipeline.' %}"
-      action_url="{% url 'crm:create' %}"
-      action_label="{% trans 'Nouvelle opportunité' %}" />
+    {% comment %} C-1 : un etat vide qui dit « creez la premiere » a un role
+       qui n'a pas le droit `add` lui promet une action que la garde
+       refusera. Le corps ET le bouton suivent donc le droit. {% endcomment %}
+    {% if perms.crm.add_crmlead %}
+      <c-empty-state
+        title="{% trans 'Aucune opportunité pour l’instant' %}"
+        body="{% trans 'Une opportunité suit une affaire de sa qualification à sa conclusion : montant attendu, étape, activités de relance. Créez la première, puis suivez-la depuis le pipeline.' %}"
+        action_url="{% url 'crm:create' %}"
+        action_label="{% trans 'Nouvelle opportunité' %}" />
+    {% else %}
+      <c-empty-state
+        title="{% trans 'Aucune opportunité pour l’instant' %}"
+        body="{% trans 'Une opportunité suit une affaire de sa qualification à sa conclusion : montant attendu, étape, activités de relance. Votre rôle donne accès à la consultation ; la création revient à l’équipe commerciale.' %}" />
+    {% endif %}
   {% else %}
     {% include "components/_smart_table.html" %}
   {% endif %}

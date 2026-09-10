@@ -32,13 +32,15 @@
   </table>
 
   <h2>{% trans "Nouveau code SH" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
-    <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
-    <input type="number" name="duty_rate_pct" step="0.001" placeholder="{% trans 'Taux de droits (%)' %}" required>
-    <input type="date" name="valid_from">
-    <input type="date" name="valid_to">
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.logistics.add_loghscode %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+      <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
+      <input type="number" name="duty_rate_pct" step="0.001" placeholder="{% trans 'Taux de droits (%)' %}" required>
+      <input type="date" name="valid_from">
+      <input type="date" name="valid_to">
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

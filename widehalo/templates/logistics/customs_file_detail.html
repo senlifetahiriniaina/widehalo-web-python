@@ -9,11 +9,13 @@
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ customs_file.state|state_badge_class }}">{{ customs_file.get_state_display }}</span>
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-    <form method="post" style="display:inline;">
-      {% csrf_token %}
-      {% if customs_file.state == "open" %}<c-button variant="primary" type="submit" name="action" value="mark_cleared">{% trans "Marquer dédouané" %}</c-button>{% endif %}
-      {% if customs_file.state == "cleared" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer (transfert des coûts d'approche)" %}</c-button>{% endif %}
-    </form>
+    {% if perms.logistics.change_logcustomsfile %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        {% if customs_file.state == "open" %}<c-button variant="primary" type="submit" name="action" value="mark_cleared">{% trans "Marquer dédouané" %}</c-button>{% endif %}
+        {% if customs_file.state == "cleared" %}<c-button variant="primary" type="submit" name="action" value="close">{% trans "Clôturer (transfert des coûts d'approche)" %}</c-button>{% endif %}
+      </form>
+    {% endif %}
   </div>
 
 <div class="page-head">
@@ -54,21 +56,23 @@
 
   {% if customs_file.state == "open" %}
     <h3>{% trans "Ajouter une ligne" %}</h3>
-    <form method="post">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="add_line">
-      <select name="hs_code_id" required>
-        {% for hs_code in hs_codes %}<option value="{{ hs_code.id }}">{{ hs_code.code }} — {{ hs_code.description }}</option>{% endfor %}
-      </select>
-      <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
-      <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID, optionnel)' %}">
-      <input type="number" name="qty" step="0.001" value="1">
-      <input type="number" name="fob_value_mga" step="0.0001" placeholder="{% trans 'Valeur FOB' %}" required>
-      <input type="number" name="freight_value_mga" step="0.0001" placeholder="{% trans 'Fret' %}">
-      <input type="number" name="insurance_value_mga" step="0.0001" placeholder="{% trans 'Assurance' %}">
-      <input type="number" name="other_non_recoverable_taxes_mga" step="0.0001" placeholder="{% trans 'Autres taxes non recuperables' %}">
-      <input type="number" name="transit_cost_mga" step="0.0001" placeholder="{% trans 'Transit' %}">
-      <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
-    </form>
+    {% if perms.logistics.change_logcustomsfile %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_line">
+        <select name="hs_code_id" required>
+          {% for hs_code in hs_codes %}<option value="{{ hs_code.id }}">{{ hs_code.code }} — {{ hs_code.description }}</option>{% endfor %}
+        </select>
+        <input type="text" name="description" placeholder="{% trans 'Description' %}" required>
+        <input type="text" name="variant_id" placeholder="{% trans 'Article (UUID, optionnel)' %}">
+        <input type="number" name="qty" step="0.001" value="1">
+        <input type="number" name="fob_value_mga" step="0.0001" placeholder="{% trans 'Valeur FOB' %}" required>
+        <input type="number" name="freight_value_mga" step="0.0001" placeholder="{% trans 'Fret' %}">
+        <input type="number" name="insurance_value_mga" step="0.0001" placeholder="{% trans 'Assurance' %}">
+        <input type="number" name="other_non_recoverable_taxes_mga" step="0.0001" placeholder="{% trans 'Autres taxes non recuperables' %}">
+        <input type="number" name="transit_cost_mga" step="0.0001" placeholder="{% trans 'Transit' %}">
+        <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
+      </form>
+    {% endif %}
   {% endif %}
 {% endblock %}

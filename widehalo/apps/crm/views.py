@@ -301,7 +301,11 @@ def lead_kanban(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("crm.view_crmlead")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("crm.add_crmlead")
 def lead_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None

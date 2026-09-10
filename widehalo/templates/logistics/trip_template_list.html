@@ -36,21 +36,23 @@
   </table>
 
   <h2>{% trans "Nouveau gabarit" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
-    <select name="vehicle_id" required>
-      {% for vehicle in vehicles %}<option value="{{ vehicle.id }}">{{ vehicle.plate_number }}</option>{% endfor %}
-    </select>
-    <select name="driver_id" required>
-      {% for driver in drivers %}<option value="{{ driver.id }}">{{ driver.name }}</option>{% endfor %}
-    </select>
-    <select name="interval">
-      {% for value, label in interval_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-    </select>
-    <input type="date" name="start_date" required>
-    <input type="date" name="end_date">
-    <textarea name="stop_addresses" rows="3" placeholder="{% trans 'Arrets (une adresse par ligne)' %}" required></textarea>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.logistics.add_logtriptemplate %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+      <select name="vehicle_id" required>
+        {% for vehicle in vehicles %}<option value="{{ vehicle.id }}">{{ vehicle.plate_number }}</option>{% endfor %}
+      </select>
+      <select name="driver_id" required>
+        {% for driver in drivers %}<option value="{{ driver.id }}">{{ driver.name }}</option>{% endfor %}
+      </select>
+      <select name="interval">
+        {% for value, label in interval_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input type="date" name="start_date" required>
+      <input type="date" name="end_date">
+      <textarea name="stop_addresses" rows="3" placeholder="{% trans 'Arrets (une adresse par ligne)' %}" required></textarea>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

@@ -25,12 +25,14 @@
   </table>
 
   <h2>{% trans "Nouveau motif" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="name">{% trans "Nom" %}</label>
-      <input id="name" type="text" name="name" required>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.crm.add_crmlostreason %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

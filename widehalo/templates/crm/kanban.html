@@ -45,8 +45,8 @@
     <c-empty-state
       title="{% trans 'Aucun pipeline configuré' %}"
       body="{% trans 'Un pipeline et ses étapes définissent les colonnes de ce tableau. Créez-en un pour commencer à suivre vos opportunités.' %}"
-      action_url="{% url 'crm:config_pipelines' %}"
-      action_label="{% trans 'Configurer un pipeline' %}" />
+      action_url="{% if perms.crm.add_crmpipeline %}{% url 'crm:config_pipelines' %}{% endif %}"
+      action_label="{% if perms.crm.add_crmpipeline %}{% trans 'Configurer un pipeline' %}{% endif %}" />
   {% else %}
     <p class="hint">
       {% trans "Glissez une carte par sa poignée vers la colonne suivante pour faire avancer l'opportunité (la transition est inscrite au fil de discussion et au journal d'audit) — ou utilisez le bouton, toujours disponible." %}
@@ -75,14 +75,16 @@
                       <a href="{% url 'crm:detail' lead_id=lead.id %}">{% trans "Motif requis — passer par la fiche" %}</a>
                     </p>
                   {% else %}
-                    <form method="post">
-                      {% csrf_token %}
-                      <input type="hidden" name="lead_id" value="{{ lead.id }}">
-                      <input type="hidden" name="stage_id" value="{{ column.next_stage.id }}">
-                      <c-button variant="secondary" type="submit">
-                        {% blocktrans with stage=column.next_stage.name %}Passer à {{ stage }}{% endblocktrans %}
-                      </c-button>
-                    </form>
+                    {% if perms.crm.change_crmlead %}
+                      <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                        <input type="hidden" name="stage_id" value="{{ column.next_stage.id }}">
+                        <c-button variant="secondary" type="submit">
+                          {% blocktrans with stage=column.next_stage.name %}Passer à {{ stage }}{% endblocktrans %}
+                        </c-button>
+                      </form>
+                    {% endif %}
                   {% endif %}
                 {% endif %}
               </div>

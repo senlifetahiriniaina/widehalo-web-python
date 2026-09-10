@@ -10,7 +10,9 @@
     <h1>{% trans "Factures clients" %}</h1>
   </div>
   <p>
-    <a href="{% url 'accounting:create' %}" class="btn btn-primary">{% trans "Nouvelle facture" %}</a>
+    {% if perms.accounting.add_accmove %}
+      <a href="{% url 'accounting:create' %}" class="btn btn-primary">{% trans "Nouvelle facture" %}</a>
+    {% endif %}
     <a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a>
   </p>
   {% include "components/_smart_table.html" %}

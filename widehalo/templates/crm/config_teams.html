@@ -31,21 +31,23 @@
   </table>
 
   <h2>{% trans "Nouvelle équipe" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="name">{% trans "Nom" %}</label>
-      <input id="name" type="text" name="name" required>
-    </div>
-    <div class="form-field">
-      <label for="leader_id">{% trans "Responsable" %}</label>
-      <select id="leader_id" name="leader_id">
-        <option value="">—</option>
-        {% for user in users %}
-          <option value="{{ user.id }}">{{ user.email }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.crm.add_crmteam %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Nom" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="leader_id">{% trans "Responsable" %}</label>
+        <select id="leader_id" name="leader_id">
+          <option value="">—</option>
+          {% for user in users %}
+            <option value="{{ user.id }}">{{ user.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

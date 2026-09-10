@@ -34,16 +34,18 @@
   </table>
 
   <h2>{% trans "Nouveau chauffeur" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
-    <input type="text" name="phone" placeholder="{% trans 'Telephone' %}">
-    <input type="text" name="license_number" placeholder="{% trans 'Numero de permis' %}">
-    <input type="date" name="license_expiry">
-    <label>
-      <input type="checkbox" name="consent_geolocation" value="1">
-      {% trans "Consentement explicite a la geolocalisation (RG-LOG-GEO1)" %}
-    </label>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.logistics.add_logdriver %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+      <input type="text" name="phone" placeholder="{% trans 'Telephone' %}">
+      <input type="text" name="license_number" placeholder="{% trans 'Numero de permis' %}">
+      <input type="date" name="license_expiry">
+      <label>
+        <input type="checkbox" name="consent_geolocation" value="1">
+        {% trans "Consentement explicite a la geolocalisation (RG-LOG-GEO1)" %}
+      </label>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

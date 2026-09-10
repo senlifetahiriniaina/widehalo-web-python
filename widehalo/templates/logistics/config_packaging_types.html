@@ -36,13 +36,15 @@
   </table>
 
   <h2>{% trans "Nouveau type d'emballage" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
-    <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
-    <input type="number" name="tare_weight_kg" step="0.001" placeholder="{% trans 'Poids a vide (kg)' %}">
-    <input type="number" name="max_weight_kg" step="0.001" placeholder="{% trans 'Poids max (kg)' %}">
-    <input type="number" name="volume_m3" step="0.0001" placeholder="{% trans 'Volume (m3)' %}">
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.logistics.add_logpackagingtype %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="code" placeholder="{% trans 'Code' %}" required>
+      <input type="text" name="name" placeholder="{% trans 'Nom' %}" required>
+      <input type="number" name="tare_weight_kg" step="0.001" placeholder="{% trans 'Poids a vide (kg)' %}">
+      <input type="number" name="max_weight_kg" step="0.001" placeholder="{% trans 'Poids max (kg)' %}">
+      <input type="number" name="volume_m3" step="0.0001" placeholder="{% trans 'Volume (m3)' %}">
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

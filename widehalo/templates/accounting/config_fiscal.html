@@ -72,30 +72,32 @@
     </div>
   {% endif %}
 
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="fiscal_regime">{% trans "Régime fiscal" %}</label>
-      <select id="fiscal_regime" name="fiscal_regime">
-        {% for code, label in regime_choices %}
-          <option value="{{ code }}" {% if tenant.fiscal_regime == code %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-field">
-      <label for="vat_opted_in">
-        <input id="vat_opted_in" type="checkbox" name="vat_opted_in" {% if tenant.vat_opted_in %}checked{% endif %}>
-        {% trans "Option pour l'assujettissement à la TVA (tranche 200–400 M Ar, Loi de finances 2026)" %}
-      </label>
-      <p><em>{% trans "Sans effet sur le régime synthétique, où l'impôt forfaitaire remplace la TVA." %}</em></p>
-    </div>
-    <div class="form-field">
-      <label for="legal_mentions">{% trans "Mentions légales des documents" %}</label>
-      <textarea id="legal_mentions" name="legal_mentions" rows="4">{{ tenant.legal_mentions }}</textarea>
-      <p><em>{% trans "Mentions libres (escompte, pénalités de retard, conditions de règlement). La mention de non-assujettissement, elle, est ajoutée automatiquement d'après le régime." %}</em></p>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
-  </form>
+  {% if perms.accounting.change_accframework %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="fiscal_regime">{% trans "Régime fiscal" %}</label>
+        <select id="fiscal_regime" name="fiscal_regime">
+          {% for code, label in regime_choices %}
+            <option value="{{ code }}" {% if tenant.fiscal_regime == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="vat_opted_in">
+          <input id="vat_opted_in" type="checkbox" name="vat_opted_in" {% if tenant.vat_opted_in %}checked{% endif %}>
+          {% trans "Option pour l'assujettissement à la TVA (tranche 200–400 M Ar, Loi de finances 2026)" %}
+        </label>
+        <p><em>{% trans "Sans effet sur le régime synthétique, où l'impôt forfaitaire remplace la TVA." %}</em></p>
+      </div>
+      <div class="form-field">
+        <label for="legal_mentions">{% trans "Mentions légales des documents" %}</label>
+        <textarea id="legal_mentions" name="legal_mentions" rows="4">{{ tenant.legal_mentions }}</textarea>
+        <p><em>{% trans "Mentions libres (escompte, pénalités de retard, conditions de règlement). La mention de non-assujettissement, elle, est ajoutée automatiquement d'après le régime." %}</em></p>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
 
   <h2>{% trans "Ce que portent vos documents aujourd'hui" %}</h2>
   {% if is_vat_liable %}

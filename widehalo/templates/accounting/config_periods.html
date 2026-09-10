@@ -43,29 +43,31 @@
       <a href="{% url 'accounting:config_fiscal_years' %}">{% trans "Configurer un exercice" %}</a>
     </p>
   {% else %}
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="fiscal_year_id">{% trans "Exercice" %}</label>
-      <select id="fiscal_year_id" name="fiscal_year_id" required>
-        {% for fiscal_year in fiscal_years %}
-          <option value="{{ fiscal_year.id }}" {% if fiscal_year.id == default_fiscal_year_id %}selected{% endif %}>{{ fiscal_year.code }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-field">
-      <label for="code">{% trans "Code" %}</label>
-      <input id="code" type="text" name="code" required>
-    </div>
-    <div class="form-field">
-      <label for="date_start">{% trans "Début" %}</label>
-      <input id="date_start" type="date" name="date_start" required>
-    </div>
-    <div class="form-field">
-      <label for="date_end">{% trans "Fin" %}</label>
-      <input id="date_end" type="date" name="date_end" required>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.accounting.add_accperiod %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+        <select id="fiscal_year_id" name="fiscal_year_id" required>
+          {% for fiscal_year in fiscal_years %}
+            <option value="{{ fiscal_year.id }}" {% if fiscal_year.id == default_fiscal_year_id %}selected{% endif %}>{{ fiscal_year.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="code">{% trans "Code" %}</label>
+        <input id="code" type="text" name="code" required>
+      </div>
+      <div class="form-field">
+        <label for="date_start">{% trans "Début" %}</label>
+        <input id="date_start" type="date" name="date_start" required>
+      </div>
+      <div class="form-field">
+        <label for="date_end">{% trans "Fin" %}</label>
+        <input id="date_end" type="date" name="date_end" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
   {% endif %}
 {% endblock %}

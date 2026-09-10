@@ -17,32 +17,36 @@
       Une piste deja rattachee n'affiche plus le bouton.
     {% endcomment %}
     {% if not lead.partner_id %}
-      <form method="post" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="convert">
-        <c-button variant="secondary" type="submit">{% trans "Convertir en société" %}</c-button>
-      </form>
+      {% if perms.crm.change_crmlead %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="convert">
+          <c-button variant="secondary" type="submit">{% trans "Convertir en société" %}</c-button>
+        </form>
+      {% endif %}
     {% endif %}
     {% if whatsapp_link %}<a href="{{ whatsapp_link }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-    <form method="post">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="move_stage">
-      <select name="stage_id" aria-label="{% trans 'Etape' %}">
-        {% for stage in stages %}
-          <option value="{{ stage.id }}">{{ stage.name }}</option>
-        {% endfor %}
-      </select>
-      <select name="lost_reason_id" aria-label="{% trans 'Motif de perte (si applicable)' %}">
-        <option value="">{% trans "Motif de perte (si applicable)" %}</option>
-        {% for reason in lost_reasons %}
-          <option value="{{ reason.id }}">{{ reason.name }}</option>
-        {% endfor %}
-      </select>
-      <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}"
-             aria-label="{% trans 'Commentaire' %}">
-      <c-button variant="primary" type="submit">{% trans "Changer d étape" %}</c-button>
-    </form>
+    {% if perms.crm.change_crmlead %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="move_stage">
+        <select name="stage_id" aria-label="{% trans 'Etape' %}">
+          {% for stage in stages %}
+            <option value="{{ stage.id }}">{{ stage.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="lost_reason_id" aria-label="{% trans 'Motif de perte (si applicable)' %}">
+          <option value="">{% trans "Motif de perte (si applicable)" %}</option>
+          {% for reason in lost_reasons %}
+            <option value="{{ reason.id }}">{{ reason.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="comment" placeholder="{% trans 'Commentaire' %}"
+               aria-label="{% trans 'Commentaire' %}">
+        <c-button variant="primary" type="submit">{% trans "Changer d étape" %}</c-button>
+      </form>
+    {% endif %}
   </div>
 
   <div class="two-col">
@@ -79,22 +83,24 @@
           {% endfor %}
         </tbody>
       </table>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="add_line">
-        <input type="text" name="variant_id" placeholder="{% trans 'UUID article (optionnel)' %}"
-               aria-label="{% trans 'UUID article (optionnel)' %}">
-        <input type="text" name="description" placeholder="{% trans 'Designation' %}" required
-               aria-label="{% trans 'Designation' %}">
-        <input type="number" step="0.0001" name="qty" placeholder="{% trans 'Quantite' %}" value="1"
-               aria-label="{% trans 'Quantite' %}">
-        <input type="number" step="0.0001" name="unit_price" placeholder="{% trans 'Prix unitaire' %}"
-               aria-label="{% trans 'Prix unitaire' %}">
-        <input type="number" step="0.01" name="discount_pct" placeholder="{% trans 'Remise %' %}" value="0"
-               aria-label="{% trans 'Remise %' %}">
-        <label><input type="checkbox" name="is_custom" value="1"> {% trans "Hors catalogue" %}</label>
-        <c-button variant="primary" type="submit">{% trans "Ajouter la ligne" %}</c-button>
-      </form>
+      {% if perms.crm.change_crmlead %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_line">
+          <input type="text" name="variant_id" placeholder="{% trans 'UUID article (optionnel)' %}"
+                 aria-label="{% trans 'UUID article (optionnel)' %}">
+          <input type="text" name="description" placeholder="{% trans 'Designation' %}" required
+                 aria-label="{% trans 'Designation' %}">
+          <input type="number" step="0.0001" name="qty" placeholder="{% trans 'Quantite' %}" value="1"
+                 aria-label="{% trans 'Quantite' %}">
+          <input type="number" step="0.0001" name="unit_price" placeholder="{% trans 'Prix unitaire' %}"
+                 aria-label="{% trans 'Prix unitaire' %}">
+          <input type="number" step="0.01" name="discount_pct" placeholder="{% trans 'Remise %' %}" value="0"
+                 aria-label="{% trans 'Remise %' %}">
+          <label><input type="checkbox" name="is_custom" value="1"> {% trans "Hors catalogue" %}</label>
+          <c-button variant="primary" type="submit">{% trans "Ajouter la ligne" %}</c-button>
+        </form>
+      {% endif %}
 
       {% comment %}
         T2 (CRM-7) — la relance devient PLANIFIABLE, et c'est ce qui rendait
@@ -126,20 +132,22 @@
           <li>{% trans "Aucune activité." %}</li>
         {% endfor %}
       </ul>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="log_activity">
-        <select id="activity_type" name="activity_type" aria-label="{% trans 'Type d activite' %}">
-          {% for code, label in activity_type_choices %}
-            <option value="{{ code }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-        <input id="activity_subject" type="text" name="subject" placeholder="{% trans 'Objet' %}" required
-               aria-label="{% trans 'Objet' %}">
-        <input id="activity_due_at" type="datetime-local" name="due_at"
-               aria-label="{% trans 'Échéance de la relance' %}">
-        <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
-      </form>
+      {% if perms.crm.add_crmactivity %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="log_activity">
+          <select id="activity_type" name="activity_type" aria-label="{% trans 'Type d activite' %}">
+            {% for code, label in activity_type_choices %}
+              <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          <input id="activity_subject" type="text" name="subject" placeholder="{% trans 'Objet' %}" required
+                 aria-label="{% trans 'Objet' %}">
+          <input id="activity_due_at" type="datetime-local" name="due_at"
+                 aria-label="{% trans 'Échéance de la relance' %}">
+          <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
+        </form>
+      {% endif %}
       <p><em>{% trans "Renseigner une échéance planifie une relance ; la laisser vide enregistre une activité déjà réalisée." %}</em></p>
     </div>
   </div>

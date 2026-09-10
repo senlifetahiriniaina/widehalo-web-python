@@ -244,7 +244,11 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
 
 
 @login_required
-@screen_permission("accounting.view_accmove")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("accounting.add_accmove")
 def invoice_create(request: HttpRequest) -> HttpResponse:
     """Formulaire minimal : une facture a ligne de produit unique (le
     detail multi-lignes reste accessible via l'API pour les besoins
@@ -341,7 +345,11 @@ def quick_entry_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("accounting.view_accmove")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("accounting.add_accmove")
 def quick_entry_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     journals = AccJournal.objects.filter(tenant=tenant).order_by("code")

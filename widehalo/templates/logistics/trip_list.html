@@ -10,7 +10,9 @@
   <h1>{% trans "Trajets" %}</h1>
 </div>
   <p>
-    <a href="{% url 'logistics:trip_create' %}" class="btn btn-primary">{% trans "Nouveau trajet" %}</a>
+    {% if perms.logistics.add_logtrip %}
+      <a href="{% url 'logistics:trip_create' %}" class="btn btn-primary">{% trans "Nouveau trajet" %}</a>
+    {% endif %}
     <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournée" %}</a>
     <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
   </p>

@@ -113,7 +113,11 @@ def vehicle_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("logistics.view_logvehicle")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("logistics.add_logvehicle")
 def vehicle_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
@@ -262,7 +266,11 @@ def trip_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("logistics.view_logtrip")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("logistics.add_logtrip")
 def trip_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
@@ -450,7 +458,11 @@ def shipment_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("logistics.view_logshipment")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("logistics.add_logshipment")
 def shipment_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None

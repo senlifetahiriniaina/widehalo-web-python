@@ -7,7 +7,9 @@
     <h1>{% trans "Devis" %}</h1>
   </div>
   <p>
-    <a href="{% url 'sales:quotation_create' %}" class="btn btn-primary">{% trans "Nouveau devis" %}</a>
+    {% if perms.sales.add_salesquotation %}
+      <a href="{% url 'sales:quotation_create' %}" class="btn btn-primary">{% trans "Nouveau devis" %}</a>
+    {% endif %}
     | <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
     | <a href="{% url 'sales:reports_index' %}">{% trans "Rapports" %}</a>
   </p>

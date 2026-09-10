@@ -17,9 +17,77 @@ porté par un mécanisme distinct :
 | Niveau | Nom | Question | Mécanisme | Fichier source |
 |---|---|---|---|---|
 | N1 | Module | L'utilisateur a-t-il accès à ce module métier du tout ? | Appartenance à un `Group` Django (= un rôle) donnant des permissions sur l'app | `apps/core/services/rbac_policy.py` (`ROLE_APP_PERMISSIONS`) |
-| N2 | Objet-type | Peut-il voir/créer/modifier ce TYPE d'objet ? | Permissions Django auto-générées (`view_<model>`/`add_<model>`/`change_<model>`), vérifiées par `require_permission()` sur chaque endpoint | `apps/core/services/rbac_policy.py`, `apps/core/services/permissions.py` |
+| N2 | Objet-type | Peut-il voir/créer/modifier ce TYPE d'objet ? | Permissions Django auto-générées (`view_<model>`/`add_<model>`/`change_<model>`), vérifiées par `require_permission()` sur chaque endpoint d'API **et par `@screen_permission` / `screen_forbidden()` sur chaque vue d'écran** (§1.1) | `apps/core/services/rbac_policy.py`, `apps/core/services/permissions.py` |
 | N3 | Enregistrement | Peut-il voir/modifier CET enregistrement précis (le sien, celui de son équipe...) ? | Filtrage de queryset au cas par cas dans chaque module (`apply_scope`, `scope_*_for_user`, `user_can_manage_*`) | `apps/core/services/scoping.py` + un fichier par module métier concerné (§5) |
 | N4 | Champ | Peut-il voir CE CHAMP précis d'un enregistrement qu'il peut par ailleurs consulter ? | Registre déclaratif `SENSITIVE_FIELDS` + `filter_fields_for_role()` | `apps/core/services/permissions.py` |
+
+### 1.1 Le N2 s'applique aussi aux ÉCRANS, et pas seulement aux endpoints
+
+Jusqu'au lot C-1, ce document décrivait le N2 comme appliqué
+« sur chaque endpoint » — et ne disait rien des écrans HTML. Ce n'était
+pas une nuance de rédaction : les **82 vues** de `crm`, `sales`,
+`accounting` et `logistics` portaient `@login_required` et rien d'autre.
+Tout utilisateur authentifié, quel que soit son rôle, lisait **et
+écrivait** le plan comptable, le référentiel fiscal, les tournées et les
+devis, alors que l'API des mêmes modules refusait ces opérations depuis
+le lot T6.
+
+La règle est désormais explicite, et elle n'ajoute aucune politique :
+
+> **Une vue d'écran porte le même codename que l'endpoint d'API
+> homologue.** L'écran et l'endpoint refusent la même personne pour la
+> même opération. Quand les deux divergent, c'est un défaut.
+
+Deux mécanismes, tous deux dans `apps/core/services/permissions.py` :
+
+| Mécanisme | Où | Ce qu'il garde |
+|---|---|---|
+| `@screen_permission("<app>.view_<modèle>")` | sous `@login_required`, au-dessus de `def` | l'ouverture de l'écran (et donc aussi ses exports `?export=csv`, servis par la même vue) |
+| `screen_forbidden(request, "<app>.add_<modèle>")` | première instruction du traitement `POST` | l'écriture, action par action quand les verbes diffèrent |
+
+`require_permission()` n'est **pas** utilisable sur un écran : il rend un
+`JsonResponse`, donc du JSON brut dans le navigateur. Il reste réservé à
+django-ninja.
+
+**L'ordre des décorateurs compte** : `@login_required` à l'extérieur,
+`@screen_permission` à l'intérieur. Dans l'autre sens, un visiteur
+anonyme recevrait 403 au lieu d'être renvoyé vers la page de connexion —
+un utilisateur non connecté n'est pas un utilisateur sans droit.
+
+**Un écran dont la seule raison d'être est la création exige `add_` pour
+s'ouvrir**, pas seulement pour se soumettre : laisser un rôle en lecture
+seule remplir un formulaire pour le refuser à l'envoi lui fait perdre sa
+saisie sans rien lui apprendre plus tôt.
+
+**Le refus est lisible.** `templates/403.html` nomme le droit manquant et
+**dérive** de `ROLE_APP_PERMISSIONS` la liste des rôles qui le détiennent
+(`roles_holding()`) — jamais une liste écrite à la main, qui deviendrait
+fausse à la première évolution de la matrice.
+
+**Les contrôles d'écran suivent le droit**, via le `{% if perms.<app>.<codename> %}`
+natif de Django : un écran ne propose plus une action que la garde
+refusera. Le cas courant n'est pas exotique — `direction` détient `view`
+et `change` sur les quatre modules mais **pas `add`**, et voyait donc
+« Nouveau devis » avant de se faire refuser au clic.
+
+**Une divergence connue, écrite plutôt que corrigée ici.** La barre
+latérale filtre les modules avec `visible_app_labels_for()`, qui lit la
+matrice **en mémoire** et ne teste que `"view"` ; les gardes ci-dessus
+lisent la **base**. Les deux ne coïncident que si `sync_group_permissions`
+a été exécuté pour les groupes de l'utilisateur — un groupe créé par son
+seul nom porte le rôle sans aucune permission. C'est un piège réel : le
+dépôt compte 86 occurrences de ce motif dans ses tests.
+
+**Garde d'intégration continue** :
+`tests/architecture/test_screen_views_declare_a_permission.py` refuse une
+vue non gardée dans ces quatre modules, un codename inexistant (qui
+refuserait tout le monde en silence, `has_perm` rendant `False`), un
+codename emprunté à un autre module, et une vue qui traite un `POST` sans
+garde d'écriture.
+
+**Portée actuelle** : `crm`, `sales`, `accounting`, `logistics`. Les
+autres modules gardent leurs écrans au cas par cas (une quarantaine de
+refus manuels) et rejoindront cette règle module par module.
 
 **Limitation architecturale explicitement documentée au N2** : la matrice
 `ROLE_APP_PERMISSIONS` accorde des droits **par app entière**, jamais par

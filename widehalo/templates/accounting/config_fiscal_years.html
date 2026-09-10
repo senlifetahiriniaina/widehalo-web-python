@@ -37,26 +37,30 @@
               la base (migration `0033`) et non par cet écran.
             {% endcomment %}
             {% if fiscal_year.state == "closed" %}
-              <form method="post" class="inline-form">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="reopen">
-                <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
-                <input type="text" name="motif" required
-                       placeholder="{% trans 'Motif de réouverture' %}"
-                       aria-label="{% trans 'Motif de réouverture' %}">
-                <c-button variant="secondary" type="submit">{% trans "Rouvrir" %}</c-button>
-              </form>
+              {% if perms.accounting.change_accfiscalyear %}
+                <form method="post" class="inline-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="reopen">
+                  <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
+                  <input type="text" name="motif" required
+                         placeholder="{% trans 'Motif de réouverture' %}"
+                         aria-label="{% trans 'Motif de réouverture' %}">
+                  <c-button variant="secondary" type="submit">{% trans "Rouvrir" %}</c-button>
+                </form>
+              {% endif %}
             {% elif fiscal_year.blocages %}
               <ul class="form-error">
                 {% for blocage in fiscal_year.blocages %}<li>{{ blocage }}</li>{% endfor %}
               </ul>
             {% else %}
-              <form method="post" class="inline-form">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="close">
-                <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
-                <c-button variant="primary" type="submit">{% trans "Clore l'exercice" %}</c-button>
-              </form>
+              {% if perms.accounting.change_accfiscalyear %}
+                <form method="post" class="inline-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="close">
+                  <input type="hidden" name="fiscal_year_id" value="{{ fiscal_year.id }}">
+                  <c-button variant="primary" type="submit">{% trans "Clore l'exercice" %}</c-button>
+                </form>
+              {% endif %}
             {% endif %}
           </td>
         </tr>
@@ -68,20 +72,22 @@
   <p><em>{% trans "Clore un exercice ferme toutes ses périodes et refuse en base toute nouvelle écriture publiée — y compris par appel direct de l'API et y compris pour un administrateur." %}</em></p>
 
   <h2>{% trans "Nouvel exercice" %}</h2>
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-field">
-      <label for="code">{% trans "Code" %}</label>
-      <input id="code" type="text" name="code" required>
-    </div>
-    <div class="form-field">
-      <label for="date_start">{% trans "Début" %}</label>
-      <input id="date_start" type="date" name="date_start" required>
-    </div>
-    <div class="form-field">
-      <label for="date_end">{% trans "Fin" %}</label>
-      <input id="date_end" type="date" name="date_end" required>
-    </div>
-    <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
-  </form>
+  {% if perms.accounting.add_accfiscalyear %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="code">{% trans "Code" %}</label>
+        <input id="code" type="text" name="code" required>
+      </div>
+      <div class="form-field">
+        <label for="date_start">{% trans "Début" %}</label>
+        <input id="date_start" type="date" name="date_start" required>
+      </div>
+      <div class="form-field">
+        <label for="date_end">{% trans "Fin" %}</label>
+        <input id="date_end" type="date" name="date_end" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
 {% endblock %}

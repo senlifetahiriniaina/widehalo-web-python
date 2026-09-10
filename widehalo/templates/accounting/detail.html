@@ -8,17 +8,26 @@
   </c-breadcrumb>
   <div class="workflow-banner">
     <strong>{% trans "Statut" %}:</strong> <span class="badge {{ invoice.invoice_state|state_badge_class }}">{{ invoice.get_invoice_state_display }}</span>
-    <form method="post" style="display:inline;">
-      {% csrf_token %}
-      {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
-        <c-button type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>
-      {% endif %}
-      {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
-        <input type="text" name="motif" placeholder="{% trans 'Motif d annulation' %}"
-               aria-label="{% trans 'Motif d annulation' %}">
-        <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>
-      {% endif %}
-    </form>
+    {% comment %} C-1 : valider et annuler sont DEUX droits distincts
+       (`validate_accmove`, `cancel_accmove`). Ils sont detenus par les
+       memes trois roles aujourd'hui, mais gater les deux boutons sur un
+       seul ferait disparaitre l'autre le jour ou les jeux divergent —
+       silencieusement, et sans que rien ne le signale. {% endcomment %}
+    {% if perms.accounting.validate_accmove or perms.accounting.cancel_accmove %}
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        {% if invoice.invoice_state == "draft" or invoice.invoice_state == "to_validate" %}
+          {% if perms.accounting.validate_accmove %}
+            <c-button type="submit" name="action" value="validate">{% trans "Valider" %}</c-button>
+          {% endif %}
+          {% if perms.accounting.cancel_accmove %}
+            <input type="text" name="motif" placeholder="{% trans 'Motif d annulation' %}"
+                   aria-label="{% trans 'Motif d annulation' %}">
+            <c-button variant="danger" type="submit" name="action" value="cancel">{% trans "Annuler" %}</c-button>
+          {% endif %}
+        {% endif %}
+      </form>
+    {% endif %}
     {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
   </div>
 
@@ -99,40 +108,42 @@
 
       <h2>{% trans "Paiement" %}</h2>
       {% if invoice.invoice_state == "validated" or invoice.invoice_state == "paid_partially" %}
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="register_payment">
-          <select name="payment_journal_id" required aria-label="{% trans 'Journal de paiement' %}">
-            {% for journal in payment_journals %}
-              <option value="{{ journal.id }}" {% if journal.id == default_payment_journal_id %}selected{% endif %}>{{ journal.name }}</option>
-            {% endfor %}
-          </select>
-          <select name="cash_account_id" required aria-label="{% trans 'Compte de tresorerie' %}">
-            {% for account in cash_accounts %}
-              <option value="{{ account.id }}" {% if account.id == default_cash_account_id %}selected{% endif %}>{{ account.code }} — {{ account.name }}</option>
-            {% endfor %}
-          </select>
-          <select name="gain_account_id" required aria-label="{% trans 'Compte de gain de change' %}">
-            {% for account in accounts %}
-              <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
-            {% endfor %}
-          </select>
-          <select name="loss_account_id" required aria-label="{% trans 'Compte de perte de change' %}">
-            {% for account in accounts %}
-              <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
-            {% endfor %}
-          </select>
-          <select name="method" aria-label="{% trans 'Moyen de paiement' %}">
-            {% for value, label in payment_methods %}
-              <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-          <input type="number" step="0.01" name="payment_amount" placeholder="{% trans 'Montant' %}" required
-                 aria-label="{% trans 'Montant' %}">
-          <input type="date" name="payment_date" value="{{ today|date:'Y-m-d' }}"
-                 aria-label="{% trans 'Date de paiement' %}">
-          <c-button variant="primary" type="submit">{% trans "Enregistrer le paiement" %}</c-button>
-        </form>
+        {% if perms.accounting.change_accmove %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="register_payment">
+            <select name="payment_journal_id" required aria-label="{% trans 'Journal de paiement' %}">
+              {% for journal in payment_journals %}
+                <option value="{{ journal.id }}" {% if journal.id == default_payment_journal_id %}selected{% endif %}>{{ journal.name }}</option>
+              {% endfor %}
+            </select>
+            <select name="cash_account_id" required aria-label="{% trans 'Compte de tresorerie' %}">
+              {% for account in cash_accounts %}
+                <option value="{{ account.id }}" {% if account.id == default_cash_account_id %}selected{% endif %}>{{ account.code }} — {{ account.name }}</option>
+              {% endfor %}
+            </select>
+            <select name="gain_account_id" required aria-label="{% trans 'Compte de gain de change' %}">
+              {% for account in accounts %}
+                <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+              {% endfor %}
+            </select>
+            <select name="loss_account_id" required aria-label="{% trans 'Compte de perte de change' %}">
+              {% for account in accounts %}
+                <option value="{{ account.id }}">{{ account.code }} — {{ account.name }}</option>
+              {% endfor %}
+            </select>
+            <select name="method" aria-label="{% trans 'Moyen de paiement' %}">
+              {% for value, label in payment_methods %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" step="0.01" name="payment_amount" placeholder="{% trans 'Montant' %}" required
+                   aria-label="{% trans 'Montant' %}">
+            <input type="date" name="payment_date" value="{{ today|date:'Y-m-d' }}"
+                   aria-label="{% trans 'Date de paiement' %}">
+            <c-button variant="primary" type="submit">{% trans "Enregistrer le paiement" %}</c-button>
+          </form>
+        {% endif %}
       {% else %}
         <p>{% trans "Le paiement n est disponible que pour une facture publiée." %}</p>
       {% endif %}
@@ -161,12 +172,14 @@
           <li>{% trans "Aucun document." %}</li>
         {% endfor %}
       </ul>
-      <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <label for="document-upload">{% trans "Ajouter un document" %}</label>
-        <input id="document-upload" type="file" name="document" required>
-        <c-button type="submit">{% trans "Envoyer" %}</c-button>
-      </form>
+      {% if perms.accounting.change_accmove %}
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label for="document-upload">{% trans "Ajouter un document" %}</label>
+          <input id="document-upload" type="file" name="document" required>
+          <c-button type="submit">{% trans "Envoyer" %}</c-button>
+        </form>
+      {% endif %}
     </div>
 
     <div class="col-side">

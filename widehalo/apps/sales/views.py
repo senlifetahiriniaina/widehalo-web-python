@@ -169,7 +169,11 @@ def _parse_lines_from_post(post) -> list[dict[str, Any]]:
 
 
 @login_required
-@screen_permission("sales.view_salesquotation")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("sales.add_salesquotation")
 def quotation_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     user = cast(User, request.user)
@@ -305,7 +309,11 @@ def order_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
-@screen_permission("sales.view_salesorder")
+# Un ecran dont la SEULE raison d'etre est la creation exige le droit de
+# creer pour s'ouvrir, et pas seulement pour se soumettre : laisser un
+# role en lecture seule remplir un formulaire pour le refuser a l'envoi
+# lui fait perdre sa saisie et ne lui apprend rien plus tot.
+@screen_permission("sales.add_salesorder")
 def order_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     user = cast(User, request.user)
