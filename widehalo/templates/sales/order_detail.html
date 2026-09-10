@@ -33,6 +33,7 @@
     <h1>{{ order.reference|default:"(brouillon)" }}</h1>
 
   </div>
+  {% include "components/_next_steps.html" %}
   <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
   <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
   {% comment %}

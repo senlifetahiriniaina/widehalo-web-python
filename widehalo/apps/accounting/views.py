@@ -46,6 +46,7 @@ from apps.core.models.audit import AuditLog
 from apps.core.models.document import Document
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
+from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -212,6 +213,7 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
         request,
         "accounting/detail.html",
         {
+            "next_steps": next_steps_for(invoice, user),
             "invoice": invoice,
             "lines": invoice.lines.all(),
             "audit_entries": audit_entries,

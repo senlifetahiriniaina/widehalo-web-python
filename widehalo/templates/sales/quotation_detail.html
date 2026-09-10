@@ -26,6 +26,7 @@
     <h1>{{ quotation.reference|default:"(brouillon)" }}</h1>
 
   </div>
+  {% include "components/_next_steps.html" %}
   <p>{% trans "Partenaire" %}: {{ quotation.partner_id }}</p>
   {% comment %}
     L17 — conditionne par le REGIME (`tenant_is_vat_liable`, pose par le

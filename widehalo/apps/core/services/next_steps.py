@@ -44,7 +44,7 @@ qu'on refusera est precisement ce que C-1d a corrige sur les boutons.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -55,12 +55,25 @@ from apps.core.models.user import User
 class NextStep:
     """Une suite possible : ce qu'on peut faire, et comment le nommer.
 
-    `code` est ce que l'ecran postera (`action=`), `label` ce que l'humain
-    lit. Le libelle vient TOUJOURS du module metier : `core` ne peut pas
-    savoir que la transition `confirm` se dit « Confirmer la commande »."""
+    `label` est ce que l'humain lit — il vient TOUJOURS du module metier,
+    `core` ne peut pas savoir que la transition `confirm` se dit
+    « Confirmer la commande ».
+
+    `post_data` est ce que l'ecran doit POSTER pour l'executer, et il ne se
+    deduit pas du code. Trois des quatre modules postent `action=<code>`,
+    mais le CRM poste `action=move_stage` PLUS `stage_id=<uuid>` : une
+    structure ne portant qu'un code aurait oblige le gabarit a connaitre
+    le cas particulier de chaque module, c'est-a-dire a recreer dans la
+    presentation le couplage que le registre evite. Laisse a `None`, il
+    vaut `{"action": code}` — la forme des trois autres."""
 
     code: str
     label: str
+    post_data: Mapping[str, str] | None = None
+
+    def champs(self) -> dict[str, str]:
+        """Les champs de formulaire a poster pour executer cette suite."""
+        return dict(self.post_data) if self.post_data is not None else {"action": self.code}
 
 
 #: Resolveur declare par un module metier : (objet, utilisateur) -> suites.

@@ -34,6 +34,7 @@
 <div class="page-head">
   <h1>{{ trip.reference|default:"(brouillon)" }}</h1>
 </div>
+  {% include "components/_next_steps.html" %}
   <p>{% trans "Véhicule" %}: {{ trip.vehicle.plate_number }} — {% trans "Chauffeur" %}: {{ trip.driver.name }}</p>
   <p>{% trans "Date" %}: {{ trip.date }}</p>
 

@@ -31,6 +31,7 @@
 <div class="page-head">
   <h1>{{ shipment.reference|default:"(brouillon)" }}</h1>
 </div>
+  {% include "components/_next_steps.html" %}
   <p>{% trans "Origine" %}: {{ shipment.origin }} — {% trans "Destination" %}: {{ shipment.destination }}</p>
   <p>{% trans "Incoterm" %}: {{ shipment.incoterm|default:"-" }}</p>
   <p>{% trans "Coût de fret" %}: {{ shipment.freight_cost_mga }} MGA</p>

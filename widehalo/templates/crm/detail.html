@@ -54,6 +54,7 @@
       <div class="page-head">
         <h1>{{ lead.name }}</h1>
       </div>
+  {% include "components/_next_steps.html" %}
       <p>{% trans "Référence" %}: {{ lead.reference }}</p>
       <p>{% trans "Montant attendu" %}: {{ lead.expected_revenue_mga }} MGA</p>
       <p>{% trans "Probabilité" %}: {{ lead.probability }}%</p>

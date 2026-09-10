@@ -28,6 +28,7 @@ from django.utils.translation import gettext as _
 
 from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
+from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
@@ -372,7 +373,12 @@ def trip_detail(request: HttpRequest, trip_id: str) -> HttpResponse:
     return render(
         request,
         "logistics/trip_detail.html",
-        {"trip": trip, "stops": trip.stops.all(), "error": error},
+        {
+            "trip": trip,
+            "stops": trip.stops.all(),
+            "error": error,
+            "next_steps": next_steps_for(trip, cast(User, request.user)),
+        },
     )
 
 
@@ -590,6 +596,7 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
         request,
         "logistics/shipment_detail.html",
         {
+            "next_steps": next_steps_for(shipment, user),
             "shipment": shipment,
             "legs": shipment.legs.all(),
             "customs_files": shipment.customs_files.all(),

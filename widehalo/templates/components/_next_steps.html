@@ -1,0 +1,46 @@
+{% load i18n %}
+{% comment %}
+C-4 — « la suite à prendre », sur la fiche d'un document.
+
+Le cahier demande que l'utilisateur sache facilement quelle est l'étape
+suivante. Ce fragment l'affiche à partir de `core.services.next_steps`,
+qui combine ce que la machine à états autorise et ce que le droit
+d'écriture de C-1 permet.
+
+Trois décisions portées par ce gabarit :
+
+- **Rien n'est grisé.** Une suite affichée est une suite exécutable :
+  `next_steps_for` rend une liste vide à qui n'a pas le droit d'écrire,
+  plutôt que des boutons barrés. Proposer ce qu'on refusera est ce que
+  C-1d a corrigé sur les boutons de création.
+- **Aucune suite n'est un état, et non une panne.** Un document clôturé
+  n'a plus d'étape suivante : le dire vaut mieux que de ne rien rendre,
+  sinon l'utilisateur cherche un bouton qui n'existe pas.
+- **Ce qu'il faut poster vient du socle** (`champs`), jamais du gabarit :
+  trois modules postent `action=<code>`, le CRM poste `action=move_stage`
+  plus `stage_id`. Coder ce cas particulier ici recréerait dans la
+  présentation le couplage que le registre évite.
+{% endcomment %}
+<div class="workflow-banner" role="status">
+  {% if next_steps %}
+    <strong>{% trans "Étape suivante" %}</strong>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.5rem;">
+      {% for etape in next_steps %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          {% for nom, valeur in etape.champs.items %}
+            <input type="hidden" name="{{ nom }}" value="{{ valeur }}">
+          {% endfor %}
+          {% comment %} `<button>` nu plutot que `<c-button>` : cotton parse
+             ses propres attributs, et un `{% templatetag openblock %} if {% templatetag closeblock %}`
+             a l'interieur de la balise casse son analyse. Les classes `btn`
+             et `btn-primary` sont celles du reste du produit. {% endcomment %}
+          <button type="submit" class="btn{% if forloop.first %} btn-primary{% endif %}">{{ etape.label }}</button>
+        </form>
+      {% endfor %}
+    </div>
+  {% else %}
+    <strong>{% trans "Aucune étape suivante" %}</strong>
+    {% blocktrans %}Ce document n'attend plus d'action de votre part : soit son processus est terminé, soit la suite revient à un autre rôle.{% endblocktrans %}
+  {% endif %}
+</div>

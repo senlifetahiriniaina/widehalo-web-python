@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.core.models.user import User
+from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -182,6 +183,7 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
         request,
         "crm/detail.html",
         {
+            "next_steps": next_steps_for(lead, user),
             "lead": lead,
             "stages": lead.pipeline.stages.all(),
             "lost_reasons": CrmLostReason.objects.filter(tenant=lead.tenant),

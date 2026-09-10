@@ -55,7 +55,13 @@ def _lead_steps(instance: Any, user: User) -> list[NextStep]:
         libelle = _("Marquer « %(etape)s »") % {"etape": terminale.name}
         if terminale.requires_reason:
             libelle = _("%(libelle)s (motif requis)") % {"libelle": libelle}
-        suites.append(NextStep(str(terminale.id), libelle))
+        suites.append(
+            NextStep(
+                str(terminale.id),
+                libelle,
+                {"action": "move_stage", "stage_id": str(terminale.id)},
+            )
+        )
 
     return suites
 

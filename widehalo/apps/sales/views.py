@@ -27,6 +27,7 @@ from apps.catalog.services.public import (
 )
 from apps.core.identifiers import parse_optional_uuid, parse_uuid
 from apps.core.models.user import User
+from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission, user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
@@ -265,6 +266,7 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
         request,
         "sales/quotation_detail.html",
         {
+            "next_steps": next_steps_for(quotation, user),
             "quotation": quotation,
             "lines": quotation.lines.all(),
             "can_see_margin": _can_see_margin(user),
@@ -414,6 +416,7 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
         request,
         "sales/order_detail.html",
         {
+            "next_steps": next_steps_for(order, user),
             "order": order,
             "lines": order.lines.all(),
             "can_see_margin": _can_see_margin(user),

@@ -90,6 +90,7 @@
       <div class="page-head">
         <h1>{{ invoice.reference|default:"(brouillon)" }}</h1>
       </div>
+  {% include "components/_next_steps.html" %}
       <p>{% trans "Date" %}: {{ invoice.date }}</p>
       <p>{% trans "Devise" %}: {{ invoice.currency }}</p>
       <p>{% trans "Total débit" %}: {{ invoice.total_debit }} MGA</p>
