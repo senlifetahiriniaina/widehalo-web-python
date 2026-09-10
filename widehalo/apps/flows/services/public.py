@@ -397,9 +397,9 @@ def _refuse_activation_without_governance(link: FlwLink) -> None:
     if not connector.pricing_regime:
         raise ValidationError(
             _(
-                "Le connecteur « %(code)s » ne declare pas son regime tarifaire. "
-                "Sans lui, le produit ne peut ni exiger le plafond la ou le "
-                "cahier l'impose, ni s'en dispenser la ou il ne sert a rien."
+                "Le connecteur « %(code)s » ne déclare pas son régime tarifaire. "
+                "Sans lui, le produit ne peut ni exiger le plafond là où le "
+                "cahier l'impose, ni s'en dispenser là où il ne sert à rien."
             )
             % {"code": connector.code}
         )
@@ -407,10 +407,10 @@ def _refuse_activation_without_governance(link: FlwLink) -> None:
     if current_consent(link) is None:
         raise ValidationError(
             _(
-                "Aucun consentement de sortie n'a ete enregistre pour la liaison "
-                "« %(name)s ». L'activation d'un connecteur est une decision "
-                "explicite, prise apres affichage des donnees qui sortiront, du "
-                "tiers, du pays et de la duree de conservation."
+                "Aucun consentement de sortie n'a été enregistré pour la liaison "
+                "« %(name)s ». L'activation d'un connecteur est une décision "
+                "explicite, prise après affichage des données qui sortiront, du "
+                "tiers, du pays et de la durée de conservation."
             )
             % {"name": link.name}
         )

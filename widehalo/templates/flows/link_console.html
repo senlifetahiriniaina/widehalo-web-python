@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 {% block title %}{{ link.name }} — {% trans "Gouvernance du raccordement" %}{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -133,7 +133,7 @@
         <input type="text" id="cap" name="cap" value="{{ link.monthly_cost_cap_ariary|default_if_none:'' }}">
         <label for="threshold">{% trans "Alerter à (% du plafond)" %}</label>
         <input type="number" id="threshold" name="threshold" min="1" max="99"
-               value="{{ link.cost_alert_threshold_pct }}">
+               value="{{ link.cost_alert_threshold_pct|unlocalize }}">
         <c-button type="submit" name="action" value="set_cap">{% trans "Enregistrer le plafond" %}</c-button>
       </form>
     {% endif %}

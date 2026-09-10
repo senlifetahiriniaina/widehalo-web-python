@@ -5,6 +5,8 @@
 <c-breadcrumb>{% trans "Projets" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Projets" %}</h1>
+  {# T10 : cet écran existait sans qu'aucun lien n'y mène. #}
+  <a class="btn btn-secondary" href="{% url 'projects:config_custom_fields' %}">{% trans "Champs personnalisés" %}</a>
 </div>
   <p><a href="{% url 'projects:create' %}" class="btn btn-primary">{% trans "Nouveau projet" %}</a></p>
   {% include "components/_smart_table.html" %}

@@ -1303,3 +1303,46 @@ table.variant-matrix td a {
   font-size: var(--fs-13);
   color: var(--fg-2);
 }
+
+/* ============== Grille de tuiles de navigation (T10) ==============
+   Une porte d'entree de module : des tuiles cliquables qui menent aux
+   ecrans du module. Extraite de `templates/settings.html`, ou le meme
+   motif etait recopie en style en ligne sur chacune des vingt cartes —
+   donc vingt endroits a corriger pour changer une marge, et aucun moyen
+   de tenir le theme. Les valeurs viennent toutes des jetons existants.
+
+   `grid` plutot que `flex` : avec `auto-fill`, la derniere rangee
+   incomplete garde la largeur des autres au lieu de s'etirer, ce que le
+   `flex:1` des cartes de reglages ne sait pas faire. */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  color: var(--fg-1);
+  text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.tile:hover,
+.tile:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.tile-title {
+  font-size: var(--fs-15);
+  font-weight: 600;
+}
+.tile-desc {
+  color: var(--fg-3);
+  font-size: var(--fs-13);
+}

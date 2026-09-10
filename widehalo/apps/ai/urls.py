@@ -5,6 +5,9 @@ from apps.ai import views
 app_name = "ai"
 
 urlpatterns = [
+    # T10 : la route racine n'existait pas — `/ai/` rendait 404, et les
+    # sept ecrans du module n'etaient cites par aucun lien du depot.
+    path("", views.index, name="index"),
     path("usage/", views.usage_budget, name="usage_budget"),
     path("assist/", views.assist_widget, name="assist_widget"),
     path("assist/fragment/", views.assist_fragment, name="assist_fragment"),

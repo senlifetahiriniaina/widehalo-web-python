@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Assistant et analyses IA" %} — WideHalo{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% trans "Assistant et analyses IA" %}</h1>
+  </div>
+
+  {% comment %} §12.3 : le repli est un livrable, pas une panne — mais il se dit.
+     Sans connecteur, les reponses proviennent du repli local et l'exploitant doit
+     l'apprendre ici, pas en jugeant une reponse decevante. {% endcomment %}
+  {% if connecteur_absent %}
+    <div class="workflow-banner" role="status">
+      <strong>{% trans "Aucun connecteur d'intelligence artificielle n'est raccordé." %}</strong>
+      {% blocktrans %}Les écrans ci-dessous fonctionnent et répondent, mais à partir du repli local : les réponses restent générales et ne consultent pas vos données. Le raccordement se fait par paramètre, sans déploiement.{% endblocktrans %}
+    </div>
+  {% endif %}
+
+  <div class="tile-grid">
+    <a class="tile" href="{% url 'ai:assist_widget' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
+      <span class="tile-title">{% trans "Assistant contextuel" %}</span>
+      <span class="tile-desc">
+        {% blocktrans count compteur=modules_assistes %}Un module couvert{% plural %}{{ compteur }} modules couverts{% endblocktrans %}
+      </span>
+    </a>
+
+    <a class="tile" href="{% url 'ai:search_widget' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-search"></use></svg>
+      <span class="tile-title">{% trans "Recherche en langage naturel" %}</span>
+      <span class="tile-desc">{% trans "Poser une question plutôt que remplir un filtre" %}</span>
+    </a>
+
+    <a class="tile" href="{% url 'ai:anomalies_list' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-triangle-alert"></use></svg>
+      <span class="tile-title">{% trans "Anomalies détectées" %}</span>
+      <span class="tile-desc">
+        {% if anomalies_ouvertes %}
+          <span class="badge b-pending">{% blocktrans count compteur=anomalies_ouvertes %}{{ compteur }} ouverte{% plural %}{{ compteur }} ouvertes{% endblocktrans %}</span>
+        {% else %}
+          {% trans "Aucune anomalie ouverte" %}
+        {% endif %}
+      </span>
+    </a>
+
+    <a class="tile" href="{% url 'ai:insights_list' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-lightbulb"></use></svg>
+      <span class="tile-title">{% trans "Analyses proactives" %}</span>
+      <span class="tile-desc">
+        {% if insights_actifs %}
+          {% blocktrans count compteur=insights_actifs %}{{ compteur }} analyse disponible{% plural %}{{ compteur }} analyses disponibles{% endblocktrans %}
+        {% else %}
+          {% trans "Aucune analyse pour l'instant" %}
+        {% endif %}
+      </span>
+    </a>
+
+    <a class="tile" href="{% url 'ai:recommendations_screen' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-arrow-right"></use></svg>
+      <span class="tile-title">{% trans "Recommandations d'action" %}</span>
+      <span class="tile-desc">{% trans "Que faire ensuite, par module et par action" %}</span>
+    </a>
+
+    <a class="tile" href="{% url 'ai:data_query_screen' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-layers"></use></svg>
+      <span class="tile-title">{% trans "Interrogation des données" %}</span>
+      <span class="tile-desc">{% trans "Lecture seule, chaque réponse vérifiable à sa source" %}</span>
+    </a>
+
+    {% comment %} La permission de module `ai` est reservee a `admin`/`direction` :
+       le pilotage d'un cout n'est pas une operation courante. Les six tuiles
+       ci-dessus restent ouvertes a tout utilisateur authentifie, comme le
+       declare `rbac_policy`. {% endcomment %}
+    {% if peut_voir_le_budget %}
+      <a class="tile" href="{% url 'ai:usage_budget' %}">
+        <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chart-column"></use></svg>
+        <span class="tile-title">{% trans "Budget et consommation" %}</span>
+        <span class="tile-desc">{% trans "Plafond de jetons du mois, et ce qui en a été consommé" %}</span>
+      </a>
+    {% endif %}
+
+    <a class="tile" href="{% url 'ai:external_provider_consent' %}">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-shield-alert"></use></svg>
+      <span class="tile-title">{% trans "Consentement fournisseur externe" %}</span>
+      <span class="tile-desc">{% trans "Ce qui sort, vers qui, et la décision qui l'autorise" %}</span>
+    </a>
+  </div>
+{% endblock %}

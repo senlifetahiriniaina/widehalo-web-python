@@ -111,6 +111,19 @@
             </ul>
           </li>
           {% endif %}
+          {% comment %} T10 : sans cette entree, les sept ecrans du module IA
+             existaient a des URL que personne ne connaissait — `ai` n'etait dans aucun
+             groupe de menu et `/ai/` rendait 404. L'entree n'est PAS filtree par
+             `visible_app_labels` : `rbac_policy` reserve la permission de module `ai`
+             au seul pilotage du budget et declare les fonctions IA a usage large
+             ouvertes a tout utilisateur authentifie, comme `chat`. C'est l'ecran
+             d'accueil du module qui restreint la seule tuile de budget. {% endcomment %}
+          <li>
+            <a href="{% url 'ai:index' %}">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-sparkles"></use></svg>
+              {% trans "Assistant et analyses IA" %}
+            </a>
+          </li>
           <li>
             <a href="/documents/">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-file-text"></use></svg>

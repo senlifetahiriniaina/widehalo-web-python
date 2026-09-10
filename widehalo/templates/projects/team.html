@@ -29,6 +29,10 @@
           <td>{{ member.role }}</td>
           <td>{{ member.allocation_pct }}%</td>
           <td>
+            {% comment %} T10 : la charge d'un intervenant est un ecran PAR UTILISATEUR
+               — il n'etait atteignable depuis nulle part. Sa place est ici, sur la
+               ligne du membre, seul endroit ou un utilisateur est designe. {% endcomment %}
+            <a class="btn btn-secondary" href="{% url 'projects:user_capacity_heatmap' member.user_id %}">{% trans "Charge" %}</a>
             <form method="post" style="display:inline">{% csrf_token %}
               <input type="hidden" name="action" value="remove">
               <input type="hidden" name="member_id" value="{{ member.member_id }}">

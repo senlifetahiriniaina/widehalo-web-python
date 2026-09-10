@@ -5,6 +5,8 @@
 <c-breadcrumb>{% trans "Tableau de bord RH" %}</c-breadcrumb>
 <div class="page-head">
   <h1>{% trans "Tableau de bord RH" %}</h1>
+  {# T10 : les rapports de présence existaient sans qu'aucun lien n'y mène. #}
+  <a class="btn btn-secondary" href="{% url 'presence:reports_index' %}">{% trans "Rapports de présence" %}</a>
 </div>
   <ul>
     <li>{% trans "Taux de présence (aujourd'hui)" %} : {{ presence_rate }}%</li>

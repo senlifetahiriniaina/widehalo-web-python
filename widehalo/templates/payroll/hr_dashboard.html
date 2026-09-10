@@ -10,6 +10,8 @@
   <h1>{% trans "Périodes de paie" %}</h1>
   {% if can_see_amounts %}
   <a class="btn btn-secondary" href="{% url 'payroll:rubric_simulation' %}">{% trans "Simulation sur salarié témoin" %}</a>
+  {# T10 : l'écran de régularisation existait à une URL que rien ne citait. #}
+  <a class="btn btn-secondary" href="{% url 'payroll:regularization' %}">{% trans "Régularisations" %}</a>
   {% endif %}
 </div>
 <table>

@@ -285,3 +285,49 @@ def _configured_backend_label() -> str:
 
     config: dict[str, str] = getattr(settings, "AI_PROVIDER_CONFIG", {}) or {}
     return config.get("backend", "custom")
+
+
+@login_required
+def index(request: HttpRequest) -> HttpResponse:
+    """T10 — la porte d'entree du module, qui n'existait pas.
+
+    **Le defaut ferme.** Les sept ecrans de ce module etaient routes,
+    testes, fonctionnels — et cites par RIEN. `ai` n'appartenait a aucun
+    groupe de `_MENU_GROUPS`, et `apps/ai/urls.py` n'avait meme pas de route
+    racine : `/ai/` rendait 404. Seul le bouton flottant d'assistance etait
+    cable, vers un fragment. C'est le meme defaut que `flows` avant T8, mais
+    sur un module entier.
+
+    **Pourquoi une porte plutot que sept entrees de menu.** Sept lignes dans
+    la barre laterale pour un module que la plupart des roles n'ouvriront
+    qu'occasionnellement noierait les modules metier. Une entree, un ecran
+    qui presente les sept, et qui DIT dans quel etat ils sont.
+
+    **Cet ecran ne se contente pas de lister : il compte.** Un accueil dont
+    toutes les valeurs sont ecrites en dur est un ecran mort — il affiche la
+    meme chose le premier jour et le millieme. Les anomalies ouvertes et les
+    insights sont donc lus reellement, et l'etat du fournisseur IA est celui
+    qui est reellement configure : sans connecteur, le module rend des
+    reponses de repli (§12.3) et l'exploitant doit l'apprendre ici plutot
+    que de s'en apercevoir sur une reponse decevante.
+
+    **Le budget est le seul ecran restreint**, et la restriction n'est pas
+    de moi : `rbac_policy` reserve la permission de module `ai` a
+    `admin`/`direction` en ecrivant que les fonctions IA a usage large sont
+    volontairement ouvertes a tout utilisateur authentifie. La tuile de
+    budget suit donc la permission ; les six autres, non."""
+    provider = get_ai_provider()
+    return render(
+        request,
+        "ai/index.html",
+        {
+            "anomalies_ouvertes": AiAnomaly.objects.filter(
+                is_active=True, status=AiAnomaly.STATUS_OPEN
+            ).count(),
+            "insights_actifs": AiInsight.objects.filter(is_active=True).count(),
+            "modules_assistes": len(list_registered_contexts()),
+            "connecteur_absent": isinstance(provider, StubAIProvider),
+            "connecteur_label": _configured_backend_label(),
+            "peut_voir_le_budget": bool(user_role_codes(request.user) & {"admin", "direction"}),
+        },
+    )
