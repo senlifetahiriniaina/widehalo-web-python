@@ -15,6 +15,7 @@ from apps.core.report_formats import parse_report_format
 from apps.core.services.permissions import user_role_codes
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.reports import (
+    MARGIN_VISIBLE_ROLES,
     delivery_note_rows,
     forecast_rows,
     late_orders_report,
@@ -107,7 +108,7 @@ def report_margin(request: HttpRequest) -> HttpResponse:
     format = parse_report_format(request.GET.get("format"))
     role_codes = user_role_codes(request.user)
     rows = margin_report(role_codes=role_codes)
-    can_see_margin = bool(role_codes & {"direction", "admin", "resp_commercial"})
+    can_see_margin = bool(role_codes & MARGIN_VISIBLE_ROLES)
     fields = ["order_reference", "description", "subtotal"]
     if can_see_margin:
         fields += ["margin_pct", "cost_estimate_mga"]

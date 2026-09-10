@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Accès refusé" %} — WideHalo{% endblock %}
+{% block content %}
+  {% comment %} Lot C-1 : jusqu'ici, les 40 refus du dépôt étaient des
+     `HttpResponse(status=403)` nus — une page entièrement blanche. Un
+     refus muet se lit comme une panne : l'utilisateur ne sait ni ce qui
+     lui manque, ni à qui s'adresser, et il rouvre un ticket. La liste des
+     rôles ci-dessous est DÉRIVÉE de `ROLE_APP_PERMISSIONS` et jamais
+     rédigée à la main, sinon elle deviendrait fausse à la première
+     évolution de la matrice. {% endcomment %}
+  <div class="page-head">
+    <h1>{% trans "Accès refusé" %}</h1>
+  </div>
+
+  <div class="workflow-banner" role="status">
+    <strong>{% trans "Votre rôle ne donne pas accès à cet écran." %}</strong>
+    {% blocktrans %}Ce n'est pas une panne : l'application a bien reçu votre demande et l'a refusée volontairement. Les droits sont attribués par rôle, et le vôtre ne couvre pas cette action.{% endblocktrans %}
+  </div>
+
+  {% if roles_qui_detiennent %}
+    <p>
+      {% blocktrans count compteur=roles_qui_detiennent|length %}Le rôle suivant dispose de ce droit — demandez à votre administrateur de vous l'attribuer, ou faites réaliser l'opération par une personne qui le porte :{% plural %}Les rôles suivants disposent de ce droit — demandez à votre administrateur de vous en attribuer un, ou faites réaliser l'opération par une personne qui le porte :{% endblocktrans %}
+    </p>
+    <ul>
+      {% for role in roles_qui_detiennent %}<li><code>{{ role }}</code></li>{% endfor %}
+    </ul>
+  {% else %}
+    <p>{% trans "Aucun rôle standard ne porte ce droit : il relève de l'administration du système." %}</p>
+  {% endif %}
+
+  <p class="muted">
+    {% trans "Droit requis :" %} <code>{{ codename_refuse }}</code>
+  </p>
+
+  <p><a href="/">{% trans "Revenir à l'accueil" %}</a></p>
+{% endblock %}

@@ -199,6 +199,20 @@ def user_role_codes(user: User) -> set[str]:
     return set(user.groups.values_list("name", flat=True))
 
 
+def roles_allowed_for_field(model_label: str, field: str) -> set[str]:
+    """Les roles autorises a voir `field` sur `model_label` (registre N4).
+
+    Existe pour qu'un module metier n'ait PAS a recopier le jeu de roles :
+    avant C-1, `{"direction", "admin", "resp_commercial"}` etait ecrit
+    QUATRE fois — ici, dans `sales/services/reports.py`, dans
+    `sales/views.py` et en clair dans `sales/views_reports.py`. Quatre
+    copies d'une regle de confidentialite, c'est trois occasions de la
+    desynchroniser sans que rien ne le signale : le jour ou un role est
+    ajoute a la marge, l'ecran, le rapport et l'API cessent de dire la
+    meme chose. `SENSITIVE_FIELDS` est desormais la seule source."""
+    return set(SENSITIVE_FIELDS.get(model_label, {}).get(field, set()))
+
+
 def filter_fields_for_role(
     model_label: str, role_codes: set[str], data: dict[str, Any]
 ) -> dict[str, Any]:
@@ -210,3 +224,88 @@ def filter_fields_for_role(
         for key, value in data.items()
         if key not in sensitive or role_codes & sensitive[key]
     }
+
+
+# --------------------------------------------------------------------------
+# RBAC N2 sur les ECRANS (lot C-1)
+#
+# `require_permission` ci-dessus rend un `JsonResponse` : il sert
+# django-ninja et il est INUTILISABLE sur un ecran, ou il afficherait du
+# JSON brut dans le navigateur. Les ecrans du depot appliquaient donc le
+# droit a la main, quand ils l'appliquaient — les 82 vues de `crm`,
+# `sales`, `accounting` et `logistics` ne l'appliquaient pas du tout.
+#
+# La regle n'est pas inventee ici : l'API de ces memes modules porte deja
+# `@require_permission("accounting.view_accaccount")` & consorts. C-1 fait
+# refuser a l'ecran la meme personne que l'endpoint refuse deja, avec le
+# MEME codename.
+#
+# Pourquoi RENDRE la reponse plutot que lever `PermissionDenied` : plusieurs
+# vues de ces modules capturent largement (`crm.lead_detail` attrape
+# `DiscountApprovalRequiredError`, `sales.order_detail` attrape
+# `TransitionPermissionError`) et une exception levee risquerait d'etre
+# avalee puis transformee en message d'erreur dans une page rendue en 200 —
+# c'est-a-dire un refus qui n'en serait pas un.
+# --------------------------------------------------------------------------
+
+
+def roles_holding(codename: str) -> list[str]:
+    """Les codes de role auxquels `ROLE_APP_PERMISSIONS` accorde `codename`.
+
+    Derive, jamais redige a la main : la page de refus doit dire a qui
+    s'adresser, et une liste ecrite en dur deviendrait fausse a la premiere
+    evolution de la matrice (§10.2 du cahier applique au refus)."""
+    from apps.core.services.rbac_policy import CUSTOM_PERMISSIONS, ROLE_APP_PERMISSIONS
+
+    app_label, _, reste = codename.partition(".")
+    verbe = reste.split("_", 1)[0]
+    detenteurs = {
+        role
+        for role, apps_du_role in ROLE_APP_PERMISSIONS.items()
+        if verbe in apps_du_role.get(app_label, set())
+    }
+    detenteurs |= {role for role, perms in CUSTOM_PERMISSIONS.items() if codename in perms}
+    return sorted(detenteurs)
+
+
+def screen_forbidden(request: Any, codename: str) -> Any:
+    """`None` si l'utilisateur detient `codename`, sinon la page 403 rendue.
+
+    Forme d'appel, calquee sur `apps/core/views/backup_admin.py` :
+
+        refus = screen_forbidden(request, "accounting.change_accmove")
+        if refus is not None:
+            return refus
+    """
+    from django.shortcuts import render
+
+    if request.user.has_perm(codename):
+        return None
+    return render(
+        request,
+        "403.html",
+        {"codename_refuse": codename, "roles_qui_detiennent": roles_holding(codename)},
+        status=403,
+    )
+
+
+def screen_permission(codename: str) -> Callable[..., Any]:
+    """Decorateur de vue d'ECRAN : refuse qui ne detient pas `codename`.
+
+    ORDRE DES DECORATEURS : `@login_required` reste l'EXTERIEUR (le plus
+    haut), `@screen_permission(...)` l'interieur, juste au-dessus de `def`.
+    Dans l'autre sens, un visiteur anonyme recevrait 403 au lieu d'etre
+    renvoye vers la page de connexion — un utilisateur non connecte n'est
+    pas un utilisateur sans droit.
+    """
+
+    def decorer(vue: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(vue)
+        def enveloppe(request: Any, *args: Any, **kwargs: Any) -> Any:
+            refus = screen_forbidden(request, codename)
+            return refus if refus is not None else vue(request, *args, **kwargs)
+
+        enveloppe.screen_permission_codename = codename  # type: ignore[attr-defined]
+        return enveloppe
+
+    return decorer

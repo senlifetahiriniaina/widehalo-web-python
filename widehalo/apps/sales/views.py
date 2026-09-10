@@ -54,6 +54,8 @@ from apps.sales.services.quotations import (
     decline_quotation,
     send_quotation,
 )
+from apps.sales.services.reports import MARGIN_VISIBLE_ROLES
+
 
 # RG-SAL-5 : roles autorises a voir `margin_pct` en ecran — meme ensemble
 # que `apps.core.services.permissions.SENSITIVE_FIELDS["sales.SalesOrderLine"]`.
@@ -61,11 +63,8 @@ from apps.sales.services.quotations import (
 # session plutot qu'un aller-retour par `filter_fields_for_role` (qui
 # masque des CLES de dict, pas des colonnes de gabarit HTML) — le gabarit
 # a simplement besoin d'un booleen "affiche la colonne Marge ou non".
-_MARGIN_VISIBLE_ROLES = {"direction", "admin", "resp_commercial"}
-
-
 def _can_see_margin(user: User) -> bool:
-    return bool(user_role_codes(user) & _MARGIN_VISIBLE_ROLES)
+    return bool(user_role_codes(user) & MARGIN_VISIBLE_ROLES)
 
 
 def _error_message(exc: Exception) -> str:

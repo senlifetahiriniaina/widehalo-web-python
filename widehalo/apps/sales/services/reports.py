@@ -22,6 +22,7 @@ from typing import Any
 
 from django.db.models import Sum
 
+from apps.core.services.permissions import roles_allowed_for_field
 from apps.sales.models import (
     SalesForecast,
     SalesOrder,
@@ -30,10 +31,12 @@ from apps.sales.models import (
     SalesTarget,
 )
 
-# RG-SAL-5 : memes roles que `apps.core.services.permissions.
-# SENSITIVE_FIELDS["sales.SalesOrderLine"]["margin_pct"]` — le rapport
-# SAL-MARGE doit respecter le meme masquage que l'ecran/l'API.
-_MARGIN_VISIBLE_ROLES = {"direction", "admin", "resp_commercial"}
+# RG-SAL-5 : le rapport SAL-MARGE respecte le meme masquage que l'ecran et
+# l'API parce qu'il lit la MEME source — le registre N4
+# `SENSITIVE_FIELDS["sales.SalesOrderLine"]["margin_pct"]`. Avant C-1, ce
+# jeu de roles etait recopie a QUATRE endroits ; trois occasions de le
+# desynchroniser sans que rien ne le signale.
+MARGIN_VISIBLE_ROLES = roles_allowed_for_field("sales.SalesOrderLine", "margin_pct")
 
 
 def rows_to_bytes(rows: list[dict[str, Any]], fields: list[str], *, format: str = "json") -> bytes:
@@ -212,10 +215,10 @@ def revenue_report(
 def margin_report(*, role_codes: set[str]) -> list[dict[str, Any]]:
     """SAL-MARGE — analyse de marge par commande, RG-SAL-5 : ne renvoie
     JAMAIS `margin_pct`/`cost_estimate_mga` a un role hors
-    `_MARGIN_VISIBLE_ROLES` — meme masquage que l'ecran/l'API, applique
+    `MARGIN_VISIBLE_ROLES` — meme masquage que l'ecran/l'API, applique
     ici directement (pas de dict a filtrer champ par champ, la colonne
     entiere est omise en amont pour ce rapport tabulaire)."""
-    can_see_margin = bool(role_codes & _MARGIN_VISIBLE_ROLES)
+    can_see_margin = bool(role_codes & MARGIN_VISIBLE_ROLES)
     lines = SalesOrderLine.objects.filter(is_active=True).select_related("order")
     rows: list[dict[str, Any]] = []
     for line in lines:
