@@ -30,6 +30,13 @@ from apps.sales.services.recurrence import create_recurrence
 
 RECURRENCE_COLUMNS = [
     Column(key="name", label="Nom"),
+    # La table remplacee montrait la commande modele AVEC un lien vers elle.
+    # La colonne la retablit ; le lien, lui, ne revient pas : le crochet du
+    # composant (`row_url_name`) lie la ligne a SON PROPRE detail, et une
+    # recurrence n'a pas d'ecran de detail. La commande reste atteignable
+    # depuis la liste des commandes — mais l'ecrire vaut mieux que de
+    # laisser croire que rien n'a change.
+    Column(key="template_order", label="Commande modele", search_key="template_order__reference"),
     Column(key="interval", label="Periodicite"),
     Column(key="start_date", label="Debut", searchable=False),
     Column(key="end_date", label="Fin", searchable=False),

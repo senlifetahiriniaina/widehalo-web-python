@@ -63,7 +63,11 @@ def config_pipelines(request: HttpRequest) -> HttpResponse:
         columns=PIPELINE_COLUMNS,
         queryset=CrmPipeline.objects.filter(tenant=tenant),
         page_template="crm/config_pipelines.html",
-        page_context={"error": error},
+        # Sans ce lien de ligne, la fiche d'un pipeline n'est plus citee nulle
+        # part : la table remplacee par le composant portait le seul chemin
+        # vers elle. La garde d'atteignabilite (T10) l'a vu ; la relecture
+        # non.
+        page_context={"row_url_name": "crm:config_pipeline_detail", "error": error},
     )
 
 

@@ -357,6 +357,7 @@ def quick_entry_list(request: HttpRequest) -> HttpResponse:
             tenant=tenant, move_type=AccMove.TYPE_ENTRY, is_active=True
         ),
         page_template="accounting/quick_entry_list.html",
+        page_context={"row_url_name": "accounting:quick_entry_detail"},
     )
 
 
