@@ -12,6 +12,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
 from apps.core.report_formats import parse_report_format
+from apps.core.services.permissions import screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmPipeline
 from apps.crm.services.reports import (
@@ -38,6 +39,7 @@ def _report_response(data: bytes, format: str, filename: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmlead")
 def reports_index(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     return render(
@@ -48,6 +50,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmpipeline")
 def pipeline_report_download(request: HttpRequest) -> HttpResponse:
     pipeline = get_object_or_404(CrmPipeline, id=request.GET.get("pipeline_id"))
     format = parse_report_format(request.GET.get("format"))
@@ -61,6 +64,7 @@ def pipeline_report_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmpipeline")
 def conversion_report_download(request: HttpRequest) -> HttpResponse:
     pipeline = get_object_or_404(CrmPipeline, id=request.GET.get("pipeline_id"))
     format = parse_report_format(request.GET.get("format"))
@@ -70,6 +74,7 @@ def conversion_report_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmactivity")
 def activities_report_download(request: HttpRequest) -> HttpResponse:
     format = parse_report_format(request.GET.get("format"))
     rows = activity_breakdown()
@@ -78,6 +83,7 @@ def activities_report_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmlead")
 def lost_report_download(request: HttpRequest) -> HttpResponse:
     format = parse_report_format(request.GET.get("format"))
     rows = lost_reason_breakdown()

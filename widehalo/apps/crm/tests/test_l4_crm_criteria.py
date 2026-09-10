@@ -20,13 +20,12 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from django.contrib.auth.models import Group
 from django.test import Client
 
 from apps.core.models.chatter import ChatterMessage
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.crm.models import CrmLead, CrmPipeline, CrmStage, CrmTeam
 from apps.crm.services.leads import convert_lead_to_partner, create_lead_quick
 from apps.crm.services.pipeline import move_lead_to_stage
@@ -49,7 +48,10 @@ def crm_setup():
         # voir avec le critere teste. Piege deja rencontre en L17.
         # `resp_commercial` porte crm/partners/sales/accounting en lecture,
         # ce dont ces tests ont besoin, sans MFA.
-        Group.objects.get_or_create(name="resp_commercial")[0].user_set.add(user)
+        # C-1 : `get_or_create(name=...)` cree un groupe portant le NOM du
+        # role et AUCUNE permission Django — il suffisait tant qu'aucun ecran
+        # ne verifiait de droit. `grant_role` synchronise les permissions.
+        grant_role(user, "resp_commercial")
         pipeline = CrmPipeline.objects.create(tenant=tenant, name="Ventes", is_default=True)
         first = CrmStage.objects.create(
             tenant=tenant, pipeline=pipeline, code="nouveau", name="Nouveau", sequence=1
@@ -130,8 +132,8 @@ def test_the_chatter_thread_of_a_colleagues_lead_is_refused(crm_setup) -> None:
     with use_tenant(tenant.id):
         mine = User.objects.create_user(email="l4-mine@example.com", password=PASSWORD)
         theirs = User.objects.create_user(email="l4-theirs@example.com", password=PASSWORD)
-        commercial = Group.objects.get_or_create(name="commercial")[0]
-        commercial.user_set.add(mine, theirs)
+        grant_role(mine, "commercial")
+        grant_role(theirs, "commercial")
         their_lead = create_lead_quick(tenant=tenant, name="Chasse gardee", salesperson=theirs)
         my_lead = create_lead_quick(tenant=tenant, name="La mienne", salesperson=mine)
 

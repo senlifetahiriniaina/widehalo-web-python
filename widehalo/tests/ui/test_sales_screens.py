@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.partners.services.onboarding import create_partner
 from apps.sales.services.orders import add_order_line, create_order
 from apps.sales.services.quotations import add_quotation_line, create_quotation
@@ -21,6 +21,7 @@ def sales_screens_setup():
     tenant = Tenant.objects.create(code="UI-SALES", name="UI Sales Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="ui-sales@example.com", password="Str0ngPassw0rd!23")
+        grant_role(user, "commercial")
         quotation = create_quotation(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
         add_quotation_line(
             quotation, description="Ligne", qty=Decimal(1), unit_price=Decimal(1000), is_custom=True
@@ -257,8 +258,6 @@ def test_margin_column_hidden_for_plain_commercial_screen(sales_screens_setup) -
     pour la couverture complete role-par-role) : sans role de pilotage, la
     fiche commande ne rend jamais la colonne Marge."""
     client, tenant, _user, _quotation, order = sales_screens_setup
-    from apps.core.tests.utils import grant_role
-
     commercial = User.objects.create_user(
         email="plain-commercial@example.com", password="Str0ngPassw0rd!23"
     )

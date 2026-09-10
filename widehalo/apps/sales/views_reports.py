@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.core.report_formats import parse_report_format
-from apps.core.services.permissions import user_role_codes
+from apps.core.services.permissions import screen_permission, user_role_codes
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.reports import (
     MARGIN_VISIBLE_ROLES,
@@ -50,11 +50,13 @@ def _period_from_request(request: HttpRequest) -> tuple:  # type: ignore[type-ar
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def reports_index(request: HttpRequest) -> HttpResponse:
     return render(request, "sales/reports.html", {})
 
 
 @login_required
+@screen_permission("sales.view_salesquotation")
 def report_quotation_pdf(request: HttpRequest, quotation_id: str) -> HttpResponse:
     """SAL-DEVIS."""
     quotation = get_object_or_404(SalesQuotation, id=quotation_id)
@@ -66,6 +68,7 @@ def report_quotation_pdf(request: HttpRequest, quotation_id: str) -> HttpRespons
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def report_order_confirmation_pdf(request: HttpRequest, order_id: str) -> HttpResponse:
     """SAL-BC."""
     order = get_object_or_404(SalesOrder, id=order_id)
@@ -77,6 +80,7 @@ def report_order_confirmation_pdf(request: HttpRequest, order_id: str) -> HttpRe
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def report_delivery_note(request: HttpRequest, order_id: str) -> HttpResponse:
     """SAL-BL (portee minimale assumee, cf. `services.reports.
     delivery_note_rows`)."""
@@ -90,6 +94,7 @@ def report_delivery_note(request: HttpRequest, order_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def report_revenue(request: HttpRequest) -> HttpResponse:
     """SAL-CA."""
     date_from, date_to, format = _period_from_request(request)
@@ -101,6 +106,7 @@ def report_revenue(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def report_margin(request: HttpRequest) -> HttpResponse:
     """SAL-MARGE — RG-SAL-5 : masquage applique dans
     `services.reports.margin_report` selon les roles de l'utilisateur
@@ -117,6 +123,7 @@ def report_margin(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def report_late_orders(request: HttpRequest) -> HttpResponse:
     """SAL-RET."""
     format = parse_report_format(request.GET.get("format"))
@@ -128,6 +135,7 @@ def report_late_orders(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salestarget")
 def report_targets(request: HttpRequest) -> HttpResponse:
     """SAL-OBJ."""
     format = parse_report_format(request.GET.get("format"))
@@ -142,6 +150,7 @@ def report_targets(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesforecast")
 def report_forecast(request: HttpRequest) -> HttpResponse:
     """SAL-PREV."""
     format = parse_report_format(request.GET.get("format"))

@@ -22,6 +22,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 from apps.sales.models import SalesOrder, SalesRecurrence
 from apps.sales.services.recurrence import create_recurrence
@@ -32,9 +33,15 @@ def _error_message(exc: Exception) -> str:
 
 
 @login_required
+@screen_permission("sales.view_salesrecurrence")
 def config_recurrences(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "sales.add_salesrecurrence")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:

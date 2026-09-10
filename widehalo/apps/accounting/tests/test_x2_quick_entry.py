@@ -17,13 +17,14 @@ from apps.accounting.services.quick_entry import suggest_counterpart_account
 from apps.accounting.tests.factories import AccAccountFactory, AccJournalFactory, AccPeriodFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 
 pytestmark = pytest.mark.django_db
 
 
 def _client(tenant: Tenant) -> Client:
     user = User.objects.create_user(email="compta@example.com", password="Str0ngPassw0rd!23")
+    grant_module_access(user, "accounting")
     client = Client()
     client.force_login(user)
     session = client.session

@@ -39,7 +39,7 @@ from apps.core.models.regulatory import RegulatoryParameter
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.regulatory_governance import ACTIVE_CALCULATION_PARAMETER_CODES
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -58,6 +58,7 @@ def _logged_in_client(tenant: Tenant, email: str):
 
     with use_tenant(tenant.id):
         User.objects.create_user(email=email, password="Str0ngPassw0rd!23")
+        grant_module_access(User.objects.get(email=email), "accounting")
     client = Client()
     client.force_login(User.objects.get(email=email))
     session = client.session

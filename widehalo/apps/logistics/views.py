@@ -28,6 +28,7 @@ from django.utils.translation import gettext as _
 
 from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -98,6 +99,7 @@ VEHICLE_COLUMNS = [
 
 
 @login_required
+@screen_permission("logistics.view_logvehicle")
 def vehicle_list(request: HttpRequest) -> HttpResponse:
     queryset = LogVehicle.objects.filter(is_active=True)
     return smart_table_response(
@@ -111,9 +113,15 @@ def vehicle_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logvehicle")
 def vehicle_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logvehicle")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -141,6 +149,7 @@ def vehicle_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logvehicle")
 def vehicle_detail(request: HttpRequest, vehicle_id: str) -> HttpResponse:
     vehicle = get_object_or_404(LogVehicle, id=vehicle_id)
     error = None
@@ -148,6 +157,17 @@ def vehicle_detail(request: HttpRequest, vehicle_id: str) -> HttpResponse:
     if request.method == "POST":
         action = request.POST.get("action", "")
         post = request.POST
+        # Les deux actions de cet ecran creent des objets de modeles
+        # DIFFERENTS — un document de vehicule, un cout de vehicule — et
+        # portent donc des codenames differents.
+        refus = screen_forbidden(
+            request,
+            "logistics.add_logvehicledocument"
+            if action == "add_document"
+            else "logistics.add_logvehiclecost",
+        )
+        if refus is not None:
+            return refus
         try:
             if action == "add_document":
                 add_vehicle_document(
@@ -187,9 +207,15 @@ def vehicle_detail(request: HttpRequest, vehicle_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logdriver")
 def driver_list(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logdriver")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -222,6 +248,7 @@ TRIP_COLUMNS = [
 
 
 @login_required
+@screen_permission("logistics.view_logtrip")
 def trip_list(request: HttpRequest) -> HttpResponse:
     queryset = LogTrip.objects.filter(is_active=True)
     return smart_table_response(
@@ -235,9 +262,15 @@ def trip_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logtrip")
 def trip_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logtrip")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -272,9 +305,15 @@ def trip_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logtrip")
 def trip_detail(request: HttpRequest, trip_id: str) -> HttpResponse:
     trip = get_object_or_404(LogTrip, id=trip_id)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.change_logtrip")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")
@@ -308,9 +347,15 @@ def trip_detail(request: HttpRequest, trip_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logtriptemplate")
 def trip_template_list(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logtriptemplate")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -384,6 +429,7 @@ _SHIPMENT_ACTIONS = {
 
 
 @login_required
+@screen_permission("logistics.view_logshipment")
 def shipment_list(request: HttpRequest) -> HttpResponse:
     queryset = LogShipment.objects.filter(is_active=True)
     state = request.GET.get("state")
@@ -404,9 +450,15 @@ def shipment_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logshipment")
 def shipment_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logshipment")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -436,11 +488,17 @@ def shipment_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logshipment")
 def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
     shipment = get_object_or_404(LogShipment, id=shipment_id)
     user = cast(User, request.user)
     error = None
     new_customs_file = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.change_logshipment")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")
@@ -499,9 +557,15 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logcustomsfile")
 def customs_file_detail(request: HttpRequest, customs_file_id: str) -> HttpResponse:
     customs_file = get_object_or_404(LogCustomsFile, id=customs_file_id)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.change_logcustomsfile")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")

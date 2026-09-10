@@ -27,7 +27,7 @@ from apps.catalog.services.public import (
 )
 from apps.core.identifiers import parse_optional_uuid, parse_uuid
 from apps.core.models.user import User
-from apps.core.services.permissions import user_role_codes
+from apps.core.services.permissions import screen_forbidden, screen_permission, user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
@@ -87,6 +87,7 @@ ORDER_COLUMNS = [
 
 
 @login_required
+@screen_permission("sales.view_salesquotation")
 def quotation_list(request: HttpRequest) -> HttpResponse:
     queryset = SalesQuotation.objects.filter(is_active=True)
     return smart_table_response(
@@ -168,10 +169,16 @@ def _parse_lines_from_post(post) -> list[dict[str, Any]]:
 
 
 @login_required
+@screen_permission("sales.view_salesquotation")
 def quotation_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     user = cast(User, request.user)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "sales.add_salesquotation")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -213,11 +220,17 @@ _QUOTATION_ACTIONS = {
 
 
 @login_required
+@screen_permission("sales.view_salesquotation")
 def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
     quotation = get_object_or_404(SalesQuotation, id=quotation_id)
     user = cast(User, request.user)
     error = None
     new_order = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "sales.change_salesquotation")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")
@@ -265,6 +278,7 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def order_list(request: HttpRequest) -> HttpResponse:
     queryset = SalesOrder.objects.filter(is_active=True)
     state = request.GET.get("state")
@@ -291,10 +305,16 @@ def order_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def order_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     user = cast(User, request.user)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "sales.add_salesorder")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -342,10 +362,16 @@ _ORDER_ACTIONS = {
 
 
 @login_required
+@screen_permission("sales.view_salesorder")
 def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
     order = get_object_or_404(SalesOrder, id=order_id)
     user = cast(User, request.user)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "sales.change_salesorder")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")

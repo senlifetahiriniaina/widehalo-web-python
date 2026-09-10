@@ -11,19 +11,27 @@ from django.shortcuts import get_object_or_404, render
 from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmLostReason, CrmPipeline, CrmStage, CrmTeam
 
 
 @login_required
+@screen_permission("crm.view_crmpipeline")
 def config_index(request: HttpRequest) -> HttpResponse:
     return render(request, "crm/config_index.html", {})
 
 
 @login_required
+@screen_permission("crm.view_crmpipeline")
 def config_pipelines(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "crm.add_crmpipeline")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -44,10 +52,23 @@ def config_pipelines(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmpipeline")
 def config_pipeline_detail(request: HttpRequest, pipeline_id: str) -> HttpResponse:
     tenant = resolve_tenant(request)
     pipeline = get_object_or_404(CrmPipeline, id=pipeline_id, tenant=tenant)
     error = None
+
+    if request.method == "POST":
+        # Regler le delai de stagnation MODIFIE le pipeline ; l'autre
+        # branche CREE une etape. Deux verbes, deux droits.
+        refus = screen_forbidden(
+            request,
+            "crm.change_crmpipeline"
+            if request.POST.get("action") == "set_stagnation"
+            else "crm.add_crmstage",
+        )
+        if refus is not None:
+            return refus
 
     if request.method == "POST" and request.POST.get("action") == "set_stagnation":
         # CRM-4 : le « N paramétrable » du critère. Sans cette porte, le
@@ -87,10 +108,16 @@ def config_pipeline_detail(request: HttpRequest, pipeline_id: str) -> HttpRespon
 
 
 @login_required
+@screen_permission("crm.view_crmteam")
 def config_teams(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     users = User.objects.all().order_by("email")
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "crm.add_crmteam")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -115,9 +142,15 @@ def config_teams(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmlostreason")
 def config_lost_reasons(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "crm.add_crmlostreason")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:

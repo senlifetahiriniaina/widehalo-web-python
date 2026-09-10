@@ -6,7 +6,7 @@ import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services import mfa as mfa_service
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.logistics.models import LogHsCode, LogServiceProvider
 from apps.logistics.services.shipments import create_shipment
 from apps.logistics.services.trips import create_trip
@@ -23,6 +23,7 @@ def logistics_screens_setup():
     tenant = Tenant.objects.create(code="UI-LOG", name="UI Logistics Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="ui-log@example.com", password="Str0ngPassw0rd!23")
+        grant_role(user, "magasinier")
         vehicle = LogVehicleFactory(tenant=tenant)
         driver = LogDriverFactory(tenant=tenant, consent_geolocation=True)
         trip = create_trip(

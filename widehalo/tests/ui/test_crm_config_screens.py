@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.crm.models import CrmLostReason, CrmPipeline, CrmStage, CrmTeam
 from django.test import Client
 
@@ -17,6 +17,7 @@ def config_screens_setup():
         user = User.objects.create_user(
             email="ui-crm-cfg@example.com", password="Str0ngPassw0rd!23"
         )
+        grant_role(user, "commercial")
     client = Client()
     client.force_login(user)
     session = client.session

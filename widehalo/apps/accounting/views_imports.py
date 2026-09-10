@@ -22,6 +22,7 @@ from apps.accounting.services.cash_journal_import import (
 )
 from apps.accounting.services.chart_of_accounts_import import import_chart_of_accounts_xlsx
 from apps.core.services.import_xlsx import build_xlsx_template
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 
 
@@ -34,6 +35,7 @@ def _xlsx_template_response(data: bytes, filename: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_index(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     batches = AccImportBatch.objects.filter(tenant=tenant).order_by("-created_at")[:20]
@@ -41,6 +43,7 @@ def imports_index(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accaccount")
 def download_chart_of_accounts_template(request: HttpRequest) -> HttpResponse:
     data = build_xlsx_template(
         ["Code", "Intitulé", "Classe", "Nature", "Catégorie de caisse"],
@@ -50,6 +53,7 @@ def download_chart_of_accounts_template(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accjournal")
 def download_cash_journal_template(request: HttpRequest) -> HttpResponse:
     data = build_xlsx_template(
         [
@@ -77,10 +81,16 @@ def download_cash_journal_template(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_chart_of_accounts(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     summary = None
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accaccount")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         uploaded_file = request.FILES.get("file")
@@ -102,10 +112,16 @@ def imports_chart_of_accounts(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_cash_journal(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     summary = None
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accmove")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         uploaded_file = request.FILES.get("file")
@@ -127,6 +143,7 @@ def imports_cash_journal(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_cash_journal_batch_detail(request: HttpRequest, batch_id: str) -> HttpResponse:
     tenant = resolve_tenant(request)
     batch = get_object_or_404(AccImportBatch, tenant=tenant, id=batch_id)
@@ -140,9 +157,15 @@ def imports_cash_journal_batch_detail(request: HttpRequest, batch_id: str) -> Ht
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_cash_journal_row_resolve(request: HttpRequest, row_id: str) -> HttpResponse:
     tenant = resolve_tenant(request)
     row = get_object_or_404(AccImportRow, tenant=tenant, id=row_id)
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.qualify_accimportrow")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         if request.POST.get("discard"):
@@ -160,6 +183,7 @@ def imports_cash_journal_row_resolve(request: HttpRequest, row_id: str) -> HttpR
 
 
 @login_required
+@screen_permission("accounting.view_accimportbatch")
 def imports_cash_journal_row_qualify(request: HttpRequest, row_id: str) -> HttpResponse:
     """Ecran "à qualifier" (chantier RG-QUALIF) — remplace le(s)
     placeholder(s) d'une ligne `needs_qualification` par l'entite reelle
@@ -168,6 +192,11 @@ def imports_cash_journal_row_qualify(request: HttpRequest, row_id: str) -> HttpR
     validations en attente")."""
     tenant = resolve_tenant(request)
     row = get_object_or_404(AccImportRow, tenant=tenant, id=row_id)
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.qualify_accimportrow")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         account_id = request.POST.get("account_id") or None

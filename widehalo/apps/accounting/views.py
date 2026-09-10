@@ -46,6 +46,7 @@ from apps.core.models.audit import AuditLog
 from apps.core.models.document import Document
 from apps.core.models.user import User
 from apps.core.services.documents import store_document
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import describe_signing_certificate, document_exchange_panel
@@ -59,6 +60,7 @@ COLUMNS = [
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def invoice_list(request: HttpRequest) -> HttpResponse:
     queryset = AccMove.objects.filter(move_type=AccMove.TYPE_CUSTOMER_INVOICE, is_active=True)
     return smart_table_response(
@@ -71,7 +73,21 @@ def invoice_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+#: Droit exige par chaque action de l'ecran de facture, aligne sur les
+#: codenames que l'API porte deja pour les memes operations
+#: (`apps/accounting/api.py` : `validate_accmove` pour la validation,
+#: `change_accmove` pour l'enregistrement d'un reglement). Le depot de
+#: piece jointe n'a pas d'`action` et retombe donc sur le defaut,
+#: `change_accmove` — modifier la facture en lui attachant un document.
+_DROITS_FACTURE = {
+    "validate": "accounting.validate_accmove",
+    "cancel": "accounting.cancel_accmove",
+    "register_payment": "accounting.change_accmove",
+}
+
+
 @login_required
+@screen_permission("accounting.view_accmove")
 def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
     invoice = get_object_or_404(AccMove, id=invoice_id, move_type=AccMove.TYPE_CUSTOMER_INVOICE)
     content_type = ContentType.objects.get_for_model(AccMove)
@@ -80,6 +96,25 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
 
     if request.method == "POST":
         action = request.POST.get("action")
+        # Le depot de piece jointe ne poste AUCUN champ `action` (cf.
+        # `templates/accounting/detail.html`, formulaire multipart). Il doit
+        # donc etre une branche a part entiere de cet aiguillage.
+        #
+        # **Avant C-1, il n'en etait pas une, et rien ne se produisait.** Le
+        # bloc `store_document(...)` vivait APRES ce `try/except/else`, dont
+        # le `else` retourne une redirection des qu'aucune exception n'est
+        # levee — c'est-a-dire sur tout POST sans `action` reconnue. Le code
+        # de depot etait donc inatteignable : l'exploitant choisissait un
+        # fichier, validait, revenait sur sa facture, et rien n'etait
+        # enregistre, sans le moindre message. Douzieme occurrence du motif
+        # « rien de decoratif » de cette vague, et l'une des pires : une
+        # perte silencieuse de ce que l'utilisateur croyait deposer.
+        uploaded_file = request.FILES.get("document")
+        refus = screen_forbidden(
+            request, _DROITS_FACTURE.get(action or "", "accounting.change_accmove")
+        )
+        if refus is not None:
+            return refus
         try:
             if action == "validate":
                 validate_invoice(invoice, user)
@@ -112,20 +147,17 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
                     amount=Decimal(request.POST.get("payment_amount") or "0"),
                     method=request.POST.get("method", AccPayment.METHOD_TRANSFER),
                 )
+            elif uploaded_file is not None:
+                store_document(
+                    tenant=invoice.tenant,
+                    uploaded_file=uploaded_file,
+                    uploaded_by=user if user.is_authenticated else None,
+                    content_object=invoice,
+                )
         except (ApprovalRequiredError, ValidationError, InvalidOperation) as exc:
             error = str(exc)
         else:
             return redirect("accounting:detail", invoice_id=invoice.id)
-
-    uploaded_file = request.FILES.get("document")
-    if request.method == "POST" and uploaded_file is not None:
-        store_document(
-            tenant=invoice.tenant,
-            uploaded_file=uploaded_file,
-            uploaded_by=user if user.is_authenticated else None,
-            content_object=invoice,
-        )
-        return redirect("accounting:detail", invoice_id=invoice.id)
 
     # T4 (EFA-4) — « l'identifiant attribué et le marquage vérifiable sont
     # reportés sur la REPRÉSENTATION LISIBLE du document ». Elle est un
@@ -212,6 +244,7 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def invoice_create(request: HttpRequest) -> HttpResponse:
     """Formulaire minimal : une facture a ligne de produit unique (le
     detail multi-lignes reste accessible via l'API pour les besoins
@@ -228,6 +261,11 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
     default_receivable_account = receivable_accounts.first()
     default_income_account = income_accounts.first()
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accmove")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -290,6 +328,7 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def quick_entry_list(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     drafts = AccMove.objects.filter(
@@ -302,6 +341,7 @@ def quick_entry_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def quick_entry_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     journals = AccJournal.objects.filter(tenant=tenant).order_by("code")
@@ -311,6 +351,11 @@ def quick_entry_create(request: HttpRequest) -> HttpResponse:
     default_journal = journals.first()
     default_period = periods.first()
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accmove")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -345,10 +390,16 @@ def quick_entry_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def quick_entry_detail(request: HttpRequest, move_id: str) -> HttpResponse:
     tenant = resolve_tenant(request)
     move = get_object_or_404(AccMove, id=move_id, tenant=tenant, move_type=AccMove.TYPE_ENTRY)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.change_accmove")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action")

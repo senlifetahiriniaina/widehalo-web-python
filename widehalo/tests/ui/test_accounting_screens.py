@@ -6,7 +6,7 @@ import pytest
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -17,6 +17,11 @@ def accounting_screens_setup():
     tenant = Tenant.objects.create(code="UI-ACC", name="UI Accounting Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="ui-acc@example.com", password="Str0ngPassw0rd!23")
+        # C-1 : les ecrans de ce module verifient desormais un droit.
+        # `grant_module_access` plutot que `grant_role` — les seuls roles
+        # qui detiennent accounting en ecriture sont soumis au MFA obligatoire,
+        # et `force_login` renverrait alors vers /mfa/.
+        grant_module_access(user, "accounting")
         fiscal_year = AccFiscalYear.objects.create(
             tenant=tenant,
             code="2026",

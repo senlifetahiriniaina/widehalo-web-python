@@ -22,7 +22,7 @@ from django.test import Client
 from apps.accounting.models import AccTax
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -44,6 +44,11 @@ def _logged_in(tenant: Tenant, email: str) -> Client:
     decorative."""
     with use_tenant(tenant.id):
         user = User.objects.create_user(email=email, password=PASSWORD)
+        # C-1 : l'ecran verifie desormais un droit. `grant_module_access`
+        # plutot que `grant_role("comptable")` — les trois roles qui
+        # detiennent `accounting` sont soumis au MFA obligatoire, et
+        # `force_login` renverrait alors vers /mfa/.
+        grant_module_access(user, "accounting")
     client = Client()
     client.force_login(user)
     session = client.session

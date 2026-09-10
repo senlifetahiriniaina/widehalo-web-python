@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.crm.models import CrmPipeline, CrmStage
 from apps.crm.services.leads import create_lead_quick
 from django.test import Client
@@ -16,6 +16,7 @@ def crm_screens_setup():
     tenant = Tenant.objects.create(code="UI-CRM", name="UI CRM Tenant")
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="ui-crm@example.com", password="Str0ngPassw0rd!23")
+        grant_role(user, "commercial")
         pipeline = CrmPipeline.objects.create(tenant=tenant, name="Standard", is_default=True)
         stage_new = CrmStage.objects.create(
             tenant=tenant, pipeline=pipeline, code="new", name="Nouveau", sequence=1

@@ -35,7 +35,7 @@ from apps.accounting.services.public import is_vat_liable
 from apps.accounting.tests.factories import AccAccountFactory, AccJournalFactory, AccPeriodFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.partners.tests.factories import PartnerFactory
 from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.orders import (
@@ -73,6 +73,7 @@ def _invoiced_order_pdf_html(tenant: Tenant, email: str) -> str:
     from unittest.mock import patch
 
     user = User.objects.create_user(email=email, password="Str0ngPassw0rd!23")
+    grant_module_access(user, "accounting")
     partner = PartnerFactory(tenant=tenant)
     order = create_order(tenant=tenant, partner_id=partner.id, date=dt.date.today())
     add_order_line(
@@ -274,6 +275,7 @@ def test_a_synthetic_tenant_can_build_a_simulation_baseline() -> None:
     tenant = _tenant("L17-SIM", Tenant.FISCAL_REGIME_SYNTHETIC)
     with use_tenant(tenant.id):
         user = User.objects.create_user(email="l17-sim@example.com", password="Str0ngPassw0rd!23")
+        grant_module_access(user, "accounting")
         # Aucun taux de TVA resolvable pour ce tenant : on retire meme le
         # parametre global, pour que le test ne reussisse pas par accident.
         RegulatoryParameter.objects.filter(code="tva.taux_normal").delete()
@@ -291,6 +293,7 @@ def _logged_in_client(tenant: Tenant, email: str):
 
     with use_tenant(tenant.id):
         User.objects.create_user(email=email, password="Str0ngPassw0rd!23")
+        grant_module_access(User.objects.get(email=email), "accounting")
     client = Client()
     client.force_login(User.objects.get(email=email))
     session = client.session

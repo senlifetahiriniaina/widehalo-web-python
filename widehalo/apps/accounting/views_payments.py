@@ -40,6 +40,7 @@ from apps.accounting.services.payment_intents import (
 )
 from apps.accounting.services.payment_payouts import settle_payout
 from apps.accounting.services.payment_settlement import assign_orphan_notification
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 
 NOTIFICATION_COLUMNS = [
@@ -53,6 +54,7 @@ NOTIFICATION_COLUMNS = [
 
 
 @login_required
+@screen_permission("accounting.view_accpaymentnotification")
 def payment_notification_list(request: HttpRequest) -> HttpResponse:
     """PAY-3 — la liste, filtrable par état.
 
@@ -94,6 +96,7 @@ def payment_notification_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accpaymentnotification")
 def payment_notification_assign(request: HttpRequest, notification_id: str) -> HttpResponse:
     """PAY-3 — « ne produit aucune écriture **tant qu'il n'est pas affecté** ».
 
@@ -105,6 +108,10 @@ def payment_notification_assign(request: HttpRequest, notification_id: str) -> H
     if request.method != "POST":
         return redirect("accounting:payment_notifications")
 
+    refus = screen_forbidden(request, "accounting.change_accpaymentnotification")
+    if refus is not None:
+        return refus
+
     erreur = ""
     try:
         assign_orphan_notification(notification, invoice_id=request.POST.get("invoice_id", ""))
@@ -115,6 +122,7 @@ def payment_notification_assign(request: HttpRequest, notification_id: str) -> H
 
 
 @login_required
+@screen_permission("accounting.view_accaggregatorpayout")
 def aggregator_payout_settle(request: HttpRequest, payout_id: str) -> HttpResponse:
     """PAY-5 — rapproche un versement groupé du lot qu'il couvre.
 
@@ -126,11 +134,16 @@ def aggregator_payout_settle(request: HttpRequest, payout_id: str) -> HttpRespon
     if request.method != "POST":
         return redirect("accounting:payment_notifications")
 
+    refus = screen_forbidden(request, "accounting.change_accaggregatorpayout")
+    if refus is not None:
+        return refus
+
     resultat = settle_payout(versement)
     return _back_to_list("" if resultat.produced_an_entry else resultat.detail or resultat.outcome)
 
 
 @login_required
+@screen_permission("accounting.view_accpaymentintent")
 def payment_intent_reemit(request: HttpRequest, intent_id: str) -> HttpResponse:
     """PAY-7 — redemande le paiement, APRÈS avoir vérifié où en est le premier.
 
@@ -142,6 +155,10 @@ def payment_intent_reemit(request: HttpRequest, intent_id: str) -> HttpResponse:
     intention = get_object_or_404(AccPaymentIntent, id=intent_id)
     if request.method != "POST":
         return redirect("accounting:payment_notifications")
+
+    refus = screen_forbidden(request, "accounting.change_accpaymentintent")
+    if refus is not None:
+        return refus
 
     resultat = reemit_intent(intention)
     if resultat.outcome == REEMIT_REPLACED:

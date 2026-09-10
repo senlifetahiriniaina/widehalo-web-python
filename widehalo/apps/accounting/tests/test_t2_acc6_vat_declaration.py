@@ -48,7 +48,7 @@ from apps.accounting.tests.factories import (
     AccTaxFactory,
 )
 from apps.core.models.tenant import Tenant
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 
 pytestmark = pytest.mark.django_db
 
@@ -322,6 +322,7 @@ def test_the_screen_shows_the_gap_and_where_it_comes_from(societe, contexte) -> 
             debit=Decimal(0),
         )
         User.objects.create_user(email="acc6-ecran@example.com", password="Str0ngPassw0rd!23")
+        grant_module_access(User.objects.get(email="acc6-ecran@example.com"), "accounting")
 
     client = Client()
     client.force_login(User.objects.get(email="acc6-ecran@example.com"))

@@ -20,6 +20,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 from apps.logistics.models import LogFreightTariff, LogHsCode, LogPackagingType, LogServiceProvider
 from apps.logistics.services.customs import create_hs_code
@@ -31,14 +32,21 @@ def _error_message(exc: Exception) -> str:
 
 
 @login_required
+@screen_permission("logistics.view_logpackagingtype")
 def config_index(request: HttpRequest) -> HttpResponse:
     return render(request, "logistics/config_index.html", {})
 
 
 @login_required
+@screen_permission("logistics.view_logpackagingtype")
 def config_packaging_types(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logpackagingtype")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         packaging_type = LogPackagingType(
@@ -70,9 +78,15 @@ def config_packaging_types(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logserviceprovider")
 def config_service_providers(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_logserviceprovider")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         action = request.POST.get("action", "")
@@ -123,9 +137,15 @@ def config_service_providers(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_loghscode")
 def config_hs_codes(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.add_loghscode")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:

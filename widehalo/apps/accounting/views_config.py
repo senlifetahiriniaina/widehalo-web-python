@@ -37,20 +37,33 @@ from apps.accounting.services.legal_mentions import mandatory_vat_mention
 from apps.accounting.services.taxes import vat_applicable
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 
 
 @login_required
+@screen_permission("accounting.view_accaccount")
 def config_index(request: HttpRequest) -> HttpResponse:
     return render(request, "accounting/config_index.html", {})
 
 
 @login_required
+@screen_permission("accounting.view_accfiscalyear")
 def config_fiscal_years(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
 
     if request.method == "POST":
+        # Clore ou rouvrir MODIFIE un exercice existant ; le cas par defaut
+        # en CREE un. Deux verbes distincts, deux droits distincts.
+        refus = screen_forbidden(
+            request,
+            "accounting.change_accfiscalyear"
+            if request.POST.get("action", "create") in ("close", "reopen")
+            else "accounting.add_accfiscalyear",
+        )
+        if refus is not None:
+            return refus
         try:
             action = request.POST.get("action", "create")
             if action == "close":
@@ -97,10 +110,16 @@ def config_fiscal_years(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accperiod")
 def config_periods(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     fiscal_years = AccFiscalYear.objects.filter(tenant=tenant).order_by("-date_start")
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accperiod")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -132,10 +151,16 @@ def config_periods(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accjournal")
 def config_journals(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     accounts = AccAccount.objects.filter(tenant=tenant, is_active=True)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accjournal")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -169,10 +194,16 @@ def config_journals(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accaccount")
 def config_accounts(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     accounts = AccAccount.objects.filter(tenant=tenant).order_by("code")
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accaccount")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:
@@ -207,6 +238,7 @@ def config_accounts(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_acctenantdefaultaccount")
 def config_default_accounts(request: HttpRequest) -> HttpResponse:
     """D10-2 — comptes par defaut du tenant (cahier §13.3, ecran « Plan de
     comptes » : « Comptes par defaut du tenant (vente, achat, TVA, client,
@@ -220,6 +252,11 @@ def config_default_accounts(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     accounts = AccAccount.objects.filter(tenant=tenant, is_active=True).order_by("code")
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.change_acctenantdefaultaccount")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         role = request.POST.get("role", "")
@@ -263,6 +300,7 @@ def config_default_accounts(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accframework")
 def config_fiscal(request: HttpRequest) -> HttpResponse:
     """L17 — l'ecran de configuration fiscale que le produit promettait.
 
@@ -290,6 +328,11 @@ def config_fiscal(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
     saved = False
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.change_accframework")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         regime = request.POST.get("fiscal_regime", "")
@@ -424,6 +467,7 @@ def _trailing_year_revenue(tenant: Tenant) -> Decimal | None:
 
 
 @login_required
+@screen_permission("accounting.view_acctax")
 def config_taxes(request: HttpRequest) -> HttpResponse:
     """Ecran de parametrage des taxes.
 
@@ -449,6 +493,11 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
     accounts = AccAccount.objects.filter(tenant=tenant, is_active=True)
     is_vat_liable = vat_applicable(tenant)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_acctax")
+        if refus is not None:
+            return refus
 
     if request.method == "POST" and not is_vat_liable:
         error = _(
@@ -500,12 +549,18 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accpaymentterm")
 def config_payment_terms(request: HttpRequest) -> HttpResponse:
     """Formulaire minimal : une condition de paiement creee avec une seule
     ligne (le multi-lignes reste accessible via l'API pour les besoins
     avances — meme simplification que `apps.accounting.views::invoice_create`)."""
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accpaymentterm")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:

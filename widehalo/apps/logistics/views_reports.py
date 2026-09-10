@@ -10,6 +10,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from apps.core.report_formats import parse_report_format
+from apps.core.services.permissions import screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 from apps.logistics.services.reports import (
     customs_duty_rows,
@@ -33,11 +34,13 @@ def _report_response(data: bytes, format: str, filename: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logshipment")
 def reports_index(request: HttpRequest) -> HttpResponse:
     return render(request, "logistics/reports.html", {})
 
 
 @login_required
+@screen_permission("logistics.view_logvehiclecost")
 def report_vehicle_costs(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     format = parse_report_format(request.GET.get("format"))
@@ -51,6 +54,7 @@ def report_vehicle_costs(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logshipment")
 def report_shipments(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     format = parse_report_format(request.GET.get("format"))
@@ -64,6 +68,7 @@ def report_shipments(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("logistics.view_logcustomsfile")
 def report_customs(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     format = parse_report_format(request.GET.get("format"))

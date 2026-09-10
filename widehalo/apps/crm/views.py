@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.core.models.user import User
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import (
@@ -49,6 +50,7 @@ COLUMNS = [
 
 
 @login_required
+@screen_permission("crm.view_crmlead")
 def lead_list(request: HttpRequest) -> HttpResponse:
     queryset = scope_leads_for_user(CrmLead.objects.filter(is_active=True), request.user)
     return smart_table_response(
@@ -82,7 +84,12 @@ def _parse_due_at(raw: str) -> datetime | None:
     return timezone.make_aware(naive) if timezone.is_naive(naive) else naive
 
 
+#: Droit exige par chaque action de la fiche d'opportunite.
+_DROITS_OPPORTUNITE = {"log_activity": "crm.add_crmactivity"}
+
+
 @login_required
+@screen_permission("crm.view_crmlead")
 def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
     # RG-CRM-5 (CRM-6 du cahier des charges) : correctif d'un manque reel —
     # cette vue recuperait le lead SANS repasser par
@@ -104,6 +111,15 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
 
     if request.method == "POST":
         action = request.POST.get("action")
+        # `log_activity` CREE une activite ; les trois autres actions
+        # MODIFIENT l'opportunite. Les memes codenames que l'API porte sur
+        # les operations homologues (`apps/crm/api.py` : `add_crmactivity`
+        # pour la creation d'activite, `change_crmlead` pour le reste).
+        refus = screen_forbidden(
+            request, _DROITS_OPPORTUNITE.get(action or "", "crm.change_crmlead")
+        )
+        if refus is not None:
+            return refus
         try:
             if action == "move_stage":
                 stage = get_object_or_404(CrmStage, id=request.POST.get("stage_id"))
@@ -191,6 +207,7 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmlead")
 def lead_kanban(request: HttpRequest) -> HttpResponse:
     """CRM-1 — le pipeline en colonnes, avec glisser-deposer.
 
@@ -216,6 +233,11 @@ def lead_kanban(request: HttpRequest) -> HttpResponse:
     ecran la faille refermee sur l'API aux bloquants (4/4)."""
     user = cast(User, request.user)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "crm.change_crmlead")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         lead = get_object_or_404(
@@ -279,9 +301,15 @@ def lead_kanban(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("crm.view_crmlead")
 def lead_create(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "crm.add_crmlead")
+        if refus is not None:
+            return refus
 
     if request.method == "POST":
         try:

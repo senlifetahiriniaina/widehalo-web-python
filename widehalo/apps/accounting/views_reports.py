@@ -19,6 +19,7 @@ from apps.accounting.services.reports import (
     trial_balance,
 )
 from apps.core.report_formats import parse_report_format
+from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.tenant_web import resolve_tenant
 
 CONTENT_TYPES = {
@@ -37,6 +38,7 @@ def _report_response(data: bytes, format: str, filename: str) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accmove")
 def reports_index(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
     return render(
@@ -51,6 +53,7 @@ def reports_index(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accaccount")
 def trial_balance_download(request: HttpRequest) -> HttpResponse:
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
     format = parse_report_format(request.GET.get("format"))
@@ -60,6 +63,7 @@ def trial_balance_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accaccount")
 def general_ledger_download(request: HttpRequest) -> HttpResponse:
     account = get_object_or_404(AccAccount, id=request.GET.get("account_id"))
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
@@ -70,6 +74,7 @@ def general_ledger_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accjournal")
 def journal_report_download(request: HttpRequest) -> HttpResponse:
     journal = get_object_or_404(AccJournal, id=request.GET.get("journal_id"))
     fiscal_year = get_object_or_404(AccFiscalYear, id=request.GET.get("fiscal_year_id"))
@@ -82,6 +87,7 @@ def journal_report_download(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@screen_permission("accounting.view_accvatdeclaration")
 def vat_declaration_screen(request: HttpRequest) -> HttpResponse:
     """ACC-6 — la declaration de TVA d'une periode, vue par le comptable.
 
@@ -110,6 +116,11 @@ def vat_declaration_screen(request: HttpRequest) -> HttpResponse:
             "accounting/vat_declaration.html",
             {"periodes": periodes, "periode": None, "declaration": None},
         )
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accvatdeclaration")
+        if refus is not None:
+            return refus
 
     if request.method == "POST" and request.POST.get("action") == "file":
         from django.core.exceptions import ValidationError

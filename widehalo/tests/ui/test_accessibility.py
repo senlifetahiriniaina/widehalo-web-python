@@ -5,7 +5,7 @@ from apps.accounting.models import AccMove
 from apps.accounting.tests.factories import AccMoveFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.crm.tests.factories import CrmLeadFactory
 from apps.feasibility.tests.factories import FeaStudyFactory
 from apps.financing.tests.factories import FinLoanApplicationFactory
@@ -24,6 +24,26 @@ pytestmark = pytest.mark.django_db
 def _logged_in_client() -> tuple[Client, Tenant]:
     tenant = Tenant.objects.create(code="UI-A11Y", name="UI A11y Tenant")
     user = User.objects.create_user(email="ui-a11y@example.com", password="Str0ngPassw0rd!23")
+    # C-1 : l'audit parcourt des ecrans desormais gardes. Il ne fait que
+    # des GET, donc `view` suffit ; `grant_module_access` evite le MFA des
+    # roles qui detiennent `accounting`, et un utilisateur SANS droit
+    # recevrait la page 403 — dont l'accessibilite ne prouverait rien de
+    # celle des ecrans audites.
+    grant_module_access(
+        user,
+        "accounting",
+        "crm",
+        "sales",
+        "logistics",
+        "mrp",
+        "purchase",
+        "stocks",
+        "patronage",
+        "feasibility",
+        "strategy",
+        "financing",
+        actions=("view",),
+    )
     client = Client()
     client.force_login(user)
     session = client.session
