@@ -9,7 +9,7 @@
   {% if can_manage %}<a href="{% url 'bi:report_new' %}" class="btn btn-primary">{% trans "Nouveau rapport" %}</a>{% endif %}
 </div>
 
-<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+<nav role="tablist" class="tabs tabs-box flex-wrap mb-4">
   <a role="tab" class="tab {% if tab == 'dashboards' %}tab-active{% endif %}" href="?tab=dashboards">{% trans "Tableaux de bord" %}</a>
   <a role="tab" class="tab {% if tab == 'catalogue' %}tab-active{% endif %}" href="?tab=catalogue">{% trans "Catalogue de rapports" %}</a>
   <a role="tab" class="tab {% if tab == 'journal' %}tab-active{% endif %}" href="?tab=journal">{% trans "Journal" %}</a>

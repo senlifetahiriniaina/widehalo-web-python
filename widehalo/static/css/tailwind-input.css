@@ -170,6 +170,27 @@
    l'app `ai` (usage_budget, assist, search, anomalies_list, insights_list,
    recommendations, data_query) migres vers <c-breadcrumb>/<c-button>. */
 @source "../../templates/ai/**/*.html";
+/* T9 — sept répertoires employaient des classes Tailwind/DaisyUI sans être
+   scannés : leurs classes ne figuraient donc dans AUCUNE feuille, et les
+   écrans concernés s'affichaient sans style. Mesuré : 11 gabarits,
+   `tabs-boxed`, `alert-warning`, `badge-success`, `text-base-content/60`,
+   `input-bordered`, `select-bordered` et les utilitaires de grille.
+
+   Le motif est celui du strangler pattern — on n'élargit le scan qu'aux
+   répertoires réellement migrés — mais ces onze-là avaient été écrits en
+   Tailwind sans que le scan suive. Les ajouter ne migre rien : cela rend
+   simplement effectif ce que leurs auteurs avaient déjà écrit. */
+@source "../../templates/analytics/**/*.html";
+@source "../../templates/bi/**/*.html";
+@source "../../templates/components/**/*.html";
+@source "../../templates/forecast/**/*.html";
+@source "../../templates/pos/**/*.html";
+@source "../../templates/simulation/**/*.html";
+@source "../../templates/whatsapp/**/*.html";
+/* `flows` : les écrans du bloc H (T8, T9) sont écrits avec l'ancien
+   système de design, pas avec Tailwind. Le répertoire est ajouté pour que
+   le jour où l'un d'eux emploiera une classe Tailwind, elle existe. */
+@source "../../templates/flows/**/*.html";
 /* Sprint 12 (L9 rattrapage du catalogue existant, cf.
    docs/planning/2026-refonte-ux-sprints.md §5 bis), batch 1 : meme
    elargissement pour projects, helpdesk, chat, crm et sales -- premier des

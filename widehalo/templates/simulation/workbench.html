@@ -35,7 +35,7 @@
   {% endif %}
   <p class="text-muted">{% trans "Aucun bouton « calculer » : les indicateurs se recalculent en continu, localement, à chaque mouvement de curseur (moins de 100 ms)." %}</p>
 
-  <nav role="tablist" class="tabs tabs-boxed mb-4">
+  <nav role="tablist" class="tabs tabs-box mb-4">
     <a role="tab" class="tab" :class="tab === 'levers' ? 'tab-active' : ''" @click.prevent="tab = 'levers'" href="#">{% trans "Leviers" %}</a>
     <a role="tab" class="tab" :class="tab === 'treasury' ? 'tab-active' : ''" @click.prevent="tab = 'treasury'" href="#">{% trans "Trésorerie 13 semaines" %}</a>
     <a role="tab" class="tab" :class="tab === 'sensitivity' ? 'tab-active' : ''" @click.prevent="tab = 'sensitivity'; loadSensitivity()" href="#">{% trans "Point mort et sensibilité" %}</a>

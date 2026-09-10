@@ -107,7 +107,7 @@ pas de nouvelle logique RBAC.
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
             <label for="shell-language" class="sr-only">{% trans "Langue" %}</label>
-            <select id="shell-language" name="language" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+            <select id="shell-language" name="language" class="select select-xs w-full" onchange="this.form.submit()">
               {% for lang_code, lang_label in LANGUAGES %}
                 <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_label }}</option>
               {% endfor %}
@@ -120,7 +120,7 @@ pas de nouvelle logique RBAC.
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
             <label for="shell-theme" class="sr-only">{% trans "Thème" %}</label>
-            <select id="shell-theme" name="theme" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+            <select id="shell-theme" name="theme" class="select select-xs w-full" onchange="this.form.submit()">
               {% for theme_code, theme_label in theme_choices %}
                 <option value="{{ theme_code }}" {% if theme_code == user.theme %}selected{% endif %}>{{ theme_label }}</option>
               {% endfor %}
@@ -133,7 +133,7 @@ pas de nouvelle logique RBAC.
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
             <label for="shell-density" class="sr-only">{% trans "Densité" %}</label>
-            <select id="shell-density" name="density" class="select select-bordered select-xs w-full" onchange="this.form.submit()">
+            <select id="shell-density" name="density" class="select select-xs w-full" onchange="this.form.submit()">
               {% for density_code, density_label in density_choices %}
                 <option value="{{ density_code }}" {% if density_code == user.density %}selected{% endif %}>{{ density_label }}</option>
               {% endfor %}

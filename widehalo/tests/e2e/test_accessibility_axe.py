@@ -164,6 +164,26 @@ def test_dark_mode_has_no_blocking_axe_violations(logged_in_page, live_server) -
     _assert_no_blocking_violations(page, "launchpad (dark mode)")
 
 
+def test_flows_console_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
+    """T9 — la console de gouvernance des flux (bloc H).
+
+    Elle est ajoutee a l'echantillon parce qu'elle introduit deux familles
+    que les six ecrans precedents ne couvraient pas : un tableau de decision
+    a cases a cocher (le panneau de rejeu) et des bandeaux d'etat colores
+    (`.bandeau--attente/refus/succes`, definis au lot T9). Les deux sont
+    exactement les endroits ou une couleur risque de porter seule
+    l'information — ce que le §10.2 du cahier interdit et qu'axe verifie."""
+    page = logged_in_page
+    _goto_bypassing_service_worker(page, f"{live_server.url}/flows/links/")
+    _assert_no_blocking_violations(page, "flows:link_list")
+
+    _goto_bypassing_service_worker(page, f"{live_server.url}/flows/replay/")
+    _assert_no_blocking_violations(page, "flows:replay_panel")
+
+    _goto_bypassing_service_worker(page, f"{live_server.url}/flows/")
+    _assert_no_blocking_violations(page, "flows:journal")
+
+
 def test_ai_data_query_screen_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
     """Ecran IA (Sprint 11 / L7), avec son bloc "Sources consultees" —
     composant recent, jamais couvert par un audit axe jusqu'ici."""

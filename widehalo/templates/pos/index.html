@@ -7,7 +7,7 @@
   <h1>{% trans "Point de vente" %}</h1>
   <a href="{% url 'pos:sale' %}" class="btn btn-primary">{% trans "Ouvrir l'écran de vente" %}</a>
 </div>
-<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+<nav role="tablist" class="tabs tabs-box flex-wrap mb-4">
   <a role="tab" class="tab {% if active_tab == 'registers' %}tab-active{% endif %}" href="{% url 'pos:registers' %}">{% trans "Points de caisse" %}</a>
   <a role="tab" class="tab {% if active_tab == 'payment_methods' %}tab-active{% endif %}" href="{% url 'pos:payment_methods' %}">{% trans "Moyens de paiement" %}</a>
   <a role="tab" class="tab {% if active_tab == 'sessions' %}tab-active{% endif %}" href="{% url 'pos:sessions' %}">{% trans "Sessions de caisse" %}</a>

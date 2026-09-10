@@ -6,7 +6,7 @@
 <div class="page-head">
   <h1>{% trans "Stocks" %}</h1>
 </div>
-  <nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+  <nav role="tablist" class="tabs tabs-box flex-wrap mb-4">
     <a role="tab" class="tab {% if active_tab == 'stock' %}tab-active{% endif %}" href="{% url 'stocks:stock_view' %}">{% trans "Vue stock" %}</a>
     <a role="tab" class="tab {% if active_tab == 'moves' %}tab-active{% endif %}" href="{% url 'stocks:move_list' %}">{% trans "Mouvements" %}</a>
     <a role="tab" class="tab {% if active_tab == 'pickings' %}tab-active{% endif %}" href="{% url 'stocks:picking_list' %}">{% trans "Opérations (pickings)" %}</a>

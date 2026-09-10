@@ -26,7 +26,18 @@ Contexte attendu : `fiscal_state` (une valeur de
 {% endcomment %}
 {% load i18n %}
 {% if fiscal_state and fiscal_state != "non_concerne" %}
-  <span class="pastille pastille--{% if fiscal_state == 'accepte' %}succes{% elif fiscal_state == 'rejete' %}refus{% elif fiscal_state == 'attente_verdict' %}attente{% else %}neutre{% endif %}">
+  {% comment %}
+    T9 — `pastille` n'existait NULLE PART dans la feuille de style : cette
+    pastille était rendue sans aucune couleur depuis le lot T4. Le libellé
+    portait donc seule l'information — ce qui satisfaisait le critère par
+    accident, et le trahissait dès qu'on croyait la couleur présente.
+
+    La classe employée est désormais `badge` avec ses quatre variantes
+    réelles (`b-neutral`, `b-pending`, `b-success`, `b-fail`), c'est-à-dire
+    le composant que tous les autres écrans du dépôt utilisent — et
+    exactement les quatre couleurs que le §10.2 autorise.
+  {% endcomment %}
+  <span class="badge {% if fiscal_state == 'accepte' %}b-success{% elif fiscal_state == 'rejete' %}b-fail{% elif fiscal_state == 'attente_verdict' %}b-pending{% else %}b-neutral{% endif %}">
     {# Le libellé est le contenu, jamais un attribut `title` : un intitulé #}
     {# qui n'apparaît qu'au survol n'existe pas sur un écran tactile. #}
     {{ fiscal_state_display }}

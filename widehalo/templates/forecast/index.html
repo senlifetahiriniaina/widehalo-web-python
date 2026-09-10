@@ -9,7 +9,7 @@
   <a href="{% url 'forecast:workbench' %}" class="btn btn-primary">{% trans "Atelier de prévision" %}</a>
 </div>
 
-<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+<nav role="tablist" class="tabs tabs-box flex-wrap mb-4">
   <a role="tab" class="tab {% if tab == 'consolidee' %}tab-active{% endif %}" href="?tab=consolidee">{% trans "Prévision consolidée" %}</a>
   <a role="tab" class="tab {% if tab == 'qualite' %}tab-active{% endif %}" href="?tab=qualite">{% trans "Qualité de prévision" %}</a>
   <a role="tab" class="tab {% if tab == 'tresorerie' %}tab-active{% endif %}" href="?tab=tresorerie">{% trans "Trésorerie à 12 mois" %}</a>

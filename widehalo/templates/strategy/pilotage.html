@@ -7,7 +7,7 @@
 <h1>{% trans "Pilotage" %}</h1>
 {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-<nav role="tablist" class="tabs tabs-boxed flex-wrap mb-4">
+<nav role="tablist" class="tabs tabs-box flex-wrap mb-4">
   <a role="tab" class="tab {% if tab == 'budget' %}tab-active{% endif %}" href="?tab=budget">{% trans "Budget" %}</a>
   <a role="tab" class="tab {% if tab == 'initiatives' %}tab-active{% endif %}" href="?tab=initiatives">{% trans "Initiatives" %}</a>
   <a role="tab" class="tab {% if tab == 'revue' %}tab-active{% endif %}" href="?tab=revue">{% trans "Revue budgétaire" %}</a>

@@ -33,6 +33,16 @@
   --spacing-lg: var(--sp-6);
   --spacing-xl: var(--sp-10);
   --transition-fast: var(--dur-fast) var(--ease-out);
+  /* T9 — trois alias qui manquaient, et que la feuille employait déjà.
+     Mesurés : `--fg-muted` rendait le libellé d'onglet inactif SANS COULEUR,
+     `--fg-default` l'onglet actif, et `--bg-hover` le survol de deux
+     composants. Une variable CSS absente ne casse rien de visible à la
+     compilation — la déclaration est simplement ignorée, et l'élément hérite
+     de ce qui traîne. C'est le pendant, côté feuille de style, du défaut que
+     ce lot corrige côté code. */
+  --fg-default: var(--fg-1);
+  --fg-muted: var(--fg-3);
+  --bg-hover: var(--bg-sunken);
 }
 
 * { box-sizing: border-box; }
@@ -460,7 +470,10 @@ button.btn-danger:hover, .btn-danger:hover { background: var(--red-600); }
 .icon-btn:hover { background: var(--bg-sunken); color: var(--fg-1); }
 
 /* ============== Cartes / panneaux ============== */
-.card, .panel {
+/* `wh-panel` : 14 gabarits l'emploient exactement comme `.card`, et elle
+   n'existait nulle part. Alias plutot que renommage — renommer 14 fichiers
+   pour une classe qui dit deja la bonne chose serait du bruit. */
+.card, .panel, .wh-panel {
   background: var(--bg-canvas);
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-lg);
@@ -546,7 +559,7 @@ button.btn-danger:hover, .btn-danger:hover { background: var(--red-600); }
   white-space: nowrap;
 }
 .badge.b-draft, .badge.b-neutral { background: var(--bg-sunken); color: var(--fg-2); }
-.badge.b-pending, .badge.b-sent { background: var(--warn-bg); color: var(--warn-fg); }
+.badge.b-pending, .badge.b-sent, .badge.b-warning { background: var(--warn-bg); color: var(--warn-fg); }
 .badge.b-success, .badge.b-paid { background: var(--success-bg); color: var(--success-fg); }
 .badge.b-danger, .badge.b-fail { background: var(--danger-bg); color: var(--danger-fg); }
 
@@ -1080,7 +1093,10 @@ input:invalid:not(:placeholder-shown), select:invalid, textarea:invalid:not(:pla
 
 .wh-partner-picker-results .wh-partner-picker-option:focus-visible {
   background: var(--bg-hover);
-  outline: 2px solid var(--focus-ring, currentColor);
+  /* T9 — `--focus-ring` n'existe pas ; le repli `currentColor` sauvait
+     l'accessibilité mais donnait un anneau de la couleur du texte. Le jeton
+     réel est `--color-focus-ring`, déjà aliasé sur `--border-focus`. */
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: -2px;
 }
 
@@ -1205,3 +1221,85 @@ table.variant-matrix td a {
   text-decoration: none;
 }
 .variant-matrix-empty { color: var(--fg-4); }
+
+/* ---------------------------------------------------------------------------
+   T9 — les utilitaires que les gabarits employaient sans qu'ils existent.
+
+   Mesure faite avant d'écrire : 79 gabarits sur 291 portaient au moins une
+   classe absente de cette feuille, pour 118 classes distinctes. Le défaut
+   n'était pas dans les gabarits — ces classes ont une sémantique claire et
+   constante d'un écran à l'autre — mais dans le système de design, où
+   personne ne les avait jamais écrites. Les huit ci-dessous couvrent à elles
+   seules une quarantaine de gabarits.
+
+   Elles n'inventent aucune couleur : tout vient des jetons existants.
+   --------------------------------------------------------------------------- */
+
+/* Texte d'aide, sous un champ ou à côté d'une valeur. Trois noms pour une
+   même intention — `hint` (23 gabarits), `help-text` (7), `text-muted` (6) :
+   les unifier d'autorité casserait des écrans livrés, les définir ensemble
+   coûte trois lignes et les rend cohérents dès aujourd'hui. */
+.hint,
+.help-text,
+.form-hint,
+.text-muted {
+  color: var(--fg-3);
+  font-size: var(--fs-13);
+}
+
+/* Pendant de `.form-error`, qui existe depuis toujours sans contrepartie
+   positive : un formulaire savait dire qu'il avait échoué, jamais qu'il
+   avait réussi. */
+.form-success {
+  color: var(--success-fg);
+  background: var(--success-bg);
+  border: 1px solid var(--success-fg);
+  border-radius: var(--r-sm);
+  padding: var(--spacing-sm) var(--spacing);
+}
+
+/* Bandeau d'état, posé sur une pièce ou un écran de décision. Le libellé
+   porte toujours l'information — la couleur ne fait que la doubler (§10.2
+   du cahier Phase 4 : « la couleur seule ne porte jamais l'information »). */
+.bandeau {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  padding: var(--spacing);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-sunken);
+  color: var(--fg-2);
+}
+.bandeau p { margin: 0; }
+.bandeau--attente {
+  background: var(--warn-bg);
+  border-color: var(--warn-fg);
+  color: var(--warn-fg);
+}
+.bandeau--refus {
+  background: var(--danger-bg);
+  border-color: var(--danger-fg);
+  color: var(--danger-fg);
+}
+.bandeau--succes {
+  background: var(--success-bg);
+  border-color: var(--success-fg);
+  color: var(--success-fg);
+}
+
+/* Rangée de filtres au-dessus d'une liste. `flex-wrap` plutôt qu'une grille :
+   le nombre de filtres varie d'un écran à l'autre, et une grille figée
+   laisserait des trous sur les écrans qui n'en ont que deux. */
+.filters {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing);
+}
+.filters label {
+  font-size: var(--fs-13);
+  color: var(--fg-2);
+}
