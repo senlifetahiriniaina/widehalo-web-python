@@ -23,9 +23,19 @@ le JS livre.
   (`@router.get("/ai/anomalies")`, qui rend du JSON et n'est pas un ecran).
   Elle tombait a 5, dont plusieurs faux dans l'autre sens. **D'ou
   `FICHIERS_QUI_NE_MENENT_NULLE_PART`.**
+- Une troisieme, celle qui a ete livree, comptait 13 — et se trompait
+  encore. **Un ecran cite seulement par le corps de sa PROPRE vue passait
+  pour atteignable** : `apps/ai/views.py` fait
+  `redirect("ai:external_provider_consent")` apres enregistrement, le motif
+  POST-redirect-GET present partout dans ce depot, et l'instrument y voyait
+  une porte. Verifie dans l'historique a `50e14ff` : hors `urls.py` et hors
+  le corps de sa vue, cet ecran n'etait cite NULLE PART. **Le vrai compte
+  etait 14.** D'ou le retrait de la source de la vue avant la recherche.
 
-Le chiffre juste est 13, et quatre ont ete verifies a la main avant d'etre
-inscrits ci-dessous.
+Le chiffre publie au lot T10 — 13 — etait donc faux d'une unite, et la
+version 0.1.7 du document d'exigences le corrige : deux criteres du
+copilote y etaient comptes tenus sur des ecrans que personne ne pouvait
+ouvrir.
 
 **Ce que cette garde NE prouve PAS, et il faut l'ecrire.** Elle verifie
 qu'un lien EXISTE, pas qu'un chemin mene depuis l'accueil : un ecran cite
@@ -132,9 +142,14 @@ def _corpus() -> list[tuple[str, str]]:
     return fichiers
 
 
-def _ecrans() -> dict[str, str]:
-    """Les routes du produit qui rendent un ecran, et leur chemin fixe."""
-    trouves: dict[str, str] = {}
+def _ecrans() -> dict[str, tuple[str, str]]:
+    """Les routes du produit qui rendent un ecran : chemin fixe, et source
+    de leur vue.
+
+    La source est rendue parce que `_orphelins` doit la RETIRER du corpus
+    avant d'y chercher un lien — voir la docstring de module, quatrieme
+    erreur de cet instrument."""
+    trouves: dict[str, tuple[str, str]] = {}
     for nom, vue, motif in _routes(get_resolver()):
         if nom.startswith(NAMESPACES_TIERS):
             continue
@@ -144,19 +159,29 @@ def _ecrans() -> dict[str, str]:
             continue
         rendus = {g for g in _GABARIT.findall(source) if not pathlib.Path(g).name.startswith("_")}
         if rendus:
-            trouves[nom] = "/" + _PARAMETRE.split(motif)[0]
+            trouves[nom] = ("/" + _PARAMETRE.split(motif)[0], source)
     return trouves
 
 
 def _orphelins() -> set[str]:
     corpus = _corpus()
     sans_lien: set[str] = set()
-    for nom, chemin in _ecrans().items():
+    for nom, (chemin, source_de_la_vue) in _ecrans().items():
         par_nom = re.compile(rf"""["']{re.escape(nom)}["']""")
         cherche_chemin = len(chemin) > 3
-        if not any(
-            par_nom.search(texte) or (cherche_chemin and chemin in texte) for _, texte in corpus
-        ):
+        mene_ici = False
+        for _fichier, texte in corpus:
+            # **Un ecran ne se mene pas a lui-meme.** Le corps de sa propre
+            # vue contient son nom des qu'elle fait un
+            # `redirect("app:ecran")` apres enregistrement — le motif
+            # POST-redirect-GET, present partout dans ce depot. Le compter
+            # comme un lien rend l'ecran atteignable a ses propres yeux et a
+            # ceux de personne d'autre.
+            reste = texte.replace(source_de_la_vue, "") if source_de_la_vue in texte else texte
+            if par_nom.search(reste) or (cherche_chemin and chemin in reste):
+                mene_ici = True
+                break
+        if not mene_ici:
             sans_lien.add(nom)
     return sans_lien
 
