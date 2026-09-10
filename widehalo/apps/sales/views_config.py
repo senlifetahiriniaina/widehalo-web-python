@@ -19,13 +19,21 @@ from __future__ import annotations
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.utils.dateparse import parse_date
 
 from apps.core.services.permissions import screen_forbidden, screen_permission
+from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.sales.models import SalesOrder, SalesRecurrence
 from apps.sales.services.recurrence import create_recurrence
+
+RECURRENCE_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="interval", label="Periodicite"),
+    Column(key="start_date", label="Debut", searchable=False),
+    Column(key="end_date", label="Fin", searchable=False),
+]
 
 
 def _error_message(exc: Exception) -> str:
@@ -42,8 +50,6 @@ def config_recurrences(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "sales.add_salesrecurrence")
         if refus is not None:
             return refus
-
-    if request.method == "POST":
         try:
             template_order = get_object_or_404(SalesOrder, id=request.POST.get("template_order_id"))
             start_date = parse_date(request.POST.get("start_date", ""))
@@ -63,10 +69,14 @@ def config_recurrences(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("sales:config_recurrences")
 
-    recurrences = SalesRecurrence.objects.filter(tenant=tenant, is_active=True)
-    templates = SalesOrder.objects.filter(tenant=tenant, is_active=True)
-    return render(
+    return smart_table_response(
         request,
-        "sales/config_recurrences.html",
-        {"recurrences": recurrences, "templates": templates, "error": error},
+        table_key="sales.recurrences",
+        columns=RECURRENCE_COLUMNS,
+        queryset=SalesRecurrence.objects.filter(tenant=tenant, is_active=True),
+        page_template="sales/config_recurrences.html",
+        page_context={
+            "templates": SalesOrder.objects.filter(tenant=tenant, is_active=True),
+            "error": error,
+        },
     )

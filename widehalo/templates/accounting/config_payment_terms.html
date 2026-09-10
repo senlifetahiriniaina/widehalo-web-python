@@ -11,30 +11,7 @@
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Lignes" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for term in payment_terms %}
-        <tr>
-          <td>{{ term.name }}</td>
-          <td>
-            {% for line in term.lines.all %}
-              {{ line.get_value_type_display }}{% if line.value is not None %} ({{ line.value }}{% if line.value_type == "percent" %}%{% else %} Ar{% endif %}){% endif %} — {{ line.days }} {% trans "jours" %}{% if not forloop.last %}; {% endif %}
-            {% empty %}
-              —
-            {% endfor %}
-          </td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="2">{% trans "Aucune condition de paiement." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouvelle condition de paiement" %}</h2>
   <p class="hint">{% trans "Simplifie a une seule ligne (le détail multi-lignes reste accessible via l'api)." %}</p>

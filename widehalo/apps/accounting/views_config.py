@@ -38,7 +38,38 @@ from apps.accounting.services.taxes import vat_applicable
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.permissions import screen_forbidden, screen_permission
+from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
+
+PERIOD_COLUMNS = [
+    Column(key="code", label="Code"),
+    Column(key="date_start", label="Debut", searchable=False),
+    Column(key="date_end", label="Fin", searchable=False),
+    Column(key="state", label="Etat"),
+]
+
+JOURNAL_COLUMNS = [
+    Column(key="code", label="Code"),
+    Column(key="name", label="Libelle"),
+    Column(key="type", label="Type"),
+]
+
+ACCOUNT_COLUMNS = [
+    Column(key="code", label="Compte"),
+    Column(key="name", label="Libelle"),
+    Column(key="type", label="Type"),
+]
+
+TAX_COLUMNS = [
+    Column(key="code", label="Code"),
+    Column(key="name", label="Libelle"),
+    Column(key="rate_pct", label="Taux (%)", searchable=False),
+]
+
+PAYMENT_TERM_COLUMNS = [
+    Column(key="code", label="Code"),
+    Column(key="name", label="Libelle"),
+]
 
 
 @login_required
@@ -136,13 +167,14 @@ def config_periods(request: HttpRequest) -> HttpResponse:
         except (ValidationError, ValueError, IntegrityError) as exc:
             error = str(exc)
 
-    periods = AccPeriod.objects.filter(tenant=tenant).order_by("-date_start")
     default_fiscal_year = fiscal_years.first()
-    return render(
+    return smart_table_response(
         request,
-        "accounting/config_periods.html",
-        {
-            "periods": periods,
+        table_key="accounting.periods",
+        columns=PERIOD_COLUMNS,
+        queryset=AccPeriod.objects.filter(tenant=tenant),
+        page_template="accounting/config_periods.html",
+        page_context={
             "fiscal_years": fiscal_years,
             "default_fiscal_year_id": default_fiscal_year.id if default_fiscal_year else None,
             "error": error,
@@ -180,12 +212,13 @@ def config_journals(request: HttpRequest) -> HttpResponse:
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 
-    journals = AccJournal.objects.filter(tenant=tenant).order_by("code")
-    return render(
+    return smart_table_response(
         request,
-        "accounting/config_journals.html",
-        {
-            "journals": journals,
+        table_key="accounting.journals",
+        columns=JOURNAL_COLUMNS,
+        queryset=AccJournal.objects.filter(tenant=tenant),
+        page_template="accounting/config_journals.html",
+        page_context={
             "accounts": accounts,
             "type_choices": AccJournal.TYPE_CHOICES,
             "error": error,
@@ -226,11 +259,13 @@ def config_accounts(request: HttpRequest) -> HttpResponse:
             error = str(exc)
 
     accounts = AccAccount.objects.filter(tenant=tenant).order_by("code")
-    return render(
+    return smart_table_response(
         request,
-        "accounting/config_accounts.html",
-        {
-            "accounts": accounts,
+        table_key="accounting.accounts",
+        columns=ACCOUNT_COLUMNS,
+        queryset=AccAccount.objects.filter(tenant=tenant),
+        page_template="accounting/config_accounts.html",
+        page_context={
             "type_choices": AccAccount.TYPE_CHOICES,
             "error": error,
         },
@@ -534,15 +569,15 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
         except (ValidationError, ValueError, InvalidOperation, IntegrityError) as exc:
             error = str(exc)
 
-    taxes = AccTax.objects.filter(tenant=tenant).order_by("code")
-    return render(
+    return smart_table_response(
         request,
-        "accounting/config_taxes.html",
-        {
-            "taxes": taxes,
+        table_key="accounting.taxes",
+        columns=TAX_COLUMNS,
+        queryset=AccTax.objects.filter(tenant=tenant),
+        page_template="accounting/config_taxes.html",
+        page_context={
             "accounts": accounts,
             "type_choices": AccTax.TYPE_CHOICES,
-            "is_vat_liable": is_vat_liable,
             "error": error,
         },
     )
@@ -589,12 +624,13 @@ def config_payment_terms(request: HttpRequest) -> HttpResponse:
         except (ValidationError, ValueError, InvalidOperation, IntegrityError) as exc:
             error = str(exc)
 
-    payment_terms = AccPaymentTerm.objects.filter(tenant=tenant).prefetch_related("lines")
-    return render(
+    return smart_table_response(
         request,
-        "accounting/config_payment_terms.html",
-        {
-            "payment_terms": payment_terms,
+        table_key="accounting.payment_terms",
+        columns=PAYMENT_TERM_COLUMNS,
+        queryset=AccPaymentTerm.objects.filter(tenant=tenant).prefetch_related("lines"),
+        page_template="accounting/config_payment_terms.html",
+        page_context={
             "value_type_choices": AccPaymentTermLine.VALUE_TYPE_CHOICES,
             "error": error,
         },

@@ -11,24 +11,7 @@
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Responsable" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for team in teams %}
-        <tr>
-          <td>{{ team.name }}</td>
-          <td>{{ team.leader|default:"—" }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="2">{% trans "Aucune équipe." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouvelle équipe" %}</h2>
   {% if perms.crm.add_crmteam %}

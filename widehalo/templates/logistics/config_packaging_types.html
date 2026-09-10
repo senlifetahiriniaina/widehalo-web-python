@@ -10,30 +10,7 @@
   <h1>{% trans "Types d'emballage (RG-LOG-5)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Code" %}</th>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Poids a vide (kg)" %}</th>
-        <th>{% trans "Poids max (kg)" %}</th>
-        <th>{% trans "Volume (m3)" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for packaging_type in packaging_types %}
-        <tr>
-          <td>{{ packaging_type.code }}</td>
-          <td>{{ packaging_type.name }}</td>
-          <td>{{ packaging_type.tare_weight_kg }}</td>
-          <td>{{ packaging_type.max_weight_kg|default:"-" }}</td>
-          <td>{{ packaging_type.volume_m3|default:"-" }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5">{% trans "Aucun type d'emballage." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau type d'emballage" %}</h2>
   {% if perms.logistics.add_logpackagingtype %}

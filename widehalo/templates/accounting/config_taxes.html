@@ -22,30 +22,7 @@
     </p>
   {% endif %}
 
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Code" %}</th>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Type" %}</th>
-        <th>{% trans "Taux" %}</th>
-        <th>{% trans "TTC" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for tax in taxes %}
-        <tr>
-          <td>{{ tax.code }}</td>
-          <td>{{ tax.name }}</td>
-          <td>{{ tax.get_type_display }}</td>
-          <td>{{ tax.rate }}%</td>
-          <td>{% if tax.is_included %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5">{% trans "Aucune taxe." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   {% if is_vat_liable %}
   <h2>{% trans "Nouvelle taxe" %}</h2>

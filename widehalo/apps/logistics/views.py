@@ -220,8 +220,6 @@ def driver_list(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "logistics.add_logdriver")
         if refus is not None:
             return refus
-
-    if request.method == "POST":
         try:
             create_driver(
                 tenant,
@@ -236,13 +234,37 @@ def driver_list(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("logistics:driver_list")
 
-    drivers = LogDriver.objects.filter(tenant=tenant, is_active=True).order_by("name")
-    return render(request, "logistics/driver_list.html", {"drivers": drivers, "error": error})
+    # C-2 : cet ecran melait une LISTE ecrite a la main et un formulaire de
+    # creation. `smart_table_response` accepte les deux — le POST se traite
+    # au-dessus et rend une redirection, la liste passe par le composant, et
+    # `page_context` porte ce dont le formulaire a besoin. C'est le premier
+    # ecran du depot a combiner les deux, et le patron des suivants.
+    return smart_table_response(
+        request,
+        table_key="logistics.drivers",
+        columns=DRIVER_COLUMNS,
+        queryset=LogDriver.objects.filter(tenant=tenant, is_active=True),
+        page_template="logistics/driver_list.html",
+        page_context={"error": error},
+    )
 
 
 # ---------------------------------------------------------------------------
 # Trajets/arrets, gabarits de tournee (LOG2)
 # ---------------------------------------------------------------------------
+
+DRIVER_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="phone", label="Telephone"),
+    Column(key="license_number", label="Permis"),
+    Column(
+        key="consent_geolocation",
+        label="Consentement geolocalisation",
+        format="bool",
+        searchable=False,
+    ),
+]
+
 
 TRIP_COLUMNS = [
     Column(key="reference", label="Reference"),
@@ -389,12 +411,13 @@ def trip_template_list(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("logistics:trip_template_list")
 
-    templates = LogTripTemplate.objects.filter(tenant=tenant, is_active=True).order_by("name")
-    return render(
+    return smart_table_response(
         request,
-        "logistics/trip_template_list.html",
-        {
-            "templates": templates,
+        table_key="logistics.trip_templates",
+        columns=TRIP_TEMPLATE_COLUMNS,
+        queryset=LogTripTemplate.objects.filter(tenant=tenant, is_active=True),
+        page_template="logistics/trip_template_list.html",
+        page_context={
             "interval_choices": LogTripTemplate.INTERVAL_CHOICES,
             "vehicles": LogVehicle.objects.filter(is_active=True),
             "drivers": LogDriver.objects.filter(is_active=True),
@@ -406,6 +429,14 @@ def trip_template_list(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 # Expeditions (LOG4, FSM complete) et dossier douanier (LOG5)
 # ---------------------------------------------------------------------------
+
+TRIP_TEMPLATE_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="interval", label="Periodicite"),
+    Column(key="start_date", label="Debut", searchable=False),
+    Column(key="end_date", label="Fin", searchable=False),
+]
+
 
 SHIPMENT_COLUMNS = [
     Column(key="reference", label="Reference"),

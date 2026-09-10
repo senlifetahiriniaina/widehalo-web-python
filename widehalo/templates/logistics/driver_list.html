@@ -10,28 +10,7 @@
   <h1>{% trans "Chauffeurs" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Téléphone" %}</th>
-        <th>{% trans "Permis" %}</th>
-        <th>{% trans "Consentement geolocalisation" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for driver in drivers %}
-        <tr>
-          <td>{{ driver.name }}</td>
-          <td>{{ driver.phone|default:"-" }}</td>
-          <td>{{ driver.license_number|default:"-" }}</td>
-          <td>{% if driver.consent_geolocation %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="4">{% trans "Aucun chauffeur." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau chauffeur" %}</h2>
   {% if perms.logistics.add_logdriver %}

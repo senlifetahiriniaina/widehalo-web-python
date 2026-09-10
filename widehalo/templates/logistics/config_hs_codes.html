@@ -10,26 +10,7 @@
   <h1>{% trans "Codes du système harmonise (RG-LOG-6)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Code" %}</th>
-        <th>{% trans "Description" %}</th>
-        <th>{% trans "Taux de droits (%)" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for hs_code in hs_codes %}
-        <tr>
-          <td>{{ hs_code.code }}</td>
-          <td>{{ hs_code.description }}</td>
-          <td>{{ hs_code.duty_rate_pct }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="3">{% trans "Aucun code SH." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau code SH" %}</h2>
   {% if perms.logistics.add_loghscode %}

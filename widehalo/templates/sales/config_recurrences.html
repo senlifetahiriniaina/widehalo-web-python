@@ -12,22 +12,7 @@
   <p>{% blocktrans %}Une commande récurrente genere automatiquement une nouvelle commande brouillon a échéance, jamais confirmée automatiquement.{% endblocktrans %}</p>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <table class="smart-table">
-    <thead><tr><th>{% trans "Nom" %}</th><th>{% trans "Intervalle" %}</th><th>{% trans "Prochaine génération" %}</th><th>{% trans "Gabarit" %}</th><th>{% trans "Active" %}</th></tr></thead>
-    <tbody>
-      {% for recurrence in recurrences %}
-        <tr>
-          <td>{{ recurrence.name }}</td>
-          <td>{{ recurrence.get_interval_display }}</td>
-          <td>{{ recurrence.next_run }}</td>
-          <td><a href="{% url 'sales:order_detail' order_id=recurrence.template_order_id %}">{{ recurrence.template_order.reference }}</a></td>
-          <td>{{ recurrence.is_active|yesno:"Oui,Non" }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5">{% trans "Aucune récurrence." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau gabarit" %}</h2>
   {% if perms.sales.add_salesrecurrence %}

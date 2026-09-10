@@ -12,8 +12,24 @@ from django.utils.translation import gettext as _
 
 from apps.core.models.user import User
 from apps.core.services.permissions import screen_forbidden, screen_permission
+from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmLostReason, CrmPipeline, CrmStage, CrmTeam
+
+PIPELINE_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="is_default", label="Par defaut", format="bool", searchable=False),
+    Column(key="stagnant_after_days", label="Relance (jours)", searchable=False),
+]
+
+TEAM_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="leader", label="Responsable", search_key="leader__email"),
+]
+
+LOST_REASON_COLUMNS = [
+    Column(key="name", label="Motif"),
+]
 
 
 @login_required
@@ -32,8 +48,6 @@ def config_pipelines(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "crm.add_crmpipeline")
         if refus is not None:
             return refus
-
-    if request.method == "POST":
         try:
             CrmPipeline.objects.create(
                 tenant=tenant,
@@ -43,11 +57,13 @@ def config_pipelines(request: HttpRequest) -> HttpResponse:
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 
-    pipelines = CrmPipeline.objects.filter(tenant=tenant).order_by("name")
-    return render(
+    return smart_table_response(
         request,
-        "crm/config_pipelines.html",
-        {"pipelines": pipelines, "error": error},
+        table_key="crm.pipelines",
+        columns=PIPELINE_COLUMNS,
+        queryset=CrmPipeline.objects.filter(tenant=tenant),
+        page_template="crm/config_pipelines.html",
+        page_context={"error": error},
     )
 
 
@@ -118,8 +134,6 @@ def config_teams(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "crm.add_crmteam")
         if refus is not None:
             return refus
-
-    if request.method == "POST":
         try:
             leader_id = request.POST.get("leader_id") or None
             leader = users.get(id=leader_id) if leader_id else None
@@ -133,11 +147,13 @@ def config_teams(request: HttpRequest) -> HttpResponse:
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 
-    teams = CrmTeam.objects.filter(tenant=tenant).order_by("name")
-    return render(
+    return smart_table_response(
         request,
-        "crm/config_teams.html",
-        {"teams": teams, "users": users, "error": error},
+        table_key="crm.teams",
+        columns=TEAM_COLUMNS,
+        queryset=CrmTeam.objects.filter(tenant=tenant),
+        page_template="crm/config_teams.html",
+        page_context={"users": users, "error": error},
     )
 
 
@@ -151,8 +167,6 @@ def config_lost_reasons(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "crm.add_crmlostreason")
         if refus is not None:
             return refus
-
-    if request.method == "POST":
         try:
             CrmLostReason.objects.create(
                 tenant=tenant,
@@ -161,9 +175,11 @@ def config_lost_reasons(request: HttpRequest) -> HttpResponse:
         except (ValidationError, IntegrityError) as exc:
             error = str(exc)
 
-    lost_reasons = CrmLostReason.objects.filter(tenant=tenant).order_by("name")
-    return render(
+    return smart_table_response(
         request,
-        "crm/config_lost_reasons.html",
-        {"lost_reasons": lost_reasons, "error": error},
+        table_key="crm.lost_reasons",
+        columns=LOST_REASON_COLUMNS,
+        queryset=CrmLostReason.objects.filter(tenant=tenant),
+        page_template="crm/config_lost_reasons.html",
+        page_context={"error": error},
     )

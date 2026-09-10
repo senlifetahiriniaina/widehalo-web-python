@@ -21,10 +21,28 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from apps.core.services.permissions import screen_forbidden, screen_permission
+from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.logistics.models import LogFreightTariff, LogHsCode, LogPackagingType, LogServiceProvider
 from apps.logistics.services.customs import create_hs_code
 from apps.logistics.services.freight import create_freight_tariff, create_service_provider
+
+PACKAGING_TYPE_COLUMNS = [
+    Column(key="code", label="Code"),
+    Column(key="name", label="Nom"),
+    Column(key="volume_m3", label="Volume (m3)", searchable=False),
+]
+
+SERVICE_PROVIDER_COLUMNS = [
+    Column(key="name", label="Nom"),
+    Column(key="type", label="Type"),
+]
+
+HS_CODE_COLUMNS = [
+    Column(key="code", label="Code SH"),
+    Column(key="description", label="Designation"),
+    Column(key="duty_rate_pct", label="Droit (%)", searchable=False),
+]
 
 
 def _error_message(exc: Exception) -> str:
@@ -67,13 +85,13 @@ def config_packaging_types(request: HttpRequest) -> HttpResponse:
             packaging_type.save()
             return redirect("logistics:config_packaging_types")
 
-    packaging_types = LogPackagingType.objects.filter(tenant=tenant, is_active=True).order_by(
-        "code"
-    )
-    return render(
+    return smart_table_response(
         request,
-        "logistics/config_packaging_types.html",
-        {"packaging_types": packaging_types, "error": error},
+        table_key="logistics.packaging_types",
+        columns=PACKAGING_TYPE_COLUMNS,
+        queryset=LogPackagingType.objects.filter(tenant=tenant, is_active=True),
+        page_template="logistics/config_packaging_types.html",
+        page_context={"error": error},
     )
 
 
@@ -120,16 +138,20 @@ def config_service_providers(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("logistics:config_service_providers")
 
-    providers = LogServiceProvider.objects.filter(tenant=tenant, is_active=True).order_by("name")
-    tariffs = LogFreightTariff.objects.filter(tenant=tenant, is_active=True).select_related(
-        "provider"
-    )
-    return render(
+    # Le SmartTable porte les PRESTATAIRES — l'entite principale de l'ecran.
+    # Les tarifs restent une table de detail rattachee : un tarif n'a de sens
+    # qu'adosse a un prestataire deja cree (cf. docstring de module), et les
+    # paginer separement couperait ce lien a l'ecran.
+    return smart_table_response(
         request,
-        "logistics/config_service_providers.html",
-        {
-            "providers": providers,
-            "tariffs": tariffs,
+        table_key="logistics.service_providers",
+        columns=SERVICE_PROVIDER_COLUMNS,
+        queryset=LogServiceProvider.objects.filter(tenant=tenant, is_active=True),
+        page_template="logistics/config_service_providers.html",
+        page_context={
+            "tariffs": LogFreightTariff.objects.filter(
+                tenant=tenant, is_active=True
+            ).select_related("provider"),
             "type_choices": LogServiceProvider.TYPE_CHOICES,
             "error": error,
         },
@@ -162,5 +184,11 @@ def config_hs_codes(request: HttpRequest) -> HttpResponse:
         else:
             return redirect("logistics:config_hs_codes")
 
-    hs_codes = LogHsCode.objects.filter(tenant=tenant, is_active=True).order_by("code")
-    return render(request, "logistics/config_hs_codes.html", {"hs_codes": hs_codes, "error": error})
+    return smart_table_response(
+        request,
+        table_key="logistics.hs_codes",
+        columns=HS_CODE_COLUMNS,
+        queryset=LogHsCode.objects.filter(tenant=tenant, is_active=True),
+        page_template="logistics/config_hs_codes.html",
+        page_context={"error": error},
+    )

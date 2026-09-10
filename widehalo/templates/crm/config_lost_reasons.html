@@ -11,18 +11,7 @@
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <table class="smart-table">
-    <thead>
-      <tr><th>{% trans "Nom" %}</th></tr>
-    </thead>
-    <tbody>
-      {% for lost_reason in lost_reasons %}
-        <tr><td>{{ lost_reason.name }}</td></tr>
-      {% empty %}
-        <tr><td>{% trans "Aucun motif." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau motif" %}</h2>
   {% if perms.crm.add_crmlostreason %}

@@ -51,6 +51,15 @@ from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import describe_signing_certificate, document_exchange_panel
 
+QUICK_ENTRY_COLUMNS = [
+    Column(key="reference", label="Reference"),
+    Column(key="date", label="Date", searchable=False),
+    Column(key="state", label="Etat"),
+    Column(key="total_debit", label="Debit", format="mga", searchable=False),
+    Column(key="total_credit", label="Credit", format="mga", searchable=False),
+]
+
+
 COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="date", label="Date"),
@@ -335,13 +344,20 @@ def invoice_create(request: HttpRequest) -> HttpResponse:
 @screen_permission("accounting.view_accmove")
 def quick_entry_list(request: HttpRequest) -> HttpResponse:
     tenant = resolve_tenant(request)
-    drafts = AccMove.objects.filter(
-        tenant=tenant, move_type=AccMove.TYPE_ENTRY, state=AccMove.STATE_DRAFT, is_active=True
-    ).order_by("-created_at")
-    posted = AccMove.objects.filter(
-        tenant=tenant, move_type=AccMove.TYPE_ENTRY, state=AccMove.STATE_POSTED, is_active=True
-    ).order_by("-date")[:50]
-    return render(request, "accounting/quick_entry_list.html", {"drafts": drafts, "posted": posted})
+    # C-2 : cet ecran portait DEUX tables — les brouillons, puis « les 50
+    # ecritures publiees les plus recentes ». Cette troncature ne se disait
+    # nulle part : au-dela de 50, les ecritures disparaissaient de l'ecran
+    # sans que rien ne l'indique. Une seule liste paginee, avec l'etat en
+    # colonne, les rend toutes atteignables et les rend cherchables.
+    return smart_table_response(
+        request,
+        table_key="accounting.quick_entries",
+        columns=QUICK_ENTRY_COLUMNS,
+        queryset=AccMove.objects.filter(
+            tenant=tenant, move_type=AccMove.TYPE_ENTRY, is_active=True
+        ),
+        page_template="accounting/quick_entry_list.html",
+    )
 
 
 @login_required

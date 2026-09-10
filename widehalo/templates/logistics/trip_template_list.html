@@ -10,30 +10,7 @@
   <h1>{% trans "Gabarits de tournée (LOG-REC1)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Véhicule" %}</th>
-        <th>{% trans "Chauffeur" %}</th>
-        <th>{% trans "Fréquence" %}</th>
-        <th>{% trans "Prochaine occurrence" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for template in templates %}
-        <tr>
-          <td>{{ template.name }}</td>
-          <td>{{ template.vehicle.plate_number }}</td>
-          <td>{{ template.driver.name }}</td>
-          <td><span class="badge {{ template.interval|state_badge_class }}">{{ template.get_interval_display }}</span></td>
-          <td>{{ template.next_run }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5">{% trans "Aucun gabarit." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau gabarit" %}</h2>
   {% if perms.logistics.add_logtriptemplate %}

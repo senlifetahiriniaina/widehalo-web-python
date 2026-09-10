@@ -11,30 +11,7 @@
   </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-  <table class="smart-table">
-    <thead>
-      <tr>
-        <th>{% trans "Code" %}</th>
-        <th>{% trans "Nom" %}</th>
-        <th>{% trans "Type" %}</th>
-        <th>{% trans "Compte par défaut" %}</th>
-        <th>{% trans "Devise" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for journal in journals %}
-        <tr>
-          <td>{{ journal.code }}</td>
-          <td>{{ journal.name }}</td>
-          <td>{{ journal.get_type_display }}</td>
-          <td>{{ journal.default_account|default:"—" }}</td>
-          <td>{{ journal.currency }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5">{% trans "Aucun journal." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau journal" %}</h2>
   {% if perms.accounting.add_accjournal %}
