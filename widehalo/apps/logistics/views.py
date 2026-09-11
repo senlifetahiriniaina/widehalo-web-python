@@ -31,6 +31,7 @@ from apps.core.models.user import User
 from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.services.workflow import TransitionPermissionError
+from apps.core.views.presentation import presentation_response
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.logistics.models import (
@@ -278,9 +279,10 @@ TRIP_COLUMNS = [
 @screen_permission("logistics.view_logtrip")
 def trip_list(request: HttpRequest) -> HttpResponse:
     queryset = LogTrip.objects.filter(is_active=True)
-    return smart_table_response(
+    return presentation_response(
         request,
         table_key="logistics.trips",
+        model_label="logistics.LogTrip",
         columns=TRIP_COLUMNS,
         queryset=queryset,
         page_template="logistics/trip_list.html",
@@ -480,9 +482,10 @@ def shipment_list(request: HttpRequest) -> HttpResponse:
     state = request.GET.get("state")
     if state:
         queryset = queryset.filter(state=state)
-    return smart_table_response(
+    return presentation_response(
         request,
         table_key="logistics.shipments",
+        model_label="logistics.LogShipment",
         columns=SHIPMENT_COLUMNS,
         queryset=queryset,
         page_template="logistics/shipment_list.html",

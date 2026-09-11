@@ -15,5 +15,10 @@
     {% endif %}
     <a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a>
   </p>
-  {% include "components/_smart_table.html" %}
+  {% include "components/_presentation_toggle.html" %}
+  {% if presentation == "kanban" %}
+    {% include "components/_kanban.html" %}
+  {% else %}
+    {% include "components/_smart_table.html" %}
+  {% endif %}
 {% endblock %}

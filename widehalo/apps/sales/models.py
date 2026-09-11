@@ -33,9 +33,10 @@ from django.utils.translation import gettext as _
 from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
+from apps.core.services.presentation import StatutOperationnelMixin
 
 
-class SalesQuotation(BaseModel, ReferenceMixin):
+class SalesQuotation(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATE_DRAFT = "draft"
     STATE_SENT = "sent"
     STATE_ACCEPTED = "accepted"
@@ -151,7 +152,7 @@ class SalesQuotationLine(BaseModel):
         return f"{self.description} x{self.qty}"
 
 
-class SalesOrder(BaseModel, ReferenceMixin):
+class SalesOrder(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     """Commande de vente (§5.5.2/5.5.4, S2). Reprend tous les champs du
     devis (RG-SAL-1 : chaine documentaire sans ressaisie, cf.
     `services.orders.create_order_from_quotation`) sauf `state`, remplace

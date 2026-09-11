@@ -1,0 +1,55 @@
+{% load i18n core_extras %}
+{% comment %}
+C-4 — le tableau, cinq colonnes métier.
+
+Les colonnes viennent de `core.services.presentation` — la MÊME projection
+qui alimente la colonne « Statut » des listes. Une ligne rangée ici dans
+« Bloqué » et affichée « En cours » en liste serait un écran qui se
+contredit.
+
+**Chaque colonne annonce son plafond.** Le kanban ne pagine pas : un
+tableau se lit d'un coup. Mais une colonne de dix mille cartes n'est pas
+rendable, d'où un plafond — et il se DIT. C-2 a trouvé l'écran de saisie
+rapide qui montrait « les 50 écritures les plus récentes » sans le
+signaler, et au-delà les écritures disparaissaient.
+
+**Aucune classe CSS neuve.** `kanban-column` et `kanban-handle`, employées
+par les kanbans existants, figurent dans la DETTE déclarée de
+`test_screens_use_existing_classes` — une liste qui doit rétrécir. Ce
+fragment n'y ajoute rien : il se contente des classes définies (`panel`,
+`card`, `badge`, `hint`) et d'un style en ligne pour la disposition.
+
+**L'état précis reste sur la carte.** La colonne range ; elle ne remplace
+pas l'état. Un magasinier doit pouvoir distinguer « en transit » de
+« en dédouanement » alors que les deux vivent dans « En cours ».
+{% endcomment %}
+<div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
+  {% for colonne in colonnes_kanban %}
+    <section class="panel" style="min-width:15rem; flex:1 0 15rem;"
+             aria-label="{{ colonne.libelle }}">
+      <div class="panel-head">
+        <h2 style="font-size:1rem; margin:0;">{{ colonne.libelle }}</h2>
+        <span class="badge">{{ colonne.total }}</span>
+      </div>
+      <div class="panel-body">
+        {% for carte in colonne.cartes %}
+          <article class="card" style="margin-bottom:.5rem;">
+            {% if row_url_name %}
+              <a href="{{ carte|reverse_with_pk:row_url_name }}">{{ carte }}</a>
+            {% else %}
+              {{ carte }}
+            {% endif %}
+            <p class="hint" style="margin:.25rem 0 0;">{{ carte.statut_operationnel }}</p>
+          </article>
+        {% empty %}
+          <p class="hint">{% trans "Aucune ligne." %}</p>
+        {% endfor %}
+        {% if colonne.tronquee %}
+          <p class="hint">
+            {% blocktrans with montrees=colonne.cartes|length total=colonne.total %}{{ montrees }} affichées sur {{ total }} — affinez la recherche depuis la vue liste pour voir les autres.{% endblocktrans %}
+          </p>
+        {% endif %}
+      </div>
+    </section>
+  {% endfor %}
+</div>

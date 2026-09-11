@@ -35,6 +35,7 @@ from django_fsm import FSMField, transition
 
 from apps.core.db.fields import EncryptedCharField
 from apps.core.models.base import BaseModel, ReferenceMixin
+from apps.core.services.presentation import StatutOperationnelMixin
 
 
 class LogVehicle(BaseModel):
@@ -164,7 +165,7 @@ class LogDriver(BaseModel):
         return self.name
 
 
-class LogTrip(BaseModel, ReferenceMixin):
+class LogTrip(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATUS_PLANNED = "planned"
     STATUS_IN_PROGRESS = "in_progress"
     STATUS_COMPLETED = "completed"
@@ -410,7 +411,7 @@ class LogFreightTariff(BaseModel):
         return f"{self.provider.name} — {self.origin} -> {self.destination}"
 
 
-class LogShipment(BaseModel, ReferenceMixin):
+class LogShipment(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     """LOG4 : expedition — machine a etats complete (`django-fsm-2`,
     `attempt_transition()` du socle, meme discipline que `PurOrder`/
     `SalesOrder`). Le diagramme du CDC (§5.7.4) decrit un cycle en une

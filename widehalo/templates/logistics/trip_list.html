@@ -16,5 +16,10 @@
     <a href="{% url 'logistics:trip_template_list' %}">{% trans "Gabarits de tournée" %}</a>
     <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
   </p>
-  {% include "components/_smart_table.html" %}
+  {% include "components/_presentation_toggle.html" %}
+  {% if presentation == "kanban" %}
+    {% include "components/_kanban.html" %}
+  {% else %}
+    {% include "components/_smart_table.html" %}
+  {% endif %}
 {% endblock %}

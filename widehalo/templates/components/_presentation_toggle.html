@@ -1,0 +1,25 @@
+{% load i18n %}
+{% comment %}
+C-4 — la bascule liste/kanban.
+
+Deux liens plutôt qu'un bouton JavaScript : la bascule doit fonctionner
+sans script, comme le reste du produit (contrainte A.10 du cahier). Le
+choix est enregistré côté serveur (`ScreenPreference`), donc il survit à
+la visite suivante et au changement d'appareil.
+
+Le lien n'apparaît pas si le document ne déclare aucune projection :
+proposer un kanban que l'écran ne saurait pas rendre serait la même faute
+qu'un bouton que la garde refuse (C-1d).
+{% endcomment %}
+{% if kanban_disponible %}
+  <div class="smart-table-toolbar" role="group" aria-label="{% trans 'Présentation' %}">
+    <a href="?presentation=liste"
+       {% if presentation == "liste" %}aria-current="page"{% endif %}>
+      {% trans "Liste" %}{% if presentation == "liste" %} ✓{% endif %}
+    </a>
+    <a href="?presentation=kanban"
+       {% if presentation == "kanban" %}aria-current="page"{% endif %}>
+      {% trans "Kanban" %}{% if presentation == "kanban" %} ✓{% endif %}
+    </a>
+  </div>
+{% endif %}

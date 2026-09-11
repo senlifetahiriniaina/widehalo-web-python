@@ -13,5 +13,10 @@
     | <a href="{% url 'sales:order_list' %}">{% trans "Commandes" %}</a>
     | <a href="{% url 'sales:reports_index' %}">{% trans "Rapports" %}</a>
   </p>
-  {% include "components/_smart_table.html" %}
+  {% include "components/_presentation_toggle.html" %}
+  {% if presentation == "kanban" %}
+    {% include "components/_kanban.html" %}
+  {% else %}
+    {% include "components/_smart_table.html" %}
+  {% endif %}
 {% endblock %}

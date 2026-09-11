@@ -30,7 +30,8 @@ from apps.core.models.user import User
 from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission, user_role_codes
 from apps.core.services.workflow import TransitionPermissionError
-from apps.core.views.smart_table import Column, smart_table_response
+from apps.core.views.presentation import presentation_response
+from apps.core.views.smart_table import Column
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import document_exchange_panel
 from apps.sales.models import SalesOrder, SalesQuotation
@@ -91,9 +92,10 @@ ORDER_COLUMNS = [
 @screen_permission("sales.view_salesquotation")
 def quotation_list(request: HttpRequest) -> HttpResponse:
     queryset = SalesQuotation.objects.filter(is_active=True)
-    return smart_table_response(
+    return presentation_response(
         request,
         table_key="sales.quotations",
+        model_label="sales.SalesQuotation",
         columns=QUOTATION_COLUMNS,
         queryset=queryset,
         page_template="sales/quotation_list.html",
@@ -296,9 +298,10 @@ def order_list(request: HttpRequest) -> HttpResponse:
         queryset = queryset.filter(partner_id=partner_id)
     if salesperson_id:
         queryset = queryset.filter(salesperson_id=salesperson_id)
-    return smart_table_response(
+    return presentation_response(
         request,
         table_key="sales.orders",
+        model_label="sales.SalesOrder",
         columns=ORDER_COLUMNS,
         queryset=queryset,
         page_template="sales/order_list.html",

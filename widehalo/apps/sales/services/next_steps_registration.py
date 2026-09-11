@@ -22,6 +22,15 @@ from apps.core.services.next_steps import (
     fsm_next_steps,
     register_next_steps,
 )
+from apps.core.services.presentation import (
+    COLONNE_BLOQUE,
+    COLONNE_EN_ATTENTE,
+    COLONNE_EN_COURS,
+    COLONNE_SANS_SUITE,
+    COLONNE_TERMINE,
+    Board,
+    register_board,
+)
 from apps.sales.models import SalesQuotation
 
 #: Le droit d'ECRITURE de C-1 : les memes codenames que l'API et l'ecran.
@@ -74,6 +83,43 @@ def _quotation_steps(instance: Any, user: User) -> list[NextStep]:
     )
 
 
+#: C-4 — les 10 etats d'une commande projetes sur cinq colonnes lisibles.
+#: `blocked` a sa propre colonne : une commande bloquee pour encours client
+#: est exactement la ligne qu'un commercial doit traiter, et la noyer dans
+#: « en cours » la rendrait invisible.
+_ORDER_BOARD = Board(
+    state_field="state",
+    par_etat={
+        "draft": COLONNE_EN_ATTENTE,
+        "sent": COLONNE_EN_ATTENTE,
+        "confirmed": COLONNE_EN_COURS,
+        "in_preparation": COLONNE_EN_COURS,
+        "partially_delivered": COLONNE_EN_COURS,
+        "delivered": COLONNE_EN_COURS,
+        "invoiced": COLONNE_TERMINE,
+        "closed": COLONNE_TERMINE,
+        "blocked": COLONNE_BLOQUE,
+        "cancelled": COLONNE_SANS_SUITE,
+    },
+)
+
+#: Un devis expire n'est pas refuse : il n'a simplement plus de suite. Les
+#: deux tombent en « sans suite », mais le libelle de l'etat reste lisible
+#: sur la carte — la colonne range, elle ne remplace pas l'etat.
+_QUOTATION_BOARD = Board(
+    state_field="state",
+    par_etat={
+        "draft": COLONNE_EN_ATTENTE,
+        "sent": COLONNE_EN_COURS,
+        "accepted": COLONNE_TERMINE,
+        "declined": COLONNE_SANS_SUITE,
+        "expired": COLONNE_SANS_SUITE,
+    },
+)
+
+
 def register() -> None:
     register_next_steps("sales.SalesOrder", _order_steps)
     register_next_steps("sales.SalesQuotation", _quotation_steps)
+    register_board("sales.SalesOrder", _ORDER_BOARD)
+    register_board("sales.SalesQuotation", _QUOTATION_BOARD)

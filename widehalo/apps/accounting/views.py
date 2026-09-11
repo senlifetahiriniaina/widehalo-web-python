@@ -48,6 +48,7 @@ from apps.core.models.user import User
 from apps.core.services.documents import store_document
 from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
+from apps.core.views.presentation import presentation_response
 from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import describe_signing_certificate, document_exchange_panel
@@ -73,9 +74,10 @@ COLUMNS = [
 @screen_permission("accounting.view_accmove")
 def invoice_list(request: HttpRequest) -> HttpResponse:
     queryset = AccMove.objects.filter(move_type=AccMove.TYPE_CUSTOMER_INVOICE, is_active=True)
-    return smart_table_response(
+    return presentation_response(
         request,
         table_key="accounting.invoices",
+        model_label="accounting.AccMove",
         columns=COLUMNS,
         queryset=queryset,
         page_template="accounting/list.html",

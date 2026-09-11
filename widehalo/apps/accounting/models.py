@@ -11,6 +11,7 @@ from django_fsm import FSMField, transition
 
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel, ReferenceMixin
+from apps.core.services.presentation import StatutOperationnelMixin
 from apps.partners.services.public import list_role_choices
 
 
@@ -480,7 +481,7 @@ class AccJournal(BaseModel):
         return f"{self.code} — {self.name}"
 
 
-class AccMove(BaseModel, ReferenceMixin):
+class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     """Une ecriture comptable. `reference` (cf. `ReferenceMixin`) reste vide
     tant que l'ecriture est en brouillon — RG-ACC-3 : elle n'est attribuee
     qu'a la publication, jamais au brouillon. Immuable en base une fois

@@ -14,6 +14,15 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.user import User
 from apps.core.services.next_steps import NextStep, fsm_next_steps, register_next_steps
+from apps.core.services.presentation import (
+    COLONNE_BLOQUE,
+    COLONNE_EN_ATTENTE,
+    COLONNE_EN_COURS,
+    COLONNE_SANS_SUITE,
+    COLONNE_TERMINE,
+    Board,
+    register_board,
+)
 
 _WRITE = "accounting.change_accmove"
 
@@ -38,5 +47,25 @@ def _invoice_steps(instance: Any, user: User) -> list[NextStep]:
     )
 
 
+#: C-4 — `overdue` et `in_dispute` vont en « Bloque », pas en « En cours ».
+#: Une facture en retard ou en contentieux est precisement celle qu'un
+#: comptable doit traiter ; la ranger avec les factures qui suivent leur
+#: cours reviendrait a la cacher.
+_INVOICE_BOARD = Board(
+    state_field="invoice_state",
+    par_etat={
+        "draft": COLONNE_EN_ATTENTE,
+        "to_validate": COLONNE_EN_ATTENTE,
+        "validated": COLONNE_EN_COURS,
+        "paid_partially": COLONNE_EN_COURS,
+        "overdue": COLONNE_BLOQUE,
+        "in_dispute": COLONNE_BLOQUE,
+        "paid": COLONNE_TERMINE,
+        "cancelled": COLONNE_SANS_SUITE,
+    },
+)
+
+
 def register() -> None:
     register_next_steps("accounting.AccMove", _invoice_steps)
+    register_board("accounting.AccMove", _INVOICE_BOARD)

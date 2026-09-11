@@ -36,3 +36,47 @@ class SavedTableView(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.table_key}:{self.name}"
+
+
+class ScreenPreference(BaseModel):
+    """Comment CET utilisateur regarde CET ecran : liste ou kanban.
+
+    **Pourquoi un modele distinct de `SavedTableView`.** Celui-ci est
+    unique sur `(owner, table_key, name)` : c'est une vue NOMMEE, un jeu de
+    filtres et de colonnes qu'on enregistre et qu'on partage par role
+    (RPT-SAVE1). Y greffer la presentation confondrait « la vue *Clients du
+    Nord* » et « comment je regarde cet ecran ». Et `User.theme`/
+    `User.density` sont des preferences GLOBALES, pas par ecran.
+
+    La presentation par defaut, elle, n'est pas stockee : elle se DERIVE du
+    processus (un document qui declare un tableau s'ouvre en kanban). Cette
+    table ne porte que la SURCHARGE explicite de l'utilisateur — rien tant
+    qu'il n'a pas bascule, ce qui evite d'ecrire une ligne par utilisateur
+    et par ecran pour enregistrer le defaut."""
+
+    PRESENTATION_LISTE = "liste"
+    PRESENTATION_KANBAN = "kanban"
+    PRESENTATION_CHOICES = [
+        (PRESENTATION_LISTE, "Liste"),
+        (PRESENTATION_KANBAN, "Kanban"),
+    ]
+
+    owner = models.ForeignKey("core.User", on_delete=models.CASCADE, related_name="+")
+    table_key = models.CharField(max_length=100, db_index=True)
+    presentation = models.CharField(max_length=8, choices=PRESENTATION_CHOICES)
+
+    class Meta:
+        db_table = "core_screen_preference"
+        constraints = [
+            models.UniqueConstraint(
+                # `tenant` fait partie de la clef : un utilisateur peut
+                # travailler dans plusieurs societes, et rien n'impose qu'il
+                # regarde le meme ecran de la meme facon dans chacune. Sans
+                # lui, sa preference dans l'une ecraserait celle de l'autre.
+                fields=["tenant", "owner", "table_key"],
+                name="uniq_screen_preference",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.table_key}:{self.presentation}"
