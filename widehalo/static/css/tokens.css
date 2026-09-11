@@ -61,7 +61,14 @@
   /* ---------- Semantique ---------- */
   --fg-1: var(--slate-900);
   --fg-2: var(--slate-700);
-  --fg-3: var(--slate-500);
+  /* **Texte atténué : #6B7488 rend 4,41:1 sur le fond de page, sous le
+     seuil AA de 4,5:1.** Mesuré par l'audit axe, en « serious », le jour où
+     un libellé de D-1 a porté `.hint` sur un écran audité — la classe était
+     sous le seuil PARTOUT depuis toujours, aucun test ne la regardait là.
+     `--slate-500` reste l'entrée de palette ; c'est le jeton de TEXTE qui
+     doit être conforme, et lui seul. #667085 rend 4,68:1 sur le fond de
+     page et 4,97:1 sur blanc. */
+  --fg-3: #667085;
   --fg-4: var(--slate-400);
   --fg-on-brand: #FFFFFF;
   --fg-link: var(--halo-600);

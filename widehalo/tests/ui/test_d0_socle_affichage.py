@@ -115,14 +115,24 @@ def test_the_export_writes_numbers_like_the_screen() -> None:
     grant_module_access(user, "sales")
     _commande(tenant)
 
-    reponse = _client(tenant, user).get("/sales/orders/", {"export": "csv"})
-    corps = reponse.content.decode()
+    client = _client(tenant, user)
+    corps = client.get("/sales/orders/", {"export": "csv"}).content.decode()
+    page = client.get("/sales/orders/", {"presentation": "liste"}).content.decode()
+
     assert "0.0000" not in corps, (
         "L'export écrit encore ses décimales avec un point, alors que l'écran affiche "
         "une virgule : le fichier contredit sa propre page."
     )
-    assert "0,0000" in corps, (
-        f"Le montant n'apparaît pas au format de l'écran dans l'export : {corps[:200]}"
+    # **La référence est l'ÉCRAN, jamais un littéral.** La première version
+    # comparait à « 0,0000 » écrit en dur ; le jour où D-1 a posé
+    # `format="mga"` sur cette colonne, la page ET le fichier sont passés à
+    # « 0 Ar » ensemble — la propriété tenait, et le test tombait quand même.
+    # Un test qui fige la forme empêche de l'améliorer.
+    cellule = corps.splitlines()[1].split(",")[-1]
+    assert cellule.strip(), f"Aucune cellule de montant dans l'export : {corps[:200]}"
+    assert cellule in page, (
+        f"L'export écrit « {cellule} » là où l'écran affiche autre chose — "
+        "le fichier contredit sa propre page."
     )
 
 
