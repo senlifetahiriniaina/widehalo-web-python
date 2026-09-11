@@ -766,7 +766,10 @@ def cash_basis_report(fiscal_year: AccFiscalYear, *, mode: str = "recap") -> lis
     return rows
 
 
-_ASSET_CATEGORY_LABELS: dict[str, str] = dict(AccAsset.CATEGORY_CHOICES)
+# Les libelles sont desormais des objets de traduction paresseux (D-3) :
+# leur type n'est plus `str` mais `StrPromise`, et ils ne se resolvent qu'au
+# rendu — c'est precisement ce qu'on veut d'un libelle affiche.
+_ASSET_CATEGORY_LABELS: dict[str, Any] = dict(AccAsset.CATEGORY_CHOICES)
 
 
 def _actif_immobilise_annex(fiscal_year: AccFiscalYear) -> list[dict[str, Any]]:

@@ -19,6 +19,8 @@ automatique n'a pas abouti.
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
@@ -39,10 +41,12 @@ from apps.accounting.services.payment_intents import (
     REEMIT_REPLACED,
     reemit_intent,
 )
-from apps.accounting.services.payment_payouts import settle_payout
+from apps.accounting.services.payment_payouts import announce_payout, settle_payout
+from apps.accounting.services.payment_providers import PROVIDER_CHOICES
 from apps.accounting.services.payment_settlement import assign_orphan_notification
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
+from apps.core.views.tenant_web import resolve_tenant
 
 NOTIFICATION_COLUMNS = [
     Column(key="external_reference", label=_("Référence")),
@@ -92,6 +96,10 @@ def payment_notification_list(request: HttpRequest) -> HttpResponse:
             # avec, pour seule trace, une intention expirée que personne ne
             # voit.
             "stale_intents": _stale_intents(),
+            # Sans ce jeu ferme, la saisie d'annonce demanderait de taper le
+            # code de la voie a la main — et `announce_payout` n'aurait
+            # toujours pas d'appelant realiste.
+            "provider_choices": PROVIDER_CHOICES,
         },
     )
 
@@ -119,6 +127,41 @@ def payment_notification_assign(request: HttpRequest, notification_id: str) -> H
     except ValidationError as exc:
         erreur = "; ".join(exc.messages)
 
+    return _back_to_list(erreur)
+
+
+@login_required
+@screen_permission("accounting.add_accaggregatorpayout")
+def aggregator_payout_announce(request: HttpRequest) -> HttpResponse:
+    """Enregistre ce que l'agregateur DIT verser.
+
+    **`announce_payout` n'avait aucun appelant.** Elle est le seul createur
+    d'`AccAggregatorPayout` : sans cet ecran, la table « Versements groupes
+    a rapprocher » ne pouvait jamais contenir une ligne, et le bouton
+    « Rapprocher le lot » — livre, teste, correct — n'etait atteignable par
+    personne. Treizieme occurrence du motif « rien de decoratif ».
+
+    L'annonce est une SAISIE et pas un flux : elle vient du releve que
+    l'agregateur publie, et l'exploitant la recopie. Le rapprochement reste
+    une decision distincte, ce que la docstring du service dit deja."""
+    if request.method != "POST":
+        return _back_to_list("")
+    tenant = resolve_tenant(request)
+    erreur = ""
+    try:
+        announce_payout(
+            tenant,
+            provider_code=request.POST.get("provider_code", ""),
+            external_reference=request.POST.get("external_reference", ""),
+            payout_date=date.fromisoformat(
+                request.POST.get("payout_date") or date.today().isoformat()
+            ),
+            gross_amount=Decimal(request.POST.get("gross_amount") or "0"),
+            fee_amount=Decimal(request.POST.get("fee_amount") or "0"),
+            net_amount=Decimal(request.POST.get("net_amount") or "0"),
+        )
+    except (ValidationError, InvalidOperation, ValueError) as exc:
+        erreur = "; ".join(getattr(exc, "messages", [str(exc)]))
     return _back_to_list(erreur)
 
 

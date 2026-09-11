@@ -145,6 +145,12 @@ def test_declared_permissions_exist_and_belong_to_their_module() -> None:
     assert not fautifs, "\n".join(fautifs)
 
 
+#: Les prefixes de codename qui designent une ECRITURE. Ecrits ici, jamais
+#: lus d'un registre du code teste — un jeu ferme ne se verifie pas contre
+#: sa propre source (lecon F60).
+_ACTIONS_D_ECRITURE = frozenset({"add", "change", "delete", "validate", "cancel"})
+
+
 def test_every_view_that_writes_also_guards_the_write() -> None:
     """Lire n'est pas ecrire : une vue qui traite un POST doit verifier un
     droit d'ECRITURE en plus de son droit de lecture.
@@ -156,8 +162,25 @@ def test_every_view_that_writes_also_guards_the_write() -> None:
         source = inspect.getsource(_deballer(vue))
         if "request.method" not in source:
             continue
-        if "screen_forbidden" not in source:
-            sans_garde.append(f"{nom} ({chemin})")
+        if "screen_forbidden" in source:
+            continue
+        # **Un ecran dont le DECORATEUR porte deja un droit d'ecriture n'a
+        # rien a re-verifier dans son corps** — et il protege meme plus : le
+        # decorateur refuse aussi le GET, donc un role en lecture seule ne
+        # voit jamais le formulaire, au lieu de le remplir pour se le faire
+        # refuser a l'envoi. C'est la regle posee en C-1d pour les huit
+        # ecrans de creation.
+        #
+        # Cette branche a ete ajoutee parce que la garde a refuse deux vues
+        # justes (`crm.imports`, `accounting.payout_announce`). La croire
+        # sur parole aurait fait ajouter un `screen_forbidden` redondant ;
+        # la lire a montre que c'est la garde qui ne connaissait qu'une des
+        # deux formes correctes.
+        codename = getattr(vue, "screen_permission_codename", "") or ""
+        action = codename.split(".")[-1].split("_")[0] if "." in codename else ""
+        if action in _ACTIONS_D_ECRITURE:
+            continue
+        sans_garde.append(f"{nom} ({chemin})")
     assert not sans_garde, (
         f"Ces vues traitent un POST sans verifier de droit d'ecriture : "
         f"{sorted(sans_garde)}. Ajoutez `screen_forbidden(request, "

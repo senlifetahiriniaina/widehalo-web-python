@@ -22,6 +22,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.translation import gettext_lazy as _
@@ -70,6 +71,7 @@ from apps.logistics.services.trips import (
     close_trip,
     create_trip,
     create_trip_template,
+    generate_due_trip,
     record_stop_completion,
     start_trip,
 )
@@ -394,6 +396,24 @@ def trip_template_list(request: HttpRequest) -> HttpResponse:
         refus = screen_forbidden(request, "logistics.add_logtriptemplate")
         if refus is not None:
             return refus
+
+    if request.method == "POST" and request.POST.get("action") == "generate_due":
+        # **`generate_due_trip` n'avait AUCUN appelant de production.**
+        # L'ecran enregistrait une periodicite — « toutes les semaines » et
+        # une date de prochaine tournee — et ne produisait jamais le moindre
+        # trajet. L'exploitant remplissait un gabarit qui ne servait a rien.
+        #
+        # Le declenchement est EXPLICITE, jamais nocturne : engager un
+        # vehicule et un chauffeur pour une journee est une decision
+        # d'exploitation, pas une tache de fond. La fonction rend `None`
+        # quand rien n'est du, ce qui rend l'appel sans effet le reste de
+        # la journee.
+        generes = sum(
+            1
+            for gabarit in LogTripTemplate.objects.filter(is_active=True)
+            if generate_due_trip(gabarit) is not None
+        )
+        return redirect(f"{reverse('logistics:trip_template_list')}?generes={generes}")
 
     if request.method == "POST":
         try:

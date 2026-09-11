@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% load l10n %}
+{% load currency %}
 {% block title %}{% trans "Configuration fiscale" %} — WideHalo{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -27,13 +28,13 @@
       <h2>{% trans "Chiffre d'affaires et seuils" %}</h2>
       <p>
         {% trans "Seuil d'assujettissement" %} :
-        <strong>{{ vat_thresholds.seuil_mga|unlocalize }} MGA</strong> —
+        <strong>{{ vat_thresholds.seuil_mga|mga }} MGA</strong> —
         {% trans "option ouverte à partir de" %}
-        <strong>{{ vat_thresholds.plancher_option_mga|unlocalize }} MGA</strong>
+        <strong>{{ vat_thresholds.plancher_option_mga|mga }} MGA</strong>
       </p>
       {% if annual_revenue_mga %}
         <p>{% trans "Chiffre d'affaires des 12 derniers mois" %} :
-           <strong>{{ annual_revenue_mga|unlocalize }} MGA</strong></p>
+           <strong>{{ annual_revenue_mga|mga }} MGA</strong></p>
       {% else %}
         <p><em>{% trans "Aucune vente enregistrée sur les 12 derniers mois : aucun rapprochement possible." %}</em></p>
       {% endif %}
@@ -58,7 +59,7 @@
       <h2>{% trans "Taux de TVA à l'exportation" %}</h2>
       <p>
         {% trans "Taux déclaré" %} :
-        <strong>{{ export_vat_rate.taux|unlocalize }} %</strong>
+        <strong>{{ export_vat_rate.taux }} %</strong>
         {% if export_vat_rate.est_valide %}
           <span class="badge badge-success">{% trans "validé OECFM" %}</span>
         {% else %}

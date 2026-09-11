@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load i18n %}
+{% load currency %}
 {% block title %}{% trans "Encaissements mobiles" %} — WideHalo{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -138,9 +139,13 @@
           <tr>
             <td>{{ payout.external_reference }}</td>
             <td>{{ payout.payout_date }}</td>
-            <td>{{ payout.gross_amount }}</td>
-            <td>{{ payout.fee_amount }}</td>
-            <td>{{ payout.net_amount }}</td>
+            <td class="col-num">{{ payout.gross_amount|mga }}</td>
+            <td class="col-num">{{ payout.fee_amount|mga }}</td>
+            <td class="col-num">{{ payout.net_amount|mga }}</td>
+            {% comment %} `payouts` est une liste de DICTIONNAIRES, pas
+              d'instances : la vue y met deja `get_state_display()`. Appeler
+              `get_state_display` ici rendrait le vide — j'ai « corrige » ce
+              qui etait juste, et c'est le test qui l'a dit. {% endcomment %}
             <td>{{ payout.state }}</td>
             <td>
               {% if perms.accounting.change_accaggregatorpayout %}
@@ -156,5 +161,52 @@
     </table>
   {% else %}
     <p>{% trans "Aucun versement en attente de rapprochement." %}</p>
+  {% endif %}
+
+  {% comment %} **Sans cette saisie, `announce_payout` n'avait AUCUN
+    appelant** — et comme elle est le seul createur d'un versement groupe,
+    la table ci-dessus ne pouvait jamais contenir une ligne, ni son bouton
+    « Rapprocher le lot » être atteint. Treizième occurrence du motif « rien
+    de décoratif » de ce chantier.
+
+    L'annonce est une SAISIE, pas un flux : elle vient du relevé que
+    l'agrégateur publie sur son portail ou envoie par message, et
+    l'exploitant la recopie. Le rapprochement, lui, reste une décision
+    distincte — c'est ce que dit la docstring du service. {% endcomment %}
+  {% if perms.accounting.add_accaggregatorpayout %}
+    <h3>{% trans "Annoncer un versement" %}</h3>
+    <p class="hint">{% trans "Recopiez ici ce que l’agrégateur annonce verser : la référence de son relevé, le brut, sa commission et le net reçu. Le rapprochement comptable reste une décision séparée." %}</p>
+    <form method="post" action="{% url 'accounting:payout_announce' %}">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="provider_code">{% trans "Voie d’encaissement" %}</label>
+        <select id="provider_code" name="provider_code" required>
+          {% for code, libelle in provider_choices %}
+            <option value="{{ code }}">{{ libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="external_reference">{% trans "Référence du relevé" %}</label>
+        <input id="external_reference" type="text" name="external_reference" required>
+      </div>
+      <div class="form-field">
+        <label for="payout_date">{% trans "Date du versement" %}</label>
+        <input id="payout_date" type="date" name="payout_date" required>
+      </div>
+      <div class="form-field">
+        <label for="gross_amount">{% trans "Brut annoncé (Ar)" %}</label>
+        <input id="gross_amount" type="number" step="0.01" min="0" name="gross_amount" required>
+      </div>
+      <div class="form-field">
+        <label for="fee_amount">{% trans "Commission (Ar)" %}</label>
+        <input id="fee_amount" type="number" step="0.01" min="0" name="fee_amount" value="0">
+      </div>
+      <div class="form-field">
+        <label for="net_amount">{% trans "Net reçu (Ar)" %}</label>
+        <input id="net_amount" type="number" step="0.01" min="0" name="net_amount" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Annoncer" %}</c-button>
+    </form>
   {% endif %}
 {% endblock %}

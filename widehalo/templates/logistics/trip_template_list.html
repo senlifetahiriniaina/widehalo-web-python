@@ -10,6 +10,23 @@
   <h1>{% trans "Gabarits de tournée (LOG-REC1)" %}</h1>
 </div>
   {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if request.GET.generes %}
+    <p class="form-success">{% blocktrans with n=request.GET.generes %}{{ n }} tournée(s) générée(s) depuis les gabarits à échéance.{% endblocktrans %}</p>
+  {% endif %}
+
+  {% comment %} **Sans ce bouton, un gabarit ne produisait jamais rien.**
+    L'écran enregistrait une périodicité et une date de prochaine tournée,
+    et `generate_due_trip` — livrée, testée, correcte — n'avait aucun
+    appelant de production. Le geste est explicite : engager un véhicule et
+    un chauffeur pour une journée est une décision d'exploitation, jamais
+    une tâche de fond. {% endcomment %}
+  {% if perms.logistics.add_logtriptemplate %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="generate_due">
+      <c-button type="submit">{% trans "Générer les tournées dues" %}</c-button>
+    </form>
+  {% endif %}
 {% include "components/_smart_table.html" %}
 
   <h2>{% trans "Nouveau gabarit" %}</h2>

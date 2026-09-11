@@ -31,6 +31,7 @@ from __future__ import annotations
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 
 from apps.core.db.fields import EncryptedCharField
@@ -44,19 +45,19 @@ class LogVehicle(BaseModel):
     TYPE_MOTORCYCLE = "motorcycle"
     TYPE_OTHER = "other"
     TYPE_CHOICES = [
-        (TYPE_TRUCK, "Camion"),
-        (TYPE_VAN, "Camionnette"),
-        (TYPE_MOTORCYCLE, "Moto"),
-        (TYPE_OTHER, "Autre"),
+        (TYPE_TRUCK, _("Camion")),
+        (TYPE_VAN, _("Camionnette")),
+        (TYPE_MOTORCYCLE, _("Moto")),
+        (TYPE_OTHER, _("Autre")),
     ]
 
     STATUS_ACTIVE = "active"
     STATUS_MAINTENANCE = "maintenance"
     STATUS_RETIRED = "retired"
     STATUS_CHOICES = [
-        (STATUS_ACTIVE, "En service"),
-        (STATUS_MAINTENANCE, "En maintenance"),
-        (STATUS_RETIRED, "Retire"),
+        (STATUS_ACTIVE, _("En service")),
+        (STATUS_MAINTENANCE, _("En maintenance")),
+        (STATUS_RETIRED, _("Retiré")),
     ]
 
     plate_number = models.CharField(max_length=32)
@@ -87,11 +88,11 @@ class LogVehicleDocument(BaseModel):
     TYPE_PERMIT = "permit"
     TYPE_OTHER = "other"
     TYPE_CHOICES = [
-        (TYPE_INSURANCE, "Assurance"),
-        (TYPE_REGISTRATION, "Carte grise"),
-        (TYPE_TECHNICAL_INSPECTION, "Visite technique"),
-        (TYPE_PERMIT, "Autorisation/permis"),
-        (TYPE_OTHER, "Autre"),
+        (TYPE_INSURANCE, _("Assurance")),
+        (TYPE_REGISTRATION, _("Carte grise")),
+        (TYPE_TECHNICAL_INSPECTION, _("Visite technique")),
+        (TYPE_PERMIT, _("Autorisation/permis")),
+        (TYPE_OTHER, _("Autre")),
     ]
 
     vehicle = models.ForeignKey(LogVehicle, on_delete=models.CASCADE, related_name="documents")
@@ -121,11 +122,11 @@ class LogVehicleCost(BaseModel):
     TYPE_TOLL = "toll"
     TYPE_OTHER = "other"
     TYPE_CHOICES = [
-        (TYPE_FUEL, "Carburant"),
-        (TYPE_MAINTENANCE, "Entretien"),
-        (TYPE_INSURANCE, "Assurance"),
-        (TYPE_TOLL, "Peage"),
-        (TYPE_OTHER, "Autre"),
+        (TYPE_FUEL, _("Carburant")),
+        (TYPE_MAINTENANCE, _("Entretien")),
+        (TYPE_INSURANCE, _("Assurance")),
+        (TYPE_TOLL, _("Péage")),
+        (TYPE_OTHER, _("Autre")),
     ]
 
     vehicle = models.ForeignKey(LogVehicle, on_delete=models.CASCADE, related_name="costs")
@@ -171,10 +172,10 @@ class LogTrip(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATUS_COMPLETED = "completed"
     STATUS_CANCELLED = "cancelled"
     STATUS_CHOICES = [
-        (STATUS_PLANNED, "Planifie"),
-        (STATUS_IN_PROGRESS, "En cours"),
-        (STATUS_COMPLETED, "Termine"),
-        (STATUS_CANCELLED, "Annule"),
+        (STATUS_PLANNED, _("Planifié")),
+        (STATUS_IN_PROGRESS, _("En cours")),
+        (STATUS_COMPLETED, _("Terminé")),
+        (STATUS_CANCELLED, _("Annulé")),
     ]
 
     vehicle = models.ForeignKey(LogVehicle, on_delete=models.PROTECT, related_name="trips")
@@ -203,16 +204,16 @@ class LogTripStop(BaseModel):
     TYPE_DROPOFF = "dropoff"
     TYPE_OTHER = "other"
     TYPE_CHOICES = [
-        (TYPE_PICKUP, "Enlevement"),
-        (TYPE_DROPOFF, "Livraison"),
-        (TYPE_OTHER, "Autre"),
+        (TYPE_PICKUP, _("Enlèvement")),
+        (TYPE_DROPOFF, _("Livraison")),
+        (TYPE_OTHER, _("Autre")),
     ]
 
     STATUS_PENDING = "pending"
     STATUS_COMPLETED = "completed"
     STATUS_CHOICES = [
-        (STATUS_PENDING, "En attente"),
-        (STATUS_COMPLETED, "Termine"),
+        (STATUS_PENDING, _("En attente")),
+        (STATUS_COMPLETED, _("Terminé")),
     ]
 
     trip = models.ForeignKey(LogTrip, on_delete=models.CASCADE, related_name="stops")
@@ -259,8 +260,8 @@ class LogTripTemplate(BaseModel):
     INTERVAL_WEEKLY = "weekly"
     INTERVAL_MONTHLY = "monthly"
     INTERVAL_CHOICES = [
-        (INTERVAL_WEEKLY, "Hebdomadaire"),
-        (INTERVAL_MONTHLY, "Mensuelle"),
+        (INTERVAL_WEEKLY, _("Hebdomadaire")),
+        (INTERVAL_MONTHLY, _("Mensuelle")),
     ]
 
     name = models.CharField(max_length=150)
@@ -336,10 +337,10 @@ class LogServiceProvider(BaseModel):
     TYPE_HANDLING = "handling"
     TYPE_OTHER = "other"
     TYPE_CHOICES = [
-        (TYPE_CARRIER, "Transporteur"),
-        (TYPE_CUSTOMS_BROKER, "Transitaire/douane"),
-        (TYPE_HANDLING, "Manutention"),
-        (TYPE_OTHER, "Autre"),
+        (TYPE_CARRIER, _("Transporteur")),
+        (TYPE_CUSTOMS_BROKER, _("Transitaire/douane")),
+        (TYPE_HANDLING, _("Manutention")),
+        (TYPE_OTHER, _("Autre")),
     ]
 
     code = models.CharField(max_length=32)
@@ -437,16 +438,16 @@ class LogShipment(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATE_CLOSED = "closed"
     STATE_BLOCKED = "blocked"
     STATE_CHOICES = [
-        (STATE_PLANNED, "Prevue"),
-        (STATE_BOOKED, "Reservee"),
-        (STATE_PICKED_UP, "Enlevee"),
-        (STATE_IN_TRANSIT, "En transit"),
-        (STATE_ARRIVED_AT_PORT, "Arrivee au port"),
-        (STATE_CUSTOMS_CLEARANCE, "En dedouanement"),
-        (STATE_CUSTOMS_CLEARED, "Dedouanee"),
-        (STATE_DELIVERED, "Livree"),
-        (STATE_CLOSED, "Cloturee"),
-        (STATE_BLOCKED, "Bloquee"),
+        (STATE_PLANNED, _("Prévue")),
+        (STATE_BOOKED, _("Réservée")),
+        (STATE_PICKED_UP, _("Enlevée")),
+        (STATE_IN_TRANSIT, _("En transit")),
+        (STATE_ARRIVED_AT_PORT, _("Arrivée au port")),
+        (STATE_CUSTOMS_CLEARANCE, _("En dédouanement")),
+        (STATE_CUSTOMS_CLEARED, _("Dédouanée")),
+        (STATE_DELIVERED, _("Livrée")),
+        (STATE_CLOSED, _("Clôturée")),
+        (STATE_BLOCKED, _("Bloquée")),
     ]
 
     # Memes valeurs que `apps.purchase.models.PurOrder.INCOTERM_CHOICES` —
@@ -458,11 +459,11 @@ class LogShipment(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     INCOTERM_DAP = "DAP"
     INCOTERM_DDP = "DDP"
     INCOTERM_CHOICES = [
-        (INCOTERM_EXW, "EXW — A l'usine"),
-        (INCOTERM_FOB, "FOB — Franco a bord"),
-        (INCOTERM_CIF, "CIF — Cout, assurance et fret"),
-        (INCOTERM_DAP, "DAP — Rendu au lieu de destination"),
-        (INCOTERM_DDP, "DDP — Rendu droits acquittes"),
+        (INCOTERM_EXW, _("EXW — À l'usine")),
+        (INCOTERM_FOB, _("FOB — Franco a bord")),
+        (INCOTERM_CIF, _("CIF — Coût, assurance et fret")),
+        (INCOTERM_DAP, _("DAP — Rendu au lieu de destination")),
+        (INCOTERM_DDP, _("DDP — Rendu droits acquittes")),
     ]
 
     origin = models.CharField(max_length=100)
@@ -556,10 +557,10 @@ class LogShipmentLeg(BaseModel):
     MODE_AIR = "air"
     MODE_RAIL = "rail"
     MODE_CHOICES = [
-        (MODE_ROAD, "Route"),
-        (MODE_SEA, "Mer"),
-        (MODE_AIR, "Air"),
-        (MODE_RAIL, "Rail"),
+        (MODE_ROAD, _("Route")),
+        (MODE_SEA, _("Mer")),
+        (MODE_AIR, _("Air")),
+        (MODE_RAIL, _("Rail")),
     ]
 
     shipment = models.ForeignKey(LogShipment, on_delete=models.CASCADE, related_name="legs")
@@ -615,9 +616,9 @@ class LogCustomsFile(BaseModel, ReferenceMixin):
     STATE_CLEARED = "cleared"
     STATE_CLOSED = "closed"
     STATE_CHOICES = [
-        (STATE_OPEN, "Ouvert"),
-        (STATE_CLEARED, "Dedouane"),
-        (STATE_CLOSED, "Cloture"),
+        (STATE_OPEN, _("Ouvert")),
+        (STATE_CLEARED, _("Dédouané")),
+        (STATE_CLOSED, _("Clôturé")),
     ]
 
     shipment = models.ForeignKey(

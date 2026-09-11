@@ -7,8 +7,10 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 
+from apps.accounting.services.payment_providers import PROVIDER_CHOICES
 from apps.core.db.uuid7 import uuid7
 from apps.core.models.base import BaseModel, ReferenceMixin
 from apps.core.services.presentation import StatutOperationnelMixin
@@ -20,9 +22,9 @@ class AccFiscalYear(BaseModel):
     STATE_CLOSING = "closing"
     STATE_CLOSED = "closed"
     STATE_CHOICES = [
-        (STATE_OPEN, "Ouvert"),
-        (STATE_CLOSING, "En cloture"),
-        (STATE_CLOSED, "Cloture"),
+        (STATE_OPEN, _("Ouvert")),
+        (STATE_CLOSING, _("En clôture")),
+        (STATE_CLOSED, _("Clôturé")),
     ]
 
     code = models.CharField(max_length=16)
@@ -41,8 +43,8 @@ class AccPeriod(BaseModel):
     STATE_OPEN = "open"
     STATE_CLOSED = "closed"
     STATE_CHOICES = [
-        (STATE_OPEN, "Ouverte"),
-        (STATE_CLOSED, "Close"),
+        (STATE_OPEN, _("Ouverte")),
+        (STATE_CLOSED, _("Close")),
     ]
 
     fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.CASCADE, related_name="periods")
@@ -88,8 +90,8 @@ class AccFramework(models.Model):
     CODE_PCG2005 = "PCG2005"
     CODE_SYSCOHADA_REVISE = "SYSCOHADA_REVISE"
     CODE_CHOICES = [
-        (CODE_PCG2005, "PCG 2005 (Madagascar)"),
-        (CODE_SYSCOHADA_REVISE, "SYSCOHADA revise (zone OHADA)"),
+        (CODE_PCG2005, _("PCG 2005 (Madagascar)")),
+        (CODE_SYSCOHADA_REVISE, _("SYSCOHADA révisé (zone OHADA)")),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
@@ -195,17 +197,17 @@ class AccAccount(BaseModel):
     TYPE_TAX = "tax"
     TYPE_STOCK = "stock"
     TYPE_CHOICES = [
-        (TYPE_ASSET, "Actif"),
-        (TYPE_LIABILITY, "Passif"),
-        (TYPE_EQUITY, "Capitaux propres"),
-        (TYPE_INCOME, "Produit"),
-        (TYPE_EXPENSE, "Charge"),
-        (TYPE_RECEIVABLE, "Creance"),
-        (TYPE_PAYABLE, "Dette"),
-        (TYPE_BANK, "Banque"),
-        (TYPE_CASH, "Caisse"),
-        (TYPE_TAX, "Taxe"),
-        (TYPE_STOCK, "Stock"),
+        (TYPE_ASSET, _("Actif")),
+        (TYPE_LIABILITY, _("Passif")),
+        (TYPE_EQUITY, _("Capitaux propres")),
+        (TYPE_INCOME, _("Produit")),
+        (TYPE_EXPENSE, _("Charge")),
+        (TYPE_RECEIVABLE, _("Créance")),
+        (TYPE_PAYABLE, _("Dette")),
+        (TYPE_BANK, _("Banque")),
+        (TYPE_CASH, _("Caisse")),
+        (TYPE_TAX, _("Taxe")),
+        (TYPE_STOCK, _("Stock")),
     ]
 
     FUNCTIONAL_PRODUCTION = "production"
@@ -213,10 +215,10 @@ class AccAccount(BaseModel):
     FUNCTIONAL_ADMINISTRATION = "administration"
     FUNCTIONAL_AUTRE = "autre"
     FUNCTIONAL_DESTINATION_CHOICES = [
-        (FUNCTIONAL_PRODUCTION, "Production"),
-        (FUNCTIONAL_DISTRIBUTION, "Distribution"),
-        (FUNCTIONAL_ADMINISTRATION, "Administration"),
-        (FUNCTIONAL_AUTRE, "Autre"),
+        (FUNCTIONAL_PRODUCTION, _("Production")),
+        (FUNCTIONAL_DISTRIBUTION, _("Distribution")),
+        (FUNCTIONAL_ADMINISTRATION, _("Administration")),
+        (FUNCTIONAL_AUTRE, _("Autre")),
     ]
 
     # UXR7 : les 5 codes secteur deja etablis dans ce depot (`apps.strategy.
@@ -230,11 +232,11 @@ class AccAccount(BaseModel):
     SECTOR_IMPORT_EXPORT = "import_export"
     SECTOR_CRAFT = "artisanat"
     SECTOR_CHOICES = [
-        (SECTOR_TEXTILE, "Textile"),
-        (SECTOR_LEATHER, "Cuir et maroquinerie"),
-        (SECTOR_AGRIFOOD, "Agroalimentaire"),
-        (SECTOR_IMPORT_EXPORT, "Import-export généraliste"),
-        (SECTOR_CRAFT, "Artisanat"),
+        (SECTOR_TEXTILE, _("Textile")),
+        (SECTOR_LEATHER, _("Cuir et maroquinerie")),
+        (SECTOR_AGRIFOOD, _("Agroalimentaire")),
+        (SECTOR_IMPORT_EXPORT, _("Import-export généraliste")),
+        (SECTOR_CRAFT, _("Artisanat")),
     ]
 
     code = models.CharField(max_length=20)
@@ -374,20 +376,20 @@ class AccTenantDefaultAccount(BaseModel):
     # doublon a eviter, jamais un lot a lettrer. PAY-5 devient inapplicable.
     ROLE_PAYMENT_CLEARING = "passage_encaissement"
     ROLE_CHOICES = [
-        (ROLE_SALE_INCOME, "Produit des ventes"),
-        (ROLE_PURCHASE_EXPENSE, "Charge des achats"),
-        (ROLE_VAT, "TVA"),
-        (ROLE_CUSTOMER, "Client"),
-        (ROLE_SUPPLIER, "Fournisseur"),
-        (ROLE_BANK, "Banque"),
-        (ROLE_CASH, "Caisse"),
-        (ROLE_STOCK, "Stock"),
-        (ROLE_STOCK_VARIATION, "Variation de stock"),
-        (ROLE_CASH_DIFFERENCE, "Ecart de caisse"),
-        (ROLE_PAYROLL_EXPENSE, "Charge de personnel"),
-        (ROLE_PAYROLL_PAYABLE, "Dette envers le personnel"),
-        (ROLE_PAYMENT_FEE, "Commission d'encaissement"),
-        (ROLE_PAYMENT_CLEARING, "Compte de passage d'encaissement"),
+        (ROLE_SALE_INCOME, _("Produit des ventes")),
+        (ROLE_PURCHASE_EXPENSE, _("Charge des achats")),
+        (ROLE_VAT, _("TVA")),
+        (ROLE_CUSTOMER, _("Client")),
+        (ROLE_SUPPLIER, _("Fournisseur")),
+        (ROLE_BANK, _("Banque")),
+        (ROLE_CASH, _("Caisse")),
+        (ROLE_STOCK, _("Stock")),
+        (ROLE_STOCK_VARIATION, _("Variation de stock")),
+        (ROLE_CASH_DIFFERENCE, _("Écart de caisse")),
+        (ROLE_PAYROLL_EXPENSE, _("Charge de personnel")),
+        (ROLE_PAYROLL_PAYABLE, _("Dette envers le personnel")),
+        (ROLE_PAYMENT_FEE, _("Commission d'encaissement")),
+        (ROLE_PAYMENT_CLEARING, _("Compte de passage d'encaissement")),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES)
@@ -456,13 +458,13 @@ class AccJournal(BaseModel):
     TYPE_PAYROLL = "payroll"
     TYPE_STOCK = "stock"
     TYPE_CHOICES = [
-        (TYPE_SALE, "Ventes"),
-        (TYPE_PURCHASE, "Achats"),
-        (TYPE_BANK, "Banque"),
-        (TYPE_CASH, "Caisse"),
-        (TYPE_MISC, "Operations diverses"),
-        (TYPE_PAYROLL, "Paie"),
-        (TYPE_STOCK, "Stock"),
+        (TYPE_SALE, _("Ventes")),
+        (TYPE_PURCHASE, _("Achats")),
+        (TYPE_BANK, _("Banque")),
+        (TYPE_CASH, _("Caisse")),
+        (TYPE_MISC, _("Opérations diverses")),
+        (TYPE_PAYROLL, _("Paie")),
+        (TYPE_STOCK, _("Stock")),
     ]
 
     code = models.CharField(max_length=16)
@@ -493,9 +495,9 @@ class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATE_POSTED = "posted"
     STATE_CANCELLED = "cancelled"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_POSTED, "Publiee"),
-        (STATE_CANCELLED, "Annulee"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_POSTED, _("Publiée")),
+        (STATE_CANCELLED, _("Annulée")),
     ]
 
     TYPE_ENTRY = "entry"
@@ -504,11 +506,11 @@ class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     TYPE_SUPPLIER_INVOICE = "supplier_invoice"
     TYPE_SUPPLIER_CREDIT_NOTE = "supplier_credit_note"
     TYPE_CHOICES = [
-        (TYPE_ENTRY, "Ecriture diverse"),
-        (TYPE_CUSTOMER_INVOICE, "Facture client"),
-        (TYPE_CUSTOMER_CREDIT_NOTE, "Avoir client"),
-        (TYPE_SUPPLIER_INVOICE, "Facture fournisseur"),
-        (TYPE_SUPPLIER_CREDIT_NOTE, "Avoir fournisseur"),
+        (TYPE_ENTRY, _("Écriture diverse")),
+        (TYPE_CUSTOMER_INVOICE, _("Facture client")),
+        (TYPE_CUSTOMER_CREDIT_NOTE, _("Avoir client")),
+        (TYPE_SUPPLIER_INVOICE, _("Facture fournisseur")),
+        (TYPE_SUPPLIER_CREDIT_NOTE, _("Avoir fournisseur")),
     ]
 
     # Statut METIER de la facture (§5.1.5) — INDEPENDANT du `state`
@@ -525,14 +527,14 @@ class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     INVOICE_STATE_OVERDUE = "overdue"
     INVOICE_STATE_IN_DISPUTE = "in_dispute"
     INVOICE_STATE_CHOICES = [
-        (INVOICE_STATE_DRAFT, "Brouillon"),
-        (INVOICE_STATE_TO_VALIDATE, "A valider"),
-        (INVOICE_STATE_VALIDATED, "Validee"),
-        (INVOICE_STATE_PAID_PARTIALLY, "Payee partiellement"),
-        (INVOICE_STATE_PAID, "Payee"),
-        (INVOICE_STATE_CANCELLED, "Annulee"),
-        (INVOICE_STATE_OVERDUE, "En retard"),
-        (INVOICE_STATE_IN_DISPUTE, "En contentieux"),
+        (INVOICE_STATE_DRAFT, _("Brouillon")),
+        (INVOICE_STATE_TO_VALIDATE, _("A valider")),
+        (INVOICE_STATE_VALIDATED, _("Validée")),
+        (INVOICE_STATE_PAID_PARTIALLY, _("Payée partiellement")),
+        (INVOICE_STATE_PAID, _("Payée")),
+        (INVOICE_STATE_CANCELLED, _("Annulée")),
+        (INVOICE_STATE_OVERDUE, _("En retard")),
+        (INVOICE_STATE_IN_DISPUTE, _("En contentieux")),
     ]
 
     # T4 (EFA-6) — le TROISIÈME axe, et le cahier nomme ce piège en premier
@@ -559,11 +561,11 @@ class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     FISCAL_STATE_ACCEPTED = "accepte"
     FISCAL_STATE_REJECTED = "rejete"
     FISCAL_STATE_CHOICES = [
-        (FISCAL_STATE_NOT_CONCERNED, "Hors du champ de la facturation électronique"),
-        (FISCAL_STATE_TO_SUBMIT, "À soumettre"),
-        (FISCAL_STATE_AWAITING, "En attente de validation fiscale"),
-        (FISCAL_STATE_ACCEPTED, "Acceptée par l'administration"),
-        (FISCAL_STATE_REJECTED, "Rejetée par l'administration"),
+        (FISCAL_STATE_NOT_CONCERNED, _("Hors du champ de la facturation électronique")),
+        (FISCAL_STATE_TO_SUBMIT, _("À soumettre")),
+        (FISCAL_STATE_AWAITING, _("En attente de validation fiscale")),
+        (FISCAL_STATE_ACCEPTED, _("Acceptée par l'administration")),
+        (FISCAL_STATE_REJECTED, _("Rejetée par l'administration")),
     ]
 
     journal = models.ForeignKey(AccJournal, on_delete=models.PROTECT, related_name="moves")
@@ -691,8 +693,8 @@ class AccTax(BaseModel):
     TYPE_SALE = "sale"
     TYPE_PURCHASE = "purchase"
     TYPE_CHOICES = [
-        (TYPE_SALE, "Vente"),
-        (TYPE_PURCHASE, "Achat"),
+        (TYPE_SALE, _("Vente")),
+        (TYPE_PURCHASE, _("Achat")),
     ]
 
     code = models.CharField(max_length=16)
@@ -731,9 +733,9 @@ class AccPaymentTermLine(BaseModel):
     VALUE_TYPE_FIXED = "fixed"
     VALUE_TYPE_BALANCE = "balance"
     VALUE_TYPE_CHOICES = [
-        (VALUE_TYPE_PERCENT, "Pourcentage"),
-        (VALUE_TYPE_FIXED, "Montant fixe"),
-        (VALUE_TYPE_BALANCE, "Solde"),
+        (VALUE_TYPE_PERCENT, _("Pourcentage")),
+        (VALUE_TYPE_FIXED, _("Montant fixe")),
+        (VALUE_TYPE_BALANCE, _("Solde")),
     ]
 
     term = models.ForeignKey(AccPaymentTerm, on_delete=models.CASCADE, related_name="lines")
@@ -799,8 +801,8 @@ class AccPayment(BaseModel, ReferenceMixin):
     DIRECTION_INBOUND = "inbound"
     DIRECTION_OUTBOUND = "outbound"
     DIRECTION_CHOICES = [
-        (DIRECTION_INBOUND, "Encaissement"),
-        (DIRECTION_OUTBOUND, "Decaissement"),
+        (DIRECTION_INBOUND, _("Encaissement")),
+        (DIRECTION_OUTBOUND, _("Décaissement")),
     ]
 
     METHOD_CASH = "especes"
@@ -810,19 +812,19 @@ class AccPayment(BaseModel, ReferenceMixin):
     METHOD_PROMISSORY_NOTE = "traite"
     METHOD_COMPENSATION = "compensation"
     METHOD_CHOICES = [
-        (METHOD_CASH, "Especes"),
-        (METHOD_TRANSFER, "Virement"),
-        (METHOD_CHECK, "Cheque"),
-        (METHOD_MOBILE_MONEY, "Mobile money"),
-        (METHOD_PROMISSORY_NOTE, "Traite"),
-        (METHOD_COMPENSATION, "Compensation"),
+        (METHOD_CASH, _("Espèces")),
+        (METHOD_TRANSFER, _("Virement")),
+        (METHOD_CHECK, _("Chèque")),
+        (METHOD_MOBILE_MONEY, _("Mobile money")),
+        (METHOD_PROMISSORY_NOTE, _("Traite")),
+        (METHOD_COMPENSATION, _("Compensation")),
     ]
 
     STATE_DRAFT = "draft"
     STATE_POSTED = "posted"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_POSTED, "Publie"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_POSTED, _("Publié")),
     ]
 
     partner_id = models.UUIDField(null=True, blank=True)
@@ -919,17 +921,17 @@ class AccTaxCalendar(BaseModel):
     DECLARATION_IFPB = "ifpb"
     DECLARATION_ETATS_FINANCIERS = "etats_financiers"
     DECLARATION_TYPE_CHOICES = [
-        (DECLARATION_IRSA, "IRSA"),
-        (DECLARATION_TVA, "TVA"),
-        (DECLARATION_IR_ACOMPTE, "Acompte IR"),
-        (DECLARATION_IS_ANNUAL, "IS annuel"),
-        (DECLARATION_IR_ANNUAL, "IR annuel"),
-        (DECLARATION_IRCM, "IRCM"),
-        (DECLARATION_DCOM, "DCOM"),
-        (DECLARATION_TVM, "TVM"),
-        (DECLARATION_IFT, "IFT"),
-        (DECLARATION_IFPB, "IFPB"),
-        (DECLARATION_ETATS_FINANCIERS, "Depot des etats financiers"),
+        (DECLARATION_IRSA, _("IRSA")),
+        (DECLARATION_TVA, _("TVA")),
+        (DECLARATION_IR_ACOMPTE, _("Acompte IR")),
+        (DECLARATION_IS_ANNUAL, _("IS annuel")),
+        (DECLARATION_IR_ANNUAL, _("IR annuel")),
+        (DECLARATION_IRCM, _("IRCM")),
+        (DECLARATION_DCOM, _("DCOM")),
+        (DECLARATION_TVM, _("TVM")),
+        (DECLARATION_IFT, _("IFT")),
+        (DECLARATION_IFPB, _("IFPB")),
+        (DECLARATION_ETATS_FINANCIERS, _("Dépôt des états financiers")),
     ]
 
     PERIODICITY_MONTHLY = "monthly"
@@ -938,11 +940,11 @@ class AccTaxCalendar(BaseModel):
     PERIODICITY_ANNUAL = "annual"
     PERIODICITY_VARIABLE = "variable"
     PERIODICITY_CHOICES = [
-        (PERIODICITY_MONTHLY, "Mensuelle"),
-        (PERIODICITY_BIMONTHLY, "Bimestrielle"),
-        (PERIODICITY_SEMIANNUAL, "Semestrielle"),
-        (PERIODICITY_ANNUAL, "Annuelle"),
-        (PERIODICITY_VARIABLE, "Variable"),
+        (PERIODICITY_MONTHLY, _("Mensuelle")),
+        (PERIODICITY_BIMONTHLY, _("Bimestrielle")),
+        (PERIODICITY_SEMIANNUAL, _("Semestrielle")),
+        (PERIODICITY_ANNUAL, _("Annuelle")),
+        (PERIODICITY_VARIABLE, _("Variable")),
     ]
 
     declaration_type = models.CharField(max_length=24, choices=DECLARATION_TYPE_CHOICES)
@@ -973,23 +975,23 @@ class AccAsset(BaseModel, ReferenceMixin):
     CATEGORY_CORPORELLE = "corporelle"
     CATEGORY_FINANCIERE = "financiere"
     CATEGORY_CHOICES = [
-        (CATEGORY_INCORPORELLE, "Immobilisation incorporelle"),
-        (CATEGORY_CORPORELLE, "Immobilisation corporelle"),
-        (CATEGORY_FINANCIERE, "Immobilisation financiere"),
+        (CATEGORY_INCORPORELLE, _("Immobilisation incorporelle")),
+        (CATEGORY_CORPORELLE, _("Immobilisation corporelle")),
+        (CATEGORY_FINANCIERE, _("Immobilisation financière")),
     ]
 
     METHOD_LINEAIRE = "lineaire"
     METHOD_DEGRESSIF = "degressif"
     METHOD_CHOICES = [
-        (METHOD_LINEAIRE, "Lineaire"),
-        (METHOD_DEGRESSIF, "Degressif"),
+        (METHOD_LINEAIRE, _("Linéaire")),
+        (METHOD_DEGRESSIF, _("Dégressif")),
     ]
 
     STATE_ACTIVE = "active"
     STATE_DISPOSED = "disposed"
     STATE_CHOICES = [
-        (STATE_ACTIVE, "En service"),
-        (STATE_DISPOSED, "Cedee/mise au rebut"),
+        (STATE_ACTIVE, _("En service")),
+        (STATE_DISPOSED, _("Cédée/mise au rebut")),
     ]
 
     category = models.CharField(max_length=16, choices=CATEGORY_CHOICES)
@@ -1026,9 +1028,9 @@ class AccAssetMovement(BaseModel):
     MOVEMENT_DISPOSAL = "disposal"
     MOVEMENT_TRANSFER = "transfer"
     MOVEMENT_TYPE_CHOICES = [
-        (MOVEMENT_ACQUISITION, "Acquisition"),
-        (MOVEMENT_DISPOSAL, "Cession/mise au rebut"),
-        (MOVEMENT_TRANSFER, "Virement de poste a poste"),
+        (MOVEMENT_ACQUISITION, _("Acquisition")),
+        (MOVEMENT_DISPOSAL, _("Cession/mise au rebut")),
+        (MOVEMENT_TRANSFER, _("Virement de poste à poste")),
     ]
 
     asset = models.ForeignKey(AccAsset, on_delete=models.CASCADE, related_name="movements")
@@ -1209,8 +1211,8 @@ class AccVatDeclaration(BaseModel, ReferenceMixin):
     STATE_DRAFT = "draft"
     STATE_FILED = "filed"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_FILED, "Deposee"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_FILED, _("Déposée")),
     ]
 
     period = models.ForeignKey(AccPeriod, on_delete=models.PROTECT, related_name="+")
@@ -1269,8 +1271,8 @@ class AccVatDeclarationLine(BaseModel):
     SENS_COLLECTED = "collected"
     SENS_DEDUCTIBLE = "deductible"
     SENS_CHOICES = [
-        (SENS_COLLECTED, "TVA collectee"),
-        (SENS_DEDUCTIBLE, "TVA deductible"),
+        (SENS_COLLECTED, _("TVA collectée")),
+        (SENS_DEDUCTIBLE, _("TVA déductible")),
     ]
 
     declaration = models.ForeignKey(
@@ -1317,8 +1319,8 @@ class AccIrcmDeclaration(BaseModel, ReferenceMixin):
     STATE_DRAFT = "draft"
     STATE_FILED = "filed"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_FILED, "Deposee"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_FILED, _("Déposée")),
     ]
 
     fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="+")
@@ -1360,15 +1362,15 @@ class AccLocalTax(BaseModel, ReferenceMixin):
     TAX_TYPE_IFT = "ift"
     TAX_TYPE_IFPB = "ifpb"
     TAX_TYPE_CHOICES = [
-        (TAX_TYPE_IFT, "IFT — Impot foncier sur les terrains"),
-        (TAX_TYPE_IFPB, "IFPB — Impot foncier sur la propriete batie"),
+        (TAX_TYPE_IFT, _("IFT — Impôt foncier sur les terrains")),
+        (TAX_TYPE_IFPB, _("IFPB — Impôt foncier sur la propriété bâtie")),
     ]
 
     STATE_DRAFT = "draft"
     STATE_FILED = "filed"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_FILED, "Deposee"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_FILED, _("Déposée")),
     ]
 
     tax_type = models.CharField(max_length=16, choices=TAX_TYPE_CHOICES)
@@ -1426,8 +1428,8 @@ class AccBudget(BaseModel, ReferenceMixin):
     STATE_DRAFT = "draft"
     STATE_APPROVED = "approved"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_APPROVED, "Approuve"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_APPROVED, _("Approuvé")),
     ]
 
     fiscal_year = models.ForeignKey(AccFiscalYear, on_delete=models.PROTECT, related_name="budgets")
@@ -1540,15 +1542,15 @@ class AccMobileMoneyStatementLine(BaseModel):
     DIRECTION_IN = "in"
     DIRECTION_OUT = "out"
     DIRECTION_CHOICES = [
-        (DIRECTION_IN, "Entrant"),
-        (DIRECTION_OUT, "Sortant"),
+        (DIRECTION_IN, _("Entrant")),
+        (DIRECTION_OUT, _("Sortant")),
     ]
 
     STATE_UNMATCHED = "unmatched"
     STATE_MATCHED = "matched"
     STATE_CHOICES = [
-        (STATE_UNMATCHED, "Non rapproche"),
-        (STATE_MATCHED, "Rapproche"),
+        (STATE_UNMATCHED, _("Non rapproché")),
+        (STATE_MATCHED, _("Rapproché")),
     ]
 
     import_batch_id = models.UUIDField()
@@ -1599,17 +1601,17 @@ class AccBankStatementLine(BaseModel):
     DIRECTION_IN = "in"
     DIRECTION_OUT = "out"
     DIRECTION_CHOICES = [
-        (DIRECTION_IN, "Entrant"),
-        (DIRECTION_OUT, "Sortant"),
+        (DIRECTION_IN, _("Entrant")),
+        (DIRECTION_OUT, _("Sortant")),
     ]
 
     STATE_UNMATCHED = "unmatched"
     STATE_RULE_SUGGESTED = "rule_suggested"
     STATE_MATCHED = "matched"
     STATE_CHOICES = [
-        (STATE_UNMATCHED, "Non rapproche"),
-        (STATE_RULE_SUGGESTED, "Suggere par une regle"),
-        (STATE_MATCHED, "Rapproche"),
+        (STATE_UNMATCHED, _("Non rapproché")),
+        (STATE_RULE_SUGGESTED, _("Suggéré par une règle")),
+        (STATE_MATCHED, _("Rapproché")),
     ]
 
     bank_account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
@@ -1703,10 +1705,10 @@ class AccTransferOrder(BaseModel, ReferenceMixin):
     STATE_REMITTED = "remis"
     STATE_RECONCILED = "rapproche"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_EXPORTED, "Exporte"),
-        (STATE_REMITTED, "Remis a la banque"),
-        (STATE_RECONCILED, "Rapproche du debit"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_EXPORTED, _("Exporté")),
+        (STATE_REMITTED, _("Remis à la banque")),
+        (STATE_RECONCILED, _("Rapproché du débit")),
     ]
 
     #: D'ou vient l'ordre. Jamais une cle etrangere vers `payroll` ou
@@ -1717,9 +1719,9 @@ class AccTransferOrder(BaseModel, ReferenceMixin):
     ORIGIN_PURCHASE = "achats"
     ORIGIN_MANUAL = "saisie"
     ORIGIN_CHOICES = [
-        (ORIGIN_PAYROLL, "Paie"),
-        (ORIGIN_PURCHASE, "Achats"),
-        (ORIGIN_MANUAL, "Saisie manuelle"),
+        (ORIGIN_PAYROLL, _("Paie")),
+        (ORIGIN_PURCHASE, _("Achats")),
+        (ORIGIN_MANUAL, _("Saisie manuelle")),
     ]
 
     bank_account = models.ForeignKey(AccAccount, on_delete=models.PROTECT, related_name="+")
@@ -1838,16 +1840,16 @@ class AccLandedCostBatch(BaseModel, ReferenceMixin):
     METHOD_BY_WEIGHT = "by_weight"
     METHOD_BY_QUANTITY = "by_quantity"
     METHOD_CHOICES = [
-        (METHOD_BY_VALUE, "Par valeur"),
-        (METHOD_BY_WEIGHT, "Par poids"),
-        (METHOD_BY_QUANTITY, "Par quantite"),
+        (METHOD_BY_VALUE, _("Par valeur")),
+        (METHOD_BY_WEIGHT, _("Par poids")),
+        (METHOD_BY_QUANTITY, _("Par quantité")),
     ]
 
     STATE_DRAFT = "draft"
     STATE_FINALIZED = "finalized"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_FINALIZED, "Finalise"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_FINALIZED, _("Finalisé")),
     ]
 
     label = models.CharField(max_length=255)
@@ -2005,8 +2007,8 @@ class AccImportBatch(BaseModel):
     KIND_CASH_JOURNAL = "cash_journal"
     KIND_CHART_OF_ACCOUNTS = "chart_of_accounts"
     KIND_CHOICES = [
-        (KIND_CASH_JOURNAL, "Journal de caisse"),
-        (KIND_CHART_OF_ACCOUNTS, "Plan comptable"),
+        (KIND_CASH_JOURNAL, _("Journal de caisse")),
+        (KIND_CHART_OF_ACCOUNTS, _("Plan comptable")),
     ]
 
     kind = models.CharField(max_length=24, choices=KIND_CHOICES)
@@ -2061,13 +2063,13 @@ class AccImportRow(BaseModel):
     STATUS_RESOLVED = "resolved"
     STATUS_DISCARDED = "discarded"
     STATUS_CHOICES = [
-        (STATUS_OK, "Importee"),
-        (STATUS_NEEDS_QUALIFICATION, "À qualifier"),
-        (STATUS_PENDING_APPROVAL, "Qualification en attente d'approbation"),
-        (STATUS_QUALIFIED, "Qualifiée"),
-        (STATUS_UNRESOLVABLE, "Non résoluble — à corriger"),
-        (STATUS_RESOLVED, "Anomalie corrigée"),
-        (STATUS_DISCARDED, "Écartée"),
+        (STATUS_OK, _("Importée")),
+        (STATUS_NEEDS_QUALIFICATION, _("À qualifier")),
+        (STATUS_PENDING_APPROVAL, _("Qualification en attente d'approbation")),
+        (STATUS_QUALIFIED, _("Qualifiée")),
+        (STATUS_UNRESOLVABLE, _("Non résoluble — à corriger")),
+        (STATUS_RESOLVED, _("Anomalie corrigée")),
+        (STATUS_DISCARDED, _("Écartée")),
     ]
 
     batch = models.ForeignKey(AccImportBatch, on_delete=models.CASCADE, related_name="rows")
@@ -2114,7 +2116,7 @@ class AccInvoiceImportBatch(BaseModel):
     seule ne suffit pas a materialiser un document)."""
 
     KIND_CUSTOMER_SUPPLIER_INVOICES = "customer_supplier_invoices"
-    KIND_CHOICES = [(KIND_CUSTOMER_SUPPLIER_INVOICES, "Factures client/fournisseur")]
+    KIND_CHOICES = [(KIND_CUSTOMER_SUPPLIER_INVOICES, _("Factures client/fournisseur"))]
 
     kind = models.CharField(
         max_length=32, choices=KIND_CHOICES, default=KIND_CUSTOMER_SUPPLIER_INVOICES
@@ -2144,7 +2146,10 @@ class AccInvoiceImportRow(BaseModel):
 
     SENS_CLIENT = "client"
     SENS_FOURNISSEUR = "fournisseur"
-    SENS_CHOICES = [(SENS_CLIENT, "Facture client"), (SENS_FOURNISSEUR, "Facture fournisseur")]
+    SENS_CHOICES = [
+        (SENS_CLIENT, _("Facture client")),
+        (SENS_FOURNISSEUR, _("Facture fournisseur")),
+    ]
 
     STATUS_OK = "ok"
     STATUS_NEEDS_QUALIFICATION = "needs_qualification"
@@ -2153,12 +2158,12 @@ class AccInvoiceImportRow(BaseModel):
     STATUS_UNRESOLVABLE = "unresolvable"
     STATUS_DISCARDED = "discarded"
     STATUS_CHOICES = [
-        (STATUS_OK, "Importée"),
-        (STATUS_NEEDS_QUALIFICATION, "À qualifier"),
-        (STATUS_PENDING_APPROVAL, "Qualification en attente d'approbation"),
-        (STATUS_QUALIFIED, "Qualifiée"),
-        (STATUS_UNRESOLVABLE, "Non résoluble — à corriger"),
-        (STATUS_DISCARDED, "Écartée"),
+        (STATUS_OK, _("Importée")),
+        (STATUS_NEEDS_QUALIFICATION, _("À qualifier")),
+        (STATUS_PENDING_APPROVAL, _("Qualification en attente d'approbation")),
+        (STATUS_QUALIFIED, _("Qualifiée")),
+        (STATUS_UNRESOLVABLE, _("Non résoluble — à corriger")),
+        (STATUS_DISCARDED, _("Écartée")),
     ]
 
     batch = models.ForeignKey(AccInvoiceImportBatch, on_delete=models.CASCADE, related_name="rows")
@@ -2245,16 +2250,21 @@ class AccPaymentIntent(BaseModel, ReferenceMixin):
     STATE_EXPIRED = "expiree"
     STATE_CANCELLED = "annulee"
     STATE_CHOICES = [
-        (STATE_CREATED, "Creee"),
-        (STATE_SENT, "Transmise au payeur"),
-        (STATE_SETTLED, "Reglee"),
-        (STATE_EXPIRED, "Expiree"),
-        (STATE_CANCELLED, "Annulee"),
+        (STATE_CREATED, _("Créée")),
+        (STATE_SENT, _("Transmise au payeur")),
+        (STATE_SETTLED, _("Réglée")),
+        (STATE_EXPIRED, _("Expirée")),
+        (STATE_CANCELLED, _("Annulée")),
     ]
 
     document_type = models.CharField(max_length=64)
     document_id = models.UUIDField()
-    provider_code = models.CharField(max_length=32)
+    # **Le jeu ferme existait, accentue, et le champ l'ignorait.**
+    # `PROVIDER_CHOICES` est declare dans `services/payment_providers.py`
+    # depuis T5 ; sans `choices=`, Django n'expose aucun
+    # `get_provider_code_display()`, et l'ecran comme l'export rendaient le
+    # CODE brut — « mvola » la ou le produit sait dire « MVola ».
+    provider_code = models.CharField(max_length=32, choices=PROVIDER_CHOICES)
     amount = models.DecimalField(max_digits=18, decimal_places=4)
     currency = models.CharField(max_length=3, default="MGA")
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_CREATED)
@@ -2317,12 +2327,17 @@ class AccAggregatorPayout(BaseModel, ReferenceMixin):
     STATE_SETTLED = "regle"
     STATE_DISPUTED = "conteste"
     STATE_CHOICES = [
-        (STATE_ANNOUNCED, "Annonce par l'agregateur"),
-        (STATE_SETTLED, "Rapproche et comptabilise"),
-        (STATE_DISPUTED, "Conteste"),
+        (STATE_ANNOUNCED, _("Annoncé par l'agrégateur")),
+        (STATE_SETTLED, _("Rapproché et comptabilisé")),
+        (STATE_DISPUTED, _("Contesté")),
     ]
 
-    provider_code = models.CharField(max_length=32)
+    # **Le jeu ferme existait, accentue, et le champ l'ignorait.**
+    # `PROVIDER_CHOICES` est declare dans `services/payment_providers.py`
+    # depuis T5 ; sans `choices=`, Django n'expose aucun
+    # `get_provider_code_display()`, et l'ecran comme l'export rendaient le
+    # CODE brut — « mvola » la ou le produit sait dire « MVola ».
+    provider_code = models.CharField(max_length=32, choices=PROVIDER_CHOICES)
     #: Ce que l'AGREGATEUR appelle ce versement — contrairement a
     #: `AccPaymentIntent.external_reference`, celle-ci vient bien de lui :
     #: c'est lui qui verse, et nous ne pouvons pas nommer un mouvement que
@@ -2400,10 +2415,10 @@ class AccPaymentNotification(BaseModel):
     STATE_DUPLICATE = "doublon"
     STATE_REJECTED = "refusee"
     STATE_CHOICES = [
-        (STATE_MATCHED, "Rapprochee"),
-        (STATE_ORPHAN, "En attente de rapprochement"),
-        (STATE_DUPLICATE, "Doublon"),
-        (STATE_REJECTED, "Refusee"),
+        (STATE_MATCHED, _("Rapprochée")),
+        (STATE_ORPHAN, _("En attente de rapprochement")),
+        (STATE_DUPLICATE, _("Doublon")),
+        (STATE_REJECTED, _("Refusée")),
     ]
 
     intent = models.ForeignKey(
@@ -2416,7 +2431,12 @@ class AccPaymentNotification(BaseModel):
     payment = models.ForeignKey(
         AccPayment, null=True, blank=True, on_delete=models.PROTECT, related_name="notifications"
     )
-    provider_code = models.CharField(max_length=32)
+    # **Le jeu ferme existait, accentue, et le champ l'ignorait.**
+    # `PROVIDER_CHOICES` est declare dans `services/payment_providers.py`
+    # depuis T5 ; sans `choices=`, Django n'expose aucun
+    # `get_provider_code_display()`, et l'ecran comme l'export rendaient le
+    # CODE brut — « mvola » la ou le produit sait dire « MVola ».
+    provider_code = models.CharField(max_length=32, choices=PROVIDER_CHOICES)
     external_reference = models.CharField(max_length=128, db_index=True)
     amount = models.DecimalField(max_digits=18, decimal_places=4)
     currency = models.CharField(max_length=3, default="MGA")

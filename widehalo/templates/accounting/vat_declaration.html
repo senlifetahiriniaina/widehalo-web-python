@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% load l10n %}
+{% load currency %}
 {% block title %}{% trans "Déclaration de TVA" %} — WideHalo{% endblock %}
 {% block content %}
   <c-breadcrumb>
@@ -47,17 +48,17 @@
         <tbody>
           <tr>
             <td>{% trans "TVA collectée" %}</td>
-            <td>{{ declaration.collected_mga|unlocalize }}</td>
-            <td>{{ declaration.collected_books_mga|unlocalize }}</td>
+            <td>{{ declaration.collected_mga|mga }}</td>
+            <td>{{ declaration.collected_books_mga|mga }}</td>
           </tr>
           <tr>
             <td>{% trans "TVA déductible" %}</td>
-            <td>{{ declaration.deductible_mga|unlocalize }}</td>
-            <td>{{ declaration.deductible_books_mga|unlocalize }}</td>
+            <td>{{ declaration.deductible_mga|mga }}</td>
+            <td>{{ declaration.deductible_books_mga|mga }}</td>
           </tr>
           <tr>
             <td><strong>{% trans "Net" %}</strong></td>
-            <td><strong>{{ declaration.net_mga|unlocalize }}</strong></td>
+            <td><strong>{{ declaration.net_mga|mga }}</strong></td>
             <td></td>
           </tr>
         </tbody>
@@ -77,7 +78,7 @@
         {% endif %}
       {% else %}
         <p class="form-error">
-          {% trans "Écart" %} : <strong>{{ declaration.ecart_mga|unlocalize }} Ar</strong> —
+          {% trans "Écart" %} : <strong>{{ declaration.ecart_mga|mga }} Ar</strong> —
           {% trans "le dépôt est refusé tant qu'il subsiste." %}
         </p>
       {% endif %}
@@ -103,8 +104,8 @@
                 <td>{{ ligne.date }}</td>
                 <td>{{ ligne.reference }}</td>
                 <td>{{ ligne.libelle }}</td>
-                <td>{{ ligne.debit_mga|unlocalize }}</td>
-                <td>{{ ligne.credit_mga|unlocalize }}</td>
+                <td>{{ ligne.debit_mga|mga }}</td>
+                <td>{{ ligne.credit_mga|mga }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -130,9 +131,9 @@
             <tr>
               <td>{{ ligne.tax.code }}</td>
               <td>{{ ligne.get_sens_display }}</td>
-              <td>{{ ligne.base_mga|unlocalize }}</td>
-              <td>{{ ligne.tax_mga|unlocalize }}</td>
-              <td>{{ ligne.books_mga|unlocalize }}</td>
+              <td>{{ ligne.base_mga|mga }}</td>
+              <td>{{ ligne.tax_mga|mga }}</td>
+              <td>{{ ligne.books_mga|mga }}</td>
               <td>{{ ligne.move_line_count }}</td>
             </tr>
           {% empty %}
@@ -170,9 +171,9 @@
               <td>{{ ligne.reference }}</td>
               <td>{{ ligne.libelle }}</td>
               <td>{{ ligne.taxe }}</td>
-              <td>{{ ligne.base_mga|unlocalize }}</td>
-              <td>{{ ligne.debit_mga|unlocalize }}</td>
-              <td>{{ ligne.credit_mga|unlocalize }}</td>
+              <td>{{ ligne.base_mga|mga }}</td>
+              <td>{{ ligne.debit_mga|mga }}</td>
+              <td>{{ ligne.credit_mga|mga }}</td>
               <td>{{ ligne.classe_pcg }}</td>
             </tr>
           {% empty %}

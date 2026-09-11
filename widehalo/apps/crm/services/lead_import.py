@@ -45,6 +45,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import transaction
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.tenant import Tenant
 from apps.core.services.import_wizard import RowError
@@ -108,9 +109,11 @@ def import_leads_xlsx(
     index = _index_des_colonnes(entete)
     if "name" not in index:
         raise ValueError(
-            "Colonne « Nom » absente du fichier : c'est la seule information "
-            "sans laquelle une opportunite n'a pas de sens. Telechargez le "
-            "modele pour retrouver les en-tetes attendus."
+            _(
+                "Colonne « Nom » absente du fichier : c'est la seule information "
+                "sans laquelle une opportunité n'a pas de sens. Téléchargez le "
+                "modèle pour retrouver les en-têtes attendus."
+            )
         )
 
     resume = CrmLeadImportSummary(total_rows=len(lignes))

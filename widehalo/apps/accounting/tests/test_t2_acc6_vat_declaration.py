@@ -337,7 +337,15 @@ def test_the_screen_shows_the_gap_and_where_it_comes_from(societe, contexte) -> 
     assert "Rappel a justifier" in corps, (
         "L'écran n'affiche pas la ligne non justifiée : l'écart est annoncé sans dire où chercher."
     )
-    assert "12345" in corps
+    # **Le montant s'affiche au format francais, pas en chiffres bruts.**
+    # Ce test cherchait « 12345 » ; l'ecran rend desormais « 12 345 Ar »,
+    # separateur de milliers insecable compris. La forme attendue est ecrite
+    # ICI, a la main, et non calculee par le filtre qu'elle surveille — un
+    # jeu ferme ne se verifie jamais contre sa propre source.
+    assert "12\u00a0345\u00a0Ar" in corps, (
+        "Le rappel ne s'affiche pas au format de la locale : l'ecran parle "
+        "encore en chiffres bruts."
+    )
     assert "44571" not in corps, (
         "Le numéro de compte complet figure à l'écran — §9.2 ne le tolère dans aucune trace."
     )

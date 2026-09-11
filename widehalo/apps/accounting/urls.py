@@ -55,6 +55,11 @@ urlpatterns = [
         name="payment_intent_reemit",
     ),
     path(
+        "payments/payouts/announce/",
+        views_payments.aggregator_payout_announce,
+        name="payout_announce",
+    ),
+    path(
         "payments/payouts/<uuid:payout_id>/settle/",
         views_payments.aggregator_payout_settle,
         name="payout_settle",
