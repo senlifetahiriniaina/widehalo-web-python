@@ -20,6 +20,7 @@ Quatre propriétés, chacune vérifiée sur ce qui ARRIVE AU NAVIGATEUR :
 from __future__ import annotations
 
 import datetime as dt
+import re
 import uuid
 
 import pytest
@@ -28,6 +29,7 @@ from apps.core.models.ui import ScreenPreference
 from apps.core.models.user import User, UserTenantMembership
 from apps.core.services.presentation import column_of
 from apps.core.tests.utils import grant_module_access, use_tenant
+from apps.sales.models import SalesOrder
 from apps.sales.services.orders import create_order
 from django.test import Client
 
@@ -82,24 +84,46 @@ def test_the_toggle_overrides_and_the_choice_survives() -> None:
     )
 
 
-def test_the_board_and_the_list_agree_on_where_a_row_belongs() -> None:
-    """La propriété qui fait tenir tout le lot.
+def test_a_row_lands_in_the_column_its_projection_names() -> None:
+    """La propriété qui fait tenir tout le lot, vérifiée À L'ÉCRAN.
 
-    Le kanban groupe par `column_of` ; la liste affiche
-    `statut_operationnel`, qui appelle le même `column_of`. Si les deux
-    divergeaient, l'écran se contredirait d'une vue à l'autre."""
-    _client, tenant, _user = _client_et_societe()
+    La version précédente de ce test comparait deux appels de `column_of`
+    entre eux : elle aurait passé même si le gabarit rangeait toutes les
+    cartes dans la première colonne. Ce qui doit être vrai, c'est que la
+    carte se trouve DANS la section que la projection nomme — et dans
+    aucune autre.
+
+    Que la cellule de liste et la carte disent le même mot est vérifié par
+    `test_c4_listes_lisibles.py`, sur les deux rendus."""
+    client, tenant, _user = _client_et_societe()
     with use_tenant(tenant.id):
-        commande = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        attendue = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        sans_suite = create_order(tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today())
+        sans_suite.state = SalesOrder.STATE_CANCELLED
+        sans_suite.save(update_fields=["state"])
 
-    colonne = column_of(commande)
-    assert colonne == "en_attente", (
-        f"Une commande en brouillon devrait être en attente ; reçu {colonne}."
+    assert column_of(attendue) == "en_attente" and column_of(sans_suite) == "sans_suite", (
+        "Le jeu d'essai ne couvre plus deux colonnes distinctes."
     )
-    assert commande.statut_operationnel == "En attente", (
-        f"La liste afficherait « {commande.statut_operationnel} » là où le kanban range "
-        f"la carte dans « {colonne} » : les deux vues se contredisent."
-    )
+
+    contenu = client.get("/sales/orders/?presentation=kanban").content.decode()
+    sections = re.findall(r"<section class=\"panel\".*?</section>", contenu, re.S)
+    assert len(sections) == 5, f"Le tableau ne rend pas ses cinq colonnes ({len(sections)})."
+
+    # **Deux lignes de colonnes DIFFERENTES, et c'est une leçon payée.** La
+    # première version de ce test n'avait qu'une commande en brouillon,
+    # c'est-à-dire dans la PREMIERE colonne : la falsification F104, qui
+    # jetait toutes les cartes dans la première colonne, ne l'a pas fait
+    # tomber. Un test qui passe pour la mauvaise raison est pire qu'aucun.
+    for commande, libelle in ((attendue, "En attente"), (sans_suite, "Sans suite")):
+        portant = [section for section in sections if commande.reference in section]
+        assert len(portant) == 1, (
+            f"La commande {commande.reference} apparaît dans {len(portant)} colonnes au lieu d'une."
+        )
+        assert libelle in portant[0], (
+            f"La commande {commande.reference} n'est pas dans la colonne « {libelle} » que sa "
+            "projection lui donne."
+        )
 
 
 def test_a_document_without_a_process_stays_a_list() -> None:

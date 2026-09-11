@@ -40,6 +40,23 @@ n'est pas un contournement de la garde : c'est l'etape qui restait a faire
 quand le defaut a ete corrige, et qui a laisse le job `e2e` rouge
 entre-temps.
 
+**Pourquoi cette capture demande desormais `?presentation=liste`.** C-4 a
+rendu la presentation par defaut DERIVEE du processus : un document qui
+declare une projection d'etats s'ouvre en kanban. `accounting.AccMove` en
+declare une, donc `/accounting/` s'ouvre en kanban et cette capture
+photographiait un tableau -- alors que la famille qu'elle est chargee de
+surveiller, celle que le premier paragraphe nomme, est « un ecran de liste
+SmartTable ». La laisser suivre le defaut aurait coute la seule garde
+visuelle de cette famille et fait mentir son nom ; le parametre la remet
+sur son sujet, et la bascule qu'il emprunte est celle de l'utilisateur, pas
+une porte de test.
+
+La reference est regeneree avec ce changement, et pour une seconde raison
+qui vaut independamment : la liste elle-meme a change de mise en page. Elle
+porte maintenant la bascule liste/kanban et la colonne « Statut » que C-4
+ajoute aux listes d'operations. Une reference visuelle est un instantane du
+rendu ATTENDU -- l'ancienne montrait un ecran qui n'existe plus.
+
 Deux enseignements pour la suite. D'abord, la tolerance elargie ci-dessous
 n'a JAMAIS pu s'appliquer a ces deux fichiers : la comparaison de
 DIMENSIONS echoue avant tout calcul de ratio. Ensuite, une reference
@@ -146,7 +163,7 @@ def test_launchpad_visual_snapshot(logged_in_page, live_server) -> None:
 
 def test_smart_table_list_visual_snapshot(logged_in_page, live_server) -> None:
     page = logged_in_page
-    _goto_bypassing_service_worker(page, f"{live_server.url}/accounting/")
+    _goto_bypassing_service_worker(page, f"{live_server.url}/accounting/?presentation=liste")
     _assert_matches_snapshot(page, "accounting-list.png")
 
 

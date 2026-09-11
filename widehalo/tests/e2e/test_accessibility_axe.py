@@ -112,10 +112,32 @@ def test_launchpad_has_no_blocking_axe_violations(logged_in_page, live_server) -
 
 def test_smart_table_list_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
     """Ecran de liste pilote par le moteur SmartTable (pagination, tri,
-    recherche, export) -- composant reutilise par ~30 ecrans."""
+    recherche, export) -- composant reutilise par ~30 ecrans.
+
+    `?presentation=liste` est demande explicitement depuis C-4 : la
+    presentation par defaut se derive desormais du processus, et
+    `accounting.AccMove` declarant une projection d'etats, `/accounting/`
+    s'ouvre en kanban. Sans ce parametre, ce test auditerait un tableau et
+    le composant qu'il nomme -- celui de ~30 ecrans -- n'aurait plus aucun
+    audit d'accessibilite, sans qu'une seule ligne ne devienne rouge."""
     page = logged_in_page
-    _goto_bypassing_service_worker(page, f"{live_server.url}/accounting/")
+    _goto_bypassing_service_worker(page, f"{live_server.url}/accounting/?presentation=liste")
     _assert_no_blocking_violations(page, "accounting:list (SmartTable)")
+
+
+def test_kanban_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:
+    """L'autre presentation du meme ecran (C-4), devenue le defaut de cinq
+    listes d'operations.
+
+    Ce test n'est pas une precaution : la bande de colonnes defile
+    horizontalement, et la premiere version du composant n'etait pas
+    atteignable au clavier -- `scrollable-region-focusable`, classee
+    « serious ». Le defaut a ete trouve parce que ce chemin etait audite par
+    accident, le kanban ayant pris la place de la liste ; le nommer rend la
+    couverture deliberee plutot que chanceuse."""
+    page = logged_in_page
+    _goto_bypassing_service_worker(page, f"{live_server.url}/accounting/?presentation=kanban")
+    _assert_no_blocking_violations(page, "accounting:list (kanban)")
 
 
 def test_form_create_screen_has_no_blocking_axe_violations(logged_in_page, live_server) -> None:

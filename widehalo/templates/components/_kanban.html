@@ -50,7 +50,16 @@ pas l'état. Un magasinier doit pouvoir distinguer « en transit » de
   </div>
 </div>
 
-<div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
+{% comment %} `tabindex="0"` n'est pas décoratif : cette bande défile
+  horizontalement (`overflow-x:auto`), et sans lui un utilisateur au clavier
+  ne peut pas atteindre les colonnes de droite. L'audit axe le classe
+  « serious » (`scrollable-region-focusable`), et il avait raison — le
+  défaut a été introduit par ce lot et trouvé par la passe complète, pas par
+  la relecture. `role="region"` et le nom accessible vont avec : une zone
+  focalisable sans nom ne dit pas au lecteur d'écran ce qu'on y trouve.
+{% endcomment %}
+<div role="region" aria-label="{% trans 'Tableau par étape' %}" tabindex="0"
+     style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
   {% for colonne in colonnes_kanban %}
     <section class="panel" style="min-width:15rem; flex:1 0 15rem;"
              aria-label="{{ colonne.libelle }}">

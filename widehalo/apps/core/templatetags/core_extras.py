@@ -18,8 +18,25 @@ register = template.Library()
 def get_attribute(obj: Any, key: str) -> Any:
     """Acces dynamique a un attribut par nom de champ (utilise par le
     composant SmartTable, dont les colonnes sont declarees comme de simples
-    chaines cote vue)."""
-    return getattr(obj, key, "")
+    chaines cote vue).
+
+    **Un champ vide s'affiche vide, jamais « None ».** Mesure sur la liste
+    des commandes : la colonne « Commercial » d'une commande sans commercial
+    affichait le mot `None` — le `repr` Python d'une absence, servi tel quel
+    a l'exploitant. L'export, lui, rendait deja une cellule vide
+    (`_format_export_cell`) : c'est l'ecran qui divergeait de son propre
+    export."""
+    valeur = getattr(obj, key, "")
+    if valeur is None:
+        return ""
+    # **Un champ a jeu ferme s'affiche par son libelle, jamais par son
+    # code.** Mesure sur `/sales/orders/` : la colonne « Statut » rendait
+    # `draft` — le code technique anglais servi a un exploitant
+    # francophone. Django expose deja `get_FOO_display()` pour exactement
+    # ces champs-la, et son absence distingue d'elle-meme un champ sans
+    # `choices` : aucune liste de colonnes a tenir a jour par ecran.
+    libelle = getattr(obj, f"get_{key}_display", None)
+    return libelle() if callable(libelle) else valeur
 
 
 @register.filter(name="smart_table_dom_id")

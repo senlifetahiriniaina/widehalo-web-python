@@ -4,8 +4,9 @@
 paraissent distinctes : un kanban dont les colonnes suivent le processus,
 et un statut lisible sur chaque ligne des listes d'operations. Ce sont la
 MEME donnee vue de deux facons. Une seule declaration par document sert
-les deux : les colonnes du kanban et la colonne « Statut » de la liste
-sortent d'ici.
+les deux : le champ d'etat qu'elle nomme donne les colonnes du kanban
+(`column_of`) et le statut ecrit sur chaque ligne
+(`StatutOperationnelMixin`).
 
 **Pourquoi une projection, et pas les etats eux-memes.** Mesure sur les
 `choices` reels : `SalesOrder.state` a 10 etats, `LogShipment.state` 10,
@@ -32,7 +33,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from django.utils.translation import gettext_lazy as _
 
@@ -101,40 +102,61 @@ def registered_boards() -> frozenset[str]:
 def column_of(instance: Any) -> str | None:
     """La colonne metier de cet objet, ou `None` s'il n'en a pas.
 
-    **Sert les DEUX presentations** : c'est le groupe de la carte en
-    kanban, et la valeur de la colonne « Statut » en liste. Un objet rangé
-    a un endroit en kanban et a un autre en liste serait un ecran qui se
-    contredit."""
+    C'est le groupe de la carte en kanban. Le statut ecrit sur la ligne,
+    lui, est `StatutOperationnelMixin.statut_operationnel` — les deux se
+    lisent sur le MEME champ, si bien qu'une ligne rangee dans « Bloque »
+    ne peut pas porter un statut qui la dirait ailleurs."""
     board = _BOARDS.get(instance._meta.label)
     if board is None:
         return None
     return board.par_etat.get(getattr(instance, board.state_field, ""))
 
 
-def column_label(code: str) -> Any:
-    """Le libelle lisible d'une colonne."""
-    for candidat, libelle in COLONNES:
-        if candidat == code:
-            return libelle
-    return code
-
-
 class StatutOperationnelMixin:
-    """Donne a un modele la propriete `statut_operationnel`.
+    """Donne a un modele la propriete `statut_operationnel` : le statut
+    LISIBLE d'une ligne d'operation.
+
+    **Ce que la mesure a corrige, et pourquoi cette propriete ne rend pas
+    la colonne du kanban.** La premiere version rendait le libelle de la
+    colonne metier — « En attente », « En cours ». Mesure sur l'ecran
+    produit : la carte du kanban affichait alors, sous son titre,
+    exactement le mot deja ecrit en tete de la colonne qui la contient. Du
+    decor qui a l'air d'informer. Cette propriete rend donc l'etat PROPRE
+    de la ligne (« Brouillon », « Confirmee », « Annulee ») : le kanban
+    groupe en cinq colonnes metier, et chaque carte dit ou elle en est a
+    l'interieur de sa colonne.
+
+    **Et elle rend la liste lisible, ce qui etait la demande.** Mesure sur
+    `/sales/orders/` : la colonne « Statut » etait declaree `key="state"`,
+    donc rendue par `getattr` — elle affichait `draft`, le code technique
+    anglais, dans une interface francaise. Le statut EXISTAIT sans etre
+    lisible ; c'est l'entete que ma mesure precedente avait comptee, pas sa
+    valeur.
 
     **Pourquoi une propriete de modele.** Le composant de liste lit ses
     cellules par `getattr` — a l'affichage comme a l'export, et
     `_export_response` le documente : une colonne appuyee sur une
     `@property` (patron `Partner.roles_display`) fonctionne aux deux
-    endroits, la ou `queryset.values()` echouerait. Une colonne « Statut »
-    n'est donc pas un champ de base a ajouter par migration : c'est une
-    lecture de la projection deja declaree.
+    endroits, la ou `queryset.values()` echouerait.
 
-    **C'est la MEME valeur que la colonne du kanban.** Une ligne rangee
-    dans « Bloque » au tableau et affichee « En cours » en liste serait un
-    ecran qui se contredit ; les deux passent par `column_of`."""
+    **Les deux presentations disent alors le MEME mot pour la meme ligne**,
+    la cellule de la liste et la carte du tableau lisant toutes deux cette
+    propriete — et `column_of`, qui range la carte, se derive du meme
+    champ. Un ecran qui se contredirait serait pire que pas de kanban."""
 
     @property
     def statut_operationnel(self) -> str:
-        code = column_of(self)
-        return str(column_label(code)) if code else ""
+        # Ce mixin est toujours melange a un `Model` — le cast dit a mypy ce
+        # que la declaration de classe ne peut pas lui dire sans imposer une
+        # base commune a des modeles de quatre modules.
+        instance = cast(Any, self)
+        board = board_for(instance._meta.label)
+        if board is None:
+            return ""
+        # `get_FOO_display` n'existe que si le champ porte des `choices` ;
+        # sans elles, le code brut reste la seule valeur disponible et vaut
+        # mieux qu'une cellule vide.
+        libelle = getattr(instance, f"get_{board.state_field}_display", None)
+        if libelle is None:
+            return str(getattr(instance, board.state_field, ""))
+        return str(libelle())

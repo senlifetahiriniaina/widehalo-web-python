@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import FieldDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
@@ -126,6 +127,12 @@ def _format_export_cell(row: Any, column: Column) -> str:
                 return str(formatter(value))
             except (ValueError, TypeError):
                 pass
+    # Un champ a jeu ferme part par son libelle, comme a l'ecran : un export
+    # qui dirait `draft` la ou la page dit « Brouillon » obligerait le
+    # lecteur a tenir la correspondance de tete.
+    libelle = getattr(row, f"get_{column.key}_display", None)
+    if callable(libelle):
+        return str(libelle())
     return "" if value is None else str(value)
 
 
@@ -187,6 +194,44 @@ def _export_response(
     return response
 
 
+def _is_orderable(model: Any, key: str) -> bool:
+    """`key` designe-t-elle quelque chose que la base sait trier ?
+
+    **Mesure, pas precaution.** Chaque entete de colonne est un lien de tri
+    (`sort=column.key`), et `order_by` sur une colonne appuyee sur une
+    `@property` leve `FieldError` — donc 500. La liste des tiers declare
+    `Column(key="roles_display")`, une propriete : un clic sur son entete
+    suffisait. Le meme 500 s'atteignait sur n'importe quel ecran par un
+    `?sort=` fabrique, aucune valeur n'etant verifiee.
+
+    Les chemins de relation restent triables (`template__name`, declare par
+    l'ecran qualite) : le predicat marche le chemin segment par segment
+    plutot que d'exiger un champ local. Le prefixe descendant est accepte —
+    une vue sauvegardee peut porter `-created_at`, et le refuser ici
+    reviendrait a effacer silencieusement un tri que l'utilisateur a
+    enregistre."""
+    segments = key.removeprefix("-").split("__")
+    for index, segment in enumerate(segments):
+        try:
+            field = model._meta.get_field(segment)
+        except FieldDoesNotExist:
+            return False
+        if index < len(segments) - 1:
+            related = getattr(field, "related_model", None)
+            if related is None:
+                return False
+            model = related
+    return True
+
+
+def orderable_column_keys(model: Any, columns: list[Column]) -> list[str]:
+    """Les colonnes dont l'entete peut legitimement porter un lien de tri.
+
+    Le gabarit s'en sert pour ne PAS proposer un tri qui echouerait : un
+    lien qui ne trie pas est du decor, et celui-la rendait 500."""
+    return [column.key for column in columns if _is_orderable(model, column.key)]
+
+
 def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) -> QuerySet[Any]:
     if not query:
         return queryset
@@ -229,7 +274,12 @@ def smart_table_response(
         page_size = DEFAULT_PAGE_SIZE
 
     queryset = _apply_search(queryset, columns, query)
-    queryset = queryset.order_by(sort) if sort else queryset.order_by("-created_at")
+    # Un tri demande n'est honore que si la base sait l'executer. Sinon on
+    # retombe sur l'ordre par defaut — jamais un 500, meme geste que pour
+    # `page_size` hors du jeu autorise.
+    triables = orderable_column_keys(queryset.model, columns)
+    honore = bool(sort) and _is_orderable(queryset.model, sort)
+    queryset = queryset.order_by(sort) if honore else queryset.order_by("-created_at")
 
     export_format = request.GET.get("export")
     if export_format in EXPORT_FORMATS:
@@ -258,6 +308,7 @@ def smart_table_response(
         "page_obj": page_obj,
         "query": query,
         "sort": sort,
+        "sortable_keys": triables,
         "page_size": page_size,
         "page_size_options": ALLOWED_PAGE_SIZES,
         "saved_views": saved_views,

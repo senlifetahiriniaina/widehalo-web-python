@@ -86,6 +86,12 @@
           {% endif %}
           {% for column in columns %}
             <th scope="col" {% if column.format|is_numeric_column_format %}class="col-num"{% endif %} {% if sort == column.key %}aria-sort="ascending"{% endif %}>
+              {% comment %}Le lien de tri n'est pose que si la base sait trier cette
+                colonne. Une colonne appuyee sur une `@property` — la liste des tiers
+                en declare une — faisait lever `FieldError` a `order_by`, donc 500 au
+                premier clic sur son entete. Mesure faite, pas supposee. Un entete
+                sans lien vaut mieux qu'un lien qui casse.{% endcomment %}
+              {% if column.key in sortable_keys %}
               <a hx-get="{{ request.path }}?{% smart_table_query query=query hide=hidden_columns sort=column.key page_size=page_size %}"
                  hx-target="#{{ dom_id }}"
                  hx-select="#{{ dom_id }}"
@@ -93,6 +99,7 @@
                  hx-push-url="true">{{ column.label }}{% if sort == column.key %}
                  <svg class="ic ic-sm" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-chevron-right" style="transform:rotate(-90deg);"></use></svg><span class="sr-only">{% trans "(tri actif)" %}</span>
                  {% endif %}</a>
+              {% else %}{{ column.label }}{% endif %}
             </th>
           {% endfor %}
         </tr>
