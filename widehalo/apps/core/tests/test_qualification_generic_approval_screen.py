@@ -156,3 +156,49 @@ def test_generic_decide_endpoint_marks_the_import_row_qualified(qualification_se
     with use_tenant(tenant.id):
         row = AccImportRow.objects.get(id=qualification_setup["row_id"])
         assert row.status == AccImportRow.STATUS_QUALIFIED
+
+
+def test_the_validation_screen_propagates_exactly_like_the_endpoint(qualification_setup) -> None:
+    """D-B — décider depuis l'écran doit produire le MÊME effet que l'API.
+
+    L'écran « Mes validations » a été construit parce qu'aucune page ne
+    décidait une demande. S'il se contentait d'enregistrer la décision sans
+    répercuter sur la pièce, une ligne d'import approuvée resterait en
+    attente de qualification pour toujours — et rien ne le dirait.
+
+    La falsification F111 remplace `decide_and_propagate` par `decide` dans
+    la vue : sur une facture elle ne mord pas, les deux étant identiques
+    faute de crochet. Sur une ligne d'import, elle mord. C'est ce test qui
+    la rend mordante, et c'est pour cela qu'il vit ici, avec le jeu d'essai
+    qui porte un crochet."""
+    from django_otp.oath import totp
+
+    from apps.core.services import mfa as mfa_service
+
+    tenant = qualification_setup["tenant"]
+    approbateur = qualification_setup["approver"]
+
+    client = Client()
+    reponse = client.post("/login/", {"email": approbateur.email, "password": "Str0ngPassw0rd!23"})
+    assert reponse.status_code == 302, reponse.content
+    if mfa_service.mfa_required_for_user(approbateur):
+        client.get("/mfa/")
+        device = mfa_service.enroll_device(approbateur)
+        reponse = client.post("/mfa/", {"token": str(totp(device.bin_key)).zfill(6)})
+        assert reponse.status_code == 302, reponse.content
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    reponse = client.post(
+        "/approvals/",
+        {"request_id": qualification_setup["approval_request_id"], "action": "approve"},
+    )
+    assert reponse.status_code == 302, reponse.content[:400]
+
+    with use_tenant(tenant.id):
+        row = AccImportRow.objects.get(id=qualification_setup["row_id"])
+    assert row.status == AccImportRow.STATUS_QUALIFIED, (
+        f"La décision prise à l'écran n'a pas été répercutée sur la ligne d'import "
+        f"({row.status}) : l'écran et l'API ne produisent pas le même effet."
+    )

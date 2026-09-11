@@ -28,6 +28,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest, ApprovalRule
 from apps.core.services.approvals import request_approval
+from apps.core.services.role_hierarchy import superieur_de
 from apps.core.services.workflow import attempt_transition
 
 DOUBLE_VALIDATION_THRESHOLD_MGA = Decimal("2000000")
@@ -41,6 +42,12 @@ RULE_NAME_LEVEL_3 = "accounting.invoice.validation.level3"
 class ApprovalRequiredError(Exception):
     """La facture attend une ou plusieurs decisions d'approbation avant de
     pouvoir etre validee/publiee."""
+
+
+#: Delai au-dela duquel une demande non decidee remonte au superieur
+#: declare. Deux jours ouvres est une valeur de depart, modifiable par
+#: societe comme le reste de la regle — le cahier n'en fixe aucune.
+DELAI_ESCALADE = dt.timedelta(days=2)
 
 
 def ensure_default_approval_thresholds(tenant: Tenant) -> None:
@@ -60,6 +67,13 @@ def ensure_default_approval_thresholds(tenant: Tenant) -> None:
             name=name,
             defaults={
                 "approver_role": role,
+                # **Le secours vient de la chaine declaree**, jamais d'une
+                # valeur ecrite ici : « le responsable, ou a defaut son
+                # superieur » est une regle d'organisation, pas une regle
+                # comptable. Sans lui, une demande restait en attente
+                # indefiniment des que son titulaire ne decidait pas.
+                "fallback_approver_role": superieur_de(role) or "",
+                "escalate_after": DELAI_ESCALADE,
                 "sequence_order": sequence_order,
                 "condition": {"min_amount": str(min_amount)},
             },

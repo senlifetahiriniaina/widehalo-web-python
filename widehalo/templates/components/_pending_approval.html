@@ -1,0 +1,24 @@
+{% load i18n %}
+{% comment %}
+D-B — le rappel sur la pièce elle-même.
+
+Une demande de validation qui n'existe que sur l'écran « Mes validations »
+oblige celui qui consulte la facture à deviner pourquoi elle ne se valide
+pas. Ce fragment le DIT à l'endroit où la question se pose, et nomme le
+rôle attendu — puis le supérieur vers qui la demande remontera faute de
+décision.
+
+Il n'offre pas de bouton : décider se fait depuis l'écran de validation,
+seul endroit qui vérifie l'éligibilité. Un bouton ici dupliquerait ce
+contrôle, et deux contrôles finissent par diverger.
+{% endcomment %}
+{% if demandes_en_attente %}
+  <div class="alert" role="status" style="margin-bottom:1rem;">
+    {% for demande in demandes_en_attente %}
+      <p style="margin:0;">
+        {% blocktrans with regle=demande.rule.name role=demande.rule.approver_role %}En attente de validation — {{ regle }}, par le rôle {{ role }}.{% endblocktrans %}
+        <a href="{% url 'approvals' %}">{% trans "Voir mes validations" %}</a>
+      </p>
+    {% endfor %}
+  </div>
+{% endif %}

@@ -71,17 +71,10 @@ def decide_approval(request, request_id: str, payload: ApprovalDecisionIn):
     nature de l'echec, pas sa presence — et c'est le test d'isolation qui
     l'a signale, pas une relecture."""
     approval_request = get_object_or_404(ApprovalRequest, id=request_id)
-    approvals.decide(
+    # Le registre de crochets et la decision vivent desormais dans le
+    # service : l'ecran de validation (D-B) doit produire exactement le
+    # meme effet que cet endpoint.
+    approvals.decide_and_propagate(
         approval_request, request.auth, approved=payload.approved, comment=payload.comment
     )
-    hook = _qualification_decision_hooks().get(
-        (approval_request.content_type.app_label, approval_request.content_type.model)
-    )
-    if hook is not None:
-        hook(
-            approval_request.id,
-            request.auth,
-            approved=payload.approved,
-            comment=payload.comment,
-        )
     return {"status": approval_request.status}

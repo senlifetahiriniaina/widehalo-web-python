@@ -45,6 +45,7 @@ from apps.accounting.services.quick_entry import suggest_counterpart_account
 from apps.core.models.audit import AuditLog
 from apps.core.models.document import Document
 from apps.core.models.user import User
+from apps.core.services.approvals import pending_for_object
 from apps.core.services.documents import store_document
 from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
@@ -216,6 +217,11 @@ def invoice_detail(request: HttpRequest, invoice_id: str) -> HttpResponse:
         "accounting/detail.html",
         {
             "next_steps": next_steps_for(invoice, user),
+            # D-B : ce que la fiche doit dire quand elle refuse de se
+            # valider. Sans cela, l'exploitant lit « en attente
+            # d'approbation » une fois, au moment du clic, et plus rien
+            # ensuite.
+            "demandes_en_attente": pending_for_object(invoice),
             "invoice": invoice,
             "lines": invoice.lines.all(),
             "audit_entries": audit_entries,

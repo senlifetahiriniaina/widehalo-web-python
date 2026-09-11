@@ -2,6 +2,7 @@
 {% load i18n core_extras %}
 {% block title %}{{ invoice.reference }} — WideHalo{% endblock %}
 {% block content %}
+  {% include "components/_pending_approval.html" %}
   <c-breadcrumb>
     <a href="{% url 'accounting:list' %}">{% trans "Factures clients" %}</a>
     <span>/</span> {{ invoice.reference|default:"(brouillon)" }}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Mes validations" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>{% trans "Mes validations" %}</c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Mes validations" %}</h1>
+  </div>
+
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+  {% comment %}Sans cet écran, une facture au-dessus du seuil de double
+    validation restait bloquée pour toujours : le service créait la demande
+    et refusait la validation, et seule l'API savait décider. Le bandeau de
+    la fiche dit qu'une validation est attendue ; cette page est l'endroit
+    où elle se donne.{% endcomment %}
+  {% if demandes %}
+    <div class="panel">
+      <div class="panel-body">
+        {% for demande in demandes %}
+          <article class="card" style="margin-bottom:.75rem;">
+            <h2 style="font-size:1rem; margin:0 0 .25rem;">{{ demande.objet.rule.name }}</h2>
+            <p class="hint" style="margin:0 0 .5rem;">
+              {% blocktrans with auteur=demande.objet.requested_by.email %}Demandée par {{ auteur }}{% endblocktrans %}
+              — {{ demande.objet.created_at|date:"d/m/Y H:i" }}
+            </p>
+            {% if demande.piece.url %}
+              <p style="margin:0 0 .5rem;">
+                <a href="{{ demande.piece.url }}">{% blocktrans with piece=demande.piece.libelle %}Ouvrir la {{ piece }} concernée{% endblocktrans %}</a>
+              </p>
+            {% else %}
+              <p class="hint" style="margin:0 0 .5rem;">{% trans "Aucun écran de détail pour cette pièce." %}</p>
+            {% endif %}
+            {% if demande.objet.comment %}
+              <p style="margin:0 0 .5rem;">{{ demande.objet.comment }}</p>
+            {% endif %}
+            <form method="post" style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+              {% csrf_token %}
+              <input type="hidden" name="request_id" value="{{ demande.objet.id }}">
+              <label class="sr-only" for="motif-{{ demande.objet.id }}">{% trans "Motif" %}</label>
+              <input id="motif-{{ demande.objet.id }}" type="text" name="comment"
+                     placeholder="{% trans 'Motif (obligatoire pour un refus)' %}"
+                     style="flex:1; min-width:14rem;">
+              <button type="submit" name="action" value="approve" class="btn btn-primary">
+                {% trans "Approuver" %}
+              </button>
+              <button type="submit" name="action" value="reject" class="btn">
+                {% trans "Refuser" %}
+              </button>
+            </form>
+            {% if demande.superieur %}
+              <p class="hint" style="margin:.5rem 0 0;">
+                {% blocktrans with superieur=demande.superieur %}Sans décision dans le délai, la demande remonte à {{ superieur }}.{% endblocktrans %}
+              </p>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune validation en attente' %}"
+      body="{% trans 'Les demandes qui vous reviennent apparaissent ici : celles de votre rôle, celles qui vous ont été déléguées, et celles qui vous remontent faute de décision dans le délai.' %}" />
+  {% endif %}
+{% endblock %}

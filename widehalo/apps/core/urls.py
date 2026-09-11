@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.core.views import (
+    approvals,
     backup_admin,
     chatter,
     dashboard,
@@ -13,6 +14,7 @@ from apps.core.views import (
 
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
+    path("approvals/", approvals.approvals_page, name="approvals"),
     path("search/", pages.search_page, name="search"),
     path("search/instant/", pages.instant_search_fragment, name="instant_search"),
     path("documents/", pages.documents_list, name="documents"),

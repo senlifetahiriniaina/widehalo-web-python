@@ -124,6 +124,17 @@
               {% trans "Assistant et analyses IA" %}
             </a>
           </li>
+          {% comment %}D-B : sans cette entrée, l'écran de validation existerait
+             sans que personne puisse l'atteindre — et une facture au-dessus du
+             seuil resterait bloquée. Elle n'est pas filtrée par
+             `visible_app_labels` : toute personne peut recevoir une délégation
+             ou une escalade, et la page dit d'elle-même quand il n'y a rien.{% endcomment %}
+          <li>
+            <a href="{% url 'approvals' %}">
+              <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-check"></use></svg>
+              {% trans "Mes validations" %}
+            </a>
+          </li>
           <li>
             <a href="/documents/">
               <svg class="ic" aria-hidden="true"><use href="{% static 'icons/sprite.svg' %}#ic-file-text"></use></svg>

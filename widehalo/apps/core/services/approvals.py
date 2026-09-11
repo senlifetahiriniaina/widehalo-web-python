@@ -11,6 +11,52 @@ from apps.core.context import get_current_tenant_id
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalDelegation, ApprovalRequest, ApprovalRule
 
+#: Le type de notification emis quand une demande est creee. Chaine libre
+#: (le champ n'a pas de jeu ferme) mais nommee en un seul endroit.
+NOTIFICATION_DEMANDE = "approval.requested"
+
+
+def _qualification_decision_hooks() -> dict[tuple[str, str], Any]:
+    """Effets de bord metier APRES la decision generique.
+
+    Registre {(app_label, model): callable}, resolu PARESSEUSEMENT pour ne
+    jamais faire dependre le chargement de `core` de celui des apps metier
+    — `core` ne peut importer QUE `apps.<module>.services.public` (regle de
+    couplage n°1).
+
+    **Deplace ici depuis `api_workflow.py`**, ou il ne servait que l'API :
+    l'ecran de validation doit produire EXACTEMENT le meme effet, et deux
+    chemins de decision qui divergeraient finiraient par ne pas rendre le
+    meme resultat."""
+    from apps.accounting.services.public import (
+        decide_cash_journal_qualification,
+        decide_invoice_import_qualification,
+    )
+    from apps.purchase.services.public import decide_reordering_proposal
+    from apps.stocks.services.public import decide_stock_import_qualification
+
+    return {
+        ("accounting", "accimportrow"): decide_cash_journal_qualification,
+        ("accounting", "accinvoiceimportrow"): decide_invoice_import_qualification,
+        ("stocks", "stkimportrow"): decide_stock_import_qualification,
+        ("purchase", "purreorderingproposal"): decide_reordering_proposal,
+    }
+
+
+def decide_and_propagate(
+    approval_request: ApprovalRequest, decided_by: User, *, approved: bool, comment: str = ""
+) -> ApprovalRequest:
+    """Decide, puis repercute sur la piece metier quand elle l'exige.
+
+    Seul point d'entree commun a l'API et a l'ecran de validation."""
+    decide(approval_request, decided_by, approved=approved, comment=comment)
+    hook = _qualification_decision_hooks().get(
+        (approval_request.content_type.app_label, approval_request.content_type.model)
+    )
+    if hook is not None:
+        hook(approval_request.id, decided_by, approved=approved, comment=comment)
+    return approval_request
+
 
 def request_approval(
     obj: Any, rule: ApprovalRule, requested_by: User, comment: str = ""
@@ -23,7 +69,7 @@ def request_approval(
     de sa propre lecture (qui verifie les deux). Prendre la societe de la
     regle rend cette divergence impossible a la CREATION plutot qu'a la
     lecture."""
-    return ApprovalRequest.objects.create(
+    demande = ApprovalRequest.objects.create(
         tenant_id=rule.tenant_id,
         rule=rule,
         content_type=ContentType.objects.get_for_model(obj.__class__),
@@ -31,6 +77,38 @@ def request_approval(
         requested_by=requested_by,
         comment=comment,
     )
+    # **Prevenir l'approbateur, sinon personne ne sait.** Une demande creee
+    # en silence attend un geste que son destinataire n'a aucune raison
+    # d'aller chercher : c'est exactement ce qui laissait les factures
+    # bloquees. On reutilise la notification par role du socle plutot que
+    # d'inventer un second canal.
+    if rule.approver_role:
+        from apps.core.services.notifications import notify_role
+
+        notify_role(
+            str(rule.tenant_id),
+            rule.approver_role,
+            NOTIFICATION_DEMANDE,
+            {
+                "rule_name": rule.name,
+                "requested_by": requested_by.email,
+                "object_id": str(obj.pk),
+            },
+        )
+    return demande
+
+
+def pending_for_object(obj: Any) -> QuerySet[ApprovalRequest]:
+    """Les demandes en attente SUR CETTE PIECE.
+
+    Sert le rappel affiche sur la fiche : sans lui, celui qui consulte une
+    facture qui refuse de se valider doit deviner pourquoi. La question se
+    pose sur la piece ; la reponse doit y etre."""
+    return ApprovalRequest.objects.filter(
+        content_type=ContentType.objects.get_for_model(obj.__class__),
+        object_id=str(obj.pk),
+        status=ApprovalRequest.STATUS_PENDING,
+    ).select_related("rule")
 
 
 def _delegate_ids_for(user: User) -> list[Any]:
