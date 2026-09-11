@@ -139,7 +139,24 @@ ROUTES_SUPERUTILISATEUR = frozenset(
     }
 )
 
-EXCLUDED_PATHS = ROUTES_POST_SEULEMENT | ROUTES_SUPERUTILISATEUR
+#: **L'idiome DISSOCIE, celui que le commentaire ci-dessus nomme comme
+#: cible.** Une route qui n'accepte que POST le declare par `@require_POST`
+#: et rend donc 405 — « methode non autorisee » —, pas 403 « droit
+#: manquant ». Les deux ne disent pas la meme chose a qui debogue, et
+#: confondre l'une avec l'autre est exactement ce que la note sur
+#: `ROUTES_POST_SEULEMENT` deplore.
+#:
+#: Elles sont hors du parcours pour la meme raison que les autres — ce
+#: crawler ne fait que des GET, et ces routes n'ont pas de GET a eprouver —
+#: mais leur garde anti-cimetiere exige 405, jamais 403 : une route qui
+#: retomberait dans l'idiome fusionne doit se voir.
+ROUTES_POST_STRICTES = frozenset(
+    {
+        "/accounting/payments/payouts/announce/",
+    }
+)
+
+EXCLUDED_PATHS = ROUTES_POST_SEULEMENT | ROUTES_SUPERUTILISATEUR | ROUTES_POST_STRICTES
 
 # Statuts consideres SAINS pour un GET generique sans contexte metier
 # specifique : 200 (rendu), 302 (redirection legitime, ex. vers un
@@ -294,6 +311,25 @@ def test_post_only_routes_still_refuse_a_get(admin_client: Client) -> None:
         f"Ces chemins ne repondent plus 403 a un GET : {revenus}. L'idiome "
         f"fusionne a ete dissocie — retirez-les de ROUTES_POST_SEULEMENT "
         f"pour qu'ils reviennent dans le parcours du crawler."
+    )
+
+
+def test_les_routes_post_strictes_repondent_bien_405(admin_client) -> None:
+    """Meme garde anti-cimetiere, pour l'idiome dissocie.
+
+    Une route `@require_POST` doit rendre 405 a un GET. Si elle rend 403,
+    elle a rejoint l'idiome fusionne et ment sur la raison du refus ; si
+    elle rend 200, elle accepte desormais un GET et doit revenir dans le
+    parcours du crawler. Les deux cas doivent se voir."""
+    ecarts = sorted(
+        f"{chemin} -> {admin_client.get(chemin).status_code}"
+        for chemin in ROUTES_POST_STRICTES
+        if admin_client.get(chemin).status_code != 405
+    )
+    assert not ecarts, (
+        f"Ces chemins ne repondent plus 405 a un GET : {ecarts}. Soit ils ont "
+        f"perdu leur `@require_POST`, soit ils acceptent un GET — dans le "
+        f"second cas, retirez-les de ROUTES_POST_STRICTES."
     )
 
 

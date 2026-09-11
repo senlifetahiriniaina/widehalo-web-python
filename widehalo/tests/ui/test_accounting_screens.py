@@ -3,10 +3,11 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
-from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccPeriod
+from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccMove, AccPeriod
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_module_access, use_tenant
+from apps.core.utils.formatting import format_mga
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -57,7 +58,7 @@ def accounting_screens_setup():
 
 
 def test_invoice_create_screen_then_appears_in_list(accounting_screens_setup) -> None:
-    client, _tenant, journal, receivable, income = accounting_screens_setup
+    client, tenant, journal, receivable, income = accounting_screens_setup
 
     create_response = client.post(
         "/accounting/new/",
@@ -72,14 +73,35 @@ def test_invoice_create_screen_then_appears_in_list(accounting_screens_setup) ->
     )
     assert create_response.status_code == 302
 
-    list_response = client.get("/accounting/")
-    assert b"500000" in list_response.content or list_response.status_code == 200
+    # **`X or status_code == 200` est TOUJOURS vrai** : la seconde branche
+    # tient des que la page se rend, donc l'assertion ne portait sur rien.
+    # Et le montant s'affiche au format de la locale depuis E-3.
+    # **La reference est l'OBJET CREE, pas un montant ecrit d'avance.** Ma
+    # premiere version cherchait « 500 000 Ar » — le montant poste — et
+    # ignorait que la facture porte la TVA : son total debiteur vaut
+    # davantage. Un test qui suppose le calcul qu'il observe finit par
+    # mesurer sa propre supposition.
+    with use_tenant(tenant.id):
+        facture = AccMove.objects.filter(move_type=AccMove.TYPE_CUSTOMER_INVOICE).latest(
+            "created_at"
+        )
+    list_response = client.get("/accounting/?presentation=liste")
+    assert list_response.status_code == 200
+    contenu = list_response.content.decode()
+    assert facture.reference in contenu, "La facture creee n'apparait pas dans la liste."
+    assert format_mga(facture.total_debit) in contenu, (
+        "Le montant de la facture n'est pas rendu au format de la locale."
+    )
 
 
 def test_invoice_list_screen_renders(accounting_screens_setup) -> None:
     client, _tenant, _journal, _receivable, _income = accounting_screens_setup
-    response = client.get("/accounting/")
+    response = client.get("/accounting/?presentation=liste")
     assert response.status_code == 200
+    contenu = response.content.decode()
+    # L'ecran se rend : il doit au moins porter ses en-tetes de colonnes,
+    # accentues depuis E-1. Un gabarit vide rendrait 200 lui aussi.
+    assert "Référence" in contenu and "Montant (MGA)" in contenu
 
 
 def _posted_invoice_for_payment(client, tenant, journal, receivable, income):

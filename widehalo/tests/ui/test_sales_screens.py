@@ -40,9 +40,12 @@ def sales_screens_setup():
 
 
 def test_quotation_list_screen_renders(sales_screens_setup) -> None:
-    client, *_ = sales_screens_setup
+    client, _tenant, _user, quotation, _order = sales_screens_setup
     response = client.get("/sales/")
     assert response.status_code == 200
+    assert quotation.reference in response.content.decode(), (
+        "Le devis du jeu d'essai n'apparait pas dans sa propre liste."
+    )
 
 
 def test_quotation_create_screen(sales_screens_setup) -> None:
@@ -112,11 +115,14 @@ def test_quotation_detail_send_accept_convert_flow(sales_screens_setup) -> None:
 
 
 def test_order_list_screen_renders_and_filters_by_state(sales_screens_setup) -> None:
-    client, *_ = sales_screens_setup
+    client, _tenant, _user, _quotation, order = sales_screens_setup
     response = client.get("/sales/orders/")
     assert response.status_code == 200
-    response = client.get("/sales/orders/?state=draft")
-    assert response.status_code == 200
+    assert order.reference in response.content.decode()
+    # Le filtre doit FILTRER : un etat qui ne contient rien doit vider la
+    # liste, sans quoi le controle est rendu et inerte.
+    assert order.reference in client.get("/sales/orders/?state=draft").content.decode()
+    assert order.reference not in client.get("/sales/orders/?state=cancelled").content.decode()
 
 
 def test_order_create_screen(sales_screens_setup) -> None:

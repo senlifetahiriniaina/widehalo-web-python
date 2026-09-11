@@ -7,7 +7,13 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services import mfa as mfa_service
 from apps.core.tests.utils import grant_role, use_tenant
-from apps.logistics.models import LogHsCode, LogServiceProvider
+from apps.logistics.models import (
+    LogCustomsFile,
+    LogDriver,
+    LogHsCode,
+    LogServiceProvider,
+    LogVehicle,
+)
 from apps.logistics.services.shipments import create_shipment
 from apps.logistics.services.trips import create_trip
 from apps.logistics.tests.factories import LogDriverFactory, LogVehicleFactory
@@ -43,15 +49,21 @@ def logistics_screens_setup():
 
 
 def test_vehicle_list_screen_renders(logistics_screens_setup) -> None:
-    client, *_ = logistics_screens_setup
+    client, _tenant, _user, vehicle, *_ = logistics_screens_setup
     response = client.get("/logistics/")
     assert response.status_code == 200
+    assert vehicle.plate_number in response.content.decode(), (
+        "Le vehicule du jeu d'essai n'apparait pas dans sa propre liste."
+    )
 
 
 def test_vehicle_create_screen(logistics_screens_setup) -> None:
-    client, *_ = logistics_screens_setup
+    client, tenant, *_ = logistics_screens_setup
     response = client.post("/logistics/vehicles/new/", {"plate_number": "TNA-9999", "type": "van"})
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        cree = LogVehicle.objects.get(plate_number="TNA-9999")
+    assert cree.type == "van"
 
 
 def test_vehicle_detail_add_document_and_cost(logistics_screens_setup) -> None:
@@ -80,12 +92,15 @@ def test_vehicle_detail_add_document_and_cost(logistics_screens_setup) -> None:
 
 
 def test_driver_list_screen_create(logistics_screens_setup) -> None:
-    client, *_ = logistics_screens_setup
+    client, tenant, _user, _vehicle, driver, *_ = logistics_screens_setup
     response = client.get("/logistics/drivers/")
     assert response.status_code == 200
+    assert driver.name in response.content.decode()
 
     response = client.post("/logistics/drivers/", {"name": "Rakoto Jean"})
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        assert LogDriver.objects.filter(name="Rakoto Jean").exists()
 
 
 def test_trip_list_and_create_screens(logistics_screens_setup) -> None:
@@ -145,10 +160,11 @@ def test_trip_template_list_screen_create(logistics_screens_setup) -> None:
 
 
 def test_shipment_list_and_create_screens(logistics_screens_setup) -> None:
-    client, *_ = logistics_screens_setup
+    client, tenant, _user, _vehicle, _driver, _trip, shipment = logistics_screens_setup
 
     response = client.get("/logistics/shipments/")
     assert response.status_code == 200
+    assert shipment.reference in response.content.decode()
     response = client.get("/logistics/shipments/?state=planned")
     assert response.status_code == 200
 
@@ -238,12 +254,14 @@ def test_customs_file_detail_add_line_mark_cleared_and_close(logistics_screens_s
     response = client.post(customs_file_url, {"action": "mark_cleared"})
     assert response.status_code == 302
 
-    detail = client.get(customs_file_url)
-    assert (
-        "Dédouané".encode() in detail.content
-        or b"Dedouane" in detail.content
-        or b"cleared" in detail.content.lower()
-    )
+    # **Cette assertion etait satisfaite sans la propriete.** Ses trois
+    # branches cherchaient un texte que le SELECTEUR d'action rend de toute
+    # facon — `cleared` y figure comme valeur d'option tant que l'action
+    # reste proposable, c'est-a-dire tant qu'elle n'a PAS abouti. L'etat se
+    # lit en base, la ou il est ecrit.
+    with use_tenant(tenant.id):
+        dossier = LogCustomsFile.objects.get(id=customs_file_url.rstrip("/").rsplit("/", 1)[-1])
+        assert dossier.state == LogCustomsFile.STATE_CLEARED
 
     response = client.post(customs_file_url, {"action": "close"})
     assert response.status_code == 302

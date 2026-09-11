@@ -47,7 +47,12 @@ COLUMNS = [
     # `search_key` : `stage` est une FK — la chercher directement levait
     # `FieldError` et rendait 500 des la premiere frappe (L4).
     Column(key="stage_display", label=_("Étape"), search_key="stage__name"),
-    Column(key="expected_revenue_mga", label=_("Montant attendu (MGA)"), searchable=False),
+    Column(
+        key="expected_revenue_mga",
+        label=_("Montant attendu (MGA)"),
+        format="mga",
+        searchable=False,
+    ),
 ]
 
 

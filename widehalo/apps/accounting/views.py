@@ -67,7 +67,7 @@ COLUMNS = [
     Column(key="reference", label=_("Référence")),
     Column(key="date", label=_("Date")),
     Column(key="invoice_state", label=_("Statut")),
-    Column(key="total_debit", label=_("Montant (MGA)"), searchable=False),
+    Column(key="total_debit", label=_("Montant (MGA)"), format="mga", searchable=False),
 ]
 
 

@@ -29,6 +29,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.http import require_POST
 
 from apps.accounting.models import (
     AccAggregatorPayout,
@@ -51,8 +52,8 @@ from apps.core.views.tenant_web import resolve_tenant
 NOTIFICATION_COLUMNS = [
     Column(key="external_reference", label=_("Référence")),
     Column(key="provider_code", label=_("Voie")),
-    Column(key="amount", label=_("Montant"), searchable=False),
-    Column(key="fee_amount", label=_("Commission"), searchable=False),
+    Column(key="amount", label=_("Montant"), format="mga", searchable=False),
+    Column(key="fee_amount", label=_("Commission"), format="mga", searchable=False),
     Column(key="state", label=_("État")),
     Column(key="received_at", label=_("Reçue le"), searchable=False),
 ]
@@ -132,6 +133,7 @@ def payment_notification_assign(request: HttpRequest, notification_id: str) -> H
 
 @login_required
 @screen_permission("accounting.add_accaggregatorpayout")
+@require_POST
 def aggregator_payout_announce(request: HttpRequest) -> HttpResponse:
     """Enregistre ce que l'agregateur DIT verser.
 
@@ -144,8 +146,6 @@ def aggregator_payout_announce(request: HttpRequest) -> HttpResponse:
     L'annonce est une SAISIE et pas un flux : elle vient du releve que
     l'agregateur publie, et l'exploitant la recopie. Le rapprochement reste
     une decision distincte, ce que la docstring du service dit deja."""
-    if request.method != "POST":
-        return _back_to_list("")
     tenant = resolve_tenant(request)
     erreur = ""
     try:

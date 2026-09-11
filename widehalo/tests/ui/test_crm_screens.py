@@ -4,7 +4,7 @@ import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
-from apps.crm.models import CrmPipeline, CrmStage
+from apps.crm.models import CrmLead, CrmPipeline, CrmStage
 from apps.crm.services.leads import create_lead_quick
 from django.test import Client
 
@@ -35,9 +35,11 @@ def crm_screens_setup():
 
 
 def test_lead_create_screen(crm_screens_setup) -> None:
-    client, _tenant, _lead = crm_screens_setup
+    client, tenant, _lead = crm_screens_setup
     response = client.post("/crm/new/", {"name": "Nouvelle opportunite"})
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        assert CrmLead.objects.filter(name="Nouvelle opportunite").exists()
 
 
 def test_lead_create_screen_renders_enriched_form_with_partner_picker(crm_screens_setup) -> None:
@@ -148,9 +150,10 @@ def test_lead_detail_move_stage(crm_screens_setup) -> None:
 
 
 def test_lead_list_screen_renders(crm_screens_setup) -> None:
-    client, _tenant, _lead = crm_screens_setup
+    client, _tenant, lead = crm_screens_setup
     response = client.get("/crm/")
     assert response.status_code == 200
+    assert lead.reference in response.content.decode()
 
 
 def test_lead_detail_add_line_shows_in_table(crm_screens_setup) -> None:

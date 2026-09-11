@@ -264,4 +264,6 @@ def test_logistics_shipment_journey(logged_in_page, live_server, e2e_tenant_and_
     page.wait_for_url(f"{live_server.url}/logistics/shipments/**")
     page.click("button[value=book]")
     page.wait_for_url(f"{live_server.url}/logistics/shipments/**")
-    assert "Reservee" in page.content() or "Booked" in page.content()
+    # Le libelle est accentue depuis E-4 : ce test gardait la faute, comme
+    # « Envoye » dans le parcours des ventes avant D-1.
+    assert "Réservée" in page.content() or "Booked" in page.content()
