@@ -140,6 +140,37 @@ def find_partner_by_name(tenant: Tenant, name: str) -> ResolutionResult:
     return ResolutionResult(confidence=ResolutionConfidence.UNRESOLVED, entity_id=None)
 
 
+def resolve_partner_ids_by_name(tenant: Tenant, names: Iterable[str]) -> dict[str, UUID]:
+    """Resout PLUSIEURS noms libres en un seul balayage du referentiel.
+
+    `find_partner_by_name` fait autorite sur la REGLE — correspondance
+    exacte sur le nom normalise, jamais de devinette sur une ambiguite — et
+    cette fonction la reprend telle quelle. Ce qu'elle change est le COUT :
+    la version unitaire fait `list(Partner.objects.filter(tenant=...))` a
+    chaque appel, donc un import de mille lignes sur un referentiel de mille
+    tiers ferait un million de comparaisons et mille lectures completes.
+
+    Le resultat est indexe par le nom TEL QU'IL A ETE DEMANDE, pour que
+    l'appelant retrouve sa ligne sans renormaliser quoi que ce soit. Un nom
+    sans correspondance, ou qu'au moins deux fiches portent, est simplement
+    absent — meme discipline que la version unitaire."""
+    demandes = {nom: normalize_name(nom) for nom in names if nom and nom.strip()}
+    if not demandes:
+        return {}
+
+    par_normalise: dict[str, list[UUID]] = {}
+    for identifiant, nom in Partner.objects.filter(tenant=tenant, is_placeholder=False).values_list(
+        "id", "name"
+    ):
+        par_normalise.setdefault(normalize_name(nom), []).append(identifiant)
+
+    return {
+        nom: par_normalise[cible][0]
+        for nom, cible in demandes.items()
+        if len(par_normalise.get(cible, ())) == 1
+    }
+
+
 def create_partner_with_contact_from_source(
     tenant: Tenant,
     *,

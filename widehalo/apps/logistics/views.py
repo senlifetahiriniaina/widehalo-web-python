@@ -24,7 +24,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
@@ -93,10 +93,10 @@ _SHIPMENT_EXCEPTIONS = (ValidationError, InvalidOperation, ValueError, Transitio
 # ---------------------------------------------------------------------------
 
 VEHICLE_COLUMNS = [
-    Column(key="plate_number", label="Immatriculation"),
-    Column(key="type", label="Type"),
-    Column(key="status", label="Statut"),
-    Column(key="odometer_km", label="Kilometrage", searchable=False),
+    Column(key="plate_number", label=_("Immatriculation")),
+    Column(key="type", label=_("Type")),
+    Column(key="status", label=_("Statut")),
+    Column(key="odometer_km", label=_("Kilométrage"), searchable=False),
 ]
 
 
@@ -256,12 +256,12 @@ def driver_list(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 DRIVER_COLUMNS = [
-    Column(key="name", label="Nom"),
-    Column(key="phone", label="Telephone"),
-    Column(key="license_number", label="Permis"),
+    Column(key="name", label=_("Nom")),
+    Column(key="phone", label=_("Téléphone")),
+    Column(key="license_number", label=_("Permis")),
     Column(
         key="consent_geolocation",
-        label="Consentement geolocalisation",
+        label=_("Consentement géolocalisation"),
         format="bool",
         searchable=False,
     ),
@@ -269,9 +269,9 @@ DRIVER_COLUMNS = [
 
 
 TRIP_COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="status", label="Statut"),
-    Column(key="date", label="Date", searchable=False),
+    Column(key="reference", label=_("Référence")),
+    Column(key="status", label=_("Statut")),
+    Column(key="date", label=_("Date"), searchable=False),
 ]
 
 
@@ -439,22 +439,22 @@ def trip_template_list(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 TRIP_TEMPLATE_COLUMNS = [
-    Column(key="name", label="Nom"),
-    Column(key="interval", label="Periodicite"),
+    Column(key="name", label=_("Nom")),
+    Column(key="interval", label=_("Périodicité")),
     # `LogTripTemplate` n'a pas de `start_date` : il porte `next_run`, la
     # date de la prochaine tournee a engendrer. La colonne « Debut » rendait
     # donc une cellule vide sur chaque ligne, sans erreur — le filtre de
     # rendu a un defaut a la chaine vide. Le libelle suit le champ reel.
-    Column(key="next_run", label="Prochaine tournée", searchable=False),
-    Column(key="end_date", label="Fin", searchable=False),
+    Column(key="next_run", label=_("Prochaine tournée"), searchable=False),
+    Column(key="end_date", label=_("Fin"), searchable=False),
 ]
 
 
 SHIPMENT_COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="state", label="Statut"),
-    Column(key="origin", label="Origine", searchable=False),
-    Column(key="destination", label="Destination", searchable=False),
+    Column(key="reference", label=_("Référence")),
+    Column(key="state", label=_("Statut")),
+    Column(key="origin", label=_("Origine"), searchable=False),
+    Column(key="destination", label=_("Destination"), searchable=False),
 ]
 
 _SHIPMENT_ACTIONS = {

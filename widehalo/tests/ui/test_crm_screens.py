@@ -137,8 +137,14 @@ def test_lead_detail_move_stage(crm_screens_setup) -> None:
     )
     assert response.status_code == 302
 
-    detail = client.get(f"/crm/{lead.id}/")
-    assert b"Qualifie" in detail.content
+    # **Cette assertion etait vraie AVANT le deplacement.** Le selecteur
+    # d'etape de la fiche liste TOUTES les etapes du pipeline : « Qualifie »
+    # y figurait des le premier rendu, deplacement ou non. Le test passait
+    # donc sans jamais verifier ce que dit sa propre docstring.
+    with use_tenant(tenant.id):
+        lead.refresh_from_db()
+    assert lead.stage_id == target_stage.id
+    assert target_stage.name in client.get(f"/crm/{lead.id}/").content.decode()
 
 
 def test_lead_list_screen_renders(crm_screens_setup) -> None:

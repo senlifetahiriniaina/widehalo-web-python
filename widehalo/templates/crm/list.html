@@ -33,7 +33,9 @@
         title="{% trans 'Aucune opportunité pour l’instant' %}"
         body="{% trans 'Une opportunité suit une affaire de sa qualification à sa conclusion : montant attendu, étape, activités de relance. Créez la première, puis suivez-la depuis le pipeline.' %}"
         action_url="{% url 'crm:create' %}"
-        action_label="{% trans 'Nouvelle opportunité' %}" />
+        action_label="{% trans 'Nouvelle opportunité' %}"
+        import_url="{% url 'crm:imports' %}"
+        import_label="{% trans 'Importer un fichier' %}" />
     {% else %}
       <c-empty-state
         title="{% trans 'Aucune opportunité pour l’instant' %}"

@@ -16,7 +16,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.models import (
     AccAccount,
@@ -55,19 +55,19 @@ from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import describe_signing_certificate, document_exchange_panel
 
 QUICK_ENTRY_COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="date", label="Date", searchable=False),
-    Column(key="state", label="Etat"),
-    Column(key="total_debit", label="Debit", format="mga", searchable=False),
-    Column(key="total_credit", label="Credit", format="mga", searchable=False),
+    Column(key="reference", label=_("Référence")),
+    Column(key="date", label=_("Date"), searchable=False),
+    Column(key="state", label=_("État")),
+    Column(key="total_debit", label=_("Débit"), format="mga", searchable=False),
+    Column(key="total_credit", label=_("Crédit"), format="mga", searchable=False),
 ]
 
 
 COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="date", label="Date"),
-    Column(key="invoice_state", label="Statut"),
-    Column(key="total_debit", label="Montant (MGA)", searchable=False),
+    Column(key="reference", label=_("Référence")),
+    Column(key="date", label=_("Date")),
+    Column(key="invoice_state", label=_("Statut")),
+    Column(key="total_debit", label=_("Montant (MGA)"), searchable=False),
 ]
 
 

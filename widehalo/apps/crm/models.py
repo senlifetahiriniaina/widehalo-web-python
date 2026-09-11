@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.base import BaseModel, ReferenceMixin
 
@@ -51,6 +52,10 @@ class CrmStage(BaseModel):
         ordering = ["sequence"]
 
     def __str__(self) -> str:
+        # Identite TECHNIQUE, pour un journal ou l'administration : deux
+        # pipelines d'une meme societe peuvent porter une etape « Qualifie »,
+        # et les confondre dans une trace couterait cher. Ce n'est PAS ce
+        # qu'un ecran affiche — cf. `CrmLead.stage_display`.
         return f"{self.pipeline.name}:{self.code}"
 
 
@@ -84,9 +89,9 @@ class CrmLead(BaseModel, ReferenceMixin):
     PRIORITY_MEDIUM = "medium"
     PRIORITY_HIGH = "high"
     PRIORITY_CHOICES = [
-        (PRIORITY_LOW, "Basse"),
-        (PRIORITY_MEDIUM, "Moyenne"),
-        (PRIORITY_HIGH, "Haute"),
+        (PRIORITY_LOW, _("Basse")),
+        (PRIORITY_MEDIUM, _("Moyenne")),
+        (PRIORITY_HIGH, _("Haute")),
     ]
 
     name = models.CharField(max_length=200)
@@ -101,6 +106,21 @@ class CrmLead(BaseModel, ReferenceMixin):
     pipeline = models.ForeignKey(CrmPipeline, on_delete=models.PROTECT, related_name="leads")
     stage = models.ForeignKey(CrmStage, on_delete=models.PROTECT, related_name="leads")
     expected_revenue_mga = models.DecimalField(max_digits=18, decimal_places=4, default=0)
+
+    @property
+    def stage_display(self) -> str:
+        """Le NOM de l'etape, tel que la fiche l'affiche deja.
+
+        **Ce que l'exploitant voyait avant.** La liste rendait
+        `Pipeline commercial par defaut:appointment_scheduled` — le `__str__`
+        technique de `CrmStage` — tandis que la fiche du MEME objet affichait
+        « Rendez-vous planifié ». Deux ecrans, deux vocabulaires, pour une
+        seule donnee.
+
+        La garde « une colonne designe quelque chose » (D-0) accepte une
+        propriete autant qu'un champ : c'est ici qu'elle s'exerce."""
+        return self.stage.name if self.stage_id else ""
+
     probability = models.PositiveSmallIntegerField(default=0)
     expected_close_date = models.DateField(null=True, blank=True)
     salesperson = models.ForeignKey(
@@ -159,11 +179,11 @@ class CrmActivity(BaseModel):
     TYPE_FOLLOW_UP = "follow_up"
     TYPE_MEETING = "meeting"
     TYPE_CHOICES = [
-        (TYPE_CALL, "Appel"),
-        (TYPE_VISIT, "Visite"),
-        (TYPE_EMAIL, "Email"),
-        (TYPE_FOLLOW_UP, "Relance"),
-        (TYPE_MEETING, "Reunion"),
+        (TYPE_CALL, _("Appel")),
+        (TYPE_VISIT, _("Visite")),
+        (TYPE_EMAIL, _("Courriel")),
+        (TYPE_FOLLOW_UP, _("Relance")),
+        (TYPE_MEETING, _("Réunion")),
     ]
 
     lead = models.ForeignKey(CrmLead, on_delete=models.CASCADE, related_name="activities")

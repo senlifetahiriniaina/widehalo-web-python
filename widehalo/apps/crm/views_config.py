@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.user import User
 from apps.core.services.permissions import screen_forbidden, screen_permission
@@ -17,18 +17,18 @@ from apps.core.views.tenant_web import resolve_tenant
 from apps.crm.models import CrmLostReason, CrmPipeline, CrmStage, CrmTeam
 
 PIPELINE_COLUMNS = [
-    Column(key="name", label="Nom"),
-    Column(key="is_default", label="Par defaut", format="bool", searchable=False),
-    Column(key="stagnant_after_days", label="Relance (jours)", searchable=False),
+    Column(key="name", label=_("Nom")),
+    Column(key="is_default", label=_("Par défaut"), format="bool", searchable=False),
+    Column(key="stagnant_after_days", label=_("Relance (jours)"), searchable=False),
 ]
 
 TEAM_COLUMNS = [
-    Column(key="name", label="Nom"),
-    Column(key="leader", label="Responsable", search_key="leader__email"),
+    Column(key="name", label=_("Nom")),
+    Column(key="leader", label=_("Responsable"), search_key="leader__email"),
 ]
 
 LOST_REASON_COLUMNS = [
-    Column(key="name", label="Motif"),
+    Column(key="name", label=_("Motif")),
 ]
 
 

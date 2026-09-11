@@ -17,7 +17,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.services.public import list_payment_terms
 from apps.catalog.services.public import (
@@ -92,21 +92,21 @@ def _enrichir_partenaires(objets: list[Any]) -> None:
 
 
 QUOTATION_COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="state", label="Statut"),
+    Column(key="reference", label=_("Référence")),
+    Column(key="state", label=_("Statut")),
     # `amount_total` est exprime dans la DEVISE DU DOCUMENT, jamais
     # forcement en ariary : le mettre en chasse fixe sous un libelle « Ar »
     # mentirait sur un devis en euros. La liste montre donc le converti,
     # comme celle des commandes ; la fiche continue de porter les deux.
-    Column(key="amount_total_mga", label="Montant (MGA)", format="mga", searchable=False),
+    Column(key="amount_total_mga", label=_("Montant (MGA)"), format="mga", searchable=False),
 ]
 
 ORDER_COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="state", label="Statut"),
-    Column(key="partner_display", label="Partenaire", searchable=False),
-    Column(key="salesperson", label="Commercial", searchable=False),
-    Column(key="amount_total_mga", label="Montant (MGA)", format="mga", searchable=False),
+    Column(key="reference", label=_("Référence")),
+    Column(key="state", label=_("Statut")),
+    Column(key="partner_display", label=_("Partenaire"), searchable=False),
+    Column(key="salesperson", label=_("Commercial"), searchable=False),
+    Column(key="amount_total_mga", label=_("Montant (MGA)"), format="mga", searchable=False),
 ]
 
 

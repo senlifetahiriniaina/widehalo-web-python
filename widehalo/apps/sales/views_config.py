@@ -21,6 +21,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
@@ -29,17 +30,19 @@ from apps.sales.models import SalesOrder, SalesRecurrence
 from apps.sales.services.recurrence import create_recurrence
 
 RECURRENCE_COLUMNS = [
-    Column(key="name", label="Nom"),
+    Column(key="name", label=_("Nom")),
     # La table remplacee montrait la commande modele AVEC un lien vers elle.
     # La colonne la retablit ; le lien, lui, ne revient pas : le crochet du
     # composant (`row_url_name`) lie la ligne a SON PROPRE detail, et une
     # recurrence n'a pas d'ecran de detail. La commande reste atteignable
     # depuis la liste des commandes — mais l'ecrire vaut mieux que de
     # laisser croire que rien n'a change.
-    Column(key="template_order", label="Commande modele", search_key="template_order__reference"),
-    Column(key="interval", label="Periodicite"),
-    Column(key="start_date", label="Debut", searchable=False),
-    Column(key="end_date", label="Fin", searchable=False),
+    Column(
+        key="template_order", label=_("Commande modèle"), search_key="template_order__reference"
+    ),
+    Column(key="interval", label=_("Périodicité")),
+    Column(key="start_date", label=_("Début"), searchable=False),
+    Column(key="end_date", label=_("Fin"), searchable=False),
 ]
 
 

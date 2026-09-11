@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Import d’opportunités" %} — WideHalo{% endblock %}
+{% block content %}
+<c-breadcrumb>
+  <a href="{% url 'crm:list' %}">{% trans "Opportunités" %}</a>
+  <span>/</span> {% trans "Import" %}
+</c-breadcrumb>
+<div class="page-head">
+  <h1>{% trans "Import d’opportunités" %}</h1>
+</div>
+  <p>{% trans "Téléchargez le modèle Excel ci-dessous, complétez-le avec vos données, puis importez-le. Seule la colonne « Nom » est obligatoire." %}</p>
+  <p><a href="{% url 'crm:imports_template' %}">{% trans "Télécharger le modèle Excel" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-field">
+      <label for="file">{% trans "Fichier xlsx" %}</label>
+      <input id="file" type="file" name="file" accept=".xlsx" required>
+    </div>
+    <c-button variant="primary" type="submit">{% trans "Importer" %}</c-button>
+  </form>
+
+  {% if summary %}
+    <h2>{% trans "Résultat" %}</h2>
+    {% if summary.is_valid %}
+      <ul>
+        <li>{% blocktrans with count=summary.created_count %}{{ count }} opportunité(s) créée(s){% endblocktrans %}</li>
+        <li>{% blocktrans with count=summary.partner_matched_count %}{{ count }} ligne(s) rattachée(s) à un tiers du référentiel{% endblocktrans %}</li>
+        {% if summary.partner_unmatched_count %}
+          {% comment %} Jamais une erreur : un prospect n'est souvent pas
+             encore au referentiel, et l'opportunite se cree sans tiers.
+             L'ecran le DIT plutot que de le taire. {% endcomment %}
+          <li>{% blocktrans with count=summary.partner_unmatched_count %}{{ count }} nom(s) de tiers sans correspondance — l’opportunité est créée sans tiers rattaché, à compléter depuis sa fiche.{% endblocktrans %}</li>
+        {% endif %}
+      </ul>
+    {% else %}
+      <p class="form-error">{% trans "Fichier refusé — aucune opportunité n’a été enregistrée. Corrigez les lignes ci-dessous et réimportez le fichier entier." %}</p>
+      <ul>
+        {% for row_error in summary.row_errors %}
+          <li>
+            {% blocktrans with row=row_error.row_index %}Ligne {{ row }}{% endblocktrans %} :
+            {% for champ, motifs in row_error.errors.items %}
+              <strong>{{ champ }}</strong> — {{ motifs|join:" " }}
+            {% endfor %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endif %}
+{% endblock %}

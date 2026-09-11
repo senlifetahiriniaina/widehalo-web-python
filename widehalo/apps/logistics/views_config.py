@@ -19,6 +19,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
@@ -28,20 +29,20 @@ from apps.logistics.services.customs import create_hs_code
 from apps.logistics.services.freight import create_freight_tariff, create_service_provider
 
 PACKAGING_TYPE_COLUMNS = [
-    Column(key="code", label="Code"),
-    Column(key="name", label="Nom"),
-    Column(key="volume_m3", label="Volume (m3)", searchable=False),
+    Column(key="code", label=_("Code")),
+    Column(key="name", label=_("Nom")),
+    Column(key="volume_m3", label=_("Volume (m³)"), searchable=False),
 ]
 
 SERVICE_PROVIDER_COLUMNS = [
-    Column(key="name", label="Nom"),
-    Column(key="type", label="Type"),
+    Column(key="name", label=_("Nom")),
+    Column(key="type", label=_("Type")),
 ]
 
 HS_CODE_COLUMNS = [
-    Column(key="code", label="Code SH"),
-    Column(key="description", label="Designation"),
-    Column(key="duty_rate_pct", label="Droit (%)", searchable=False),
+    Column(key="code", label=_("Code SH")),
+    Column(key="description", label=_("Désignation")),
+    Column(key="duty_rate_pct", label=_("Droit (%)"), searchable=False),
 ]
 
 

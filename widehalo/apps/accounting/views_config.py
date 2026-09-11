@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.models import (
     AccAccount,
@@ -42,39 +42,39 @@ from apps.core.views.smart_table import Column, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 
 PERIOD_COLUMNS = [
-    Column(key="code", label="Code"),
-    Column(key="date_start", label="Debut", searchable=False),
-    Column(key="date_end", label="Fin", searchable=False),
-    Column(key="state", label="Etat"),
+    Column(key="code", label=_("Code")),
+    Column(key="date_start", label=_("Début"), searchable=False),
+    Column(key="date_end", label=_("Fin"), searchable=False),
+    Column(key="state", label=_("État")),
 ]
 
 JOURNAL_COLUMNS = [
-    Column(key="code", label="Code"),
-    Column(key="name", label="Libelle"),
-    Column(key="type", label="Type"),
+    Column(key="code", label=_("Code")),
+    Column(key="name", label=_("Libellé")),
+    Column(key="type", label=_("Type")),
 ]
 
 ACCOUNT_COLUMNS = [
-    Column(key="code", label="Compte"),
-    Column(key="name", label="Libelle"),
-    Column(key="type", label="Type"),
+    Column(key="code", label=_("Compte")),
+    Column(key="name", label=_("Libellé")),
+    Column(key="type", label=_("Type")),
 ]
 
 TAX_COLUMNS = [
-    Column(key="code", label="Code"),
-    Column(key="name", label="Libelle"),
+    Column(key="code", label=_("Code")),
+    Column(key="name", label=_("Libellé")),
     # `AccTax` porte `rate`, jamais `rate_pct` — ce dernier appartient a
     # `AccIrcmDeclaration` et `AccLocalTax`. La colonne rendait donc une
     # cellule vide sur CHAQUE ligne, sous un en-tete qui promet un taux, et
     # son entete n'etait meme pas triable. Aucune erreur, aucune trace : le
     # filtre de rendu a un defaut a la chaine vide.
-    Column(key="rate", label="Taux (%)", searchable=False),
+    Column(key="rate", label=_("Taux (%)"), searchable=False),
 ]
 
 #: `AccPaymentTerm` ne porte qu'un `name` : la colonne « Code » rendait une
 #: cellule vide sur chaque ligne, et l'export un en-tete sans valeurs.
 PAYMENT_TERM_COLUMNS = [
-    Column(key="name", label="Libelle"),
+    Column(key="name", label=_("Libellé")),
 ]
 
 

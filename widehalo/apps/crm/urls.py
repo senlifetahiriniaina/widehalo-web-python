@@ -1,12 +1,14 @@
 from django.urls import path
 
-from apps.crm import views, views_config, views_reports
+from apps.crm import views, views_config, views_imports, views_reports
 
 app_name = "crm"
 
 urlpatterns = [
     path("", views.lead_list, name="list"),
     path("new/", views.lead_create, name="create"),
+    path("imports/", views_imports.imports_leads, name="imports"),
+    path("imports/template/", views_imports.download_lead_template, name="imports_template"),
     path("kanban/", views.lead_kanban, name="kanban"),
     path("reports/", views_reports.reports_index, name="reports_index"),
     path("reports/pipeline/", views_reports.pipeline_report_download, name="report_pipeline"),

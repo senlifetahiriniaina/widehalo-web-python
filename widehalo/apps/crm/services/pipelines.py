@@ -36,18 +36,18 @@ from __future__ import annotations
 from apps.core.models.tenant import Tenant
 from apps.crm.models import CrmPipeline, CrmStage
 
-DEFAULT_PIPELINE_NAME = "Pipeline commercial par defaut"
+DEFAULT_PIPELINE_NAME = "Pipeline commercial par défaut"
 
 # (code, nom, sequence, probabilite %, gagne, perdu, motif requis) — HubSpot
 # Deal pipeline par defaut (7 etapes), probabilites documentees dans le
 # document source cite ci-dessus.
 DEFAULT_STAGES: tuple[tuple[str, str, int, int, bool, bool, bool], ...] = (
-    ("appointment_scheduled", "Rendez-vous planifie", 1, 20, False, False, False),
-    ("qualified_to_buy", "Qualifie pour achat", 2, 40, False, False, False),
-    ("presentation_scheduled", "Presentation planifiee", 3, 60, False, False, False),
-    ("decision_maker_bought_in", "Decideur convaincu", 4, 80, False, False, False),
-    ("contract_sent", "Contrat envoye", 5, 90, False, False, False),
-    ("closed_won", "Gagne", 6, 100, True, False, False),
+    ("appointment_scheduled", "Rendez-vous planifié", 1, 20, False, False, False),
+    ("qualified_to_buy", "Qualifié pour achat", 2, 40, False, False, False),
+    ("presentation_scheduled", "Présentation planifiée", 3, 60, False, False, False),
+    ("decision_maker_bought_in", "Décideur convaincu", 4, 80, False, False, False),
+    ("contract_sent", "Contrat envoyé", 5, 90, False, False, False),
+    ("closed_won", "Gagné", 6, 100, True, False, False),
     ("closed_lost", "Perdu", 7, 0, False, True, True),
 )
 

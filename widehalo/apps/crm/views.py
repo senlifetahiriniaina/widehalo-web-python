@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from apps.core.models.user import User
 from apps.core.services.next_steps import next_steps_for
@@ -41,19 +42,26 @@ from apps.crm.services.scoping import scope_leads_for_user
 from apps.crm.services.scoring import compute_lead_score, whatsapp_contact_link
 
 COLUMNS = [
-    Column(key="reference", label="Reference"),
-    Column(key="name", label="Nom"),
+    Column(key="reference", label=_("Référence")),
+    Column(key="name", label=_("Nom")),
     # `search_key` : `stage` est une FK — la chercher directement levait
     # `FieldError` et rendait 500 des la premiere frappe (L4).
-    Column(key="stage", label="Etape", search_key="stage__name"),
-    Column(key="expected_revenue_mga", label="Montant attendu (MGA)", searchable=False),
+    Column(key="stage_display", label=_("Étape"), search_key="stage__name"),
+    Column(key="expected_revenue_mga", label=_("Montant attendu (MGA)"), searchable=False),
 ]
 
 
 @login_required
 @screen_permission("crm.view_crmlead")
 def lead_list(request: HttpRequest) -> HttpResponse:
-    queryset = scope_leads_for_user(CrmLead.objects.filter(is_active=True), request.user)
+    # `select_related` n'est pas une optimisation de confort : sans lui,
+    # `stage_display` lit `lead.stage` ligne par ligne — vingt-cinq requetes
+    # par page. L'ancienne colonne etait pire encore : `str(stage)` lisait
+    # AUSSI `stage.pipeline`, donc deux requetes par ligne pour afficher un
+    # texte que personne ne pouvait lire.
+    queryset = scope_leads_for_user(
+        CrmLead.objects.filter(is_active=True).select_related("stage"), request.user
+    )
     return smart_table_response(
         request,
         table_key="crm.leads",

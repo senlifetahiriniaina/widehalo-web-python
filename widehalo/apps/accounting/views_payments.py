@@ -26,6 +26,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.models import (
     AccAggregatorPayout,
@@ -44,12 +45,12 @@ from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.views.smart_table import Column, smart_table_response
 
 NOTIFICATION_COLUMNS = [
-    Column(key="external_reference", label="Référence"),
-    Column(key="provider_code", label="Voie"),
-    Column(key="amount", label="Montant", searchable=False),
-    Column(key="fee_amount", label="Commission", searchable=False),
-    Column(key="state", label="État"),
-    Column(key="received_at", label="Reçue le", searchable=False),
+    Column(key="external_reference", label=_("Référence")),
+    Column(key="provider_code", label=_("Voie")),
+    Column(key="amount", label=_("Montant"), searchable=False),
+    Column(key="fee_amount", label=_("Commission"), searchable=False),
+    Column(key="state", label=_("État")),
+    Column(key="received_at", label=_("Reçue le"), searchable=False),
 ]
 
 
