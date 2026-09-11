@@ -24,6 +24,7 @@ import uuid
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User, UserTenantMembership
+from apps.core.services.next_steps import next_steps_for
 from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.sales.services.orders import create_order
 from django.test import Client
@@ -85,20 +86,36 @@ def test_a_read_only_user_is_offered_nothing_rather_than_greyed_buttons() -> Non
 
 
 def test_what_the_banner_posts_is_what_the_view_expects() -> None:
-    """La falsification la plus utile : un bandeau qui afficherait la bonne
-    etape et posterait la mauvaise valeur passerait les deux tests
-    precedents et ne marcherait pas."""
+    """Ce que le bandeau poste REELLEMENT, lu sur le bandeau.
+
+    **Ce test trichait, et il faut le dire.** Sa premiere version postait
+    `{"action": "send"}` — une valeur ecrite en dur ici. Elle verifiait donc
+    que la VUE sait traiter « send », jamais que le BANDEAU poste ce que la
+    vue attend. Elle est restee verte pendant que dix boutons des six fiches
+    ne faisaient rien : la fiche CRM postait un UUID d'etape, la commande
+    postait `mark_invoiced` la ou la vue attend `invoice`, et la facture
+    proposait cinq transitions sans branche.
+
+    La valeur postee vient maintenant du registre, jamais du test. Le
+    parcours complet — toutes les etapes, a tous les etats du cycle de vie
+    — vit dans `tests/ui/test_da_boutons_agissent.py` ; celui-ci garde la
+    propriete sur l'etat initial d'une commande, la ou le lot C-4 l'avait
+    posee."""
     tenant, commande = _commande()
     dote = User.objects.create_user(email="c4-poste@example.com", password="Str0ngPassw0rd!23")
     grant_module_access(dote, "sales")
     client = _client(tenant, dote)
 
+    with use_tenant(tenant.id):
+        etapes = next_steps_for(commande, dote)
+    assert etapes, "Aucune etape proposee : le test ne mesure plus rien."
+
     avant = commande.state
-    reponse = client.post(f"/sales/orders/{commande.id}/", {"action": "send"})
+    reponse = client.post(f"/sales/orders/{commande.id}/", etapes[0].champs())
     assert reponse.status_code == 302, reponse.content[:400]
 
     commande.refresh_from_db()
     assert commande.state != avant, (
         f"Le POST du bandeau n'a rien change : l'etat est reste « {avant} ». Ce que le "
-        f"bandeau propose n'est pas ce que la vue sait traiter."
+        f"bandeau propose — {etapes[0].champs()} — n'est pas ce que la vue sait traiter."
     )

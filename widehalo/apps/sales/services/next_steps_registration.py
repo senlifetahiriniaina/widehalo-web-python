@@ -37,6 +37,23 @@ from apps.sales.models import SalesQuotation
 _ORDER_WRITE = "sales.change_salesorder"
 _QUOTATION_WRITE = "sales.change_salesquotation"
 
+#: Les transitions qui sont des ACTIONS D'ECRAN, et elles seules. Une
+#: transition absente n'est pas proposee — c'est un jeu ferme depuis que la
+#: mesure a montre ce que le repli permissif coutait.
+#:
+#: `block_for_credit` n'y figure pas, et c'est mesure : aucune branche de
+#: `apps/sales/views.py` ne la traite, aucun service `block_order` n'existe,
+#: et la transition n'est atteinte QUE comme effet de bord de
+#: `confirm_order` quand l'encours client est depasse
+#: (`apps/sales/services/orders.py:330`). La proposer en bouton offrait un
+#: geste que le produit n'a jamais su faire.
+#:
+#: `cancel` n'y figure pas non plus, pour une autre raison mesuree :
+#: `cancel_order` EXIGE un motif, et le bandeau ne poste qu'une action sans
+#: champ de saisie — le bouton rendait donc systematiquement « Un motif est
+#: obligatoire pour annuler une commande ». L'ecran porte deja son propre
+#: formulaire d'annulation, avec le champ qu'il faut ; le bandeau annonce
+#: la suite a prendre, pas les issues de secours.
 _ORDER_LABELS = {
     "send": _("Envoyer au client"),
     "confirm": _("Confirmer la commande"),
@@ -45,9 +62,19 @@ _ORDER_LABELS = {
     "mark_delivered": _("Marquer livrée"),
     "mark_invoiced": _("Facturer"),
     "close": _("Clôturer"),
-    "cancel": _("Annuler"),
-    "block_for_credit": _("Bloquer pour encours client"),
     "unblock": _("Débloquer"),
+}
+
+#: Le vocabulaire de l'ECRAN, quand il differe du nom de la transition.
+#: `apps/sales/views.py:365-374` attend `deliver_partial`, `deliver_full` et
+#: `invoice` ; le bandeau postait les noms de transition, aucune branche ne
+#: correspondait, et trois boutons ne faisaient rien EN SILENCE. Sur une
+#: commande livree, deux boutons « Facturer » voisinaient : celui de
+#: l'ecran marchait, celui du bandeau non.
+_ORDER_ACTIONS_ECRAN = {
+    "mark_partially_delivered": "deliver_partial",
+    "mark_delivered": "deliver_full",
+    "mark_invoiced": "invoice",
 }
 
 #: `SalesQuotation` n'a pas de machine a etats : la table dit, pour chaque
@@ -70,6 +97,7 @@ def _order_steps(instance: Any, user: User) -> list[NextStep]:
         field_name="state",
         write_codename=_ORDER_WRITE,
         labels={code: str(libelle) for code, libelle in _ORDER_LABELS.items()},
+        actions=_ORDER_ACTIONS_ECRAN,
     )
 
 

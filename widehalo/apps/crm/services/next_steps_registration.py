@@ -43,8 +43,18 @@ def _lead_steps(instance: Any, user: User) -> list[NextStep]:
 
     suivante = etapes.filter(sequence__gt=etape.sequence, is_won=False, is_lost=False).first()
     if suivante is not None:
+        # `post_data` est OBLIGATOIRE ici, et son absence etait le bouton
+        # mort le plus visible du produit : sans lui, `champs()` postait
+        # `action=<UUID de l'etape>`, que `apps/crm/views.py:125` ne
+        # reconnait pas — le bouton principal de chaque opportunite ne
+        # faisait rien. Les issues terminales, dix lignes plus bas, le
+        # passaient correctement depuis le premier jour.
         suites.append(
-            NextStep(str(suivante.id), _("Passer à « %(etape)s »") % {"etape": suivante.name})
+            NextStep(
+                str(suivante.id),
+                _("Passer à « %(etape)s »") % {"etape": suivante.name},
+                {"action": "move_stage", "stage_id": str(suivante.id)},
+            )
         )
 
     # Les issues terminales restent atteignables depuis n'importe quelle

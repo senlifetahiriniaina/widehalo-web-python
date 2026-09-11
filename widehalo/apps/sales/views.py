@@ -400,7 +400,25 @@ def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
                     **_resolve_line_from_post(post),
                 )
             elif action == "invoice":
-                invoice_order(order, user)
+                # `invoice_order` rend `None` — sans lever — quand la
+                # configuration comptable du tenant est incomplete (aucun
+                # journal de vente, aucune periode ouverte, aucun compte de
+                # creance). Sa propre docstring l'ecrit : « l'appelant doit
+                # traduire ce `None` en configuration comptable manquante,
+                # PAS en succes silencieux »
+                # (`apps/sales/services/invoicing.py:130-132`). L'ecran
+                # l'ignorait : l'exploitant cliquait « Facturer », etait
+                # redirige, et rien ne se passait — ni facture, ni message.
+                # Trouve par le parcours de bout en bout du bandeau, pas
+                # par la relecture.
+                if invoice_order(order, user) is None:
+                    raise ValidationError(
+                        _(
+                            "Facturation impossible : la configuration comptable est "
+                            "incomplète (journal de vente, période ouverte, comptes de "
+                            "créance et de produit)."
+                        )
+                    )
             else:
                 handler = _ORDER_ACTIONS.get(action)
                 if handler is not None:

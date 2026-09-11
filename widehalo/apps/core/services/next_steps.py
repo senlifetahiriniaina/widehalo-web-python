@@ -121,6 +121,8 @@ def fsm_next_steps(
     field_name: str,
     write_codename: str,
     labels: dict[str, str],
+    actions: Mapping[str, str] | None = None,
+    permissions: Mapping[str, str] | None = None,
 ) -> list[NextStep]:
     """Les suites d'un modele `django_fsm`, filtrees par le droit d'ecriture.
 
@@ -128,13 +130,60 @@ def fsm_next_steps(
     du depot. Le droit d'ecriture est verifie EN PLUS, et d'abord : voir la
     docstring de module — la machine a etats ignore le RBAC tant que les
     transitions ne declarent pas `permission=`, ce que 109 des 112 ne font
-    pas."""
+    pas.
+
+    **`labels` est un JEU FERME, et c'est la correction la plus importante
+    de ce module.** La premiere version proposait TOUTE transition
+    disponible, avec `labels.get(nom, nom)` en repli — donc deux defauts a
+    la fois. D'abord une transition non libellee s'affichait a l'exploitant
+    sous son nom technique. Ensuite, et c'est le grave : **une transition
+    disponible n'est pas forcement une action d'ecran**. Mesure sur les
+    factures : `mark_paid` et `mark_paid_partially` sont des CONSEQUENCES
+    de `register_payment` (`apps/accounting/services/payments.py:131-133`)
+    — les proposer en boutons aurait permis de marquer une facture reglee
+    **sans aucune ecriture comptable**. Une transition absente de `labels`
+    n'est donc plus proposee du tout.
+
+    **`actions` dit ce que l'ecran attend**, quand son vocabulaire differe
+    du nom de la transition. Mesure : le bandeau postait `mark_invoiced`,
+    `mark_delivered` et `mark_partially_delivered` la ou la vue des
+    commandes attend `invoice`, `deliver_full` et `deliver_partial`
+    (`apps/sales/views.py:365-374`) — aucune branche ne correspondait, le
+    `else` rendait la redirection, et **trois boutons ne faisaient rien en
+    silence**. Le mapping vit ici, avec la declaration, et non dans le
+    gabarit qui devrait alors connaitre chaque module.
+
+    **`permissions` donne son droit PROPRE a une action**, quand il differe
+    du droit d'ecriture general. Mesure : l'ecran des factures exige
+    `accounting.validate_accmove` pour valider et `cancel_accmove` pour
+    annuler (`apps/accounting/views.py:94-98`), alors que le bandeau ne
+    verifiait que `change_accmove`. Un role dote de `change` mais pas de
+    `validate` se voyait donc proposer un bouton que la garde refusait en
+    403 — exactement le defaut que C-1d avait corrige sur les boutons de
+    gabarit, refait par le socle. Un droit absent RETIRE l'etape ; il ne la
+    grise pas."""
     if not user.has_perm(write_codename):
         return []
     transitions: Iterable[Any] = getattr(instance, f"get_available_user_{field_name}_transitions")(
         user
     )
-    return [NextStep(t.name, labels.get(t.name, t.name)) for t in transitions]
+    correspondance = actions or {}
+    droits = permissions or {}
+    disponibles = {t.name for t in transitions}
+    # **L'ordre de `labels` fait l'ordre de l'ECRAN.** Mesure sur une
+    # commande neuve : `get_available_user_FIELD_transitions` rendait
+    # `cancel`, `confirm`, `send` — dans l'ordre de declaration de la
+    # machine a etats — si bien que le bouton PRINCIPAL du bandeau, celui
+    # que l'exploitant voit en premier sur une commande a envoyer, etait
+    # « Annuler ». Le commanditaire demande que l'utilisateur ait
+    # facilement idee de la suite a prendre ; lui proposer d'abord
+    # d'abandonner est l'exact contraire. L'ordre metier n'est connu que du
+    # module, et il l'exprime par l'ordre de son dictionnaire.
+    return [
+        NextStep(nom, labels[nom], {"action": correspondance.get(nom, nom)})
+        for nom in labels
+        if nom in disponibles and user.has_perm(droits.get(nom, write_codename))
+    ]
 
 
 def declared_next_steps(
