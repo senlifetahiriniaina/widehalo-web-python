@@ -61,7 +61,7 @@
               <div class="card" data-lead-id="{{ lead.id }}" style="margin-bottom:.5rem;">
                 <div class="kanban-handle" aria-hidden="true">⠿</div>
                 <p><a href="{% url 'crm:detail' lead_id=lead.id %}">{{ lead.name }}</a></p>
-                <p class="hint">{{ lead.reference }} — {{ lead.expected_revenue_mga }} MGA</p>
+                <p class="hint">{{ lead.reference }} — {{ lead.expected_revenue_mga|mga }}</p>
                 {% if column.next_stage %}
                   {% comment %}
                     Le bouton est le chemin ACCESSIBLE ; le glisser-deposer

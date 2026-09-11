@@ -1,6 +1,6 @@
 [project]
 name = "widehalo"
-version = "0.1.7"
+version = "0.1.8"
 description = "WideHalo ERP - nouvelle generation (Python/Django)"
 requires-python = ">=3.12"
 
