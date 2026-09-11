@@ -34,6 +34,7 @@ from apps.core.views.presentation import presentation_response
 from apps.core.views.smart_table import Column
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import document_exchange_panel
+from apps.partners.services.public import get_partner_display_names
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.flow_schema_registration import DOCUMENT_ORDER, DOCUMENT_QUOTATION
 from apps.sales.services.invoicing import invoice_order
@@ -73,18 +74,39 @@ def _error_message(exc: Exception) -> str:
     return "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
 
 
+def _enrichir_partenaires(objets: list[Any]) -> None:
+    """Resout le nom des tiers des lignes rendues, EN UNE REQUETE.
+
+    **Ce que l'exploitant voyait avant.** La colonne « Partenaire » rendait
+    `partner_id`, c'est-a-dire un UUID — et comme ce sont des UUIDv7,
+    prefixes par un horodatage, deux commandes du meme jour affichaient les
+    memes quatorze premiers caracteres : la colonne ne distinguait rien.
+
+    `partner_id` est un `UUIDField`, jamais une cle etrangere : la regle de
+    couplage n°1 interdit a `sales` de connaitre le modele `Partner`. Le nom
+    passe donc par la surface publique de `partners`, et EN LOT — un appel
+    par ligne couterait vingt-cinq requetes par page."""
+    noms = get_partner_display_names({objet.partner_id for objet in objets})
+    for objet in objets:
+        objet.partner_display = noms.get(str(objet.partner_id), "")
+
+
 QUOTATION_COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="state", label="Statut"),
-    Column(key="amount_total", label="Montant", searchable=False),
+    # `amount_total` est exprime dans la DEVISE DU DOCUMENT, jamais
+    # forcement en ariary : le mettre en chasse fixe sous un libelle « Ar »
+    # mentirait sur un devis en euros. La liste montre donc le converti,
+    # comme celle des commandes ; la fiche continue de porter les deux.
+    Column(key="amount_total_mga", label="Montant (MGA)", format="mga", searchable=False),
 ]
 
 ORDER_COLUMNS = [
     Column(key="reference", label="Reference"),
     Column(key="state", label="Statut"),
-    Column(key="partner_id", label="Partenaire", searchable=False),
+    Column(key="partner_display", label="Partenaire", searchable=False),
     Column(key="salesperson", label="Commercial", searchable=False),
-    Column(key="amount_total_mga", label="Montant (MGA)", searchable=False),
+    Column(key="amount_total_mga", label="Montant (MGA)", format="mga", searchable=False),
 ]
 
 
@@ -230,6 +252,7 @@ _QUOTATION_ACTIONS = {
 @screen_permission("sales.view_salesquotation")
 def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
     quotation = get_object_or_404(SalesQuotation, id=quotation_id)
+    _enrichir_partenaires([quotation])
     user = cast(User, request.user)
     error = None
     new_order = None
@@ -310,6 +333,7 @@ def order_list(request: HttpRequest) -> HttpResponse:
             "state_choices": SalesOrder.STATE_CHOICES,
             "selected_state": state or "",
         },
+        enrichir=_enrichir_partenaires,
     )
 
 
@@ -378,6 +402,7 @@ _ORDER_ACTIONS = {
 @screen_permission("sales.view_salesorder")
 def order_detail(request: HttpRequest, order_id: str) -> HttpResponse:
     order = get_object_or_404(SalesOrder, id=order_id)
+    _enrichir_partenaires([order])
     user = cast(User, request.user)
     error = None
 

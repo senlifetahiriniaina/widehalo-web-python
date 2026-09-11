@@ -159,7 +159,7 @@ def test_sales_quotation_journey(logged_in_page, live_server, e2e_tenant_and_use
     page.wait_for_url(f"{live_server.url}/sales/**")
     page.click("button[value=send]")
     page.wait_for_url(f"{live_server.url}/sales/**")
-    assert "Envoye" in page.content() or "Sent" in page.content()
+    assert "Envoyé" in page.content() or "Sent" in page.content()
 
 
 def test_purchase_requisition_journey(logged_in_page, live_server, e2e_tenant_and_user) -> None:

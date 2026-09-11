@@ -19,6 +19,7 @@ nombre reellement montre.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, cast
 
 from django.db.models import QuerySet
@@ -131,8 +132,17 @@ def presentation_response(
     model_label: str,
     page_context: dict[str, Any] | None = None,
     row_url_name: str = "",
+    enrichir: Callable[[list[Any]], None] | None = None,
 ) -> HttpResponse:
     """Rend l'ecran dans sa presentation courante.
+
+    `enrichir` ne sert QUE la branche liste et export, et c'est une mesure,
+    pas un oubli : la carte du kanban rend `{{ carte }}` — le `__str__` du
+    document — et son statut operationnel, jamais une colonne declaree.
+    Lui passer le crochet poserait un appel que rien ne lit, ce que ce
+    chantier retire depuis le debut. Faire porter au fragment generique un
+    sous-titre par document est un elargissement de C-4, pas de D-1 : c'est
+    signale, pas livre.
 
     En LISTE, delegue entierement a `smart_table_response` : recherche,
     tri, pagination, colonnes masquables et export restent exactement ce
@@ -157,6 +167,7 @@ def presentation_response(
             queryset=queryset,
             page_template=page_template,
             page_context=contexte,
+            enrichir=enrichir,
         )
 
     # Le kanban filtre sur la MEME recherche que la liste. Sans cela, taper

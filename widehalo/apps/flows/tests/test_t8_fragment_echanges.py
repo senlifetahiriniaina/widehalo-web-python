@@ -213,13 +213,9 @@ def test_a_waiting_exchange_says_what_happens_next_and_when(admin: User, societe
     # La reference est le reglage `DISPLAY_TIME_ZONE`, source INDEPENDANTE
     # du middleware qui l'applique : verifier l'affichage contre le code qui
     # le produit ne prouverait rien (lecon F60).
-    heure_affichee = prochaine.astimezone(
-        ZoneInfo(settings.DISPLAY_TIME_ZONE)
-    ).strftime("%Hh%M")
+    heure_affichee = prochaine.astimezone(ZoneInfo(settings.DISPLAY_TIME_ZONE)).strftime("%Hh%M")
     assert heure_affichee in contenu
-    assert prochaine.strftime("%Hh%M") not in contenu, (
-        "l'heure UTC est encore rendue telle quelle"
-    )
+    assert prochaine.strftime("%Hh%M") not in contenu, "l'heure UTC est encore rendue telle quelle"
 
 
 def test_a_document_without_exchanges_shows_nothing_at_all(admin: User, societe: Tenant) -> None:

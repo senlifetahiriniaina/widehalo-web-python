@@ -29,7 +29,7 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 
 from apps.core.models.base import BaseModel, ReferenceMixin
@@ -37,17 +37,21 @@ from apps.core.services.presentation import StatutOperationnelMixin
 
 
 class SalesQuotation(StatutOperationnelMixin, BaseModel, ReferenceMixin):
+    #: Idem `SalesOrder.partner_display` : la fiche du devis affiche le nom
+    #: du tiers, jamais son identifiant.
+    partner_display = ""
+
     STATE_DRAFT = "draft"
     STATE_SENT = "sent"
     STATE_ACCEPTED = "accepted"
     STATE_DECLINED = "declined"
     STATE_EXPIRED = "expired"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_SENT, "Envoye"),
-        (STATE_ACCEPTED, "Accepte"),
-        (STATE_DECLINED, "Refuse"),
-        (STATE_EXPIRED, "Expire"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_SENT, _("Envoyé")),
+        (STATE_ACCEPTED, _("Accepté")),
+        (STATE_DECLINED, _("Refusé")),
+        (STATE_EXPIRED, _("Expiré")),
     ]
 
     INCOTERM_EXW = "EXW"
@@ -56,11 +60,11 @@ class SalesQuotation(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     INCOTERM_DAP = "DAP"
     INCOTERM_DDP = "DDP"
     INCOTERM_CHOICES = [
-        (INCOTERM_EXW, "EXW — A l'usine"),
-        (INCOTERM_FOB, "FOB — Franco a bord"),
-        (INCOTERM_CIF, "CIF — Cout, assurance et fret"),
-        (INCOTERM_DAP, "DAP — Rendu au lieu de destination"),
-        (INCOTERM_DDP, "DDP — Rendu droits acquittes"),
+        (INCOTERM_EXW, _("EXW — À l'usine")),
+        (INCOTERM_FOB, _("FOB — Franco à bord")),
+        (INCOTERM_CIF, _("CIF — Coût, assurance et fret")),
+        (INCOTERM_DAP, _("DAP — Rendu au lieu de destination")),
+        (INCOTERM_DDP, _("DDP — Rendu droits acquittés")),
     ]
 
     # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
@@ -104,9 +108,9 @@ class SalesQuotationLine(BaseModel):
     SOURCE_PRODUCTION = "production"
     SOURCE_ACHAT = "achat"
     SOURCE_CHOICES = [
-        (SOURCE_STOCK, "Sur stock"),
-        (SOURCE_PRODUCTION, "A produire"),
-        (SOURCE_ACHAT, "A acheter"),
+        (SOURCE_STOCK, _("Sur stock")),
+        (SOURCE_PRODUCTION, _("À produire")),
+        (SOURCE_ACHAT, _("À acheter")),
     ]
 
     quotation = models.ForeignKey(SalesQuotation, on_delete=models.CASCADE, related_name="lines")
@@ -153,6 +157,13 @@ class SalesQuotationLine(BaseModel):
 
 
 class SalesOrder(StatutOperationnelMixin, BaseModel, ReferenceMixin):
+    #: Rempli par l'ecran (lecture groupee des noms de tiers), vide sinon.
+    #: Declare ici pour deux raisons : la garde « une colonne designe
+    #: quelque chose » (D-0) le verifie sur la CLASSE, et une page qui
+    #: oublierait l'enrichissement rend une cellule vide plutot qu'une
+    #: erreur.
+    partner_display = ""
+
     """Commande de vente (§5.5.2/5.5.4, S2). Reprend tous les champs du
     devis (RG-SAL-1 : chaine documentaire sans ressaisie, cf.
     `services.orders.create_order_from_quotation`) sauf `state`, remplace
@@ -174,16 +185,16 @@ class SalesOrder(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     STATE_CANCELLED = "cancelled"
     STATE_BLOCKED = "blocked"
     STATE_CHOICES = [
-        (STATE_DRAFT, "Brouillon"),
-        (STATE_SENT, "Envoyee"),
-        (STATE_CONFIRMED, "Confirmee"),
-        (STATE_IN_PREPARATION, "En preparation"),
-        (STATE_PARTIALLY_DELIVERED, "Livree partiellement"),
-        (STATE_DELIVERED, "Livree"),
-        (STATE_INVOICED, "Facturee"),
-        (STATE_CLOSED, "Cloturee"),
-        (STATE_CANCELLED, "Annulee"),
-        (STATE_BLOCKED, "Bloquee"),
+        (STATE_DRAFT, _("Brouillon")),
+        (STATE_SENT, _("Envoyée")),
+        (STATE_CONFIRMED, _("Confirmée")),
+        (STATE_IN_PREPARATION, _("En préparation")),
+        (STATE_PARTIALLY_DELIVERED, _("Livrée partiellement")),
+        (STATE_DELIVERED, _("Livrée")),
+        (STATE_INVOICED, _("Facturée")),
+        (STATE_CLOSED, _("Clôturée")),
+        (STATE_CANCELLED, _("Annulée")),
+        (STATE_BLOCKED, _("Bloquée")),
     ]
 
     INCOTERM_EXW = SalesQuotation.INCOTERM_EXW
@@ -372,10 +383,10 @@ class SalesOrderLine(BaseModel):
     BILLING_ON_DEPOSIT = "on_deposit"
     BILLING_ON_PRODUCTION_PROGRESS = "on_production_progress"
     BILLING_POLICY_CHOICES = [
-        (BILLING_ON_ORDERED_QTY, "Sur quantite commandee"),
-        (BILLING_ON_DELIVERED_QTY, "Sur quantite livree"),
-        (BILLING_ON_DEPOSIT, "Sur acompte"),
-        (BILLING_ON_PRODUCTION_PROGRESS, "A l'avancement de production"),
+        (BILLING_ON_ORDERED_QTY, _("Sur quantité commandée")),
+        (BILLING_ON_DELIVERED_QTY, _("Sur quantité livrée")),
+        (BILLING_ON_DEPOSIT, _("Sur acompte")),
+        (BILLING_ON_PRODUCTION_PROGRESS, _("À l'avancement de production")),
     ]
 
     order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name="lines")
@@ -467,10 +478,10 @@ class SalesRecurrence(BaseModel):
     INTERVAL_QUARTERLY = "quarterly"
     INTERVAL_YEARLY = "yearly"
     INTERVAL_CHOICES = [
-        (INTERVAL_WEEKLY, "Hebdomadaire"),
-        (INTERVAL_MONTHLY, "Mensuel"),
-        (INTERVAL_QUARTERLY, "Trimestriel"),
-        (INTERVAL_YEARLY, "Annuel"),
+        (INTERVAL_WEEKLY, _("Hebdomadaire")),
+        (INTERVAL_MONTHLY, _("Mensuel")),
+        (INTERVAL_QUARTERLY, _("Trimestriel")),
+        (INTERVAL_YEARLY, _("Annuel")),
     ]
 
     name = models.CharField(max_length=150)
@@ -509,10 +520,10 @@ class SalesCustomerCalendar(BaseModel):
     TYPE_CAMPAIGN = "campaign"
     TYPE_INVENTORY = "inventory"
     TYPE_CHOICES = [
-        (TYPE_CLOSURE, "Fermeture"),
-        (TYPE_PEAK_ACTIVITY, "Pic d'activite"),
-        (TYPE_CAMPAIGN, "Campagne"),
-        (TYPE_INVENTORY, "Inventaire"),
+        (TYPE_CLOSURE, _("Fermeture")),
+        (TYPE_PEAK_ACTIVITY, _("Pic d'activité")),
+        (TYPE_CAMPAIGN, _("Campagne")),
+        (TYPE_INVENTORY, _("Inventaire")),
     ]
 
     # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
@@ -553,9 +564,9 @@ class SalesTarget(BaseModel):
     SCOPE_TEAM = "team"
     SCOPE_SALESPERSON = "salesperson"
     SCOPE_CHOICES = [
-        (SCOPE_COMPANY, "Entreprise"),
-        (SCOPE_TEAM, "Equipe"),
-        (SCOPE_SALESPERSON, "Commercial"),
+        (SCOPE_COMPANY, _("Entreprise")),
+        (SCOPE_TEAM, _("Équipe")),
+        (SCOPE_SALESPERSON, _("Commercial")),
     ]
 
     period = models.CharField(max_length=7)
@@ -623,9 +634,9 @@ class SalesForecast(BaseModel):
     CONFIDENCE_MEDIUM = "medium"
     CONFIDENCE_HIGH = "high"
     CONFIDENCE_CHOICES = [
-        (CONFIDENCE_LOW, "Faible"),
-        (CONFIDENCE_MEDIUM, "Moyenne"),
-        (CONFIDENCE_HIGH, "Haute"),
+        (CONFIDENCE_LOW, _("Faible")),
+        (CONFIDENCE_MEDIUM, _("Moyenne")),
+        (CONFIDENCE_HIGH, _("Haute")),
     ]
 
     period = models.CharField(max_length=7)

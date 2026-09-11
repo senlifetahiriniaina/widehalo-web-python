@@ -9,6 +9,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.partners.services.onboarding import create_partner
+from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.orders import add_order_line, create_order
 from apps.sales.services.quotations import add_quotation_line, create_quotation
 from django.test import Client
@@ -78,6 +79,14 @@ def test_quotation_create_screen_via_partner_picker_field(sales_screens_setup) -
         "/sales/new/", {"partner_id": str(partner.id), "date": str(dt.date.today())}
     )
     assert response.status_code == 302
+    # **La redirection ne prouve rien.** Ce test disait « cree bien un devis
+    # reel » et n'assertait qu'un code de statut : la vue rend 302 par la
+    # clause `else` du `try`, qu'une branche ait agi ou non — c'est
+    # exactement par la que le depot de piece jointe d'une facture a perdu
+    # les fichiers de l'exploitant pendant des mois.
+    with use_tenant(tenant.id):
+        devis = SalesQuotation.objects.filter(partner_id=partner.id).get()
+    assert devis.date == dt.date.today()
 
 
 def test_quotation_detail_send_accept_convert_flow(sales_screens_setup) -> None:
@@ -90,7 +99,8 @@ def test_quotation_detail_send_accept_convert_flow(sales_screens_setup) -> None:
     assert response.status_code == 302
 
     detail = client.get(f"/sales/{quotation.id}/")
-    assert b"Accepte" in detail.content
+    # Le libelle est accentue depuis D-1 : cette assertion gardait la faute.
+    assert "Accepté" in detail.content.decode()
 
     response = client.post(f"/sales/{quotation.id}/", {"action": "convert_to_order"})
     assert response.status_code == 302
@@ -142,6 +152,9 @@ def test_order_create_screen_via_partner_picker_field(sales_screens_setup) -> No
         "/sales/orders/new/", {"partner_id": str(partner.id), "date": str(dt.date.today())}
     )
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        commande = SalesOrder.objects.filter(partner_id=partner.id).get()
+    assert commande.date == dt.date.today()
 
 
 def test_order_detail_full_workflow_no_full_reload_uses_redirect(sales_screens_setup) -> None:

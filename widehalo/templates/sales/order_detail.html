@@ -34,7 +34,9 @@
 
   </div>
   {% include "components/_next_steps.html" %}
-  <p>{% trans "Partenaire" %}: {{ order.partner_id }}</p>
+  <p>{% trans "Partenaire" %}:
+    {% if order.partner_display %}{{ order.partner_display }}
+    {% else %}<span class="hint">{% trans "tiers introuvable" %}</span>{% endif %}</p>
   <p>{% trans "Commercial" %}: {{ order.salesperson|default:"-" }}</p>
   {% comment %}
     L17 — conditionne par le REGIME (`tenant_is_vat_liable`, pose par le
@@ -127,7 +129,7 @@
           <option value="on_ordered_qty">{% trans "Sur quantité commandée" %}</option>
           <option value="on_delivered_qty">{% trans "Sur quantité livrée" %}</option>
           <option value="on_deposit">{% trans "Sur acompte" %}</option>
-          <option value="on_production_progress">{% trans "A l'avancement de production" %}</option>
+          <option value="on_production_progress">{% trans "À l'avancement de production" %}</option>
         </select>
       </div>
       <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>

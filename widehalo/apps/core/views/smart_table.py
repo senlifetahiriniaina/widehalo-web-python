@@ -11,6 +11,7 @@ import csv
 import datetime as dt
 import io
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, cast
@@ -155,6 +156,7 @@ def _export_response(
     table_key: str,
     columns: list[Column],
     queryset: QuerySet[Any],
+    enrichir: Callable[[list[Any]], None] | None = None,
 ) -> HttpResponse:
     filename = f"{table_key}.{export_format}"
     # **L'en-tete porte les LIBELLES, pas les noms de champs.** Mesure : la
@@ -170,7 +172,10 @@ def _export_response(
     # `Partner.roles_display`, jamais un vrai champ de requete) ferait
     # echouer `.values()` avec un `FieldError` a l'export, alors que le
     # rendu HTML de la meme colonne fonctionne deja sans probleme.
-    rows = [[_format_export_cell(row, column) for column in columns] for row in queryset]
+    lignes = list(queryset)
+    if enrichir is not None:
+        enrichir(lignes)
+    rows = [[_format_export_cell(row, column) for column in columns] for row in lignes]
 
     if export_format == "csv":
         buffer = io.StringIO()
@@ -278,7 +283,15 @@ def smart_table_response(
     page_template: str,
     page_context: dict[str, Any] | None = None,
     bulk_actions: list[BulkAction] | None = None,
+    enrichir: Callable[[list[Any]], None] | None = None,
 ) -> HttpResponse:
+    """`enrichir` recoit les lignes REELLEMENT rendues, avant le gabarit.
+
+    Certaines colonnes ne se lisent pas sur l'objet : le nom d'un tiers vit
+    dans un autre module, et la regle de couplage n°1 interdit la jointure.
+    Le resoudre ligne par ligne couterait une requete par ligne ; ce crochet
+    laisse l'ecran le resoudre EN UNE FOIS — pour la page a l'ecran, pour le
+    jeu entier a l'export, seul moment ou il est legitime de tout lire."""
     query = request.GET.get("q", "")
     sort = request.GET.get("sort", "")
     hidden = set(request.GET.getlist("hide"))
@@ -307,10 +320,17 @@ def smart_table_response(
             table_key=table_key,
             columns=columns,
             queryset=queryset,
+            enrichir=enrichir,
         )
 
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page_number)
+    if enrichir is not None:
+        # `list(...)` remplit le cache de resultats de la tranche paginee :
+        # le gabarit reiterera SUR LES MEMES objets Python, ceux qu'on vient
+        # d'enrichir. Enrichir une copie laisserait la page rendre des
+        # cellules vides sans la moindre erreur.
+        enrichir(list(page_obj.object_list))
 
     visible_columns = [c for c in columns if c.key not in hidden]
     # SmartTable est toujours servi derriere `@login_required` dans les vues

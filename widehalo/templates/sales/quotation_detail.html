@@ -27,7 +27,9 @@
 
   </div>
   {% include "components/_next_steps.html" %}
-  <p>{% trans "Partenaire" %}: {{ quotation.partner_id }}</p>
+  <p>{% trans "Partenaire" %}:
+    {% if quotation.partner_display %}{{ quotation.partner_display }}
+    {% else %}<span class="hint">{% trans "tiers introuvable" %}</span>{% endif %}</p>
   {% comment %}
     L17 — conditionne par le REGIME (`tenant_is_vat_liable`, pose par le
     processeur de contexte de `core`), jamais par le montant de TVA.

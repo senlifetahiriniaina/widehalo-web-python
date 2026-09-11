@@ -6,6 +6,7 @@ appelle ces fonctions pour toute logique metier (cf. `catalog.ProductSupplierInf
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -57,6 +58,28 @@ def is_over_credit_limit(partner_id: Any, outstanding_amount_mga: Decimal) -> bo
 def get_partner_display_name(partner_id: Any) -> str:
     partner = Partner.objects.filter(id=partner_id).first()
     return partner.name if partner is not None else ""
+
+
+def get_partner_display_names(partner_ids: Iterable[Any]) -> dict[str, str]:
+    """Les noms de plusieurs tiers EN UNE REQUETE.
+
+    `get_partner_display_name` existe et fait autorite, mais appelee par
+    ligne elle coute une requete par ligne : sur une page de vingt-cinq
+    commandes, vingt-cinq lectures pour afficher une colonne. Les ecrans
+    qui affichent un tiers en lisent donc le lot d'un coup.
+
+    Les identifiants inconnus sont simplement absents du resultat —
+    l'appelant decide quoi ecrire a leur place, et personne ne re-affiche
+    un UUID faute de nom."""
+    identifiants = [identifiant for identifiant in partner_ids if identifiant]
+    if not identifiants:
+        return {}
+    return {
+        str(identifiant): nom
+        for identifiant, nom in Partner.objects.filter(id__in=identifiants).values_list(
+            "id", "name"
+        )
+    }
 
 
 def partner_has_role(partner_id: Any, role: str) -> bool:
