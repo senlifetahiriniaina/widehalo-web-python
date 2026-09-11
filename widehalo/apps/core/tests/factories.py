@@ -34,7 +34,7 @@ from apps.core.models.risk import CATEGORY_OTHER, RiskItem
 from apps.core.models.search import SearchDocument
 from apps.core.models.sequence import Sequence
 from apps.core.models.tenant import Tenant
-from apps.core.models.ui import SavedTableView
+from apps.core.models.ui import SavedTableView, ScreenPreference
 from apps.core.models.user import User, UserEmailChangeRequest, UserTenantMembership
 from apps.core.models.workflow import (
     ApprovalDelegation,
@@ -133,6 +133,24 @@ class SavedTableViewFactory(factory.django.DjangoModelFactory):
     table_key = "partners.list"
     name = factory.Sequence(lambda n: f"Vue {n}")
     owner = factory.SubFactory(UserFactory)
+
+
+class ScreenPreferenceFactory(factory.django.DjangoModelFactory):
+    """C-4 — la preference de presentation d'un utilisateur sur un ecran.
+
+    Toute sous-classe de `BaseModel` doit avoir sa factory : c'est ce qui
+    rend l'export et la reimportation d'une societe verifiables entite par
+    entite (`test_tenant_portability_per_entity`). La garde a refuse ce
+    modele tant qu'elle manquait — et elle avait raison : une preference
+    non exportee reviendrait vide apres un transfert de societe."""
+
+    class Meta:
+        model = ScreenPreference
+
+    tenant = factory.SubFactory(TenantFactory)
+    owner = factory.SubFactory(UserFactory)
+    table_key = factory.Sequence(lambda n: f"sales.orders.{n}")
+    presentation = ScreenPreference.PRESENTATION_KANBAN
 
 
 class DocumentFactory(factory.django.DjangoModelFactory):

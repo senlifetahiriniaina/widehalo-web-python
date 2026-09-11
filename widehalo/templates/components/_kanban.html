@@ -23,6 +23,33 @@ fragment n'y ajoute rien : il se contente des classes définies (`panel`,
 pas l'état. Un magasinier doit pouvoir distinguer « en transit » de
 « en dédouanement » alors que les deux vivent dans « En cours ».
 {% endcomment %}
+{% comment %} Recherche et export restent offerts EN KANBAN.
+
+  C-2 exigeait que toutes les listes soient uniformes — pagination, export,
+  filtre, recherche. C-4 a fait du kanban la présentation par défaut de cinq
+  d'entre elles, et la garde de C-2 est tombée : les contrôles avaient
+  disparu de l'écran. Les deux exigences se heurtaient.
+
+  La résolution n'en sacrifie aucune : chercher et exporter portent sur les
+  DONNÉES, pas sur la façon de les disposer. Les deux contrôles sont donc
+  rendus ici aussi. Seule la pagination reste propre à la liste — un
+  tableau ne se pagine pas, il plafonne par colonne et l'annonce.
+{% endcomment %}
+<div class="smart-table-toolbar">
+  <form method="get" role="search">
+    <input type="hidden" name="presentation" value="kanban">
+    <input id="smart-table-search-{{ table_key|smart_table_dom_id }}" type="search" name="q"
+           value="{{ query }}" placeholder="{% trans 'Rechercher…' %}"
+           aria-label="{% trans 'Rechercher' %}">
+    <button type="submit" class="btn">{% trans "Rechercher" %}</button>
+  </form>
+  <div class="smart-table-export-links">
+    <a href="?export=csv">{% trans "Exporter CSV" %}</a>
+    <a href="?export=xlsx">{% trans "Exporter XLSX" %}</a>
+    <a href="?export=pdf">{% trans "Exporter PDF" %}</a>
+  </div>
+</div>
+
 <div style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
   {% for colonne in colonnes_kanban %}
     <section class="panel" style="min-width:15rem; flex:1 0 15rem;"

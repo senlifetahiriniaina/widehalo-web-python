@@ -133,7 +133,13 @@ def test_every_list_offers_search_export_and_pagination(chemin: str) -> None:
     client, tenant, user = _client_dote()
     if chemin in A_AMORCER:
         _amorcer(chemin, tenant, user)
-    reponse = client.get(chemin)
+    # `presentation=liste` est DEMANDE explicitement depuis C-4 : cinq de
+    # ces ecrans s'ouvrent desormais en kanban par defaut, et la pagination
+    # est propre a la liste — un tableau ne se pagine pas, il plafonne par
+    # colonne et l'annonce. Ce test porte sur l'uniformite de la LISTE ;
+    # l'accord des deux presentations est verifie par
+    # `tests/ui/test_c4_kanban.py`.
+    reponse = client.get(chemin, {"presentation": "liste"})
     assert reponse.status_code == 200, f"{chemin} rend {reponse.status_code}"
     contenu = reponse.content.decode()
 
@@ -158,7 +164,13 @@ def test_every_list_actually_exports(chemin: str) -> None:
     """L'export se verifie en le DEMANDANT.
 
     Un lien d'export qui rendrait la page HTML satisferait le test
-    precedent et ne servirait a rien le jour ou quelqu'un clique."""
+    precedent et ne servirait a rien le jour ou quelqu'un clique.
+
+    **Sans parametre de presentation, volontairement** : exporter porte sur
+    les DONNEES, pas sur la facon de les disposer. Un ecran qui s'ouvre en
+    kanban doit exporter aussi bien qu'en liste, sinon l'utilisateur devrait
+    basculer pour obtenir son fichier — et C-4 a failli introduire
+    exactement ce defaut."""
     client, _tenant, _user = _client_dote()
     reponse = client.get(chemin, {"export": "csv"})
     assert reponse.status_code == 200, f"{chemin}?export=csv rend {reponse.status_code}"

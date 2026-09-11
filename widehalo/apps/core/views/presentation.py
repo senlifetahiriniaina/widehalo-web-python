@@ -28,7 +28,7 @@ from django.shortcuts import render
 from apps.core.models.ui import ScreenPreference
 from apps.core.models.user import User
 from apps.core.services.presentation import COLONNES, board_for, column_of
-from apps.core.views.smart_table import Column, smart_table_response
+from apps.core.views.smart_table import EXPORT_FORMATS, Column, apply_search, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 
 PRESENTATION_LISTE = ScreenPreference.PRESENTATION_LISTE
@@ -120,7 +120,12 @@ def presentation_response(
     contexte["presentation"] = presentation
     contexte["kanban_disponible"] = board_for(model_label) is not None
 
-    if presentation == PRESENTATION_LISTE:
+    # **L'export part TOUJOURS par le composant, quelle que soit la
+    # presentation.** Exporter porte sur les donnees, pas sur la facon de
+    # les disposer : un lien d'export qui rendrait la page kanban au lieu
+    # d'un fichier serait du decor, et c'est exactement ce que la garde de
+    # C-2 verifie en DEMANDANT le fichier plutot qu'en constatant le lien.
+    if request.GET.get("export") in EXPORT_FORMATS or presentation == PRESENTATION_LISTE:
         if row_url_name:
             contexte.setdefault("row_url_name", row_url_name)
         return smart_table_response(
@@ -132,7 +137,12 @@ def presentation_response(
             page_context=contexte,
         )
 
-    contexte["colonnes_kanban"] = _colonnes_du_tableau(queryset)
+    # Le kanban filtre sur la MEME recherche que la liste. Sans cela, taper
+    # dans le champ de recherche d'un tableau ne ferait rien — un controle
+    # rendu et inerte.
+    requete = request.GET.get("q", "")
+    contexte["query"] = requete
+    contexte["colonnes_kanban"] = _colonnes_du_tableau(apply_search(queryset, columns, requete))
     contexte["row_url_name"] = row_url_name
     contexte["table_key"] = table_key
     return render(request, page_template, contexte)

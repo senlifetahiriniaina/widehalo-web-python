@@ -197,6 +197,15 @@ def _apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) ->
     return queryset.filter(condition) if condition else queryset
 
 
+def apply_search(queryset: QuerySet[Any], columns: list[Column], query: str) -> QuerySet[Any]:
+    """Alias public de la recherche — C-4 en a besoin pour le kanban.
+
+    Le tableau doit filtrer sur la MEME recherche que la liste : deux
+    moteurs de recherche pour un meme ecran finiraient par ne pas rendre les
+    memes lignes, et l'utilisateur ne saurait pas lequel croire."""
+    return _apply_search(queryset, columns, query)
+
+
 def smart_table_response(
     request: HttpRequest,
     *,
