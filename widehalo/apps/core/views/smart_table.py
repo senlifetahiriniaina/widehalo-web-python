@@ -8,9 +8,11 @@ page complete »."""
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import io
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
@@ -20,6 +22,7 @@ from django.db.models import Q, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
+from django.utils import formats
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.ui import SavedTableView
@@ -133,7 +136,16 @@ def _format_export_cell(row: Any, column: Column) -> str:
     libelle = getattr(row, f"get_{column.key}_display", None)
     if callable(libelle):
         return str(libelle())
-    return "" if value is None else str(value)
+    if value is None:
+        return ""
+    # **Une date et un nombre s'ecrivent comme a l'ecran.** `str(value)`
+    # rendait `2026-09-11` et `1234.5678` la ou la page affiche
+    # « 11 septembre 2026 » et « 1234,5678 » : le meme bouton produisait un
+    # fichier qui contredisait sa propre page. `localize` applique la locale
+    # active, celle-la meme qui a rendu l'ecran.
+    if isinstance(value, dt.date | dt.datetime | Decimal | float):
+        return str(formats.localize(value))
+    return str(value)
 
 
 def _export_response(
@@ -145,7 +157,13 @@ def _export_response(
     queryset: QuerySet[Any],
 ) -> HttpResponse:
     filename = f"{table_key}.{export_format}"
-    field_names = [c.key for c in columns]
+    # **L'en-tete porte les LIBELLES, pas les noms de champs.** Mesure : la
+    # premiere ligne d'un CSV de commandes etait
+    # `reference,state,partner_id,salesperson,amount_total_mga` — le
+    # vocabulaire technique servi a un exploitant, alors que l'ecran et
+    # l'export PDF du meme bouton affichaient « Reference », « Statut »,
+    # « Partenaire ». Trois formats, deux vocabulaires.
+    field_names = [str(c.label) for c in columns]
     # Construit les lignes via `getattr` (comme le rendu de cellule normal du
     # tableau, `_format_export_cell`) plutot que `queryset.values(*field_names)`
     # — une colonne appuyee sur une `@property` de modele (ex.

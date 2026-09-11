@@ -441,7 +441,11 @@ def trip_template_list(request: HttpRequest) -> HttpResponse:
 TRIP_TEMPLATE_COLUMNS = [
     Column(key="name", label="Nom"),
     Column(key="interval", label="Periodicite"),
-    Column(key="start_date", label="Debut", searchable=False),
+    # `LogTripTemplate` n'a pas de `start_date` : il porte `next_run`, la
+    # date de la prochaine tournee a engendrer. La colonne « Debut » rendait
+    # donc une cellule vide sur chaque ligne, sans erreur — le filtre de
+    # rendu a un defaut a la chaine vide. Le libelle suit le champ reel.
+    Column(key="next_run", label="Prochaine tournée", searchable=False),
     Column(key="end_date", label="Fin", searchable=False),
 ]
 

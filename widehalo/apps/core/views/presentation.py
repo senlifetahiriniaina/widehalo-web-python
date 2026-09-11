@@ -27,7 +27,7 @@ from django.shortcuts import render
 
 from apps.core.models.ui import ScreenPreference
 from apps.core.models.user import User
-from apps.core.services.presentation import COLONNES, board_for, column_of
+from apps.core.services.presentation import COLONNES, Board, board_for
 from apps.core.views.smart_table import EXPORT_FORMATS, Column, apply_search, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 
@@ -79,24 +79,46 @@ def _presentation_choisie(request: HttpRequest, *, table_key: str, model_label: 
     return memorisee or _presentation_par_defaut(model_label)
 
 
-def _colonnes_du_tableau(queryset: QuerySet[Any]) -> list[dict[str, Any]]:
-    """Les cinq colonnes, chacune avec ses cartes, son total et son plafond."""
-    par_colonne: dict[str, list[Any]] = {code: [] for code, _libelle in COLONNES}
-    for objet in queryset:
-        code = column_of(objet)
-        if code in par_colonne:
-            par_colonne[code].append(objet)
+def _colonnes_du_tableau(queryset: QuerySet[Any], board: Board) -> list[dict[str, Any]]:
+    """Les cinq colonnes, chacune bornee EN BASE.
 
-    return [
-        {
-            "code": code,
-            "libelle": libelle,
-            "cartes": par_colonne[code][:CARTES_PAR_COLONNE],
-            "total": len(par_colonne[code]),
-            "tronquee": len(par_colonne[code]) > CARTES_PAR_COLONNE,
-        }
-        for code, libelle in COLONNES
-    ]
+    **Le cahier l.505 : « aucune liste ne charge integralement son jeu de
+    donnees, y compris a l'export ».** La premiere version de ce lot faisait
+    exactement l'inverse : `for objet in queryset` chargeait les dix mille
+    factures d'une societe pour n'en montrer cinquante par colonne. Le
+    defaut est de ce lot-ci, et il enfreignait un critere ecrit.
+
+    La projection declaree donne l'inverse dont on a besoin : de quels
+    etats une colonne est faite. Deux requetes bornees par colonne non vide
+    — un comptage et une tranche — remplacent le chargement complet, et le
+    nombre de requetes ne depend plus du nombre de documents."""
+    etats_par_colonne: dict[str, list[str]] = {code: [] for code, _libelle in COLONNES}
+    for etat, colonne in board.par_etat.items():
+        if colonne in etats_par_colonne:
+            etats_par_colonne[colonne].append(etat)
+
+    colonnes: list[dict[str, Any]] = []
+    for code, libelle in COLONNES:
+        etats = etats_par_colonne[code]
+        if not etats:
+            # Aucun etat n'alimente cette colonne : inutile d'interroger la
+            # base pour apprendre qu'elle est vide.
+            colonnes.append(
+                {"code": code, "libelle": libelle, "cartes": [], "total": 0, "tronquee": False}
+            )
+            continue
+        sous_ensemble = queryset.filter(**{f"{board.state_field}__in": etats})
+        total = sous_ensemble.count()
+        colonnes.append(
+            {
+                "code": code,
+                "libelle": libelle,
+                "cartes": list(sous_ensemble[:CARTES_PAR_COLONNE]),
+                "total": total,
+                "tronquee": total > CARTES_PAR_COLONNE,
+            }
+        )
+    return colonnes
 
 
 def presentation_response(
@@ -142,7 +164,15 @@ def presentation_response(
     # rendu et inerte.
     requete = request.GET.get("q", "")
     contexte["query"] = requete
-    contexte["colonnes_kanban"] = _colonnes_du_tableau(apply_search(queryset, columns, requete))
+    # `_presentation_choisie` rend la LISTE des qu'aucun tableau n'est
+    # declare : atteindre cette branche implique donc qu'il y en a un. Le
+    # `assert` dit cet invariant a mypy — meme geste qu'a
+    # `apps/core/views/backup_admin.py:82`.
+    tableau = board_for(model_label)
+    assert tableau is not None
+    contexte["colonnes_kanban"] = _colonnes_du_tableau(
+        apply_search(queryset, columns, requete), tableau
+    )
     contexte["row_url_name"] = row_url_name
     contexte["table_key"] = table_key
     return render(request, page_template, contexte)

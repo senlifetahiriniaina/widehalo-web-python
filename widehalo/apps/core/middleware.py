@@ -21,7 +21,7 @@ from collections.abc import Callable
 
 from django.db import connection, transaction
 from django.http import HttpRequest, HttpResponse
-from django.utils import translation
+from django.utils import timezone, translation
 
 from apps.core.context import clear_current_tenant, set_current_tenant
 
@@ -165,6 +165,38 @@ class MFAEnforcementMiddleware:
 
                 return redirect("/mfa/")
 
+        return self.get_response(request)
+
+
+class DisplayTimezoneMiddleware:
+    """D-0 — affiche les horodatages dans le fuseau du client.
+
+    **Trois heures de retard sur tout le produit, et un reglage qui disait
+    le contraire.** `TIME_ZONE = "UTC"` avec `USE_TZ = True` : Django rend
+    donc tout `datetime` en UTC. `DISPLAY_TIME_ZONE = "Indian/Antananarivo"`
+    existe dans les reglages depuis toujours, et **aucun
+    `timezone.activate()` n'existait nulle part dans le depot** — le
+    convertisseur `to_display_timezone` n'etait appele que par une regle
+    metier de logistique, jamais pour l'affichage. Un encaissement recu a
+    08:30 a Antananarivo s'affichait « 05:30 ».
+
+    **L'activation est inconditionnelle, et c'est deliberé.**
+    `LocaleMiddleware` reactive une langue a chaque requete, ce qui rattrape
+    l'absence de `deactivate` cote traduction ; **il n'existe aucun
+    equivalent pour le fuseau**. Une activation posee seulement dans une
+    branche laisserait la requete suivante servie par le meme fil heriter
+    du fuseau precedent.
+
+    Le stockage ne change pas : la base reste en UTC, seule facon de
+    comparer deux horodatages sans se tromper."""
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        from apps.core.utils.formatting import DISPLAY_TIMEZONE
+
+        timezone.activate(DISPLAY_TIMEZONE)
         return self.get_response(request)
 
 

@@ -141,7 +141,24 @@
             {% endfor %}
           </tr>
         {% empty %}
-          <tr><td colspan="{% if bulk_actions %}{{ columns|length|add:1 }}{% else %}{{ columns|length }}{% endif %}">{% trans "Aucun résultat." %}</td></tr>
+          {% comment %}D-0 : « Aucun résultat. » ne dit ni pourquoi, ni quoi faire.
+            Mesuré : 22 des 23 listes des quatre modules tombaient sur cette cellule,
+            et 7 d'entre elles ne rendaient LITTÉRALEMENT rien d'autre pour un rôle
+            en lecture seule. Le composant d'état vide existe depuis CRM-5 et
+            n'était posé que sur une liste. Deux appels distincts plutôt qu'un seul
+            avec des attributs conditionnels : cotton analyse sa propre balise et ne
+            sait pas lire un `{% if %}` dans un attribut.{% endcomment %}
+          <tr><td colspan="{% if bulk_actions %}{{ columns|length|add:1 }}{% else %}{{ columns|length }}{% endif %}">
+            {% if query %}
+              <c-empty-state
+                title="{% trans 'Aucun résultat pour cette recherche' %}"
+                body="{% trans 'Aucune ligne ne correspond au terme saisi. Essayez un autre mot, ou effacez la recherche pour revoir la liste entière.' %}" />
+            {% else %}
+              <c-empty-state
+                title="{% trans 'Rien à afficher pour l’instant' %}"
+                body="{% trans 'Cet écran se remplira dès la première ligne enregistrée. Les actions disponibles figurent en haut de la page.' %}" />
+            {% endif %}
+          </td></tr>
         {% endfor %}
       </tbody>
     </table>

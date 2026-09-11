@@ -63,11 +63,17 @@ ACCOUNT_COLUMNS = [
 TAX_COLUMNS = [
     Column(key="code", label="Code"),
     Column(key="name", label="Libelle"),
-    Column(key="rate_pct", label="Taux (%)", searchable=False),
+    # `AccTax` porte `rate`, jamais `rate_pct` — ce dernier appartient a
+    # `AccIrcmDeclaration` et `AccLocalTax`. La colonne rendait donc une
+    # cellule vide sur CHAQUE ligne, sous un en-tete qui promet un taux, et
+    # son entete n'etait meme pas triable. Aucune erreur, aucune trace : le
+    # filtre de rendu a un defaut a la chaine vide.
+    Column(key="rate", label="Taux (%)", searchable=False),
 ]
 
+#: `AccPaymentTerm` ne porte qu'un `name` : la colonne « Code » rendait une
+#: cellule vide sur chaque ligne, et l'export un en-tete sans valeurs.
 PAYMENT_TERM_COLUMNS = [
-    Column(key="code", label="Code"),
     Column(key="name", label="Libelle"),
 ]
 

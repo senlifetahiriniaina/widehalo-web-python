@@ -96,6 +96,11 @@ MIDDLEWARE = [
     # (a besoin de request.user pour lire `preferred_language`) -- ne
     # jamais la deplacer avant l'une des deux.
     "apps.core.middleware.UserLocaleMiddleware",
+    # D-0 : sans elle, tout horodatage affiche portait trois heures de
+    # retard — `TIME_ZONE` vaut UTC et `DISPLAY_TIME_ZONE` n'etait lu par
+    # aucun code d'affichage. Placee apres `UserLocaleMiddleware`, dont
+    # elle reprend la forme (activation par requete).
+    "apps.core.middleware.DisplayTimezoneMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
