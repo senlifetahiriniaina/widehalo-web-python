@@ -21,8 +21,10 @@ un rendu de bout en bout, vue comprise, le montre.
 from __future__ import annotations
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pytest
+from django.conf import settings
 from django.test import Client
 from django.utils import timezone
 from django_otp.oath import totp
@@ -203,7 +205,21 @@ def test_a_waiting_exchange_says_what_happens_next_and_when(admin: User, societe
     contenu = _client_admin(admin).get(f"/accounting/{facture.id}/").content.decode()
 
     assert "Nouvelle tentative à" in contenu
-    assert prochaine.strftime("%Hh%M") in contenu
+    # **L'heure affichee est celle d'Antananarivo, pas celle du serveur.**
+    # Ce test comparait a `prochaine.strftime(...)`, c'est-a-dire a l'heure
+    # UTC — il passait donc EXACTEMENT TANT QUE le bandeau mentait de trois
+    # heures. Une nouvelle tentative annoncee a 14h30 partait a 17h30.
+    #
+    # La reference est le reglage `DISPLAY_TIME_ZONE`, source INDEPENDANTE
+    # du middleware qui l'applique : verifier l'affichage contre le code qui
+    # le produit ne prouverait rien (lecon F60).
+    heure_affichee = prochaine.astimezone(
+        ZoneInfo(settings.DISPLAY_TIME_ZONE)
+    ).strftime("%Hh%M")
+    assert heure_affichee in contenu
+    assert prochaine.strftime("%Hh%M") not in contenu, (
+        "l'heure UTC est encore rendue telle quelle"
+    )
 
 
 def test_a_document_without_exchanges_shows_nothing_at_all(admin: User, societe: Tenant) -> None:
