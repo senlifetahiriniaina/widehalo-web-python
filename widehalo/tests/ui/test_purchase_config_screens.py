@@ -5,9 +5,8 @@ import uuid
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_role, use_tenant
 from apps.purchase.services.substitution import create_substitute
-from django.contrib.auth.models import Group
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -20,7 +19,12 @@ def purchase_config_setup():
         user = User.objects.create_user(
             email="ui-pur-cfg@example.com", password="Str0ngPassw0rd!23"
         )
-        user.groups.add(Group.objects.get_or_create(name="acheteur")[0])
+        # `grant_role` et non `grant_module_access` : ce fichier a besoin des
+        # DEUX moitiés. L'écran veut les permissions ; `approve_substitute`
+        # passe par `decide()`, qui résout l'approbateur sur le NOM du rôle.
+        # Un groupe au nom neutre a fait échouer l'approbation — mesuré.
+        # `acheteur` n'est pas dans CORE_MFA_REQUIRED_ROLES : pas de piège MFA.
+        grant_role(user, "acheteur")
         variant_id = uuid.uuid4()
         degraded = create_substitute(
             tenant=tenant,
