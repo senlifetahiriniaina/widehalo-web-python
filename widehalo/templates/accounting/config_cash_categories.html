@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Catégories de caisse" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Catégories de caisse" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Catégories de caisse" %}</h1>
+  </div>
+  <p class="hint">{% trans "L'import du journal de caisse lit cette correspondance à chaque ligne qui ne porte pas de code comptable. Une catégorie associée ici cesse d'être une ligne à qualifier à chaque import." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_acccashcategorymapping %}
+    <h2>{% trans "Nouvelle correspondance" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="category_label">{% trans "Catégorie telle qu'elle figure au fichier" %}</label>
+        <input id="category_label" type="text" name="category_label" required>
+      </div>
+      <div class="form-field">
+        <label for="account_id">{% trans "Compte comptable" %}</label>
+        <select id="account_id" name="account_id" required>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Associer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

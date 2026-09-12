@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Règles de rapprochement" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Règles de rapprochement" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Règles de rapprochement bancaire" %}</h1>
+  </div>
+  <p class="hint">{% trans "Les règles sont évaluées de la priorité la plus haute à la plus basse. Une règle ne s'applique que si ses conditions isolent exactement une écriture candidate : toute ambiguïté passe à la règle suivante plutôt que de deviner." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accreconcilerule %}
+    <h2>{% trans "Nouvelle règle" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Libellé" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="bank_account_id">{% trans "Compte bancaire concerné" %}</label>
+        <select id="bank_account_id" name="bank_account_id">
+          <option value="">{% trans "Tous les comptes" %}</option>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="match_on_amount">
+          <input id="match_on_amount" type="checkbox" name="match_on_amount" value="1" checked>
+          {% trans "Rapprocher sur le montant" %}
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="amount_tolerance_mga">{% trans "Tolérance de montant (Ar)" %}</label>
+        <input id="amount_tolerance_mga" type="text" inputmode="decimal" name="amount_tolerance_mga" value="0">
+      </div>
+      <div class="form-field">
+        <label for="match_on_reference">
+          <input id="match_on_reference" type="checkbox" name="match_on_reference" value="1">
+          {% trans "Rapprocher sur la référence" %}
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="match_on_partner">
+          <input id="match_on_partner" type="checkbox" name="match_on_partner" value="1">
+          {% trans "Rapprocher sur le tiers" %}
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="priority">{% trans "Priorité" %}</label>
+        <input id="priority" type="number" name="priority" min="0" step="1" value="0">
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

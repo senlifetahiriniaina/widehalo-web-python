@@ -12,7 +12,7 @@ from typing import cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils.translation import gettext_lazy as _
@@ -21,12 +21,14 @@ from apps.accounting.models import (
     AccAccount,
     AccAnalyticAccount,
     AccAnalyticPlan,
+    AccCashCategoryMapping,
     AccExchangeRate,
     AccFiscalYear,
     AccJournal,
     AccPaymentTerm,
     AccPaymentTermLine,
     AccPeriod,
+    AccReconcileRule,
     AccTax,
     AccTenantDefaultAccount,
 )
@@ -94,6 +96,24 @@ ANALYTIC_ACCOUNT_COLUMNS = [
     Column(key="plan", label=_("Plan"), search_key="plan__code"),
     Column(key="code", label=_("Code")),
     Column(key="name", label=_("Libellé")),
+]
+
+#: G-4bis — les deux derniers referentiels comptables sans ecran, mesures
+#: apres coup. Le moteur de rapprochement bancaire lit ses regles a chaque
+#: suggestion, et l'import de journal de caisse lit la correspondance
+#: categorie -> compte a chaque ligne : les deux se semaient par import et
+#: ne se corrigeaient qu'en base.
+RECONCILE_RULE_COLUMNS = [
+    Column(key="name", label=_("Libellé")),
+    Column(key="bank_account", label=_("Compte bancaire"), search_key="bank_account__code"),
+    Column(key="priority", label=_("Priorité"), searchable=False),
+    Column(key="amount_tolerance_mga", label=_("Tolérance"), searchable=False, format="mga"),
+    Column(key="is_active", label=_("Active"), searchable=False, format="bool"),
+]
+
+CASH_CATEGORY_COLUMNS = [
+    Column(key="category_label", label=_("Catégorie de caisse")),
+    Column(key="account", label=_("Compte"), search_key="account__code"),
 ]
 
 EXCHANGE_RATE_COLUMNS = [
@@ -773,4 +793,115 @@ def config_exchange_rates(request: HttpRequest) -> HttpResponse:
         queryset=AccExchangeRate.objects.filter(tenant=tenant),
         page_template="accounting/config_exchange_rates.html",
         page_context={"error": error},
+    )
+
+
+@login_required
+@screen_permission("accounting.view_accreconcilerule")
+def config_reconcile_rules(request: HttpRequest) -> HttpResponse:
+    """Les regles que le moteur de rapprochement bancaire applique.
+
+    **Le moteur les lit a chaque suggestion, et personne ne pouvait les
+    ecrire.** Elles se semaient par import et ne se corrigeaient qu'en
+    base — un exploitant qui voulait resserrer une tolerance de montant ou
+    changer l'ordre d'evaluation n'avait aucune surface.
+
+    L'ordre compte : les regles sont evaluees par priorite DECROISSANTE, et
+    une regle ne s'applique que si ses conditions isolent EXACTEMENT une
+    ligne candidate. L'ecran le dit, parce qu'une regle mal priorisee ne
+    produit pas d'erreur — elle produit une suggestion qui n'arrive
+    jamais."""
+    tenant = resolve_tenant(request)
+    comptes = AccAccount.objects.filter(
+        tenant=tenant, is_active=True, type__in=(AccAccount.TYPE_BANK, AccAccount.TYPE_CASH)
+    ).order_by("code")
+    error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accreconcilerule")
+        if refus is not None:
+            return refus
+        try:
+            compte_id = request.POST.get("bank_account_id") or None
+            # Meme point de sauvegarde que sur les categories de caisse, et
+            # pour la meme raison : une contrainte violee ne doit pas casser
+            # la transaction qui rend ensuite la liste.
+            with transaction.atomic():
+                AccReconcileRule.objects.create(
+                    tenant=tenant,
+                    name=request.POST.get("name", ""),
+                    bank_account=(
+                        get_object_or_404(AccAccount, id=compte_id, tenant=tenant)
+                        if compte_id
+                        else None
+                    ),
+                    match_on_amount=bool(request.POST.get("match_on_amount")),
+                    amount_tolerance_mga=Decimal(
+                        (request.POST.get("amount_tolerance_mga") or "0").replace(",", ".")
+                    ),
+                    match_on_reference=bool(request.POST.get("match_on_reference")),
+                    match_on_partner=bool(request.POST.get("match_on_partner")),
+                    priority=int(request.POST.get("priority") or "0"),
+                )
+        except (ValueError, InvalidOperation):
+            error = _("Tolérance ou priorité illisible.")
+        except (ValidationError, IntegrityError) as exc:
+            error = str(exc)
+
+    return smart_table_response(
+        request,
+        table_key="accounting.reconcile_rules",
+        columns=RECONCILE_RULE_COLUMNS,
+        queryset=AccReconcileRule.objects.filter(tenant=tenant).select_related("bank_account"),
+        page_template="accounting/config_reconcile_rules.html",
+        page_context={"comptes": comptes, "error": error},
+    )
+
+
+@login_required
+@screen_permission("accounting.view_acccashcategorymapping")
+def config_cash_categories(request: HttpRequest) -> HttpResponse:
+    """La correspondance « categorie de caisse -> compte ».
+
+    L'import du journal de caisse la lit a chaque ligne qui ne porte pas de
+    code comptable explicite. Sans ecran, une categorie non reconnue
+    produisait une ligne a qualifier a chaque import, sans moyen de
+    l'apprendre une fois pour toutes."""
+    tenant = resolve_tenant(request)
+    comptes = AccAccount.objects.filter(tenant=tenant, is_active=True).order_by("code")
+    error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_acccashcategorymapping")
+        if refus is not None:
+            return refus
+        try:
+            # **Le point de sauvegarde n'est pas decoratif.** La contrainte
+            # d'unicite porte sur (societe, categorie) : une seconde
+            # association leve `IntegrityError`, et sans `atomic()` la
+            # transaction courante reste CASSEE — la lecture qui suit, celle
+            # qui rend la liste, echoue alors avec « You can't execute
+            # queries until the end of the 'atomic' block » au lieu
+            # d'afficher le refus. Mesure faite, pas supposee : c'est le
+            # test de ce lot qui l'a produit. Le defaut ne se voit pas en
+            # production tant que `ATOMIC_REQUESTS` reste a `False`, mais
+            # une vue correcte ne doit pas dependre de ce reglage.
+            with transaction.atomic():
+                AccCashCategoryMapping.objects.create(
+                    tenant=tenant,
+                    category_label=request.POST.get("category_label", ""),
+                    account=get_object_or_404(
+                        AccAccount, id=request.POST.get("account_id"), tenant=tenant
+                    ),
+                )
+        except (ValidationError, IntegrityError):
+            error = _("Cette catégorie de caisse est déjà associée à un compte.")
+
+    return smart_table_response(
+        request,
+        table_key="accounting.cash_categories",
+        columns=CASH_CATEGORY_COLUMNS,
+        queryset=AccCashCategoryMapping.objects.filter(tenant=tenant).select_related("account"),
+        page_template="accounting/config_cash_categories.html",
+        page_context={"comptes": comptes, "error": error},
     )

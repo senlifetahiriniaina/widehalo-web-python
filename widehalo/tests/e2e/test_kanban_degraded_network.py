@@ -104,7 +104,18 @@ def test_an_offline_card_move_is_queued_and_acknowledged_without_a_dialog(kanban
         page.wait_for_selector(".wh-toast-container .wh-toast", timeout=5000)
         queued = page.evaluate(f"() => window.localStorage.getItem({_QUEUE_KEY!r})")
     finally:
+        # **Rien ne doit rester a rejouer quand le test se termine.**
+        # `offline_queue.js` vide la file sur l'evenement `online` :
+        # repasser en ligne sans l'avoir videe laisse le navigateur envoyer
+        # un POST APRES la fin du test, pendant que la fixture demonte la
+        # base. pytest-django a deja rebloque l'acces, et le serveur de
+        # test rend alors 500 — ce que deux passes completes ont produit a
+        # l'identique, alors que le test passe en isolation parce que le
+        # rejeu a le temps d'aboutir avant le demontage. Un test qui depend
+        # de cet ecart de timing ne mesure pas ce qu'il croit.
+        page.evaluate(f"() => window.localStorage.removeItem({_QUEUE_KEY!r})")
         page.context.set_offline(False)
+        page.wait_for_load_state("networkidle")
 
     assert dialogs == [], f"boite de dialogue bloquante : {dialogs}"
     entries = json.loads(queued or "[]")
@@ -132,6 +143,10 @@ def test_the_queued_move_is_replayed_and_actually_advances_the_work_order(kanban
         " return !raw || JSON.parse(raw).length === 0; }",
         timeout=10000,
     )
+    # La file est vide, mais la reponse du rejeu — une redirection — peut
+    # encore etre en vol. On attend le silence du reseau avant de rendre la
+    # main a la fixture : meme motif que ci-dessus.
+    page.wait_for_load_state("networkidle")
 
     with use_tenant(tenant.id):
         work_order.refresh_from_db()

@@ -531,3 +531,74 @@ def test_une_societe_sans_exercice_nouvre_pas_un_500_sur_la_dcom() -> None:
     reponse = client.get("/accounting/dcom/")
     assert reponse.status_code == 200
     assert "Aucune déclaration pour cet exercice" in reponse.content.decode()
+
+
+# --------------------------------------------------------------------------
+# G-4bis — les deux référentiels que la remesure a trouvés
+# --------------------------------------------------------------------------
+
+
+def test_une_regle_de_rapprochement_se_cree_et_se_relit(societe) -> None:
+    """Le moteur de rapprochement lit ces règles à chaque suggestion, et
+    personne ne pouvait les écrire : elles se semaient par import et ne se
+    corrigeaient qu'en base."""
+    from apps.accounting.models import AccReconcileRule
+
+    with use_tenant(societe["tenant"].id):
+        banque = AccAccount.objects.create(
+            tenant=societe["tenant"],
+            code="512000",
+            name="Banque",
+            account_class="5",
+            type=AccAccount.TYPE_BANK,
+        )
+
+    reponse = societe["client"].post(
+        "/accounting/config/reconcile-rules/",
+        {
+            "name": "Virements clients",
+            "bank_account_id": str(banque.id),
+            "match_on_amount": "1",
+            "amount_tolerance_mga": "500",
+            "match_on_reference": "1",
+            "priority": "10",
+        },
+    )
+    assert reponse.status_code == 200, reponse.content
+
+    with use_tenant(societe["tenant"].id):
+        regle = AccReconcileRule.objects.filter(name="Virements clients").first()
+        assert regle is not None, "La règle n'a pas été écrite."
+        assert regle.priority == 10
+        assert regle.match_on_reference is True
+        assert regle.amount_tolerance_mga == Decimal("500.0000")
+
+    contenu = societe["client"].get("/accounting/config/reconcile-rules/").content.decode()
+    assert "Virements clients" in contenu
+    assert "512000" in contenu
+
+
+def test_une_categorie_de_caisse_sassocie_une_seule_fois(societe) -> None:
+    from apps.accounting.models import AccCashCategoryMapping
+
+    donnees = {"category_label": "Vente au comptant", "account_id": str(societe["produit"].id)}
+    premier = societe["client"].post("/accounting/config/cash-categories/", donnees)
+    assert premier.status_code == 200, premier.content
+    with use_tenant(societe["tenant"].id):
+        assert (
+            AccCashCategoryMapping.objects.filter(category_label="Vente au comptant").count() == 1
+        )
+
+    # La contrainte d'unicité porte sur (société, catégorie) : une seconde
+    # association se refuse lisiblement plutôt que de doubler la règle.
+    second = societe["client"].post("/accounting/config/cash-categories/", donnees)
+    assert second.status_code == 200
+    assert "déjà associée" in second.content.decode()
+    with use_tenant(societe["tenant"].id):
+        assert (
+            AccCashCategoryMapping.objects.filter(category_label="Vente au comptant").count() == 1
+        )
+
+    contenu = societe["client"].get("/accounting/config/cash-categories/").content.decode()
+    assert "Vente au comptant" in contenu
+    assert "707000" in contenu

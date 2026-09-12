@@ -81,6 +81,8 @@ ECRANS_DE_LISTE = (
     "/accounting/config/analytic-plans/",
     "/accounting/config/analytic-accounts/",
     "/accounting/config/exchange-rates/",
+    "/accounting/config/reconcile-rules/",
+    "/accounting/config/cash-categories/",
     "/logistics/",
     "/logistics/drivers/",
     "/logistics/trips/",

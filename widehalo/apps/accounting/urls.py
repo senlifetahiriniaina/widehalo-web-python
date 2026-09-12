@@ -140,6 +140,19 @@ urlpatterns = [
         views_config.config_exchange_rates,
         name="config_exchange_rates",
     ),
+    # G-4bis — les deux derniers referentiels comptables sans ecran, trouves
+    # par une remesure : le moteur de rapprochement lit ses regles a chaque
+    # suggestion, l'import de caisse lit la correspondance a chaque ligne.
+    path(
+        "config/reconcile-rules/",
+        views_config.config_reconcile_rules,
+        name="config_reconcile_rules",
+    ),
+    path(
+        "config/cash-categories/",
+        views_config.config_cash_categories,
+        name="config_cash_categories",
+    ),
     path("bank/", views_bank.bank_reconciliation, name="bank_reconciliation"),
     path("config/imports/", views_imports.imports_index, name="imports_index"),
     path(
