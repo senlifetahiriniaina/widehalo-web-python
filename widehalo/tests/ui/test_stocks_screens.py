@@ -9,22 +9,26 @@ import pytest
 from apps.catalog.tests.factories import ProductVariantFactory
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_permissions, use_tenant
 from apps.stocks.models import StkInventory, StkLocation, StkMove, StkPicking
 from apps.stocks.services.moves import create_move, validate_move
 from apps.stocks.services.warehouses import create_location, create_warehouse
-from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
 
 
 def _grant(user: User, *, app_label: str, codename: str) -> None:
-    group, _ = Group.objects.get_or_create(name=f"stk-ui-test-{app_label}-{codename}")
-    group.permissions.add(
-        *Permission.objects.filter(content_type__app_label=app_label, codename=codename)
+    """H-1b : delegue au helper de `core`, meme semantique exacte.
+
+    Codename PRECIS et non `grant_module_access` : plusieurs tests de ce
+    fichier eprouvent ce qui MANQUE a l'utilisateur."""
+    grant_permissions(
+        user,
+        app_label=app_label,
+        codenames=[codename],
+        nom=f"stk-ui-test-{app_label}-{codename}",
     )
-    user.groups.add(group)
 
 
 @pytest.fixture

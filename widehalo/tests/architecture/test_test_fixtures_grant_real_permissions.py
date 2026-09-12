@@ -82,7 +82,16 @@ EXCLUS = ("/management/commands/", "apps/core/tests/utils.py")
 #: Les moyens reconnus d'attacher de vraies permissions a un groupe. Un
 #: fichier qui emploie l'un d'eux n'est pas en dette, quelle que soit la
 #: facon dont il nomme ses groupes.
-MOYENS = ("permissions.add", "sync_group_permissions", "grant_role(", "grant_module_access(")
+MOYENS = (
+    "permissions.add",
+    "sync_group_permissions",
+    "grant_role(",
+    "grant_module_access(",
+    # H-1b : huit fichiers ont cede leur `_grant()` local a ce helper. Sans
+    # cette entree, ils perdaient leur `permissions.add` et leurs groupes
+    # correctement nommes repassaient pour de la dette — la garde l'a vu.
+    "grant_permissions(",
+)
 
 #: La dette MOTIVEE, au 12/09/2026 : chaque entree est un fichier ou le nom
 #: du role EST le mecanisme teste, avec le nombre exact de sites et la
@@ -276,7 +285,12 @@ def test_la_mesure_voit_encore_des_fixtures() -> None:
         for chemin in _fichiers_de_test()
         if "Group.objects.get_or_create" in chemin.read_text(encoding="utf-8")
     ]
-    assert len(createurs) >= 60, (
+    # Plancher abaisse de 60 a 55 par H-1b, et la raison est verifiee : huit
+    # fichiers ont cede leur `_grant()` local au helper de `core`, donc ils
+    # n'appellent plus `Group.objects.get_or_create` eux-memes. Le corpus
+    # mesure est passe de 60 a 58 pour cette raison-la, pas parce que
+    # l'instrument aurait cesse de chercher au bon endroit.
+    assert len(createurs) >= 55, (
         f"L'instrument ne voit plus que {len(createurs)} fichiers creant un groupe. "
         "Avant de baisser ce plancher, verifiez qu'il n'a pas cesse de chercher "
         "au bon endroit — c'est arrive six fois dans ce projet."

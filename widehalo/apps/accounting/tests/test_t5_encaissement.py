@@ -35,7 +35,6 @@ import json
 from decimal import Decimal
 
 import pytest
-from django.contrib.auth.models import Group, Permission
 from django.test import Client
 from django.utils import timezone
 
@@ -74,7 +73,7 @@ from apps.accounting.services.payment_registration import CONNECTOR_CODE
 from apps.accounting.services.payments import outstanding_balance
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_permissions, use_tenant
 from apps.flows.models import FlwCredential, FlwExchange, FlwLink
 from apps.flows.operations import OP_INITIATE_PAYMENT, OP_RECEIVE_EVENT
 from apps.flows.tests.factories import FlwConnectorFactory, FlwLinkFactory
@@ -100,11 +99,11 @@ MONTANT_VERSE = MONTANT_FACTURE - COMMISSION
 
 
 def _grant(user: User, group_name: str, *codenames: str) -> None:
-    group, _ = Group.objects.get_or_create(name=group_name)
-    for codename in codenames:
-        permission = Permission.objects.get(codename=codename, content_type__app_label="accounting")
-        group.permissions.add(permission)
-    user.groups.add(group)
+    """H-1b : delegue au helper de `core`, meme semantique exacte.
+
+    Les codenames restent PRECIS : ces tests dependent de ce qui MANQUE,
+    et `grant_module_access` elargirait au module entier."""
+    grant_permissions(user, app_label="accounting", codenames=codenames, nom=group_name)
 
 
 @pytest.fixture

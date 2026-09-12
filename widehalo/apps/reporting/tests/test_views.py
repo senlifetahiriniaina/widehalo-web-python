@@ -4,12 +4,12 @@ de job, planifications)."""
 from __future__ import annotations
 
 import pytest
-from django.contrib.auth.models import Group, Permission
 from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.reports_registry import register_report
+from apps.core.tests.utils import grant_permissions
 
 pytestmark = pytest.mark.django_db
 
@@ -28,11 +28,13 @@ def _login_client(user: User, password: str, tenant: Tenant) -> Client:
 
 
 def _grant(user: User, *, app_label: str, codenames: list[str]) -> None:
-    group, _ = Group.objects.get_or_create(name=f"reporting-view-test-{'-'.join(codenames)}")
-    group.permissions.add(
-        *Permission.objects.filter(content_type__app_label=app_label, codename__in=codenames)
+    """H-1b : delegue au helper de `core`, meme semantique exacte."""
+    grant_permissions(
+        user,
+        app_label=app_label,
+        codenames=codenames,
+        nom=f"reporting-view-test-{'-'.join(codenames)}",
     )
-    user.groups.add(group)
 
 
 @pytest.fixture

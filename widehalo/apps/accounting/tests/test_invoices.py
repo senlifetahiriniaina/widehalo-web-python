@@ -4,7 +4,7 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccMove, AccPeriod
@@ -22,17 +22,17 @@ from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest
 from apps.core.services.approvals import decide
 from apps.core.services.workflow import TransitionPermissionError, attempt_transition
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_permissions, use_tenant
 
 pytestmark = pytest.mark.django_db
 
 
 def _grant(user: User, group_name: str, *codenames: str) -> None:
-    group, _ = Group.objects.get_or_create(name=group_name)
-    for codename in codenames:
-        permission = Permission.objects.get(codename=codename, content_type__app_label="accounting")
-        group.permissions.add(permission)
-    user.groups.add(group)
+    """H-1b : delegue au helper de `core`, meme semantique exacte.
+
+    Les codenames restent PRECIS : ces tests dependent de ce qui MANQUE,
+    et `grant_module_access` elargirait au module entier."""
+    grant_permissions(user, app_label="accounting", codenames=codenames, nom=group_name)
 
 
 @pytest.fixture

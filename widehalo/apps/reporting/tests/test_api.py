@@ -7,6 +7,7 @@ from django.test import Client
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.reports_registry import register_report
+from apps.core.tests.utils import grant_permissions
 
 pytestmark = pytest.mark.django_db
 
@@ -88,11 +89,17 @@ def test_catalog_endpoint_requires_authentication() -> None:
 
 
 def _grant(user: User, *, app_label: str, codenames: list[str]) -> None:
-    group, _ = Group.objects.get_or_create(name=f"reporting-api-test-{'-'.join(codenames)}")
-    group.permissions.add(
-        *Permission.objects.filter(content_type__app_label=app_label, codename__in=codenames)
+    """H-1b : delegue au helper de `core`, meme semantique exacte.
+
+    Les codenames restent PRECIS : `test_generate_endpoint_denies_when_
+    missing_underlying_report_permission` exige un 403 faute de
+    `accounting.view_accaccount`. Elargir au module effacerait sa propriete."""
+    grant_permissions(
+        user,
+        app_label=app_label,
+        codenames=codenames,
+        nom=f"reporting-api-test-{'-'.join(codenames)}",
     )
-    user.groups.add(group)
 
 
 def test_generate_endpoint_denies_when_missing_underlying_report_permission() -> None:

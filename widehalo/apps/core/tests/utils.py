@@ -3,13 +3,15 @@
 TenantMiddleware. Alias de `apps.core.tenant_context.activate_tenant` — les
 tests l'utilisent sous le nom historique `use_tenant`."""
 
+from collections.abc import Sequence
+
 from django.contrib.auth.models import Group
 
 from apps.core.models.user import User
 from apps.core.services.rbac_policy import sync_group_permissions
 from apps.core.tenant_context import activate_tenant as use_tenant
 
-__all__ = ["grant_module_access", "grant_role", "use_tenant"]
+__all__ = ["grant_module_access", "grant_permissions", "grant_role", "use_tenant"]
 
 
 def grant_role(user: User, role_code: str) -> Group:
@@ -57,5 +59,44 @@ def grant_module_access(
         if permission.codename.startswith(prefixes)
     ]
     group.permissions.add(*permissions)
+    user.groups.add(group)
+    return group
+
+
+def grant_permissions(
+    user: User, *, app_label: str, codenames: Sequence[str], nom: str | None = None
+) -> Group:
+    """Accorde des permissions NOMMEES UNE A UNE, sans elargir au module.
+
+    **Pourquoi ce helper existe a cote de `grant_module_access`.** Huit
+    fichiers de test portaient chacun leur propre `_grant()` — quatre
+    signatures differentes pour le meme geste. Les fondre dans
+    `grant_module_access` aurait paru plus simple et aurait ete FAUX : ce
+    helper-la raisonne par ACTION (`view_`/`add_`/`change_` sur tous les
+    modeles d'une app), la ou ces tests accordent des codenames PRECIS
+    parce que leur propriete depend de ce qui MANQUE.
+
+    L'exemple qui tranche :
+    `reporting.test_generate_endpoint_denies_when_missing_underlying_report_permission`
+    donne `add_rptjob` et `view_rptjob`, et exige un 403 faute de
+    `accounting.view_accaccount`. Elargir ses droits reviendrait a effacer
+    ce que le test eprouve — le defaut exact paye sur
+    `test_partner_edit_forbidden_without_change_permission`, ou un
+    `grant_module_access` a rendu vrai ce qui devait rester faux.
+
+    Le groupe porte un nom NEUTRE et derive : aucun role connu, donc pas de
+    MFA (cf. `grant_module_access` et docs/RBAC.md §1.3).
+    """
+    from django.contrib.auth.models import Permission
+
+    codenames = tuple(codenames)
+    # `nom` reste accepte pour les appelants qui nommaient deja leur groupe :
+    # deux groupes distincts portant les memes droits ne sont pas equivalents
+    # partout (un test peut compter les groupes d'un utilisateur).
+    nom = nom or ("test-perms-" + app_label + "-" + "-".join(sorted(codenames)))
+    group, _ = Group.objects.get_or_create(name=nom[:150])
+    group.permissions.add(
+        *Permission.objects.filter(content_type__app_label=app_label, codename__in=codenames)
+    )
     user.groups.add(group)
     return group

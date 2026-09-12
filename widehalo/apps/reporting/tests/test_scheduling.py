@@ -10,14 +10,13 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
-from django.contrib.auth.models import Group, Permission
 from django.core import mail
 from django.utils import timezone
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.reports_registry import register_report
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_permissions, use_tenant
 from apps.reporting.models import RptSchedule
 from apps.reporting.services.scheduling import compute_next_run_at, run_due_schedules, run_schedule
 
@@ -29,11 +28,13 @@ def _rows(params: dict, actor) -> list[dict]:  # noqa: ANN001
 
 
 def _grant(user: User, *, app_label: str, codename: str) -> None:
-    group, _ = Group.objects.get_or_create(name=f"rpt-sched-test-{app_label}-{codename}")
-    group.permissions.add(
-        *Permission.objects.filter(content_type__app_label=app_label, codename=codename)
+    """H-1b : delegue au helper de `core`, meme semantique exacte."""
+    grant_permissions(
+        user,
+        app_label=app_label,
+        codenames=[codename],
+        nom=f"rpt-sched-test-{app_label}-{codename}",
     )
-    user.groups.add(group)
 
 
 @pytest.mark.parametrize(
