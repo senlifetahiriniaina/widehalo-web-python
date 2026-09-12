@@ -223,3 +223,38 @@ def test_config_payment_terms_percent_without_value_shows_error(config_screens_s
     assert b"requise" in response.content
     with use_tenant(tenant.id):
         assert not AccPaymentTerm.objects.filter(name="Sans valeur").exists()
+
+
+def test_a_sale_tax_diverging_from_the_legal_reference_is_shown(config_screens_setup) -> None:
+    """A4 — `diverging_sale_taxes` existait depuis T2, sans aucun appelant.
+
+    Sa docstring disait pourquoi elle avait ete ecrite : « un taux saisi a
+    18 % quand la loi dit 20 % est aujourd'hui indetectable autrement qu'a
+    l'oeil ». L'ecran des taxes le montre desormais — en LECTURE, jamais
+    en garde bloquante : un ecart peut etre legitime (taux reduit
+    sectoriel, exoneration) et refuser l'enregistrement casserait des cas
+    reels.
+    """
+    from apps.accounting.services.vat_reference import resolve_reference_vat_rate
+
+    client, tenant = config_screens_setup
+
+    with use_tenant(tenant.id):
+        reference = resolve_reference_vat_rate(tenant)
+        if reference is None:
+            pytest.skip("Aucune reference legale semee : il n'y a pas d'ecart a constater.")
+        taux_reference, _version = reference
+        AccTax.objects.create(
+            tenant=tenant,
+            code="TVA-ECART",
+            name="TVA saisie a la main",
+            type=AccTax.TYPE_SALE,
+            rate=taux_reference + Decimal("2"),
+        )
+
+    reponse = client.get("/accounting/config/taxes/")
+    assert reponse.status_code == 200
+
+    contenu = reponse.content.decode()
+    assert "Écarts avec la référence légale" in contenu, "l'écran ne signale pas le taux divergent"
+    assert "TVA-ECART" in contenu

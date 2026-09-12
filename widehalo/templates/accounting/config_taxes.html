@@ -22,6 +22,48 @@
     </p>
   {% endif %}
 
+  {% if ecarts_de_taux %}
+    {% comment %}
+      A4 — `diverging_sale_taxes` existait depuis T2 et personne ne
+      l'appelait. Un taux saisi a 18 % quand la reference legale dit 20 %
+      etait indetectable autrement qu'a l'oeil.
+
+      LECTURE, jamais garde bloquante : un ecart peut etre parfaitement
+      legitime (taux reduit sectoriel, exoneration). On le MONTRE et on
+      laisse le comptable trancher.
+    {% endcomment %}
+    <div class="panel">
+      <div class="panel-head">
+        <h2>{% trans "Écarts avec la référence légale" %}</h2>
+      </div>
+      <div class="panel-body">
+        <p>{% trans "Ces taux de vente diffèrent de la référence en vigueur. Un écart peut être légitime — taux réduit sectoriel, exonération — mais il doit être voulu." %}</p>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{% trans "Code" %}</th>
+              <th>{% trans "Taxe" %}</th>
+              <th class="col-num">{% trans "Taux saisi" %}</th>
+              <th class="col-num">{% trans "Référence" %}</th>
+              <th>{% trans "Version" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ecart in ecarts_de_taux %}
+              <tr>
+                <td>{{ ecart.code }}</td>
+                <td>{{ ecart.name }}</td>
+                <td class="col-num">{{ ecart.rate }}</td>
+                <td class="col-num">{{ ecart.reference_rate }}</td>
+                <td>{{ ecart.reference_version }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
 {% include "components/_smart_table.html" %}
 
   {% if is_vat_liable %}

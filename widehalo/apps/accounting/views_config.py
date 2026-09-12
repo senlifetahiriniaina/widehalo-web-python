@@ -621,6 +621,8 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
         except (ValidationError, ValueError, InvalidOperation, IntegrityError) as exc:
             error = str(exc)
 
+    from apps.accounting.services.vat_reference import diverging_sale_taxes
+
     return smart_table_response(
         request,
         table_key="accounting.taxes",
@@ -631,6 +633,14 @@ def config_taxes(request: HttpRequest) -> HttpResponse:
             "accounts": accounts,
             "type_choices": AccTax.TYPE_CHOICES,
             "error": error,
+            # A4 — `diverging_sale_taxes` existait, et personne ne l'appelait.
+            # Sa propre docstring disait pourquoi elle avait ete ecrite : « un
+            # taux saisi a 18 % quand la loi dit 20 % est aujourd'hui
+            # indetectable autrement qu'a l'oeil ». C'est une LECTURE, jamais
+            # une garde bloquante — un ecart peut etre legitime (taux reduit
+            # sectoriel, exoneration) et refuser l'enregistrement casserait
+            # des cas reels. L'ecran le montre donc, et laisse trancher.
+            "ecarts_de_taux": diverging_sale_taxes(tenant),
         },
     )
 
