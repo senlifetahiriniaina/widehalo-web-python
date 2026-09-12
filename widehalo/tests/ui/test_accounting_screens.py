@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
+from decimal import Decimal
 
 import pytest
 from apps.accounting.models import AccAccount, AccFiscalYear, AccJournal, AccMove, AccPeriod
@@ -187,18 +189,26 @@ def test_invoice_payment_registration_shows_allocation(accounting_screens_setup)
 
 
 def test_imports_screens_render(accounting_screens_setup) -> None:
-    """Chantier import comptable/caisse — les 4 ecrans HTMX sont
-    atteignables en session (jamais l'API JWT en interne)."""
+    """Chantier import comptable/caisse — les 3 ecrans HTMX sont
+    atteignables en session (jamais l'API JWT en interne).
+
+    H-2b : ce test n'asserait qu'un code de statut, et figurait a ce titre
+    dans la dette declaree de `test_screen_tests_assert_content`. Trois
+    ecrans vides auraient rendu 200 tout autant. On verifie desormais ce
+    que chacun ANNONCE — son titre et son etat vide."""
     client, _tenant, _journal, _receivable, _income = accounting_screens_setup
 
     index = client.get("/accounting/config/imports/")
     assert index.status_code == 200
+    assert "Aucun import." in index.content.decode()
 
     chart = client.get("/accounting/config/imports/chart-of-accounts/")
     assert chart.status_code == 200
+    assert "Import du plan comptable" in chart.content.decode()
 
     cash_journal = client.get("/accounting/config/imports/cash-journal/")
     assert cash_journal.status_code == 200
+    assert "Import du journal de caisse" in cash_journal.content.decode()
 
 
 def test_imports_screens_never_reference_the_internal_docs_file(accounting_screens_setup) -> None:
@@ -284,3 +294,116 @@ def test_download_cash_journal_template_round_trips(accounting_screens_setup) ->
     assert batch.needs_qualification_count == 1
     assert batch.unresolvable_count == 0
     assert row_move is not None
+
+
+def test_bank_reconciliation_screen_renders_its_upload_and_its_confidence(
+    accounting_screens_setup,
+) -> None:
+    """H-2b — l'ecran de BNK-3, qu'AUCUN test ne rendait.
+
+    BNK-3 exige une confirmation HUMAINE : `suggest_matches` passe une
+    ligne a `rule_suggested`, jamais a `matched`. Cet ecran est donc le
+    seul endroit du produit ou le comptable arbitre une proposition de
+    rapprochement — et il n'etait atteint que par le crawler generique,
+    qui ne verifie qu'un statut par construction."""
+    client, tenant, *_ = accounting_screens_setup
+
+    # Le formulaire de chargement n'est rendu QUE si la societe a un compte
+    # de tresorerie : `_comptes_bancaires` filtre sur `bank`/`cash`. Sans
+    # lui l'ecran repond 200 en n'affichant rien — et un test de statut
+    # seul l'aurait declare sain.
+    from apps.accounting.models import AccBankStatementLine
+
+    with use_tenant(tenant.id):
+        compte_bancaire = AccAccount.objects.create(
+            tenant=tenant,
+            code="512000",
+            name="Banque",
+            account_class="5",
+            type=AccAccount.TYPE_BANK,
+        )
+        # La colonne « Confiance » — le barème de BNK-3 — n'apparaît qu'avec
+        # des lignes à arbitrer. Sans relevé chargé, l'écran est un
+        # formulaire vide : c'est justement ce qu'un test de statut seul
+        # aurait pris pour un écran sain.
+        AccBankStatementLine.objects.create(
+            tenant=tenant,
+            bank_account=compte_bancaire,
+            import_batch_id=uuid.uuid4(),
+            statement_date=dt.date(2026, 1, 20),
+            reference_external="VIR-2026-0001",
+            label="Virement client SARL Nord",
+            amount_mga=Decimal("450000"),
+            direction=AccBankStatementLine.DIRECTION_IN,
+            state=AccBankStatementLine.STATE_RULE_SUGGESTED,
+            match_confidence=80,
+        )
+
+    reponse = client.get("/accounting/bank/")
+    assert reponse.status_code == 200
+
+    contenu = reponse.content.decode()
+    for attendu in ("Charger le relevé", "Compte de trésorerie", "Confiance"):
+        assert attendu in contenu, f"« {attendu} » absent de l'écran de rapprochement"
+    assert "Virement client SARL Nord" in contenu, "la ligne de relevé à arbitrer n'est pas rendue"
+
+
+def test_default_accounts_screen_lists_the_roles_it_maps(accounting_screens_setup) -> None:
+    """H-2b — la matrice role -> compte, qu'aucun test ne rendait.
+
+    C'est elle qui decide quel compte recoit une commission d'encaissement
+    ou un passage de tresorerie : une matrice vide se voit a la premiere
+    ecriture automatique, pas avant."""
+    client, *_ = accounting_screens_setup
+
+    reponse = client.get("/accounting/config/default-accounts/")
+    assert reponse.status_code == 200
+
+    contenu = reponse.content.decode()
+    for attendu in ("Comptes par défaut du tenant", "Rôle", "Compte configuré"):
+        assert attendu in contenu, f"« {attendu} » absent de l'écran des comptes par défaut"
+
+
+def test_cash_journal_batch_detail_shows_its_rows_and_their_anomalies(
+    accounting_screens_setup,
+) -> None:
+    """H-2b — le jumeau oublie.
+
+    `imports/invoices_batch_detail.html` est couvert depuis G-4 ; son
+    jumeau du journal de caisse ne l'etait pas. Le crawler generique ne
+    pouvait pas le voir : la route prend un parametre de chemin, et il
+    saute ces routes-la. Une asymetrie, pas une decision."""
+    from apps.accounting.models import AccImportBatch, AccImportRow
+
+    client, tenant, journal, _receivable, _income = accounting_screens_setup
+
+    with use_tenant(tenant.id):
+        lot = AccImportBatch.objects.create(
+            tenant=tenant,
+            kind=AccImportBatch.KIND_CASH_JOURNAL,
+            source_filename="caisse-janvier.xlsx",
+            format_version=1,
+            journal=journal,
+            total_rows=1,
+            anomaly_rows_count=1,
+        )
+        AccImportRow.objects.create(
+            tenant=tenant,
+            batch=lot,
+            row_number=1,
+            raw_data={"libelle": "Achat de fournitures", "montant": "12500"},
+            status=AccImportRow.STATUS_NEEDS_QUALIFICATION,
+            anomaly_codes=["compte_inconnu"],
+            # Le selecteur « Compte réel » n'est propose QUE sur une ligne
+            # posee sur un compte d'attente : c'est le cas qui appelle une
+            # qualification, et donc celui que cet ecran sert.
+            uses_placeholder_account=True,
+        )
+
+    reponse = client.get(f"/accounting/config/imports/cash-journal/{lot.id}/")
+    assert reponse.status_code == 200
+
+    contenu = reponse.content.decode()
+    assert "caisse-janvier.xlsx" in contenu
+    assert "Achat de fournitures" in contenu, "la ligne du lot n'est pas rendue"
+    assert "Compte réel" in contenu

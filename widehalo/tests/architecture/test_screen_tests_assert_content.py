@@ -57,7 +57,6 @@ DETTE: frozenset[str] = frozenset(
         "ui/test_sales_screens.py::test_order_create_screen",
         "ui/test_sales_screens.py::test_reports_index_renders",
         "ui/test_sales_screens.py::test_config_recurrences_screen_renders",
-        "ui/test_accounting_screens.py::test_imports_screens_render",
         "ui/test_logistics_screens.py::test_trip_list_and_create_screens",
         "ui/test_logistics_screens.py::test_trip_template_list_screen_create",
         "ui/test_logistics_screens.py::test_config_screens_render_and_create",
