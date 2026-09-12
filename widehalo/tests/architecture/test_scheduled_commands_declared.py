@@ -50,6 +50,15 @@ _ONE_SHOT_COMMANDS: dict[str, str] = {
     ),
     "bootstrap_admin": "Creation du premier compte d'administration, une fois par instance.",
     "create_tenant": "Creation d'un tenant, a la demande commerciale.",
+    "rejouer_efactures": (
+        "Geste d'EXPLOITATION, jamais une tache de fond : soumettre des "
+        "pieces a une administration fiscale sans que personne ne l'ait "
+        "demande n'est pas une cadence, c'est une decision. Le cahier "
+        "l'encadre par « la confirmation initiale » (EFA-3), et l'ecran "
+        "« File de soumission fiscale » est le declencheur normal ; cette "
+        "commande sert le rattrapage apres incident, depuis un poste sans "
+        "navigateur."
+    ),
     "audit_fiscal_identifiers": (
         "Instrument de MESURE, invoque a la demande : elle chiffre les "
         "identifiants fiscaux absents, mal formes ou en doublon, et ne modifie "

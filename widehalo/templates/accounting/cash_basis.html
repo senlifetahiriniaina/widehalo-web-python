@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Comptabilité de trésorerie" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Trésorerie" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Comptabilité de trésorerie" %}</h1>
+  </div>
+  <p class="hint">{% trans "Saisie simplifiée pour le régime de l'impôt synthétique : « de l'argent est entré, de l'argent est sorti ». Chaque mouvement produit une écriture équilibrée normale — il n'y a pas de registre parallèle." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="get">
+    <div class="form-field">
+      <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+      <select id="fiscal_year_id" name="fiscal_year_id">
+        {% for annee in exercices %}
+          <option value="{{ annee.id }}" {% if annee.id|stringformat:"s" == exercice_id %}selected{% endif %}>{{ annee.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="mode">{% trans "Format de l'état" %}</label>
+      <select id="mode" name="mode">
+        <option value="recap" {% if mode == "recap" %}selected{% endif %}>{% trans "Récapitulatif recettes / dépenses" %}</option>
+        <option value="smt" {% if mode == "smt" %}selected{% endif %}>{% trans "État des encaissements et décaissements (avec solde)" %}</option>
+      </select>
+    </div>
+    {% comment %}
+      Le choix du format revient à l'exploitant : le deviner demanderait de
+      calculer le chiffre d'affaires réel de l'exercice, et le service
+      refuse explicitement de le supposer à partir d'un autre indicateur.
+    {% endcomment %}
+    <c-button type="submit">{% trans "Afficher" %}</c-button>
+  </form>
+
+  {% if lignes %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date" %}</th>
+          <th scope="col">{% trans "Libellé" %}</th>
+          <th scope="col">{% trans "Sens" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+          {% if mode == "smt" %}<th scope="col" class="col-num">{% trans "Solde" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in lignes %}
+          <tr>
+            <td>{{ ligne.date }}</td>
+            <td>{{ ligne.label }}</td>
+            <td>{% if ligne.direction == "in" %}{% trans "Encaissement" %}{% else %}{% trans "Décaissement" %}{% endif %}</td>
+            <td class="col-num">{{ ligne.amount|mga }}</td>
+            {% if mode == "smt" %}<td class="col-num">{{ ligne.balance|mga }}</td>{% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun mouvement de trésorerie sur cet exercice' %}"
+      body="{% trans 'L’état se remplit dès le premier encaissement ou décaissement enregistré ci-dessous — ou dès la première écriture publiée sur un compte de caisse ou de banque.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.add_accmove %}
+    <h2>{% trans "Enregistrer un mouvement" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="fiscal_year_id" value="{{ exercice_id }}">
+      <div class="form-field">
+        <label for="direction">{% trans "Sens" %}</label>
+        <select id="direction" name="direction" required>
+          <option value="in">{% trans "Encaissement — de l'argent est entré" %}</option>
+          <option value="out">{% trans "Décaissement — de l'argent est sorti" %}</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="amount">{% trans "Montant (Ar)" %}</label>
+        <input id="amount" type="text" inputmode="decimal" name="amount" required>
+      </div>
+      <div class="form-field">
+        <label for="date">{% trans "Date" %}</label>
+        <input id="date" type="date" name="date" required>
+      </div>
+      <div class="form-field">
+        <label for="cash_account_id">{% trans "Compte de caisse ou de banque" %}</label>
+        <select id="cash_account_id" name="cash_account_id" required>
+          {% for compte in comptes_tresorerie %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="counterpart_account_id">{% trans "Contrepartie" %}</label>
+        <select id="counterpart_account_id" name="counterpart_account_id" required>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="journal_id">{% trans "Journal" %}</label>
+        <select id="journal_id" name="journal_id" required>
+          {% for journal in journaux %}
+            <option value="{{ journal.id }}">{{ journal.code }} — {{ journal.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="period_id">{% trans "Période" %}</label>
+        <select id="period_id" name="period_id" required>
+          {% for periode in periodes %}
+            <option value="{{ periode.id }}">{{ periode.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="label">{% trans "Libellé" %}</label>
+        <input id="label" type="text" name="label">
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

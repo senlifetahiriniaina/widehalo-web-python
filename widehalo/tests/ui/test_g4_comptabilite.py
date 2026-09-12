@@ -460,3 +460,28 @@ def test_les_ecrans_de_g4_sont_atteignables_depuis_leurs_hubs(societe) -> None:
 
     imports = societe["client"].get("/accounting/config/imports/").content.decode()
     assert "/accounting/config/imports/invoices/" in imports
+
+
+def test_une_societe_sans_exercice_nouvre_pas_un_500_sur_la_dcom() -> None:
+    """Le premier jour d'une société neuve, et le crawler l'a trouvé.
+
+    `filter(fiscal_year_id="")` fait lever « n'est pas un UUID valide »,
+    qu'aucun gestionnaire ne rattrape : la page rendait 500 tant qu'aucun
+    exercice n'existait. Même famille que les identifiants non typés fermés
+    en T4bis, sur la valeur VIDE cette fois — et jamais visible en
+    relecture, parce que toutes les fixtures créent un exercice."""
+    tenant = Tenant.objects.create(code="G4N", name="Societe neuve")
+    user = User.objects.create_user(email="g4-neuve@example.com", password="Str0ngPassw0rd!23")
+    grant_module_access(user, "accounting")
+    UserTenantMembership.objects.get_or_create(
+        user=user, tenant=tenant, defaults={"is_default": True}
+    )
+    client = Client()
+    client.force_login(user)
+    session = client.session
+    session["tenant_id"] = str(tenant.id)
+    session.save()
+
+    reponse = client.get("/accounting/dcom/")
+    assert reponse.status_code == 200
+    assert "Aucune déclaration pour cet exercice" in reponse.content.decode()

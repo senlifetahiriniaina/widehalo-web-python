@@ -41,13 +41,17 @@ from apps.accounting.models import (
     AccBankStatementLine,
     AccDunningAction,
     AccDunningLevel,
+    AccFiscalYear,
+    AccJournal,
     AccMobileMoneyStatementLine,
     AccMove,
     AccMoveLine,
     AccPayment,
+    AccPeriod,
     AccTaxCalendar,
     AccTransferOrder,
 )
+from apps.accounting.services.cash_basis import record_cash_movement
 from apps.accounting.services.dunning import (
     overdue_receivables,
     record_dunning_action,
@@ -58,6 +62,7 @@ from apps.accounting.services.mobile_money import (
     reconcile_mobile_money_line,
     unmatched_mobile_money_lines,
 )
+from apps.accounting.services.reports import cash_basis_report
 from apps.accounting.services.tax_calendar import (
     create_tax_calendar_entry,
     seed_default_tax_calendar,
@@ -427,6 +432,94 @@ def mobile_money_screen(request: HttpRequest) -> HttpResponse:
                 tenant=tenant, method=AccPayment.METHOD_MOBILE_MONEY
             ).order_by("-date")[:100],
             "charge": charge,
+            "error": erreur,
+        },
+    )
+
+
+# --------------------------------------------------------------------------
+# Comptabilité de trésorerie (régime de l'impôt synthétique)
+# --------------------------------------------------------------------------
+
+
+@login_required
+@screen_permission("accounting.view_accmove")
+def cash_basis(request: HttpRequest) -> HttpResponse:
+    """F-1 — la saisie de trésorerie, et l'état qui la relit.
+
+    **Le régime est dans le périmètre, décidé par le commanditaire.**
+    `record_cash_movement` traduit « de l'argent est entré/sorti » en une
+    écriture équilibrée normale — pas de registre parallèle, la partie
+    double reste l'unique source de vérité — et sa docstring annonçait
+    depuis A8 « un futur écran qui exposera cette fonction comme un
+    formulaire à deux champs ». Cet écran n'existait pas : ni la saisie, ni
+    le rapport qui la relit n'avaient le moindre appelant de production.
+
+    **Les deux vont ensemble, et c'est le point.** Sans le rapport, la
+    saisie écrirait dans un registre que personne ne lit ; sans la saisie,
+    le rapport resterait vide chez tout exploitant au régime synthétique.
+    Livrer l'un sans l'autre aurait laissé la moitié du besoin."""
+    tenant = resolve_tenant(request)
+    erreur = ""
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accmove")
+        if refus is not None:
+            return refus
+        try:
+            record_cash_movement(
+                tenant=tenant,
+                journal=get_object_or_404(
+                    AccJournal, id=request.POST.get("journal_id"), tenant=tenant
+                ),
+                period=get_object_or_404(
+                    AccPeriod, id=request.POST.get("period_id"), fiscal_year__tenant=tenant
+                ),
+                date=_date(request.POST.get("date")),
+                direction="out" if request.POST.get("direction") == "out" else "in",
+                amount=_montant(request.POST.get("amount")),
+                cash_or_bank_account=get_object_or_404(
+                    AccAccount, id=request.POST.get("cash_account_id"), tenant=tenant
+                ),
+                counterpart_account=get_object_or_404(
+                    AccAccount, id=request.POST.get("counterpart_account_id"), tenant=tenant
+                ),
+                label=request.POST.get("label", ""),
+            )
+        except ValidationError as exc:
+            erreur = _messages(exc)
+        else:
+            return redirect(
+                f"{request.path}?fiscal_year_id={request.POST.get('fiscal_year_id', '')}"
+            )
+
+    exercices = list(AccFiscalYear.objects.filter(tenant=tenant).order_by("-date_start"))
+    exercice_id = request.GET.get("fiscal_year_id") or (str(exercices[0].id) if exercices else "")
+    exercice = next((e for e in exercices if str(e.id) == exercice_id), None)
+    # Le cahier distingue deux sous-strates : le récapitulatif recettes /
+    # dépenses sous 100 M Ar, l'état des encaissements et décaissements
+    # (avec solde cumulé) entre 100 et 200 M Ar. Le choix reste à
+    # l'exploitant : le deviner demanderait de calculer le chiffre
+    # d'affaires réel, et le service refuse explicitement de le supposer.
+    mode = "smt" if request.GET.get("mode") == "smt" else "recap"
+
+    return render(
+        request,
+        "accounting/cash_basis.html",
+        {
+            "exercices": exercices,
+            "exercice": exercice,
+            "exercice_id": exercice_id,
+            "mode": mode,
+            "lignes": cash_basis_report(exercice, mode=mode) if exercice is not None else [],
+            "comptes_tresorerie": AccAccount.objects.filter(
+                tenant=tenant,
+                is_active=True,
+                type__in=(AccAccount.TYPE_CASH, AccAccount.TYPE_BANK),
+            ).order_by("code"),
+            "comptes": AccAccount.objects.filter(tenant=tenant, is_active=True).order_by("code"),
+            "journaux": AccJournal.objects.filter(tenant=tenant).order_by("code"),
+            "periodes": AccPeriod.objects.filter(fiscal_year__tenant=tenant).order_by("code"),
             "error": erreur,
         },
     )

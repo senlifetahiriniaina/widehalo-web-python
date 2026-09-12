@@ -7,6 +7,7 @@ from apps.accounting import (
     views_budgets,
     views_config,
     views_costing,
+    views_efacture,
     views_imports,
     views_payments,
     views_reports,
@@ -96,6 +97,13 @@ urlpatterns = [
         name="landed_cost_detail",
     ),
     path("dcom/", views_costing.dcom_screen, name="dcom"),
+    # F-1 — les deux dernieres chaines sans appelant : le rejeu d'e-factures
+    # (EFA-3, que la 0.1.8 a reclasse en partielle pour cette seule raison)
+    # et la comptabilite de tresorerie, dont le commanditaire a decide
+    # qu'elle est dans le perimetre.
+    path("einvoices/", views_efacture.einvoice_queue, name="einvoice_queue"),
+    path("einvoices/replay/", views_efacture.einvoice_replay_now, name="einvoice_replay"),
+    path("cash/", views_treasury.cash_basis, name="cash_basis"),
     path("<uuid:invoice_id>/", views.invoice_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/fiscal-years/", views_config.config_fiscal_years, name="config_fiscal_years"),

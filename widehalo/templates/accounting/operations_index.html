@@ -50,5 +50,9 @@
     {% if perms.accounting.view_accdcomdeclaration %}
       <li><a href="{% url 'accounting:dcom' %}">{% trans "Déclaration DCOM" %}</a></li>
     {% endif %}
+    {% if perms.accounting.view_accmove %}
+      <li><a href="{% url 'accounting:cash_basis' %}">{% trans "Comptabilité de trésorerie" %}</a></li>
+      <li><a href="{% url 'accounting:einvoice_queue' %}">{% trans "File de soumission fiscale" %}</a></li>
+    {% endif %}
   </ul>
 {% endblock %}

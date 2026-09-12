@@ -153,6 +153,11 @@ ROUTES_SUPERUTILISATEUR = frozenset(
 ROUTES_POST_STRICTES = frozenset(
     {
         "/accounting/payments/payouts/announce/",
+        # F-1 : le rejeu declenche depuis un autre ecran. Sa garde
+        # d'ecriture est AU DECORATEUR — la vue n'existe que pour ecrire —
+        # et elle rend 405 sur un GET plutot que 302 : le refus de methode
+        # est l'idiome que la note du depot nomme comme cible.
+        "/accounting/einvoices/replay/",
     }
 )
 

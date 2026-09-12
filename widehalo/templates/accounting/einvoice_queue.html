@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "File d'e-factures" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "File d'e-factures" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "File de soumission fiscale" %}</h1>
+  </div>
+  {% comment %}
+    EFA-2 interdit de présenter une erreur sur l'attente : une pièce qui
+    attend une destination est un état normal du mode dégradé, pas une
+    panne. Le texte ci-dessous le dit, et l'écran ne colore rien en rouge.
+  {% endcomment %}
+  <p class="hint">{% trans "Ces factures sont produites, signées et archivées ; elles attendent qu'un raccordement soit ouvert pour partir. Elles partiront dans l'ordre de leur date de pièce, sans perte ni doublon." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if rapport %}
+    <p class="workflow-banner" role="status">
+      {% blocktrans with considerees=rapport.considered parties=rapport.queued restantes=rapport.still_pending %}{{ considerees }} pièce(s) considérée(s), {{ parties }} mise(s) en file, {{ restantes }} encore en attente.{% endblocktrans %}
+    </p>
+  {% endif %}
+
+  {% if en_attente %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date de pièce" %}</th>
+          <th scope="col">{% trans "Référence" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+          <th scope="col">{% trans "État fiscal" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for piece in en_attente %}
+          <tr>
+            <td>{{ piece.date }}</td>
+            <td><a href="{% url 'accounting:detail' invoice_id=piece.id %}">{{ piece.reference }}</a></td>
+            <td class="col-num">{{ piece.total_debit|mga }}</td>
+            <td>{{ piece.get_fiscal_state_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune pièce en attente de soumission' %}"
+      body="{% trans 'Toutes les factures concernées sont parties, ou aucune n’est encore dans le champ de la facturation électronique.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.change_accmove %}
+    <h2>{% trans "Ouvrir le raccordement et rejouer" %}</h2>
+    <p class="hint">{% trans "Activer le raccordement fiscal EST la décision : tout ce qui attend part ensuite sans qu'on le redemande. Une liaison déjà ouverte est réactivée sans effet — c'est ce qu'on veut pouvoir faire après un incident." %}</p>
+    <form method="post">
+      {% csrf_token %}
+      <c-button variant="primary" type="submit" name="action" value="open_link">{% trans "Ouvrir le raccordement et rejouer la file" %}</c-button>
+    </form>
+
+    <h2>{% trans "Rejouer sans toucher au raccordement" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <c-button type="submit" name="action" value="replay">{% trans "Rejouer la file" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

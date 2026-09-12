@@ -200,9 +200,17 @@ def dcom_screen(request: HttpRequest) -> HttpResponse:
 
     exercices = list(AccFiscalYear.objects.filter(tenant=tenant).order_by("-date_start"))
     exercice_id = request.GET.get("fiscal_year_id") or (str(exercices[0].id) if exercices else "")
-    declaration = AccDcomDeclaration.objects.filter(
-        tenant=tenant, fiscal_year_id=exercice_id
-    ).first()
+    # **Une societe sans exercice rendait 500.** `filter(fiscal_year_id="")`
+    # fait lever `ValidationError: n'est pas un UUID valide`, qu'aucun
+    # gestionnaire ne rattrape — meme famille que les identifiants non
+    # types fermes en T4bis, sur la valeur VIDE cette fois. Trouve par le
+    # crawler d'ecrans, jamais par la relecture : c'est exactement le cas
+    # d'une societe neuve, le premier jour.
+    declaration = (
+        AccDcomDeclaration.objects.filter(tenant=tenant, fiscal_year_id=exercice_id).first()
+        if exercice_id
+        else None
+    )
     lignes = list(declaration.lines.all().order_by("-amount_mga")) if declaration else []
     noms = get_partner_display_names({ligne.partner_id for ligne in lignes})
     for ligne in lignes:
