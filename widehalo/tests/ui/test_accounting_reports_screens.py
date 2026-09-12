@@ -87,9 +87,14 @@ def accounting_reports_setup():
 
 
 def test_reports_index_screen_renders(accounting_reports_setup) -> None:
+    """H-2b : les rapports proposes, et non le seul statut 200."""
     client, _tenant, _fiscal_year, _journal, _receivable = accounting_reports_setup
     response = client.get("/accounting/reports/")
     assert response.status_code == 200
+
+    contenu = response.content.decode()
+    for rapport in ("Balance générale", "Grand livre", "Journal", "Déclaration de TVA"):
+        assert rapport in contenu, f"Rapport « {rapport} » absent de l'index comptable"
 
 
 def test_trial_balance_download_json(accounting_reports_setup) -> None:

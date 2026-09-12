@@ -326,7 +326,7 @@ def confirm_order(order: SalesOrder, user: User) -> SalesOrder:
     )
 
     if is_over_credit_limit(order.partner_id, outstanding_amount_mga):
-        reason = _("Plafond de crédit depasse")
+        reason = _("Plafond de crédit dépassé")
         attempt_transition(order, "block_for_credit", user, comment=reason)
         order.blocked_reason = reason
         order.save(update_fields=["state", "blocked_reason"])

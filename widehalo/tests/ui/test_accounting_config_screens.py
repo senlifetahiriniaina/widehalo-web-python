@@ -41,15 +41,38 @@ def config_screens_setup():
 
 
 def test_config_index_renders(config_screens_setup) -> None:
+    """H-2b : le hub comptable porte quinze tuiles ; on en verifie un
+    echantillon large plutot qu'un statut qui ne dit rien de leur presence."""
     client, _tenant = config_screens_setup
     response = client.get("/accounting/config/")
     assert response.status_code == 200
 
+    contenu = response.content.decode()
+    for tuile in (
+        "Comptes",
+        "Journaux",
+        "Exercices",
+        "Régime fiscal",
+        "Plans analytiques",
+        "Taux de change",
+        "Catégories de caisse",
+    ):
+        assert tuile in contenu, f"Tuile « {tuile} » absente du hub de configuration comptable"
+
 
 def test_config_fiscal_years_get(config_screens_setup) -> None:
+    """H-2b : l'ecran s'annonce, et il dit qu'il est vide.
+
+    La societe de la fixture ne porte aucun exercice : l'etat vide
+    pedagogique doit donc etre rendu. Un ecran qui n'afficherait ni titre
+    ni etat vide passait le test precedent."""
     client, _tenant = config_screens_setup
     response = client.get("/accounting/config/fiscal-years/")
     assert response.status_code == 200
+
+    contenu = response.content.decode()
+    assert "Exercices comptables" in contenu
+    assert "Aucun exercice." in contenu
 
 
 def test_config_fiscal_years_create(config_screens_setup) -> None:

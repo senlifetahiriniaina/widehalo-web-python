@@ -205,7 +205,7 @@ def close_trip(trip: LogTrip, *, end_odometer_km: Decimal) -> LogTrip:
     Refuse un kilometrage de fin inferieur au depart (erreur de saisie) ou
     l'absence de kilometrage de depart (jamais devine)."""
     if trip.start_odometer_km is None:
-        raise ValidationError(_("Kilométrage de départ manquant — a saisir avant la cloture."))
+        raise ValidationError(_("Kilométrage de départ manquant — à saisir avant la clôture."))
     if end_odometer_km < trip.start_odometer_km:
         raise ValidationError(
             _("Le kilométrage de fin ne peut pas être inférieur au kilométrage de départ.")

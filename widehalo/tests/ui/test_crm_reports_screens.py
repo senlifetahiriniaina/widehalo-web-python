@@ -66,9 +66,18 @@ def crm_reports_setup():
 
 
 def test_reports_index_screen_renders(crm_reports_setup) -> None:
+    """H-2b : les quatre rapports proposes, et non le seul statut 200."""
     client, _tenant, _pipeline = crm_reports_setup
     response = client.get("/crm/reports/")
     assert response.status_code == 200
+
+    contenu = response.content.decode()
+    for rapport in (
+        "Répartition du pipeline",
+        "Activités par type",
+        "Motifs de perte",
+    ):
+        assert rapport in contenu, f"Rapport « {rapport} » absent de l'index CRM"
 
 
 def test_pipeline_report_download_json(crm_reports_setup) -> None:

@@ -25,10 +25,26 @@ from pathlib import Path
 RACINE = Path(__file__).resolve().parents[1]
 
 #: Les fichiers de tests d'ecran des quatre modules prioritaires.
+#:
+#: **H-2b : ce tuple en comptait QUATRE, et les modules en ont HUIT.**
+#: `crm` et `accounting` ont chacun trois fichiers d'ecran — l'ecran
+#: principal, la configuration, les rapports. La garde ne regardait donc
+#: qu'une moitie du perimetre qu'elle pretend gouverner, et cinq tests
+#: muets vivaient dans l'angle mort sans figurer dans `DETTE`. Le chiffre
+#: publie en 0.1.9 (« 9 tests muets ») valait pour la liste declaree, pas
+#: pour la mesure : elle en donne 14.
+#:
+#: C'est la meme famille d'erreur que la docstring ci-dessus decrit — un
+#: instrument dont le corpus est plus etroit que son objet. Elle s'est
+#: produite ICI, dans la garde ecrite pour s'en premunir.
 FICHIERS = (
     "ui/test_sales_screens.py",
     "ui/test_crm_screens.py",
+    "ui/test_crm_config_screens.py",
+    "ui/test_crm_reports_screens.py",
     "ui/test_accounting_screens.py",
+    "ui/test_accounting_config_screens.py",
+    "ui/test_accounting_reports_screens.py",
     "ui/test_logistics_screens.py",
 )
 
@@ -79,7 +95,11 @@ def test_la_mesure_voit_encore_des_tests_d_ecran() -> None:
             for n in ast.walk(arbre)
             if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
         )
-    assert total >= 45, f"{total} tests d'ecran trouves — l'instrument ne mesure plus rien."
+    # Plancher recalcule sur le corpus REEL de huit fichiers : 79 tests
+    # mesures au 12/09. A 45, il restait celui des quatre fichiers et ne
+    # protegeait plus rien — un fichier entier pouvait sortir du tuple sans
+    # qu'il bronche.
+    assert total >= 70, f"{total} tests d'ecran trouves — l'instrument ne mesure plus rien."
 
 
 def test_aucun_test_d_ecran_neuf_ne_se_contente_d_un_statut() -> None:

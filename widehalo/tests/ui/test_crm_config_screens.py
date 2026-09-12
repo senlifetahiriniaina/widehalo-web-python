@@ -27,9 +27,18 @@ def config_screens_setup():
 
 
 def test_config_index_renders(config_screens_setup) -> None:
+    """H-2b : un hub vide rend 200 tout autant qu'un hub complet.
+
+    Ce test n'asserait qu'un statut : les trois tuiles pouvaient
+    disparaitre sans qu'il bronche. Il regarde desormais ce que l'ecran
+    OFFRE, puisque c'est toute sa raison d'etre."""
     client, _tenant, _user = config_screens_setup
     response = client.get("/crm/config/")
     assert response.status_code == 200
+
+    contenu = response.content.decode()
+    for tuile in ("Pipelines et étapes", "Équipes", "Motifs de perte"):
+        assert tuile in contenu, f"Tuile « {tuile} » absente du hub de configuration CRM"
 
 
 def test_config_pipelines_create(config_screens_setup) -> None:
