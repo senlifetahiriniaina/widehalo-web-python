@@ -88,7 +88,13 @@ def test_vehicle_detail_add_document_and_cost(logistics_screens_setup) -> None:
 
     detail = client.get(f"/logistics/vehicles/{vehicle.id}/")
     assert detail.status_code == 200
-    assert b"20000" in detail.content
+    # **Ce test figeait une forme brute, et empechait de l'ameliorer.** Il
+    # cherchait « 20000 » — le `Decimal` rendu tel quel — le jour ou
+    # l'ecran s'est mis a ecrire « 20 000 Ar » comme le reste du produit.
+    # Troisieme occurrence du motif deja documente en 0.1.8 : on prend pour
+    # reference ce que le systeme produit reellement, jamais une valeur
+    # ecrite d'avance. Le separateur est une espace INSECABLE.
+    assert "20\u00a0000\u00a0Ar" in detail.content.decode()
 
 
 def test_driver_list_screen_create(logistics_screens_setup) -> None:

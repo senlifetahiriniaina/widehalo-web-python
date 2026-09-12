@@ -64,6 +64,18 @@ def record_analytic_lines(move_line: AccMoveLine) -> list[AccAnalyticLine]:
     amount = move_line.debit or move_line.credit
     created: list[AccAnalyticLine] = []
 
+    # **Reprojection, jamais accumulation — et c'est la passe complete qui
+    # l'a impose.** En branchant cette fonction sur `post_move`, deux tests
+    # de la phase 2 ont double leurs montants : ils l'appelaient eux-memes
+    # apres publication, et chaque appel AJOUTAIT un jeu de lignes. Le
+    # defaut n'etait pas dans les tests. Les lignes analytiques d'une ligne
+    # d'ecriture sont la PROJECTION de sa distribution : deux projections
+    # de la meme distribution doivent donner le meme resultat, pas le
+    # double. Effacer d'abord rend l'operation idempotente par
+    # construction, au lieu de compter sur le fait qu'un seul appelant
+    # existe — ce qui etait vrai hier et ne le restera pas.
+    AccAnalyticLine.objects.filter(move_line=move_line).delete()
+
     for plan_code, allocations in move_line.analytic_distribution.items():
         for account_code, percentage in allocations.items():
             analytic_account = AccAnalyticAccount.objects.filter(

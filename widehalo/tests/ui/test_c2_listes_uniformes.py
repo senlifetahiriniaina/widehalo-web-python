@@ -70,6 +70,17 @@ ECRANS_DE_LISTE = (
     "/accounting/config/payment-terms/",
     "/accounting/config/periods/",
     "/accounting/config/taxes/",
+    # G-2 a G-4 : les listes neuves de la comptabilite. La garde ci-dessous
+    # les a trouvees elle-meme — elle recalcule la verite depuis le
+    # resolveur d'URL, pas depuis cette liste.
+    "/accounting/assets/",
+    "/accounting/provisions/",
+    "/accounting/budgets/",
+    "/accounting/transfer-orders/",
+    "/accounting/landed-costs/",
+    "/accounting/config/analytic-plans/",
+    "/accounting/config/analytic-accounts/",
+    "/accounting/config/exchange-rates/",
     "/logistics/",
     "/logistics/drivers/",
     "/logistics/trips/",

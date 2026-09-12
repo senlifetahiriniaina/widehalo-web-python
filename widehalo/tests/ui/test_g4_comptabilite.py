@@ -381,6 +381,52 @@ def test_un_axe_analytique_se_declare_puis_se_materialise_a_la_publication(socie
         assert lignes[0].amount == Decimal("500000.0000")
 
 
+def test_la_materialisation_analytique_est_une_projection_pas_un_journal(societe) -> None:
+    """La propriété que la passe complète a imposée.
+
+    En branchant `record_analytic_lines` sur `post_move`, deux tests de la
+    phase 2 ont **doublé** leurs montants : ils l'appelaient eux-mêmes
+    après publication, et chaque appel ajoutait un jeu de lignes. Le défaut
+    n'était pas dans les tests. Les lignes analytiques d'une ligne
+    d'écriture sont la PROJECTION de sa distribution : deux projections de
+    la même distribution donnent le même résultat, jamais le double."""
+    from apps.accounting.services.analytics import record_analytic_lines
+
+    with use_tenant(societe["tenant"].id):
+        plan = AccAnalyticPlan.objects.create(
+            tenant=societe["tenant"], code="atelier", name="Ateliers"
+        )
+        AccAnalyticAccount.objects.create(
+            tenant=societe["tenant"], plan=plan, code="AT-1", name="Atelier Nord"
+        )
+        brouillon = create_draft_move(
+            tenant=societe["tenant"],
+            journal=societe["journal"],
+            period=societe["periode"],
+            date=dt.date(2026, 1, 10),
+            narration="Achat ventilé",
+        )
+        ligne = add_line(
+            brouillon,
+            account=societe["charge"],
+            label="Achat",
+            debit=Decimal("400000"),
+            analytic_distribution={"atelier": {"AT-1": 100}},
+        )
+        add_line(brouillon, account=societe["produit"], label="Vente", credit=Decimal("400000"))
+        post_move(brouillon)
+
+        assert AccAnalyticLine.objects.filter(move_line=ligne).count() == 1
+
+        # Une seconde projection REMPLACE la première : elle ne s'y ajoute
+        # pas. Sans cela, la garantie reposerait sur le fait qu'un seul
+        # appelant existe — vrai hier, faux demain.
+        record_analytic_lines(ligne)
+        lignes = list(AccAnalyticLine.objects.filter(move_line=ligne))
+        assert len(lignes) == 1
+        assert lignes[0].amount == Decimal("400000.0000")
+
+
 def test_un_axe_inconnu_refuse_la_publication_en_le_nommant(societe) -> None:
     """`AccAnalyticAccount.objects.get` levait `DoesNotExist` : un 500 à la
     publication d'une écriture dont la distribution désigne un code non
