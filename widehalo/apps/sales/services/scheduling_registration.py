@@ -26,6 +26,18 @@ def register_scheduled_commands() -> None:
         hour=5,
         description=("RG-SAL-6 — génère les commandes échues en brouillon, jamais validées."),
     )
+    register_scheduled_command(
+        "sales.quotation_expiry",
+        command="expirer_devis",
+        module="sales",
+        label="Expiration des devis",
+        frequency=FREQUENCY_DAILY,
+        hour=4,
+        description=(
+            "Fait expirer les devis envoyés dont la date de validité est "
+            "passée. Un devis sans date de validité n'expire jamais."
+        ),
+    )
     # T7 (bloc G, COM-3) : « la publication de disponibilite reflete le
     # stock DISPONIBLE A LA VENTE, reservations deduites ». Horaire et non
     # quotidienne : une disponibilite publiee le matin et fausse a midi

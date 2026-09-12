@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Rapprochement bancaire" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Rapprochement bancaire" %}
+  </c-breadcrumb>
+  <div class="page-head"><h1>{% trans "Rapprochement bancaire" %}</h1></div>
+
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if not comptes %}
+    <c-empty-state
+      title="{% trans 'Aucun compte de trésorerie' %}"
+      body="{% trans 'Un rapprochement compare un relevé à des écritures portées par un compte de banque ou de caisse. Créez-en un depuis le plan comptable pour commencer.' %}"
+      action_url="{% url 'accounting:config_accounts' %}"
+      action_label="{% trans 'Plan comptable' %}" />
+  {% else %}
+    <form method="get" style="margin-bottom:1em;">
+      <label for="account_id">{% trans "Compte de trésorerie" %}</label>
+      <select id="account_id" name="account_id" onchange="this.form.submit()">
+        {% for c in comptes %}
+          <option value="{{ c.id }}" {% if compte and c.id == compte.id %}selected{% endif %}>{{ c.code }} — {{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+
+    {% if perms.accounting.change_accbankstatementline %}
+      <div class="panel">
+        <div class="panel-body" style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end;">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import">
+            <input type="hidden" name="account_id" value="{{ compte.id }}">
+            <div class="form-field">
+              <label for="statement">{% trans "Relevé (CSV)" %}</label>
+              <input id="statement" type="file" name="statement" accept=".csv" required>
+            </div>
+            <c-button variant="primary" type="submit">{% trans "Charger le relevé" %}</c-button>
+          </form>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="suggest">
+            <input type="hidden" name="account_id" value="{{ compte.id }}">
+            <c-button type="submit">{% trans "Proposer des rapprochements" %}</c-button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if rapport %}
+      {% comment %} BNK-2 : « un rapport de chargement exploitable » — la
+        LIGNE fautive doit être retrouvable, pas seulement comptée. {% endcomment %}
+      <div class="panel">
+        <div class="panel-head"><h2>{% trans "Résultat du chargement" %}</h2></div>
+        <div class="panel-body">
+          {% if rapport.already_imported %}
+            <p class="form-error">{% trans "Ce relevé a déjà été chargé : aucune ligne n’a été ajoutée." %}</p>
+          {% endif %}
+          <ul>
+            <li>{% blocktrans with n=rapport.loaded_count %}{{ n }} ligne(s) chargée(s){% endblocktrans %}</li>
+            <li>{% blocktrans with n=rapport.duplicates|length %}{{ n }} doublon(s) ignoré(s){% endblocktrans %}</li>
+          </ul>
+          {% if rapport.rejected %}
+            <p class="form-error">{% trans "Lignes refusées — rien n’a été écrit pour celles-ci :" %}</p>
+            <ul>
+              {% for r in rapport.rejected %}<li>{% blocktrans with n=r.row_number %}Ligne {{ n }}{% endblocktrans %} : {{ r.reason }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    <h2>{% trans "Lignes à rapprocher" %}</h2>
+    {% if lignes %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Date" %}</th>
+            <th>{% trans "Libellé" %}</th>
+            <th>{% trans "Référence" %}</th>
+            <th class="col-num">{% trans "Montant" %}</th>
+            <th>{% trans "État" %}</th>
+            <th>{% trans "Confiance" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in lignes %}
+            <tr>
+              <td>{{ ligne.statement_date }}</td>
+              <td>{{ ligne.label }}</td>
+              <td>{{ ligne.reference_external }}</td>
+              <td class="col-num">{{ ligne.amount_mga|mga }}</td>
+              <td>{{ ligne.get_state_display }}</td>
+              <td>{% if ligne.match_confidence %}{{ ligne.match_confidence }} %{% else %}—{% endif %}</td>
+              <td>
+                {% if perms.accounting.change_accbankstatementline %}
+                  {% if ligne.matched_move_line %}
+                    {% comment %} BNK-3 : la règle PROPOSE, l'humain dispose.
+                      Rien n'est jamais passé à « rapproché » sans ce geste. {% endcomment %}
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="confirm">
+                      <input type="hidden" name="account_id" value="{{ compte.id }}">
+                      <input type="hidden" name="line_id" value="{{ ligne.id }}">
+                      <c-button variant="primary" type="submit">{% trans "Confirmer" %}</c-button>
+                    </form>
+                  {% else %}
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="match">
+                      <input type="hidden" name="account_id" value="{{ compte.id }}">
+                      <input type="hidden" name="line_id" value="{{ ligne.id }}">
+                      <select name="move_line_id" aria-label="{% trans 'Écriture à rapprocher' %}" required>
+                        <option value="">{% trans "— Choisir l’écriture —" %}</option>
+                        {% for e in ecritures %}
+                          <option value="{{ e.id }}">{{ e.move.reference }} — {{ e.label }}</option>
+                        {% endfor %}
+                      </select>
+                      <c-button type="submit">{% trans "Rapprocher" %}</c-button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <c-empty-state
+        title="{% trans 'Rien à rapprocher' %}"
+        body="{% trans 'Toutes les lignes de relevé de ce compte sont rapprochées, ou aucun relevé n’a encore été chargé. Déposez un relevé CSV ci-dessus pour commencer.' %}" />
+    {% endif %}
+  {% endif %}
+{% endblock %}

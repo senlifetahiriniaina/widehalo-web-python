@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.accounting import (
     views,
+    views_bank,
     views_config,
     views_imports,
     views_payments,
@@ -82,6 +83,7 @@ urlpatterns = [
         views_config.config_payment_terms,
         name="config_payment_terms",
     ),
+    path("bank/", views_bank.bank_reconciliation, name="bank_reconciliation"),
     path("config/imports/", views_imports.imports_index, name="imports_index"),
     path(
         "config/imports/chart-of-accounts/",

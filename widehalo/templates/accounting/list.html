@@ -14,6 +14,12 @@
       <a href="{% url 'accounting:create' %}" class="btn btn-primary">{% trans "Nouvelle facture" %}</a>
     {% endif %}
     <a href="{% url 'accounting:reports_index' %}">{% trans "Rapports" %}</a>
+    {% if perms.accounting.view_accbankstatementline %}
+      | <a href="{% url 'accounting:bank_reconciliation' %}">{% trans "Rapprochement bancaire" %}</a>
+    {% endif %}
+    {% if perms.accounting.view_accpaymentnotification %}
+      | <a href="{% url 'accounting:payment_notifications' %}">{% trans "Encaissements" %}</a>
+    {% endif %}
   </p>
   {% include "components/_presentation_toggle.html" %}
   {% if presentation == "kanban" %}

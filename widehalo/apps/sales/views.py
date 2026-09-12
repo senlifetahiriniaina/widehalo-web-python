@@ -55,6 +55,7 @@ from apps.sales.services.quotations import (
     add_quotation_line,
     create_quotation,
     decline_quotation,
+    expire_quotation,
     send_quotation,
 )
 from apps.sales.services.reports import MARGIN_VISIBLE_ROLES
@@ -245,6 +246,13 @@ _QUOTATION_ACTIONS = {
     "send": lambda quotation, _post: send_quotation(quotation),
     "accept": lambda quotation, _post: accept_quotation(quotation),
     "decline": lambda quotation, post: decline_quotation(quotation, reason=post.get("reason", "")),
+    # **`expire_quotation` n'avait aucun appelant.** Un devis dont la
+    # validite est passee restait « envoye » indefiniment. La commande
+    # nocturne `expirer_devis` fait le gros ; ce bouton laisse un commercial
+    # constater la caducite sans attendre la nuit — et c'est lui qui rend la
+    # commande verifiable, puisque sans lui la seule facon de voir
+    # l'expiration marcher serait d'attendre le lendemain.
+    "expire": lambda quotation, _post: expire_quotation(quotation),
 }
 
 

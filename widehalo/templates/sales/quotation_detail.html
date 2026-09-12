@@ -16,6 +16,7 @@
         {% if quotation.state == "draft" %}<c-button variant="primary" type="submit" name="action" value="send">{% trans "Envoyer" %}</c-button>{% endif %}
         {% if quotation.state == "sent" %}<c-button variant="primary" type="submit" name="action" value="accept">{% trans "Accepter" %}</c-button>{% endif %}
         {% if quotation.state == "sent" %}<c-button variant="danger" type="submit" name="action" value="decline">{% trans "Refuser" %}</c-button>{% endif %}
+        {% if quotation.state == "sent" %}<c-button type="submit" name="action" value="expire">{% trans "Marquer expiré" %}</c-button>{% endif %}
         {% if quotation.state == "accepted" %}<c-button variant="primary" type="submit" name="action" value="convert_to_order">{% trans "Convertir en commande" %}</c-button>{% endif %}
       </form>
     {% endif %}
