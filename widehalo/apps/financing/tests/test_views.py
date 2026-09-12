@@ -9,7 +9,7 @@ from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import grant_role, use_tenant
+from apps.core.tests.utils import grant_module_access, grant_role, use_tenant
 from apps.financing.models import FinLoanApplication
 from apps.financing.services.credoc import create_credoc
 from apps.financing.services.loan_applications import create_loan_application
@@ -34,6 +34,10 @@ def web_financing():
 def test_loan_application_list_screen_renders(web_financing) -> None:
     tenant, user = web_financing
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "financing")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -53,6 +57,7 @@ def test_loan_application_detail_screen_renders(web_financing) -> None:
             duration_months=6,
         )
     client = Client()
+    grant_module_access(user, "financing")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -65,6 +70,7 @@ def test_loan_application_detail_screen_renders(web_financing) -> None:
 def test_credoc_list_screen_renders(web_financing) -> None:
     tenant, user = web_financing
     client = Client()
+    grant_module_access(user, "financing")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -86,6 +92,7 @@ def test_credoc_detail_screen_renders(web_financing) -> None:
             validity_date=dt.date(2026, 12, 31),
         )
     client = Client()
+    grant_module_access(user, "financing")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -108,6 +115,7 @@ def test_credoc_dossier_timeline_screen_renders(web_financing) -> None:
             validity_date=dt.date(2026, 12, 31),
         )
     client = Client()
+    grant_module_access(user, "financing")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -135,6 +143,7 @@ def test_credoc_detail_transition_requires_a_reason(web_financing) -> None:
             validity_date=dt.date(2026, 12, 31),
         )
     client = Client()
+    grant_module_access(user, "financing")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

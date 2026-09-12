@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.mrp.models import MrpBomLine
 from apps.mrp.services.bom import activate_bom, create_bom
 from apps.patronage.models import PatSizeChart
@@ -44,6 +44,10 @@ def patronage_screens_setup():
             graded_measurements={"tour_poitrine": Decimal(90), "longueur": Decimal(65)},
         )
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "patronage")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -106,6 +110,7 @@ def patronage_consumption_screens_setup():
             graded_measurements={"tour_poitrine": Decimal(100), "longueur": Decimal(70)},
         )
     client = Client()
+    grant_module_access(user, "patronage")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

@@ -13,7 +13,7 @@ from django.test import Client
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.chatter import thread_for
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.mrp.models import MrpWorkcenter, MrpWorkOrder, MrpWorkshop
 from apps.mrp.services.bom import activate_bom, add_bom_line, create_bom
 from apps.mrp.services.orders import advance_work_order, create_order, create_work_order
@@ -114,6 +114,10 @@ def test_first_pass_yield_reflects_done_and_rejected_across_work_orders(kanban_s
 def _kanban_client(tenant: Tenant) -> Client:
     user = User.objects.create_user(email="kanban-ui@example.com", password="Str0ngPassw0rd!23")
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "mrp")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

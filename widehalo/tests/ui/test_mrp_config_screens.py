@@ -5,7 +5,7 @@ import uuid
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.mrp.models import MrpBom, MrpOperation, MrpRouting, MrpWorkcenter, MrpWorkshop
 from apps.mrp.services.bom import create_bom
 from django.test import Client
@@ -37,6 +37,10 @@ def mrp_config_setup():
         routing = MrpRouting.objects.create(tenant=tenant, code="RTG-CFG", name="Gamme Config")
         bom = create_bom(tenant=tenant, code="BOM-CFG", product_template_id=uuid.uuid4())
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "mrp")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

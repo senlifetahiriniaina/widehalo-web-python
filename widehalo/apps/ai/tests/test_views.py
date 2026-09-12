@@ -5,7 +5,7 @@ from django.test import Client
 
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import grant_role
+from apps.core.tests.utils import grant_module_access, grant_role
 
 pytestmark = pytest.mark.django_db
 
@@ -25,6 +25,10 @@ def web_ai():
 def test_usage_budget_screen_renders(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "ai")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -38,6 +42,7 @@ def test_usage_budget_screen_renders(web_ai) -> None:
 def test_assist_widget_screen_renders(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -51,6 +56,7 @@ def test_assist_widget_screen_renders(web_ai) -> None:
 def test_assist_fragment_returns_guidance(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -64,6 +70,7 @@ def test_assist_fragment_returns_guidance(web_ai) -> None:
 def test_ai_launcher_fragment_renders_form_without_navigation(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -79,6 +86,7 @@ def test_ai_launcher_fragment_renders_form_without_navigation(web_ai) -> None:
 def test_insights_list_screen_renders(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -92,6 +100,7 @@ def test_insights_list_screen_renders(web_ai) -> None:
 def test_recommendations_screen_renders_without_query_params(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -105,6 +114,7 @@ def test_recommendations_screen_renders_without_query_params(web_ai) -> None:
 def test_data_query_screen_renders_without_question(web_ai) -> None:
     tenant, user = web_ai
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -135,6 +145,7 @@ def test_data_query_screen_surfaces_consulted_tool_labels(web_ai, monkeypatch) -
     monkeypatch.setattr("apps.ai.views.run_data_query_ask", _fake_ask)
 
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -165,6 +176,7 @@ def test_recommendations_screen_renders_suggestions_for_a_context(web_ai, monkey
     monkeypatch.setattr("apps.ai.views.run_action_advisor", _fake_suggest)
 
     client = Client()
+    grant_module_access(user, "ai")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

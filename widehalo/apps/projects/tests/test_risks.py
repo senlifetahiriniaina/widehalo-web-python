@@ -9,7 +9,7 @@ from apps.core.models.risk import CATEGORY_PROJECT, RiskItem
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services.risk import create_risk_item
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.projects.services.projects import create_project
 
 pytestmark = pytest.mark.django_db
@@ -63,6 +63,10 @@ def test_project_risks_screen_lists_only_risks_of_this_project(risk_ctx) -> None
             content_object=other_project,
         )
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "projects")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -81,6 +85,7 @@ def test_project_risks_screen_lists_only_risks_of_this_project(risk_ctx) -> None
 def test_project_risk_create_screen_signals_a_risk(risk_ctx) -> None:
     tenant, project, user = risk_ctx
     client = Client()
+    grant_module_access(user, "projects")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -98,6 +103,7 @@ def test_project_risk_create_screen_signals_a_risk(risk_ctx) -> None:
 def test_project_risk_create_rejects_out_of_range_values(risk_ctx) -> None:
     tenant, project, user = risk_ctx
     client = Client()
+    grant_module_access(user, "projects")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

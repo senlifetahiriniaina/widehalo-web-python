@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.purchase.services.orders import add_order_line, create_order
 from apps.purchase.services.rfq import add_rfq_line, create_rfq
 from django.test import Client
@@ -38,6 +38,10 @@ def purchase_reports_setup():
         rfq = create_rfq(tenant=tenant, date=dt.date.today())
         add_rfq_line(rfq, variant_id=uuid.uuid4(), description="Doublure", qty=Decimal(20))
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "purchase")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

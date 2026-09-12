@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.partners.models import DuplicateAlert
 from apps.partners.services.onboarding import create_partner
 from django.contrib.auth.models import Group
@@ -15,8 +15,20 @@ from django.test import Client
 pytestmark = pytest.mark.django_db
 
 
-def _login_with_tenant(tenant: Tenant, user: User) -> Client:
+def _login_with_tenant(
+    tenant: Tenant, user: User, *, droits: tuple[str, ...] = ("view", "add", "change")
+) -> Client:
+    """H-1 : des droits REELS plutot qu'un utilisateur nu.
+
+    `grant_module_access` et non `grant_role` : le groupe porte un nom
+    NEUTRE, donc aucun role connu, donc pas de MFA (docs/RBAC.md §1.3).
+
+    `droits` est explicite parce qu'un test de REFUS en depend : donner
+    `change` par defaut a TOUS les utilisateurs de ce fichier rendait vrai
+    ce que `test_partner_edit_forbidden_without_change_permission` doit
+    voir faux. Mesure, pas supposition — ce test est tombe."""
     client = Client()
+    grant_module_access(user, "partners", actions=droits)
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -126,7 +138,8 @@ def test_partner_edit_updates_credit_limit() -> None:
 def test_partner_edit_forbidden_without_change_permission() -> None:
     tenant = Tenant.objects.create(code="UI-EDT2", name="UI Edit Tenant 2")
     user = User.objects.create_user(email="ui-edt2@example.com", password="Str0ngPassw0rd!23")
-    client = _login_with_tenant(tenant, user)
+    # Lecture seule : c'est l'absence de `change` que ce test eprouve.
+    client = _login_with_tenant(tenant, user, droits=("view",))
 
     with use_tenant(tenant.id):
         partner = create_partner(tenant=tenant, name="Forbidden SARL", roles=["client"])

@@ -14,7 +14,7 @@ from apps.catalog.models import (
 )
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from django.test import Client
 
 pytestmark = pytest.mark.django_db
@@ -28,6 +28,10 @@ def config_screens_setup():
             email="ui-cat-cfg@example.com", password="Str0ngPassw0rd!23"
         )
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "catalog")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)

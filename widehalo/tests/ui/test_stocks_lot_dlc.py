@@ -10,7 +10,7 @@ from decimal import Decimal
 import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
-from apps.core.tests.utils import use_tenant
+from apps.core.tests.utils import grant_module_access, use_tenant
 from apps.stocks.models import StkLocation, StkLot, StkPicking
 from apps.stocks.services.moves import validate_move
 from apps.stocks.services.pickings import add_picking_line, create_picking
@@ -48,6 +48,10 @@ def lot_dlc_setup():
             type=StkLocation.TYPE_CLIENT,
         )
     client = Client()
+    # H-1 : droits reels plutot qu'un utilisateur nu. `grant_module_access`
+    # et non `grant_role` : le groupe porte un nom NEUTRE, donc aucun role
+    # connu, donc pas de MFA (cf. docs/RBAC.md §1.3).
+    grant_module_access(user, "stocks")
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
@@ -167,6 +171,7 @@ def test_fefo_suggestion_endpoint_without_variant_shows_hint() -> None:
             tenant=tenant, type=StkPicking.TYPE_SORTIE, location_from=internal, location_to=supplier
         )
     client = Client()
+    grant_module_access(user, "stocks")  # H-1 : droits reels
     client.force_login(user)
     session = client.session
     session["tenant_id"] = str(tenant.id)
