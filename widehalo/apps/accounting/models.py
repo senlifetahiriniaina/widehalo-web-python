@@ -574,6 +574,24 @@ class AccMove(StatutOperationnelMixin, BaseModel, ReferenceMixin):
     # Jamais de FK Django vers `apps.partners.models.Partner` (regle de
     # couplage n°1) — un tiers est reference par son UUID uniquement.
     partner_id = models.UUIDField(null=True, blank=True)
+    #: RG-ACC-6 — la condition de paiement de la piece. Facultative : une
+    #: facture sans condition reste exigible a sa date, et c'est le repli
+    #: que `services.payment_terms.apply_payment_term` applique.
+    #:
+    #: **Ce champ manquait, et quatre ecrans en dependaient.**
+    #: `generate_due_lines` calculait « 30 % a la commande, 40 % a 30 jours,
+    #: 30 % a 60 jours » depuis l'origine sans aucun appelant, `AccMove`
+    #: n'avait aucune clef vers `AccPaymentTerm`, et rien n'ecrivait
+    #: `AccMoveLine.due_date`. La relance client, la balance agee,
+    #: l'echeancier et la prevision de tresorerie filtrent tous sur
+    #: `due_date__isnull=False` : ils etaient structurellement vides.
+    payment_term = models.ForeignKey(
+        "AccPaymentTerm",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="moves",
+    )
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_DRAFT)
     move_type = models.CharField(max_length=24, choices=TYPE_CHOICES, default=TYPE_ENTRY)
     invoice_state = FSMField(default=INVOICE_STATE_DRAFT, choices=INVOICE_STATE_CHOICES)

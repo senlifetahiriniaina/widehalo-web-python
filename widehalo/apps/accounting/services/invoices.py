@@ -24,6 +24,7 @@ from django.utils.translation import gettext as _
 from apps.accounting.models import AccAccount, AccJournal, AccMove, AccPeriod
 from apps.accounting.services.currency import get_rate
 from apps.accounting.services.moves import add_line, create_draft_move, post_move
+from apps.accounting.services.payment_terms import apply_payment_term
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.models.workflow import ApprovalRequest, ApprovalRule
@@ -328,6 +329,14 @@ def validate_invoice(move: AccMove, user: User, *, comment: str = "") -> AccMove
 
     attempt_transition(move, "validate", user, comment=comment)
     move.save(update_fields=["invoice_state"])
+
+    # RG-ACC-6 — l'echeancier se pose AVANT la publication : une fois
+    # `posted`, l'ecriture est immuable par declencheur base. Sans condition
+    # de paiement, le repli donne une echeance unique a la date de la piece,
+    # sans quoi la relance client, la balance agee, l'echeancier et la
+    # prevision de tresorerie resteraient vides — ils filtrent tous sur
+    # `due_date__isnull=False`.
+    apply_payment_term(move)
 
     posted_move = post_move(move)
 
