@@ -24,9 +24,11 @@ fonctionnalite distincte, non demandee par le plan."""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.utils.translation import gettext as _
@@ -43,7 +45,19 @@ from apps.accounting.models import (
     AccPeriod,
 )
 from apps.core.models.tenant import Tenant
+from apps.core.models.user import User
+from apps.core.models.workflow import ApprovalRequest, ApprovalRule
+from apps.core.services.approvals import pending_for_object, request_approval
+from apps.core.services.role_hierarchy import superieur_de
 from apps.core.services.sequences import next_reference
+
+#: Nom de LA regle d'approbation budgetaire, nomme une fois.
+RULE_NAME_APPROBATION = "accounting.budget.approval"
+
+#: Meme delai d'escalade que les paliers de facture : le cahier n'en fixe
+#: aucun, et deux valeurs differentes pour la meme organisation seraient une
+#: divergence sans motif.
+DELAI_ESCALADE = dt.timedelta(days=2)
 
 
 def create_budget(*, tenant: Tenant, fiscal_year: AccFiscalYear, name: str) -> AccBudget:
@@ -91,10 +105,69 @@ def add_budget_line(
 def approve_budget(budget: AccBudget) -> AccBudget:
     """Transition `draft -> approved`. Refuse une double approbation."""
     if budget.state != AccBudget.STATE_DRAFT:
-        raise ValidationError(_("Ce budget est déjà approuve."))
+        raise ValidationError(_("Ce budget est déjà approuvé."))
     budget.state = AccBudget.STATE_APPROVED
     budget.save(update_fields=["state"])
     return budget
+
+
+def ensure_budget_approval_rule(tenant: Tenant) -> ApprovalRule:
+    """La regle d'approbation budgetaire de cette societe, creee au besoin.
+
+    **Approuver un budget est une DECISION, pas une saisie.** Le service
+    `approve_budget` bascule l'etat et rend le budget immuable — c'est
+    exactement le geste que le moteur d'approbation du socle existe pour
+    encadrer, et que l'ecran de la piece ne doit pas court-circuiter. La
+    regle nomme son approbateur (`direction`) et, comme les paliers de
+    facture, son secours par la chaine declaree plutot que par une valeur
+    ecrite ici."""
+    rule, _created = ApprovalRule.objects.get_or_create(
+        tenant=tenant,
+        content_type=ContentType.objects.get_for_model(AccBudget),
+        name=RULE_NAME_APPROBATION,
+        defaults={
+            "approver_role": "direction",
+            "fallback_approver_role": superieur_de("direction") or "",
+            "escalate_after": DELAI_ESCALADE,
+            "condition": {},
+        },
+    )
+    return rule
+
+
+def request_budget_approval(budget: AccBudget, *, requested_by: User) -> ApprovalRequest:
+    """Soumet un budget en brouillon a l'approbation.
+
+    Refuse un budget deja approuve, et refuse une SECONDE demande sur le
+    meme budget : sans cette garde, un clic repete remplirait l'ecran « Mes
+    validations » de demandes identiques dont une seule a un effet — les
+    autres retomberaient sur un budget deja bascule et leveraient."""
+    if budget.state != AccBudget.STATE_DRAFT:
+        raise ValidationError(_("Ce budget est déjà approuvé."))
+    if pending_for_object(budget).exists():
+        raise ValidationError(_("Ce budget attend déjà une décision d'approbation."))
+    if not budget.lines.exists():
+        raise ValidationError(
+            _("Un budget sans aucune ligne n'a rien à approuver : ajoutez une ligne d'abord.")
+        )
+    return request_approval(budget, ensure_budget_approval_rule(budget.tenant), requested_by)
+
+
+def decide_budget_approval(
+    approval_request: ApprovalRequest, decided_by: User, *, approved: bool, comment: str = ""
+) -> AccBudget | None:
+    """Effet metier APRES la decision generique du socle.
+
+    Approuve : le budget bascule reellement. Refuse : il RESTE en brouillon,
+    modifiable — un refus n'est pas une annulation, c'est une demande de
+    revision, et `add_budget_line` n'accepte qu'un brouillon."""
+    del decided_by, comment
+    budget = AccBudget.objects.filter(id=approval_request.object_id).first()
+    if budget is None or not approved:
+        return budget
+    if budget.state != AccBudget.STATE_DRAFT:
+        return budget
+    return approve_budget(budget)
 
 
 def _ratio_or_none(numerator: Decimal, denominator: Decimal) -> Decimal | None:

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Comptes analytiques" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_analytic_plans' %}">{% trans "Plans analytiques" %}</a>
+    <span>/</span> {% trans "Comptes analytiques" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Comptes analytiques" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accanalyticaccount %}
+    {% if plans %}
+      <h2>{% trans "Nouveau compte analytique" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="plan_id">{% trans "Plan" %}</label>
+          <select id="plan_id" name="plan_id" required>
+            {% for plan in plans %}
+              <option value="{{ plan.id }}">{{ plan.code }} — {{ plan.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="code">{% trans "Code" %}</label>
+          <input id="code" type="text" name="code" required>
+        </div>
+        <div class="form-field">
+          <label for="name">{% trans "Libellé" %}</label>
+          <input id="name" type="text" name="name" required>
+        </div>
+        <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+      </form>
+    {% else %}
+      <c-empty-state
+        title="{% trans 'Aucun plan analytique' %}"
+        body="{% trans 'Un compte analytique appartient à un plan : créez d’abord l’axe d’analyse.' %}"
+        action_url="{% url 'accounting:config_analytic_plans' %}"
+        action_label="{% trans 'Plans analytiques' %}" />
+    {% endif %}
+  {% endif %}
+{% endblock %}

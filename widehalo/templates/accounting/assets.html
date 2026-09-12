@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Immobilisations" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Immobilisations" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Immobilisations" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accasset %}
+    <h2>{% trans "Inscrire une immobilisation" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="label">{% trans "Libellé" %}</label>
+        <input id="label" type="text" name="label" required>
+      </div>
+      <div class="form-field">
+        <label for="category">{% trans "Catégorie" %}</label>
+        <select id="category" name="category" required>
+          {% for value, libelle in categories %}
+            <option value="{{ value }}">{{ libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="account_id">{% trans "Compte d'immobilisation" %}</label>
+        <select id="account_id" name="account_id" required>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="acquisition_date">{% trans "Date d'acquisition" %}</label>
+        <input id="acquisition_date" type="date" name="acquisition_date" required>
+      </div>
+      <div class="form-field">
+        <label for="acquisition_value_mga">{% trans "Valeur d'acquisition (Ar)" %}</label>
+        <input id="acquisition_value_mga" type="text" inputmode="decimal" name="acquisition_value_mga" required>
+      </div>
+      <div class="form-field">
+        <label for="useful_life_years">{% trans "Durée d'utilité (années)" %}</label>
+        <input id="useful_life_years" type="number" min="1" step="1" name="useful_life_years" required>
+      </div>
+      <div class="form-field">
+        <label for="residual_value_mga">{% trans "Valeur résiduelle (Ar)" %}</label>
+        <input id="residual_value_mga" type="text" inputmode="decimal" name="residual_value_mga" value="0">
+      </div>
+      {% comment %}
+        Le service refuse explicitement l'amortissement dégressif, qui n'est
+        pas implémenté. L'écran ne le propose donc pas : offrir un choix que
+        l'envoi refusera est le défaut corrigé en C-1d.
+      {% endcomment %}
+      <p class="hint">{% trans "Amortissement linéaire — la méthode dégressive n'est pas implémentée." %}</p>
+      <c-button variant="primary" type="submit">{% trans "Inscrire" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

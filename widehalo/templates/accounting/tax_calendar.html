@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load i18n l10n %}
+{% block title %}{% trans "Échéancier fiscal" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Échéancier fiscal" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Échéancier fiscal" %}</h1>
+  </div>
+  <p class="hint">{% trans "Les échéances légales malgaches se déplacent au gré des communiqués DGI : les dates ci-dessous sont celles enregistrées pour cette société, modifiables à tout moment." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if hors_horizon %}
+    <p class="workflow-banner" role="status">
+      {% trans "L'échéance a bien été enregistrée, mais sa date est en dehors de l'horizon affiché : élargissez l'horizon pour la voir." %}
+    </p>
+  {% endif %}
+
+  <form method="get">
+    <div class="form-field">
+      <label for="within_days">{% trans "Horizon (jours)" %}</label>
+      <input id="within_days" type="number" name="within_days" min="1" max="730" value="{{ jours|unlocalize }}">
+    </div>
+    <c-button type="submit">{% trans "Afficher" %}</c-button>
+  </form>
+
+  {% if echeances %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Échéance" %}</th>
+          <th scope="col">{% trans "Déclaration" %}</th>
+          <th scope="col">{% trans "Libellé" %}</th>
+          <th scope="col">{% trans "Périodicité" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for echeance in echeances %}
+          <tr>
+            <td>{{ echeance.due_date }}</td>
+            <td>{{ echeance.get_declaration_type_display }}</td>
+            <td>{{ echeance.label }}</td>
+            <td>{{ echeance.get_periodicity_display }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune échéance dans cet horizon' %}"
+      body="{% trans 'Aucune déclaration n’est due dans la période choisie. Élargissez l’horizon, ou créez le jeu d’échéances par défaut pour cette société.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.add_acctaxcalendar %}
+    <h2>{% trans "Créer le jeu par défaut" %}</h2>
+    <p class="hint">{% trans "Onze échéances de référence adaptées au régime fiscal de la société. Idempotent : les échéances déjà saisies ne sont pas écrasées." %}</p>
+    <form method="post">
+      {% csrf_token %}
+      <c-button type="submit" name="action" value="seed">{% trans "Créer les échéances par défaut" %}</c-button>
+    </form>
+
+    <h2>{% trans "Ajouter une échéance" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <div class="form-field">
+        <label for="declaration_type">{% trans "Déclaration" %}</label>
+        <select id="declaration_type" name="declaration_type" required>
+          {% for value, libelle in types %}
+            <option value="{{ value }}">{{ libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="label">{% trans "Libellé" %}</label>
+        <input id="label" type="text" name="label" required>
+      </div>
+      <div class="form-field">
+        <label for="due_date">{% trans "Date d'échéance" %}</label>
+        <input id="due_date" type="date" name="due_date" required>
+      </div>
+      <div class="form-field">
+        <label for="periodicity">{% trans "Périodicité" %}</label>
+        <select id="periodicity" name="periodicity" required>
+          {% for value, libelle in periodicites %}
+            <option value="{{ value }}">{{ libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Ajouter" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Déclaration DCOM" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Déclaration DCOM" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Déclaration du droit de communication" %}</h1>
+  </div>
+  <p class="hint">{% trans "Un état recalculé depuis le grand livre à chaque génération : les montants par tiers et par classe de compte de l'exercice choisi." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="get">
+    <div class="form-field">
+      <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+      <select id="fiscal_year_id" name="fiscal_year_id">
+        {% for exercice in exercices %}
+          <option value="{{ exercice.id }}" {% if exercice.id|stringformat:"s" == exercice_id %}selected{% endif %}>{{ exercice.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <c-button type="submit">{% trans "Afficher" %}</c-button>
+  </form>
+
+  {% if declaration %}
+    <div class="workflow-banner">
+      <strong>{% trans "Référence" %} :</strong> {{ declaration.reference }}
+      — <strong>{% trans "Générée le" %} :</strong> {{ declaration.date_generated }}
+      — <strong>{% trans "Total" %} :</strong> {{ declaration.total_amount_mga|mga }}
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Tiers" %}</th>
+          <th scope="col">{% trans "Classification" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in lignes %}
+          <tr>
+            <td>{% if ligne.partner_display %}{{ ligne.partner_display }}{% else %}{% trans "Tiers non identifié" %}{% endif %}</td>
+            <td>{{ ligne.classification }}</td>
+            <td class="col-num">{{ ligne.amount_mga|mga }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune déclaration pour cet exercice' %}"
+      body="{% trans 'La déclaration se génère depuis les écritures publiées de l’exercice. La régénérer remplace la précédente : c’est un état recalculé, jamais une saisie.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.add_accdcomdeclaration %}
+    <h2>{% trans "Générer" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="gen_fiscal_year_id">{% trans "Exercice à déclarer" %}</label>
+        <select id="gen_fiscal_year_id" name="fiscal_year_id" required>
+          {% for exercice in exercices %}
+            <option value="{{ exercice.id }}">{{ exercice.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Générer la déclaration" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

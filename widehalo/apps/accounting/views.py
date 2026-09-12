@@ -479,3 +479,16 @@ def quick_entry_detail(request: HttpRequest, move_id: str) -> HttpResponse:
             "error": error,
         },
     )
+
+
+@login_required
+@screen_permission("accounting.view_accmove")
+def operations_index(request: HttpRequest) -> HttpResponse:
+    """G — la porte des ecrans d'operation du module.
+
+    Le module n'avait qu'une seule porte, la liste des factures, et ses
+    ecrans d'operation y etaient cites en vrac dans un paragraphe de liens.
+    Un hub les rassemble, et surtout les rend ATTEIGNABLES : la garde
+    d'atteignabilite refuse un ecran que personne ne cite, et les mesures de
+    ce chantier ont trouve deux fois un pan entier du produit sans porte."""
+    return render(request, "accounting/operations_index.html", {})

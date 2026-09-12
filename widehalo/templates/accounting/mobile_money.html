@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Relevés de monnaie électronique" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Relevés de monnaie électronique" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Relevés de monnaie électronique" %}</h1>
+  </div>
+  <p class="hint">{% trans "Format attendu : un CSV aux colonnes date, reference, amount, direction (in ou out). Le rapprochement reste manuel : aucune correspondance n'est devinée." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+  {% if charge %}
+    <p class="workflow-banner" role="status">
+      {% blocktrans count nombre=charge %}{{ nombre }} ligne chargée.{% plural %}{{ nombre }} lignes chargées.{% endblocktrans %}
+    </p>
+  {% endif %}
+
+  {% if perms.accounting.change_accmobilemoneystatementline %}
+    <h2>{% trans "Charger un relevé" %}</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="import">
+      <div class="form-field">
+        <label for="statement">{% trans "Fichier CSV de l'agrégateur" %}</label>
+        <input id="statement" type="file" name="statement" accept=".csv,text/csv" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Charger" %}</c-button>
+    </form>
+  {% endif %}
+
+  <h2>{% trans "Lignes non rapprochées" %}</h2>
+  {% if lignes %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date" %}</th>
+          <th scope="col">{% trans "Référence" %}</th>
+          <th scope="col">{% trans "Sens" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+          {% if perms.accounting.change_accmobilemoneystatementline %}<th scope="col">{% trans "Rapprocher" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in lignes %}
+          <tr>
+            <td>{{ ligne.statement_date }}</td>
+            <td>{{ ligne.reference_external }}</td>
+            <td>{{ ligne.get_direction_display }}</td>
+            <td class="col-num">{{ ligne.amount_mga|mga }}</td>
+            {% if perms.accounting.change_accmobilemoneystatementline %}
+              <td>
+                {% if reglements %}
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reconcile">
+                    <input type="hidden" name="line_id" value="{{ ligne.id }}">
+                    <label class="sr-only" for="paiement-{{ ligne.id }}">{% trans "Règlement" %}</label>
+                    <select id="paiement-{{ ligne.id }}" name="payment_id" required>
+                      {% for reglement in reglements %}
+                        <option value="{{ reglement.id }}">{{ reglement.date }} — {{ reglement.amount|mga }} — {{ reglement.reference_external }}</option>
+                      {% endfor %}
+                    </select>
+                    <c-button type="submit">{% trans "Rapprocher" %}</c-button>
+                  </form>
+                {% else %}
+                  {% trans "Aucun règlement de monnaie électronique à rapprocher" %}
+                {% endif %}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune ligne en attente' %}"
+      body="{% trans 'Toutes les lignes chargées sont rapprochées, ou aucun relevé n’a encore été déposé.' %}" />
+  {% endif %}
+{% endblock %}

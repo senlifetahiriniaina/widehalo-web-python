@@ -42,15 +42,42 @@ def enforce_and_validate(account: AccAccount, distribution: dict[str, Any]) -> N
 
 def record_analytic_lines(move_line: AccMoveLine) -> list[AccAnalyticLine]:
     """Materialise la distribution JSON de `move_line` en lignes
-    analytiques concretes, une par (plan, compte analytique) reference."""
+    analytiques concretes, une par (plan, compte analytique) reference.
+
+    **Appelee par `post_move`, et elle ne l'etait par personne (G-4).** La
+    distribution etait validee a la saisie (`enforce_and_validate`, appelee
+    par `add_line`) et n'etait JAMAIS materialisee : `AccAnalyticLine`
+    restait vide en production. Deux lectures s'appuient pourtant dessus —
+    le compte de resultat analytique (`reports.py::
+    analytical_income_statement`) et l'ecart budgetaire par axe
+    (`budgets.py::_actual_amount`) — et rendaient donc zero partout, sans
+    la moindre erreur. Treizieme occurrence du motif « rien de
+    decoratif », et l'une des plus discretes : un rapport qui rend zero
+    ressemble a une societe qui n'a pas d'activite sur cet axe.
+
+    **Un axe inconnu devient un refus qui le nomme.**
+    `AccAnalyticAccount.objects.get` levait `DoesNotExist`, qu'aucun
+    gestionnaire ne rattrape — donc 500 a la publication d'une ecriture
+    dont la distribution designe un code non declare. Le refus est
+    desormais une `ValidationError` qui nomme le plan et le compte, sur le
+    chemin de l'ecran comme sur celui de l'API."""
     amount = move_line.debit or move_line.credit
     created: list[AccAnalyticLine] = []
 
     for plan_code, allocations in move_line.analytic_distribution.items():
         for account_code, percentage in allocations.items():
-            analytic_account = AccAnalyticAccount.objects.get(
+            analytic_account = AccAnalyticAccount.objects.filter(
                 tenant=move_line.tenant, plan__code=plan_code, code=account_code
-            )
+            ).first()
+            if analytic_account is None:
+                raise ValidationError(
+                    _(
+                        "Le compte analytique « %(compte)s » du plan « %(plan)s » "
+                        "n'existe pas : déclarez-le avant de publier une écriture "
+                        "qui le désigne."
+                    )
+                    % {"compte": account_code, "plan": plan_code}
+                )
             line_amount = (amount * Decimal(str(percentage)) / Decimal(100)).quantize(
                 Decimal("0.0001")
             )

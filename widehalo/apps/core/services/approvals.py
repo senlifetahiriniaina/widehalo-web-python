@@ -29,6 +29,7 @@ def _qualification_decision_hooks() -> dict[tuple[str, str], Any]:
     chemins de decision qui divergeraient finiraient par ne pas rendre le
     meme resultat."""
     from apps.accounting.services.public import (
+        decide_budget_approval,
         decide_cash_journal_qualification,
         decide_invoice_import_qualification,
     )
@@ -36,6 +37,7 @@ def _qualification_decision_hooks() -> dict[tuple[str, str], Any]:
     from apps.stocks.services.public import decide_stock_import_qualification
 
     return {
+        ("accounting", "accbudget"): decide_budget_approval,
         ("accounting", "accimportrow"): decide_cash_journal_qualification,
         ("accounting", "accinvoiceimportrow"): decide_invoice_import_qualification,
         ("stocks", "stkimportrow"): decide_stock_import_qualification,

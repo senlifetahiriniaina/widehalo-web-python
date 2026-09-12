@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{{ ordre.reference|default:ordre.id }} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:transfer_orders' %}">{% trans "Ordres de virement" %}</a>
+    <span>/</span> {{ ordre.reference|default:ordre.id }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Ordre de virement" %}</h1>
+  </div>
+  <div class="workflow-banner">
+    <strong>{% trans "État" %} :</strong> {{ ordre.get_state_display }}
+    — <strong>{% trans "Origine" %} :</strong> {{ ordre.get_origin_display }}
+    — <strong>{% trans "Exécution" %} :</strong> {{ ordre.execution_date }}
+    — <strong>{% trans "Montant" %} :</strong> {{ ordre.total_amount|mga }}
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Pièces réglées" %}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">{% trans "Bénéficiaire" %}</th>
+        <th scope="col">{% trans "Compte" %}</th>
+        <th scope="col">{% trans "Référence" %}</th>
+        <th scope="col" class="col-num">{% trans "Montant" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ligne in lignes %}
+        <tr>
+          <td>{{ ligne.beneficiary_label }}</td>
+          <td>{{ ligne.beneficiary_account }}</td>
+          <td>{{ ligne.reference }}</td>
+          <td class="col-num">{{ ligne.amount|mga }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if perms.accounting.change_acctransferorder %}
+    {% comment %}
+      Les trois gestes du cycle BNK-4, chacun offert seulement quand l'état
+      le permet : le service refuse les autres, et proposer ce qu'il
+      refusera est le défaut corrigé en C-1d.
+    {% endcomment %}
+    {% if ordre.state != "rapproche" %}
+      <form method="post">
+        {% csrf_token %}
+        <c-button type="submit" name="action" value="export">{% trans "Exporter le fichier bancaire" %}</c-button>
+      </form>
+    {% endif %}
+
+    {% if ordre.state == "exporte" %}
+      <h2>{% trans "Remise à la banque" %}</h2>
+      <p class="hint">{% trans "La remise est attestée par l'exploitant, jamais déduite de l'export : un fichier resté sur un poste de travail n'est pas un ordre remis." %}</p>
+      <form method="post">
+        {% csrf_token %}
+        <c-button type="submit" name="action" value="remit">{% trans "Marquer remis à la banque" %}</c-button>
+      </form>
+    {% endif %}
+
+    {% if ordre.state == "remis" %}
+      <h2>{% trans "Rapprocher le débit" %}</h2>
+      {% if debits %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="form-field">
+            <label for="statement_line_id">{% trans "Débit constaté au relevé" %}</label>
+            <select id="statement_line_id" name="statement_line_id" required>
+              {% for debit in debits %}
+                <option value="{{ debit.id }}">{{ debit.statement_date }} — {{ debit.amount_mga|mga }} — {{ debit.reference_external }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <c-button variant="primary" type="submit" name="action" value="reconcile">{% trans "Rapprocher" %}</c-button>
+        </form>
+      {% else %}
+        <c-empty-state
+          title="{% trans 'Aucun débit au relevé de ce compte' %}"
+          body="{% trans 'Chargez le relevé bancaire du compte débité : le rapprochement relie l’ordre au débit réellement constaté.' %}"
+          action_url="{% url 'accounting:bank_reconciliation' %}"
+          action_label="{% trans 'Rapprochement bancaire' %}" />
+      {% endif %}
+    {% endif %}
+
+    {% if ordre.state == "rapproche" %}
+      <p class="hint">{% trans "Cet ordre est rapproché de son débit : le parcours est clos." %}</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

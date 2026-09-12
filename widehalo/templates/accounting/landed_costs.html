@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Coûts d'approche" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Coûts d'approche" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Coûts d'approche" %}</h1>
+  </div>
+  <p class="hint">{% trans "Un lot regroupe les marchandises d'une importation et les frais à répartir dessus : fret, douane, transit, assurance." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_acclandedcostbatch %}
+    <h2>{% trans "Nouveau lot" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="label">{% trans "Libellé" %}</label>
+        <input id="label" type="text" name="label" required>
+      </div>
+      <div class="form-field">
+        <label for="date">{% trans "Date" %}</label>
+        <input id="date" type="date" name="date" required>
+      </div>
+      <div class="form-field">
+        <label for="allocation_method">{% trans "Clé de répartition" %}</label>
+        <select id="allocation_method" name="allocation_method" required>
+          {% for value, libelle in methodes %}
+            <option value="{{ value }}">{{ libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

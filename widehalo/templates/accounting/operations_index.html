@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Opérations comptables" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:list' %}">{% trans "Comptabilité" %}</a>
+    <span>/</span> {% trans "Opérations" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Opérations comptables" %}</h1>
+  </div>
+  {% comment %}
+    G — la porte des écrans d'opération du module. Sans elle, chacun
+    existerait sans qu'un lien n'y mène : la garde d'atteignabilité refuse
+    un écran que personne ne cite, et c'est le motif « rien de décoratif »
+    vu deux fois sur ce dépôt (le journal des flux avant T8, le module IA
+    avant T10).
+  {% endcomment %}
+  <ul>
+    {% if perms.accounting.view_accbankstatementline %}
+      <li><a href="{% url 'accounting:bank_reconciliation' %}">{% trans "Rapprochement bancaire" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accpaymentnotification %}
+      <li><a href="{% url 'accounting:payment_notifications' %}">{% trans "Encaissements mobiles" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accasset %}
+      <li><a href="{% url 'accounting:assets' %}">{% trans "Immobilisations et amortissements" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accprovision %}
+      <li><a href="{% url 'accounting:provisions' %}">{% trans "Provisions" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accbudget %}
+      <li><a href="{% url 'accounting:budgets' %}">{% trans "Budgets et écarts" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accdunningaction %}
+      <li><a href="{% url 'accounting:dunning' %}">{% trans "Relances client" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_acctransferorder %}
+      <li><a href="{% url 'accounting:transfer_orders' %}">{% trans "Ordres de virement" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_acctaxcalendar %}
+      <li><a href="{% url 'accounting:tax_calendar' %}">{% trans "Échéancier fiscal" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accmobilemoneystatementline %}
+      <li><a href="{% url 'accounting:mobile_money' %}">{% trans "Relevés de monnaie électronique" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_acclandedcostbatch %}
+      <li><a href="{% url 'accounting:landed_costs' %}">{% trans "Coûts d'approche" %}</a></li>
+    {% endif %}
+    {% if perms.accounting.view_accdcomdeclaration %}
+      <li><a href="{% url 'accounting:dcom' %}">{% trans "Déclaration DCOM" %}</a></li>
+    {% endif %}
+  </ul>
+{% endblock %}

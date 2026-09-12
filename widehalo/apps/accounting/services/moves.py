@@ -15,7 +15,7 @@ from django.db.models import Sum
 from django.utils.translation import gettext as _
 
 from apps.accounting.models import AccAccount, AccJournal, AccMove, AccMoveLine, AccPeriod, AccTax
-from apps.accounting.services.analytics import enforce_and_validate
+from apps.accounting.services.analytics import enforce_and_validate, record_analytic_lines
 from apps.core.models.tenant import Tenant
 from apps.core.services.sequences import next_reference
 
@@ -122,6 +122,22 @@ def post_move(move: AccMove) -> AccMove:
         move.total_credit = total_credit
         move.state = AccMove.STATE_POSTED
         move.save(update_fields=["reference", "total_debit", "total_credit", "state"])
+
+        # **La distribution analytique se materialise ICI, et nulle part
+        # ailleurs (G-4).** `enforce_and_validate` la VALIDE a la saisie ;
+        # rien ne l'ECRIVAIT. `AccAnalyticLine` restait donc vide en
+        # production, et les deux lectures qui s'appuient dessus — le
+        # compte de resultat analytique et l'ecart budgetaire par axe —
+        # rendaient zero sans la moindre erreur.
+        #
+        # A la PUBLICATION, jamais au brouillon : une ligne analytique
+        # issue d'un brouillon jamais publie fausserait un rapport avec un
+        # montant que la comptabilite ne porte pas. Et l'etat publie etant
+        # terminal (le brouillon est le seul etat accepte a l'entree), la
+        # materialisation ne peut pas se produire deux fois.
+        for ligne in move.lines.all():
+            if ligne.analytic_distribution:
+                record_analytic_lines(ligne)
 
     return move
 

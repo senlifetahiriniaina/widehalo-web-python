@@ -1112,6 +1112,26 @@ def get_open_settlement_items(
     return list_open_settlement_items(as_of_date=as_of_date, horizon_days=horizon_days)
 
 
+def decide_budget_approval(
+    approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
+) -> None:
+    """G-2 — l'effet metier de l'approbation d'un budget, apres la decision
+    generique du socle.
+
+    Meme patron que les deux qualifications d'import ci-dessous : `core` ne
+    peut importer QUE `apps.<module>.services.public` (regle de couplage
+    n°1), et l'ecran « Mes validations » passe par
+    `decide_and_propagate` — donc par ce crochet — exactement comme l'API.
+    Sans lui, approuver un budget depuis l'ecran de validation marquerait la
+    demande decidee et laisserait le budget en brouillon : une decision sans
+    effet, qui est precisement ce que ce chantier retire."""
+    from apps.accounting.services.budgets import decide_budget_approval as _decide
+    from apps.core.models.workflow import ApprovalRequest as _ApprovalRequest
+
+    approval_request = _ApprovalRequest.objects.get(id=approval_request_id)
+    _decide(approval_request, decided_by, approved=approved, comment=comment)
+
+
 def decide_invoice_import_qualification(
     approval_request_id: UUID, decided_by: User, *, approved: bool, comment: str = ""
 ) -> None:

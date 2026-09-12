@@ -24,6 +24,18 @@ def register_document_screens() -> None:
             kwarg="invoice_id",
         )
     )
+    #: G-2 — le budget. Son approbation passe par le moteur du socle, donc
+    #: par l'ecran « Mes validations », qui resout le lien vers la piece par
+    #: ce registre : sans cette declaration, l'approbateur lirait « budget »
+    #: sans pouvoir l'ouvrir pour decider en connaissance de cause.
+    register_document_screen(
+        DocumentScreen(
+            code="accounting.AccBudget",
+            label="Budget",
+            url_name="accounting:budget_detail",
+            kwarg="budget_id",
+        )
+    )
 
 
 __all__ = ["register_document_screens"]

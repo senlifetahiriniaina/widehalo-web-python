@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Import de factures fournisseur" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:imports_index' %}">{% trans "Imports" %}</a>
+    <span>/</span> {% trans "Factures" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Import de factures fournisseur" %}</h1>
+  </div>
+  <p>{% trans "Une ligne par ligne de facture ; les lignes portant la même référence forment une seule facture. Une ligne non résoluble n'annule pas les autres." %}</p>
+  <p><a href="{% url 'accounting:imports_invoices_template' %}">{% trans "Télécharger le modèle Excel" %}</a></p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if perms.accounting.add_accmove %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="file">{% trans "Fichier xlsx" %}</label>
+        <input id="file" type="file" name="file" accept=".xlsx" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Importer" %}</c-button>
+    </form>
+  {% endif %}
+
+  {% if summary %}
+    <h2>{% trans "Résultat" %}</h2>
+    <ul>
+      <li>{% blocktrans with count=summary.invoices_created_count %}{{ count }} facture(s) créée(s){% endblocktrans %}</li>
+      <li>{% blocktrans with count=summary.ok_count %}{{ count }} ligne(s) importée(s){% endblocktrans %}</li>
+      <li>{% blocktrans with count=summary.needs_qualification_count %}{{ count }} ligne(s) à qualifier{% endblocktrans %}</li>
+      <li>{% blocktrans with count=summary.unresolvable_count %}{{ count }} ligne(s) non résoluble(s){% endblocktrans %}</li>
+    </ul>
+    {% if summary.batch_warnings %}
+      <p class="form-error">{% trans "Avertissements du lot :" %}</p>
+      <ul>
+        {% for warning in summary.batch_warnings %}<li>{{ warning }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    <a href="{% url 'accounting:imports_invoices_batch_detail' summary.batch.id %}">{% trans "Consulter le détail des lignes" %}</a>
+  {% endif %}
+
+  <h2>{% trans "Lots récents" %}</h2>
+  {% if batches %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date" %}</th>
+          <th scope="col">{% trans "Fichier" %}</th>
+          <th scope="col" class="col-num">{% trans "Lignes" %}</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lot in batches %}
+          <tr>
+            <td>{{ lot.created_at }}</td>
+            <td>{{ lot.source_filename|default:"—" }}</td>
+            <td class="col-num">{{ lot.total_rows }}</td>
+            <td><a href="{% url 'accounting:imports_invoices_batch_detail' lot.id %}">{% trans "Détail" %}</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun import de factures' %}"
+      body="{% trans 'Téléchargez le modèle, complétez-le, puis déposez-le ci-dessus. Le rapport nommera chaque ligne qui demande une décision.' %}" />
+  {% endif %}
+{% endblock %}

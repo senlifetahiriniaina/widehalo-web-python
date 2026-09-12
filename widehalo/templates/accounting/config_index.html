@@ -18,6 +18,9 @@
     <li><a href="{% url 'accounting:config_fiscal' %}">{% trans "Régime fiscal" %}</a></li>
     <li><a href="{% url 'accounting:config_taxes' %}">{% trans "Taxes" %}</a></li>
     <li><a href="{% url 'accounting:config_payment_terms' %}">{% trans "Conditions de paiement" %}</a></li>
-    <li><a href="{% url 'accounting:imports_index' %}">{% trans "Imports (plan comptable / journal de caisse)" %}</a></li>
+    <li><a href="{% url 'accounting:config_analytic_plans' %}">{% trans "Plans analytiques" %}</a></li>
+    <li><a href="{% url 'accounting:config_analytic_accounts' %}">{% trans "Comptes analytiques" %}</a></li>
+    <li><a href="{% url 'accounting:config_exchange_rates' %}">{% trans "Taux de change" %}</a></li>
+    <li><a href="{% url 'accounting:imports_index' %}">{% trans "Imports (plan comptable, journal de caisse, factures)" %}</a></li>
   </ul>
 {% endblock %}

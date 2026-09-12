@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Plans analytiques" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Plans analytiques" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Plans analytiques" %}</h1>
+  </div>
+  <p class="hint">{% trans "Un plan est un axe d'analyse : projet, atelier, chantier. Une écriture peut porter plusieurs axes à la fois, chacun totalisant 100 %." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accanalyticplan %}
+    <h2>{% trans "Nouveau plan" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="code">{% trans "Code" %}</label>
+        <input id="code" type="text" name="code" required>
+      </div>
+      <div class="form-field">
+        <label for="name">{% trans "Libellé" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+    <p><a href="{% url 'accounting:config_analytic_accounts' %}">{% trans "Comptes analytiques" %}</a></p>
+  {% endif %}
+{% endblock %}

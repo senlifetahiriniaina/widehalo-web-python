@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{{ lot.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:landed_costs' %}">{% trans "Coûts d'approche" %}</a>
+    <span>/</span> {{ lot.reference }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{{ lot.label }}</h1>
+  </div>
+  <div class="workflow-banner">
+    <strong>{% trans "État" %} :</strong> {{ lot.get_state_display }}
+    — <strong>{% trans "Répartition" %} :</strong> {{ lot.get_allocation_method_display }}
+    — <strong>{% trans "Valeur d'achat" %} :</strong> {{ lot.total_purchase_value_mga|mga }}
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <h2>{% trans "Répartition" %}</h2>
+  {% if rapport %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Marchandise" %}</th>
+          <th scope="col" class="col-num">{% trans "Quantité" %}</th>
+          <th scope="col" class="col-num">{% trans "Valeur d'achat" %}</th>
+          <th scope="col" class="col-num">{% trans "Frais alloués" %}</th>
+          <th scope="col" class="col-num">{% trans "Coût débarqué" %}</th>
+          <th scope="col" class="col-num">{% trans "Coût unitaire" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in rapport %}
+          <tr>
+            <td>{{ ligne.description }}</td>
+            <td class="col-num">{{ ligne.qty }}</td>
+            <td class="col-num">{{ ligne.purchase_value_mga|mga }}</td>
+            <td class="col-num">{% if ligne.allocated_cost_mga is None %}{% trans "Sans objet" %}{% else %}{{ ligne.allocated_cost_mga|mga }}{% endif %}</td>
+            <td class="col-num">{% if ligne.landed_total_mga is None %}{% trans "Sans objet" %}{% else %}{{ ligne.landed_total_mga|mga }}{% endif %}</td>
+            <td class="col-num">{% if ligne.landed_unit_cost_mga is None %}{% trans "Sans objet" %}{% else %}{{ ligne.landed_unit_cost_mga|mga }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Ce lot n’a encore aucune marchandise' %}"
+      body="{% trans 'Ajoutez les marchandises importées, puis les frais à répartir. La répartition se lit ici avant toute finalisation.' %}" />
+  {% endif %}
+
+  <h2>{% trans "Frais à répartir" %}</h2>
+  {% if composants %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Frais" %}</th>
+          <th scope="col">{% trans "Compte" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for composant in composants %}
+          <tr>
+            <td>{{ composant.label }}</td>
+            <td>{% if composant.account %}{{ composant.account.code }}{% else %}—{% endif %}</td>
+            <td class="col-num">{{ composant.amount_mga|mga }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun frais enregistré' %}"
+      body="{% trans 'Sans frais, la répartition n’alloue rien : le coût débarqué est égal à la valeur d’achat.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.change_acclandedcostbatch %}
+    {% if lot.state == "draft" %}
+      <h2>{% trans "Ajouter une marchandise" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_line">
+        <div class="form-field">
+          <label for="description">{% trans "Désignation" %}</label>
+          <input id="description" type="text" name="description" required>
+        </div>
+        <div class="form-field">
+          <label for="qty">{% trans "Quantité" %}</label>
+          <input id="qty" type="text" inputmode="decimal" name="qty" required>
+        </div>
+        <div class="form-field">
+          <label for="purchase_value_mga">{% trans "Valeur d'achat (Ar)" %}</label>
+          <input id="purchase_value_mga" type="text" inputmode="decimal" name="purchase_value_mga" required>
+        </div>
+        <div class="form-field">
+          <label for="weight_kg">{% trans "Poids (kg)" %}</label>
+          <input id="weight_kg" type="text" inputmode="decimal" name="weight_kg">
+          <p class="hint">{% trans "Obligatoire uniquement si la répartition se fait au poids : une seule ligne sans poids rend la répartition fausse, et le rapport la refuse." %}</p>
+        </div>
+        <c-button type="submit">{% trans "Ajouter" %}</c-button>
+      </form>
+
+      <h2>{% trans "Ajouter un frais" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_component">
+        <div class="form-field">
+          <label for="component_label">{% trans "Nature du frais" %}</label>
+          <input id="component_label" type="text" name="component_label" required>
+        </div>
+        <div class="form-field">
+          <label for="amount_mga">{% trans "Montant (Ar)" %}</label>
+          <input id="amount_mga" type="text" inputmode="decimal" name="amount_mga" required>
+        </div>
+        <div class="form-field">
+          <label for="account_id">{% trans "Compte de charge" %}</label>
+          <select id="account_id" name="account_id">
+            <option value="">—</option>
+            {% for compte in comptes %}
+              <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <c-button type="submit">{% trans "Ajouter" %}</c-button>
+      </form>
+
+      <h2>{% trans "Finaliser" %}</h2>
+      <p class="hint">{% trans "Finaliser répercute réellement le coût alloué sur la valorisation de stock de chaque marchandise, et ferme le lot : plus aucune ligne ni aucun frais ne s'y ajoute ensuite." %}</p>
+      <form method="post">
+        {% csrf_token %}
+        <c-button variant="primary" type="submit" name="action" value="finalize">{% trans "Finaliser le lot" %}</c-button>
+      </form>
+    {% else %}
+      <p class="hint">{% trans "Ce lot est finalisé : son coût débarqué est répercuté sur la valorisation de stock." %}</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

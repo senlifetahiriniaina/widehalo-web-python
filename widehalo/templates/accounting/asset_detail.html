@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{{ asset.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:assets' %}">{% trans "Immobilisations" %}</a>
+    <span>/</span> {{ asset.reference }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{{ asset.label }}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <dl>
+    <dt>{% trans "Référence" %}</dt><dd>{{ asset.reference }}</dd>
+    <dt>{% trans "Catégorie" %}</dt><dd>{{ asset.get_category_display }}</dd>
+    <dt>{% trans "Compte" %}</dt><dd>{{ asset.account.code }} — {{ asset.account.name }}</dd>
+    <dt>{% trans "Acquise le" %}</dt><dd>{{ asset.acquisition_date }}</dd>
+    <dt>{% trans "Valeur d'acquisition" %}</dt><dd>{{ asset.acquisition_value_mga|mga }}</dd>
+    <dt>{% trans "Valeur résiduelle" %}</dt><dd>{{ asset.residual_value_mga|mga }}</dd>
+    <dt>{% trans "Méthode" %}</dt><dd>{{ asset.get_depreciation_method_display }}</dd>
+    <dt>{% trans "Durée d'utilité" %}</dt><dd>{% blocktrans with n=asset.useful_life_years %}{{ n }} ans{% endblocktrans %}</dd>
+    <dt>{% trans "État" %}</dt><dd>{{ asset.get_state_display }}</dd>
+    {% if asset.disposal_date %}
+      <dt>{% trans "Cédée le" %}</dt><dd>{{ asset.disposal_date }}</dd>
+      <dt>{% trans "Valeur de cession" %}</dt><dd>{{ asset.disposal_value_mga|mga }}</dd>
+    {% endif %}
+  </dl>
+
+  <h2>{% trans "Plan d'amortissement" %}</h2>
+  {% if annuites %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Exercice" %}</th>
+          <th scope="col" class="col-num">{% trans "Cumul à l'ouverture" %}</th>
+          <th scope="col" class="col-num">{% trans "Dotation de l'exercice" %}</th>
+          <th scope="col" class="col-num">{% trans "Cumul à la clôture" %}</th>
+          <th scope="col">{% trans "Comptabilisée" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for annuite in annuites %}
+          <tr>
+            <td>{{ annuite.fiscal_year.code }}</td>
+            <td class="col-num">{{ annuite.opening_accumulated_mga|mga }}</td>
+            <td class="col-num">{{ annuite.annual_dotation_mga|mga }}</td>
+            <td class="col-num">{{ annuite.closing_accumulated_mga|mga }}</td>
+            <td>
+              {% if annuite.move %}
+                <a href="{% url 'accounting:detail' invoice_id=annuite.move.id %}">{% if annuite.move.reference %}{{ annuite.move.reference }}{% else %}{% trans "Écriture" %}{% endif %}</a>
+              {% else %}
+                {% trans "Calculée, non comptabilisée" %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune annuité calculée' %}"
+      body="{% trans 'Choisissez un exercice ci-dessous pour calculer la dotation. Le calcul ne touche pas au grand livre tant que vous ne demandez pas sa comptabilisation.' %}" />
+  {% endif %}
+
+  <h2>{% trans "Mouvements" %}</h2>
+  {% if mouvements %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date" %}</th>
+          <th scope="col">{% trans "Nature" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mouvement in mouvements %}
+          <tr>
+            <td>{{ mouvement.date }}</td>
+            <td>{{ mouvement.get_movement_type_display }}</td>
+            <td class="col-num">{{ mouvement.amount_mga|mga }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun mouvement' %}"
+      body="{% trans 'Les acquisitions et cessions de cette immobilisation apparaîtront ici.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.change_accasset %}
+    <h2>{% trans "Calculer une annuité" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+        <select id="fiscal_year_id" name="fiscal_year_id" required>
+          {% for exercice in exercices %}
+            <option value="{{ exercice.id }}">{{ exercice.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button type="submit" name="action" value="depreciate">{% trans "Calculer sans comptabiliser" %}</c-button>
+
+      <h3>{% trans "Comptabiliser la dotation" %}</h3>
+      <p class="hint">{% trans "Ces quatre champs ne servent qu'au bouton « Calculer et comptabiliser » : la dotation devient alors une écriture publiée au grand livre." %}</p>
+      <div class="form-field">
+        <label for="journal_id">{% trans "Journal" %}</label>
+        <select id="journal_id" name="journal_id">
+          <option value="">—</option>
+          {% for journal in journaux %}
+            <option value="{{ journal.id }}">{{ journal.code }} — {{ journal.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="period_id">{% trans "Période" %}</label>
+        <select id="period_id" name="period_id">
+          <option value="">—</option>
+          {% for periode in periodes %}
+            <option value="{{ periode.id }}">{{ periode.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="dotation_account_id">{% trans "Compte de dotation (68x)" %}</label>
+        <select id="dotation_account_id" name="dotation_account_id">
+          <option value="">—</option>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="accumulated_account_id">{% trans "Compte d'amortissements cumulés (28x)" %}</label>
+        <select id="accumulated_account_id" name="accumulated_account_id">
+          <option value="">—</option>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button type="submit" name="action" value="depreciate_and_post">{% trans "Calculer et comptabiliser" %}</c-button>
+    </form>
+
+    {% if asset.state != "disposed" %}
+      <h2>{% trans "Céder ou mettre au rebut" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="disposal_date">{% trans "Date de cession" %}</label>
+          <input id="disposal_date" type="date" name="disposal_date" required>
+        </div>
+        <div class="form-field">
+          <label for="disposal_value_mga">{% trans "Valeur de cession (Ar)" %}</label>
+          <input id="disposal_value_mga" type="text" inputmode="decimal" name="disposal_value_mga" value="0" required>
+        </div>
+        <c-button variant="danger" type="submit" name="action" value="dispose">{% trans "Céder" %}</c-button>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}

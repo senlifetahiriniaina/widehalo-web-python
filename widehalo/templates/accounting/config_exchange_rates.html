@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Taux de change" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:config_index' %}">{% trans "Configuration" %}</a>
+    <span>/</span> {% trans "Taux de change" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Taux de change" %}</h1>
+  </div>
+  <p class="hint">{% trans "Une écriture en devise étrangère est convertie au taux le plus récent connu à sa date. Sans taux, l'écriture est refusée." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accexchangerate %}
+    <h2>{% trans "Nouveau taux" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="currency">{% trans "Devise (code ISO)" %}</label>
+        <input id="currency" type="text" name="currency" maxlength="3" required>
+      </div>
+      <div class="form-field">
+        <label for="date">{% trans "Date" %}</label>
+        <input id="date" type="date" name="date" required>
+      </div>
+      <div class="form-field">
+        <label for="rate_to_mga">{% trans "Valeur d'une unité en ariary" %}</label>
+        <input id="rate_to_mga" type="text" inputmode="decimal" name="rate_to_mga" required>
+      </div>
+      <div class="form-field">
+        <label for="source">{% trans "Source" %}</label>
+        <input id="source" type="text" name="source">
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

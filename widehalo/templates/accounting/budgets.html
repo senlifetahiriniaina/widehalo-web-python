@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Budgets" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Budgets" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Budgets" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accbudget %}
+    <h2>{% trans "Nouveau budget" %}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="name">{% trans "Libellé" %}</label>
+        <input id="name" type="text" name="name" required>
+      </div>
+      <div class="form-field">
+        <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+        <select id="fiscal_year_id" name="fiscal_year_id" required>
+          {% for exercice in exercices %}
+            <option value="{{ exercice.id }}">{{ exercice.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Créer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}

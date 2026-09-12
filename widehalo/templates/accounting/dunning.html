@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Relances client" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Relances client" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Relances client" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if not paliers %}
+    <c-empty-state
+      title="{% trans 'Aucun palier de relance défini' %}"
+      body="{% trans 'Les paliers décident à partir de combien de jours de retard une créance se relance. Trois paliers par défaut sont proposés ; ils restent modifiables ensuite.' %}">
+      {% if perms.accounting.add_accdunninglevel %}
+        <form method="post">
+          {% csrf_token %}
+          <c-button variant="primary" type="submit" name="action" value="seed_levels">{% trans "Créer les trois paliers par défaut" %}</c-button>
+        </form>
+      {% endif %}
+    </c-empty-state>
+  {% else %}
+    <h2>{% trans "Paliers" %}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Niveau" %}</th>
+          <th scope="col">{% trans "Libellé" %}</th>
+          <th scope="col" class="col-num">{% trans "À partir de (jours)" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for palier in paliers %}
+          <tr>
+            <td>{{ palier.level }}</td>
+            <td>{{ palier.label }}</td>
+            <td class="col-num">{{ palier.days_overdue_threshold }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <h2>{% trans "Créances échues" %}</h2>
+  {% if creances %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Client" %}</th>
+          <th scope="col" class="col-num">{% trans "Retard (jours)" %}</th>
+          <th scope="col" class="col-num">{% trans "Montant dû" %}</th>
+          <th scope="col">{% trans "Palier applicable" %}</th>
+          {% if perms.accounting.add_accdunningaction %}<th scope="col">{% trans "Relance" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for creance in creances %}
+          <tr>
+            <td>{% if creance.partner_display %}{{ creance.partner_display }}{% else %}{% trans "Client non identifié" %}{% endif %}</td>
+            <td class="col-num">{{ creance.days_overdue }}</td>
+            <td class="col-num">{{ creance.amount_mga|mga }}</td>
+            <td>{% if creance.level_label %}{{ creance.level_label }}{% else %}{% trans "Sous le premier seuil" %}{% endif %}</td>
+            {% if perms.accounting.add_accdunningaction %}
+              <td>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="record">
+                  <input type="hidden" name="move_line_id" value="{{ creance.move_line_id }}">
+                  <input type="hidden" name="date_sent" value="{{ aujourdhui }}">
+                  <label class="sr-only" for="level-{{ creance.move_line_id }}">{% trans "Palier" %}</label>
+                  <select id="level-{{ creance.move_line_id }}" name="level_id" required>
+                    {% for palier in paliers %}
+                      <option value="{{ palier.id }}" {% if palier.level == creance.applicable_level %}selected{% endif %}>{{ palier.label }}</option>
+                    {% endfor %}
+                  </select>
+                  <label class="sr-only" for="notes-{{ creance.move_line_id }}">{% trans "Note" %}</label>
+                  <input id="notes-{{ creance.move_line_id }}" type="text" name="notes" placeholder="{% trans 'Note' %}">
+                  <c-button type="submit">{% trans "Enregistrer la relance" %}</c-button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune créance échue' %}"
+      body="{% trans 'Toutes les créances client ouvertes sont dans leur délai, ou aucune n’a de date d’échéance renseignée.' %}" />
+  {% endif %}
+
+  <h2>{% trans "Relances déjà enregistrées" %}</h2>
+  {% if actions %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Date" %}</th>
+          <th scope="col">{% trans "Palier" %}</th>
+          <th scope="col">{% trans "Note" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for relance in actions %}
+          <tr>
+            <td>{{ relance.date_sent }}</td>
+            <td>{{ relance.level.label }}</td>
+            <td>{{ relance.notes }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune relance enregistrée' %}"
+      body="{% trans 'Une relance enregistrée garde la trace de ce qui a été envoyé, à quel palier et quand. Aucun envoi n’est déclenché depuis cet écran.' %}" />
+  {% endif %}
+{% endblock %}

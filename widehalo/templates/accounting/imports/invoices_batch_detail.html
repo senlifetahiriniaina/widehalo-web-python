@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Détail du lot de factures" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:imports_invoices' %}">{% trans "Import de factures" %}</a>
+    <span>/</span> {{ batch.source_filename|default:batch.id }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Détail du lot" %}</h1>
+  </div>
+  <p>{% blocktrans with total=batch.total_rows %}{{ total }} ligne(s) dans ce lot.{% endblocktrans %}</p>
+
+  {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Ligne" %}</th>
+          <th scope="col">{% trans "Facture" %}</th>
+          <th scope="col">{% trans "Sens" %}</th>
+          <th scope="col">{% trans "État" %}</th>
+          <th scope="col">{% trans "Anomalies" %}</th>
+          <th scope="col">{% trans "Action" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in rows %}
+          <tr>
+            <td>{{ ligne.row_number }}</td>
+            <td>{{ ligne.invoice_reference }}</td>
+            <td>{{ ligne.get_sens_display }}</td>
+            <td>{{ ligne.get_status_display }}</td>
+            <td>{% for code in ligne.anomaly_codes %}{{ code }} {% endfor %}</td>
+            <td>
+              {% if perms.accounting.qualify_accinvoiceimportrow %}
+                {% if ligne.status == "unresolvable" %}
+                  {% comment %}
+                    Une ligne non résoluble appartient à un GROUPE non
+                    matérialisé : la seule action est de l'écarter et de
+                    corriger le fichier source. Le service le dit, l'écran
+                    ne propose donc rien d'autre.
+                  {% endcomment %}
+                  <form method="post" action="{% url 'accounting:imports_invoices_row_discard' ligne.id %}">
+                    {% csrf_token %}
+                    <c-button variant="danger" type="submit">{% trans "Écarter" %}</c-button>
+                  </form>
+                {% elif ligne.status == "needs_qualification" %}
+                  <form method="post" action="{% url 'accounting:imports_invoices_row_qualify' ligne.id %}">
+                    {% csrf_token %}
+                    <label class="sr-only" for="compte-{{ ligne.id }}">{% trans "Compte réel" %}</label>
+                    <select id="compte-{{ ligne.id }}" name="account_id">
+                      <option value="">{% trans "Compte inchangé" %}</option>
+                      {% for compte in accounts %}
+                        <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <c-button type="submit">{% trans "Qualifier" %}</c-button>
+                  </form>
+                {% else %}
+                  —
+                {% endif %}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Ce lot ne contient aucune ligne' %}"
+      body="{% trans 'Le fichier importé ne comportait aucune ligne de données sous son en-tête.' %}" />
+  {% endif %}
+{% endblock %}

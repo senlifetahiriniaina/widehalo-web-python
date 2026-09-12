@@ -2,11 +2,15 @@ from django.urls import path
 
 from apps.accounting import (
     views,
+    views_assets,
     views_bank,
+    views_budgets,
     views_config,
+    views_costing,
     views_imports,
     views_payments,
     views_reports,
+    views_treasury,
 )
 
 app_name = "accounting"
@@ -65,6 +69,33 @@ urlpatterns = [
         views_payments.aggregator_payout_settle,
         name="payout_settle",
     ),
+    # G-2 — le patrimoine et le budget. Declarees AVANT `<uuid:invoice_id>`,
+    # comme les routes de paiement : un prefixe litteral place apres un motif
+    # attrape-tout ne serait jamais atteint.
+    path("operations/", views.operations_index, name="operations_index"),
+    path("assets/", views_assets.asset_list, name="assets"),
+    path("assets/<uuid:asset_id>/", views_assets.asset_detail, name="asset_detail"),
+    path("provisions/", views_assets.provision_list, name="provisions"),
+    path("budgets/", views_budgets.budget_list, name="budgets"),
+    path("budgets/<uuid:budget_id>/", views_budgets.budget_detail, name="budget_detail"),
+    # G-3 — recouvrement, ordres de virement, echeances, monnaie electronique.
+    path("dunning/", views_treasury.dunning_screen, name="dunning"),
+    path("transfer-orders/", views_treasury.transfer_order_list, name="transfer_orders"),
+    path(
+        "transfer-orders/<uuid:order_id>/",
+        views_treasury.transfer_order_detail,
+        name="transfer_order_detail",
+    ),
+    path("tax-calendar/", views_treasury.tax_calendar_screen, name="tax_calendar"),
+    path("mobile-money/", views_treasury.mobile_money_screen, name="mobile_money"),
+    # G-4 — couts d'approche, DCOM.
+    path("landed-costs/", views_costing.landed_cost_list, name="landed_costs"),
+    path(
+        "landed-costs/<uuid:batch_id>/",
+        views_costing.landed_cost_detail,
+        name="landed_cost_detail",
+    ),
+    path("dcom/", views_costing.dcom_screen, name="dcom"),
     path("<uuid:invoice_id>/", views.invoice_detail, name="detail"),
     path("config/", views_config.config_index, name="config_index"),
     path("config/fiscal-years/", views_config.config_fiscal_years, name="config_fiscal_years"),
@@ -82,6 +113,24 @@ urlpatterns = [
         "config/payment-terms/",
         views_config.config_payment_terms,
         name="config_payment_terms",
+    ),
+    # G-4 — les deux referentiels sans lesquels l'analytique et les devises
+    # ne fonctionnent pas : un axe non declare fait echouer la publication,
+    # un taux absent fait refuser toute ecriture en devise.
+    path(
+        "config/analytic-plans/",
+        views_config.config_analytic_plans,
+        name="config_analytic_plans",
+    ),
+    path(
+        "config/analytic-accounts/",
+        views_config.config_analytic_accounts,
+        name="config_analytic_accounts",
+    ),
+    path(
+        "config/exchange-rates/",
+        views_config.config_exchange_rates,
+        name="config_exchange_rates",
     ),
     path("bank/", views_bank.bank_reconciliation, name="bank_reconciliation"),
     path("config/imports/", views_imports.imports_index, name="imports_index"),
@@ -119,5 +168,28 @@ urlpatterns = [
         "config/imports/cash-journal/rows/<uuid:row_id>/qualify/",
         views_imports.imports_cash_journal_row_qualify,
         name="imports_cash_journal_row_qualify",
+    ),
+    # G-4 — l'import de factures fournisseur, meme patron que le journal de
+    # caisse : depot, rapport ligne a ligne, ecart et qualification validee.
+    path("config/imports/invoices/", views_imports.imports_invoices, name="imports_invoices"),
+    path(
+        "config/imports/invoices/template.xlsx",
+        views_imports.download_invoice_template,
+        name="imports_invoices_template",
+    ),
+    path(
+        "config/imports/invoices/<uuid:batch_id>/",
+        views_imports.imports_invoices_batch_detail,
+        name="imports_invoices_batch_detail",
+    ),
+    path(
+        "config/imports/invoices/rows/<uuid:row_id>/discard/",
+        views_imports.imports_invoices_row_discard,
+        name="imports_invoices_row_discard",
+    ),
+    path(
+        "config/imports/invoices/rows/<uuid:row_id>/qualify/",
+        views_imports.imports_invoices_row_qualify,
+        name="imports_invoices_row_qualify",
     ),
 ]

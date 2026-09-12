@@ -19,6 +19,9 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.models import (
     AccAccount,
+    AccAnalyticAccount,
+    AccAnalyticPlan,
+    AccExchangeRate,
     AccFiscalYear,
     AccJournal,
     AccPaymentTerm,
@@ -75,6 +78,29 @@ TAX_COLUMNS = [
 #: cellule vide sur chaque ligne, et l'export un en-tete sans valeurs.
 PAYMENT_TERM_COLUMNS = [
     Column(key="name", label=_("Libellé")),
+]
+
+#: G-4 — l'analytique et les taux de change n'avaient aucun ecran, alors que
+#: `AccAnalyticLine` alimente le compte de resultat analytique et l'ecart
+#: budgetaire par axe, et que `currency.get_rate` refuse toute ecriture en
+#: devise sans taux connu. Deux referentiels sans porte, dont l'absence se
+#: voyait comme un rapport vide ou un refus incomprehensible.
+ANALYTIC_PLAN_COLUMNS = [
+    Column(key="code", label=_("Code")),
+    Column(key="name", label=_("Libellé")),
+]
+
+ANALYTIC_ACCOUNT_COLUMNS = [
+    Column(key="plan", label=_("Plan"), search_key="plan__code"),
+    Column(key="code", label=_("Code")),
+    Column(key="name", label=_("Libellé")),
+]
+
+EXCHANGE_RATE_COLUMNS = [
+    Column(key="currency", label=_("Devise")),
+    Column(key="date", label=_("Date"), searchable=False),
+    Column(key="rate_to_mga", label=_("Taux en ariary"), searchable=False),
+    Column(key="source", label=_("Source")),
 ]
 
 
@@ -640,4 +666,111 @@ def config_payment_terms(request: HttpRequest) -> HttpResponse:
             "value_type_choices": AccPaymentTermLine.VALUE_TYPE_CHOICES,
             "error": error,
         },
+    )
+
+
+@login_required
+@screen_permission("accounting.view_accanalyticplan")
+def config_analytic_plans(request: HttpRequest) -> HttpResponse:
+    """Les plans analytiques — projet, atelier, chantier.
+
+    **Sans plan, la distribution analytique d'une ecriture ne designe
+    rien.** `record_analytic_lines` resout chaque code de plan et chaque
+    code de compte : un axe non declare fait echouer la publication de
+    l'ecriture qui le nomme. Ce referentiel doit donc precedes toute
+    saisie analytique, et il n'avait aucune porte."""
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accanalyticplan")
+        if refus is not None:
+            return refus
+        try:
+            AccAnalyticPlan.objects.create(
+                tenant=tenant,
+                code=request.POST.get("code", ""),
+                name=request.POST.get("name", ""),
+            )
+        except (ValidationError, IntegrityError) as exc:
+            error = str(exc)
+
+    return smart_table_response(
+        request,
+        table_key="accounting.analytic_plans",
+        columns=ANALYTIC_PLAN_COLUMNS,
+        queryset=AccAnalyticPlan.objects.filter(tenant=tenant),
+        page_template="accounting/config_analytic_plans.html",
+        page_context={"error": error},
+    )
+
+
+@login_required
+@screen_permission("accounting.view_accanalyticaccount")
+def config_analytic_accounts(request: HttpRequest) -> HttpResponse:
+    tenant = resolve_tenant(request)
+    plans = AccAnalyticPlan.objects.filter(tenant=tenant).order_by("code")
+    error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accanalyticaccount")
+        if refus is not None:
+            return refus
+        try:
+            AccAnalyticAccount.objects.create(
+                tenant=tenant,
+                plan=get_object_or_404(
+                    AccAnalyticPlan, id=request.POST.get("plan_id"), tenant=tenant
+                ),
+                code=request.POST.get("code", ""),
+                name=request.POST.get("name", ""),
+            )
+        except (ValidationError, IntegrityError) as exc:
+            error = str(exc)
+
+    return smart_table_response(
+        request,
+        table_key="accounting.analytic_accounts",
+        columns=ANALYTIC_ACCOUNT_COLUMNS,
+        queryset=AccAnalyticAccount.objects.filter(tenant=tenant).select_related("plan"),
+        page_template="accounting/config_analytic_accounts.html",
+        page_context={"plans": plans, "error": error},
+    )
+
+
+@login_required
+@screen_permission("accounting.view_accexchangerate")
+def config_exchange_rates(request: HttpRequest) -> HttpResponse:
+    """Les taux de change, sans lesquels une ecriture en devise est refusee.
+
+    `currency.get_rate` leve « aucun taux connu » des qu'une piece porte
+    une devise etrangere sans taux a sa date — un refus que rien ne
+    permettait de lever, faute d'ecran pour saisir le taux."""
+    tenant = resolve_tenant(request)
+    error = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "accounting.add_accexchangerate")
+        if refus is not None:
+            return refus
+        try:
+            AccExchangeRate.objects.create(
+                tenant=tenant,
+                currency=(request.POST.get("currency") or "").upper(),
+                date=date.fromisoformat(request.POST["date"]),
+                rate_to_mga=Decimal((request.POST.get("rate_to_mga") or "0").replace(",", ".")),
+                source=request.POST.get("source", ""),
+            )
+        except (KeyError, ValueError, InvalidOperation):
+            error = _("Date ou taux illisible.")
+        except (ValidationError, IntegrityError) as exc:
+            error = str(exc)
+
+    return smart_table_response(
+        request,
+        table_key="accounting.exchange_rates",
+        columns=EXCHANGE_RATE_COLUMNS,
+        queryset=AccExchangeRate.objects.filter(tenant=tenant),
+        page_template="accounting/config_exchange_rates.html",
+        page_context={"error": error},
     )

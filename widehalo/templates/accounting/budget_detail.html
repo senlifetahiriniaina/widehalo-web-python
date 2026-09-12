@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{{ budget.reference }} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:budgets' %}">{% trans "Budgets" %}</a>
+    <span>/</span> {{ budget.reference }}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{{ budget.name }}</h1>
+  </div>
+  <div class="workflow-banner">
+    <strong>{% trans "Statut" %} :</strong> {{ budget.get_state_display }}
+    — <strong>{% trans "Exercice" %} :</strong> {{ budget.fiscal_year.code }}
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% comment %}
+    Le rappel sur la fiche, même règle qu'en D-B sur la facture : celui qui
+    consulte un budget qui refuse de basculer doit lire ici pourquoi, et par
+    qui — jamais le deviner.
+  {% endcomment %}
+  {% for demande in demandes %}
+    <p class="workflow-banner" role="status">
+      {% blocktrans with role=demande.rule.approver_role %}En attente de validation par le rôle {{ role }}.{% endblocktrans %}
+      <a href="{% url 'approvals' %}">{% trans "Mes validations" %}</a>
+    </p>
+  {% endfor %}
+
+  <h2>{% trans "Lignes et écarts" %}</h2>
+  {% if ecarts %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Compte" %}</th>
+          <th scope="col">{% trans "Période" %}</th>
+          <th scope="col">{% trans "Axe analytique" %}</th>
+          <th scope="col" class="col-num">{% trans "Budgété" %}</th>
+          <th scope="col" class="col-num">{% trans "Réalisé" %}</th>
+          <th scope="col" class="col-num">{% trans "Écart" %}</th>
+          <th scope="col" class="col-num">{% trans "Écart (%)" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ligne in ecarts %}
+          <tr>
+            <td>{{ ligne.account_code }} — {{ ligne.account_name }}</td>
+            <td>{% if ligne.period_label %}{{ ligne.period_label }}{% else %}{% trans "Tout l'exercice" %}{% endif %}</td>
+            <td>{% if ligne.analytic_account_label %}{{ ligne.analytic_account_label }}{% else %}—{% endif %}</td>
+            <td class="col-num">{{ ligne.budgeted_amount_mga|mga }}</td>
+            <td class="col-num">{{ ligne.actual_amount_mga|mga }}</td>
+            <td class="col-num">{{ ligne.variance_mga|mga }}</td>
+            <td class="col-num">
+              {% comment %}
+                `variance_pct` vaut `None` sur une ligne budgétée à zéro — le
+                service refuse de diviser plutôt que de lever. L'écran le dit
+                au lieu d'afficher « None », défaut mesuré en D-1 sur la
+                colonne « Commercial » des commandes.
+              {% endcomment %}
+              {% if ligne.variance_pct is None %}{% trans "Sans objet" %}{% else %}{{ ligne.variance_pct|floatformat:2 }}{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Ce budget n’a encore aucune ligne' %}"
+      body="{% trans 'Ajoutez une ligne par compte à suivre. L’écart au réalisé se calcule dès la première écriture publiée sur ce compte.' %}" />
+  {% endif %}
+
+  {% if perms.accounting.change_accbudget %}
+    {% if budget.state == "draft" %}
+      <h2>{% trans "Ajouter une ligne" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="account_id">{% trans "Compte" %}</label>
+          <select id="account_id" name="account_id" required>
+            {% for compte in comptes %}
+              <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="budgeted_amount_mga">{% trans "Montant budgété (Ar)" %}</label>
+          <input id="budgeted_amount_mga" type="text" inputmode="decimal" name="budgeted_amount_mga" required>
+        </div>
+        <div class="form-field">
+          <label for="period_id">{% trans "Période" %}</label>
+          <select id="period_id" name="period_id">
+            <option value="">{% trans "Tout l'exercice" %}</option>
+            {% for periode in periodes %}
+              <option value="{{ periode.id }}">{{ periode.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="analytic_account_id">{% trans "Axe analytique" %}</label>
+          <select id="analytic_account_id" name="analytic_account_id">
+            <option value="">—</option>
+            {% for axe in axes %}
+              <option value="{{ axe.id }}">{{ axe.code }} — {{ axe.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <c-button variant="primary" type="submit" name="action" value="add_line">{% trans "Ajouter" %}</c-button>
+      </form>
+
+      <h2>{% trans "Soumettre à l'approbation" %}</h2>
+      <p class="hint">{% trans "Un budget approuvé devient immuable : toute révision passe par un nouveau budget. La décision revient au rôle approbateur, depuis l'écran « Mes validations »." %}</p>
+      <form method="post">
+        {% csrf_token %}
+        <c-button type="submit" name="action" value="request_approval">{% trans "Demander l'approbation" %}</c-button>
+      </form>
+    {% else %}
+      <p class="hint">{% trans "Ce budget est approuvé : il n'accepte plus de ligne. Une révision se fait par un nouveau budget sur le même exercice." %}</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

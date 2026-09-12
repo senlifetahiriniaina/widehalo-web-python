@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load i18n currency %}
+{% block title %}{% trans "Ordres de virement" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Ordres de virement" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Ordres de virement" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% if en_vol %}
+    <div class="workflow-banner" role="status">
+      <strong>{% trans "En vol" %} :</strong>
+      {% blocktrans count nombre=en_vol|length %}{{ nombre }} ordre remis à la banque attend encore son débit.{% plural %}{{ nombre }} ordres remis à la banque attendent encore leur débit.{% endblocktrans %}
+      <ul>
+        {% for ordre in en_vol %}
+          <li><a href="{% url 'accounting:transfer_order_detail' order_id=ordre.id %}">{{ ordre.reference|default:ordre.id }}</a> — {{ ordre.execution_date }} — {{ ordre.total_amount|mga }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_acctransferorder %}
+    <h2>{% trans "Composer un ordre" %}</h2>
+    {% comment %}
+      L'ordre part des PIÈCES qu'il règle : c'est la moitié du critère BNK-4
+      qu'un formulaire de bénéficiaires libres aurait perdue. Le lien vers la
+      pièce est établi à la composition, jamais reconstitué après coup.
+    {% endcomment %}
+    {% if dettes %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="bank_account_id">{% trans "Compte bancaire débité" %}</label>
+          <select id="bank_account_id" name="bank_account_id" required>
+            {% for compte in comptes_bancaires %}
+              <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="execution_date">{% trans "Date d'exécution" %}</label>
+          <input id="execution_date" type="date" name="execution_date" required>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{% trans "Régler" %}</th>
+              <th scope="col">{% trans "Bénéficiaire" %}</th>
+              <th scope="col">{% trans "Pièce" %}</th>
+              <th scope="col" class="col-num">{% trans "Montant dû" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dette in dettes %}
+              <tr>
+                <td>
+                  <label class="sr-only" for="dette-{{ dette.id }}">{% trans "Inclure cette dette" %}</label>
+                  <input id="dette-{{ dette.id }}" type="checkbox" name="move_line_ids" value="{{ dette.id }}">
+                </td>
+                <td>{% if dette.partner_display %}{{ dette.partner_display }}{% else %}{{ dette.label }}{% endif %}</td>
+                <td>{{ dette.move.reference }}</td>
+                <td class="col-num">{{ dette.montant_du|mga }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <c-button variant="primary" type="submit">{% trans "Composer l'ordre" %}</c-button>
+      </form>
+    {% else %}
+      <c-empty-state
+        title="{% trans 'Aucune dette fournisseur ouverte' %}"
+        body="{% trans 'Un ordre de virement règle des pièces : il se compose à partir des dettes publiées et non encore lettrées.' %}" />
+    {% endif %}
+  {% endif %}
+{% endblock %}

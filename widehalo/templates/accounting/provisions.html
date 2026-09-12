@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Provisions" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'accounting:operations_index' %}">{% trans "Opérations" %}</a>
+    <span>/</span> {% trans "Provisions" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Provisions" %}</h1>
+  </div>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  {% include "components/_smart_table.html" %}
+
+  {% if perms.accounting.add_accprovision %}
+    <h2>{% trans "Enregistrer un mouvement de provision" %}</h2>
+    <p class="hint">{% trans "Le solde à la clôture est calculé : ouverture + dotation − reprise, jamais négatif." %}</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="nature">{% trans "Nature de la provision" %}</label>
+        <input id="nature" type="text" name="nature" required>
+      </div>
+      <div class="form-field">
+        <label for="account_id">{% trans "Compte" %}</label>
+        <select id="account_id" name="account_id" required>
+          {% for compte in comptes %}
+            <option value="{{ compte.id }}">{{ compte.code }} — {{ compte.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="fiscal_year_id">{% trans "Exercice" %}</label>
+        <select id="fiscal_year_id" name="fiscal_year_id" required>
+          {% for exercice in exercices %}
+            <option value="{{ exercice.id }}">{{ exercice.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="opening_amount_mga">{% trans "Montant à l'ouverture (Ar)" %}</label>
+        <input id="opening_amount_mga" type="text" inputmode="decimal" name="opening_amount_mga" value="0">
+      </div>
+      <div class="form-field">
+        <label for="dotation_mga">{% trans "Dotation (Ar)" %}</label>
+        <input id="dotation_mga" type="text" inputmode="decimal" name="dotation_mga" value="0">
+      </div>
+      <div class="form-field">
+        <label for="reprise_mga">{% trans "Reprise (Ar)" %}</label>
+        <input id="reprise_mga" type="text" inputmode="decimal" name="reprise_mga" value="0">
+      </div>
+      <c-button variant="primary" type="submit">{% trans "Enregistrer" %}</c-button>
+    </form>
+  {% endif %}
+{% endblock %}
