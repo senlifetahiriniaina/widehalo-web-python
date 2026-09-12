@@ -125,6 +125,56 @@ content-type/object-id — reçoivent des permissions Django auto-générées
 ajoutées au cas par cas dans `CUSTOM_PERMISSIONS` (§4), précisément pour
 éviter d'ouvrir tout `core` en accordant l'app entière.
 
+### 1.2 Six mécanismes se lisent sur le NOM du rôle, jamais sur une permission
+
+Tout n'est pas permission dans ce dépôt, et le confondre coûte cher — dans
+les deux sens. Six mécanismes résolvent le droit sur le **code du rôle**,
+c'est-à-dire sur l'appartenance à un `Group` portant ce nom :
+
+| Mécanisme | Où il se décide | Ce qui le déclenche |
+|---|---|---|
+| MFA obligatoire | `settings.CORE_MFA_REQUIRED_ROLES`, via `user_role_codes` | `admin`, `direction`, `comptable`, `rh` |
+| Menu latéral et coquille | `visible_app_labels_for`, `core/context_processors.py` | la matrice lue **en mémoire**, jamais la base |
+| Portée par enregistrement (N3) | `crm.scope_leads_for_user`, `pos.services.scoping`, `simulation.services.scoping` (§5) | le code du rôle de l'utilisateur |
+| Moteur d'approbation | `ApprovalRule.approver_role` et `fallback_approver_role` | le rôle désigné comme approbateur |
+| Routage de notification | `notify_role` | le rôle destinataire |
+| Vues et services gardés par rôle | `core/views/pages.py` (`_ADMIN_ROLE_CODES`), `payroll/views.py`, masquage de marge dans `sales`, `bi.services.query` | l'intersection avec un jeu de rôles écrit en dur |
+
+**Conséquence pratique, et c'est la divergence que §1.1 signalait déjà** :
+un utilisateur peut détenir toutes les permissions Django d'un module et
+rester refusé par l'un de ces six mécanismes, ou l'inverse. Les deux
+systèmes coexistent volontairement ; ils ne se remplacent pas.
+
+### 1.3 Quel helper un test doit prendre
+
+Un test qui construit son utilisateur par
+`Group.objects.get_or_create(name="comptable")` obtient un groupe portant
+le **nom** du rôle et **aucune permission Django**. C'est ce qui a fait
+tomber **90 tests d'un coup** quand C-1 a posé ses gardes d'écran — aucun
+d'eux ne testait le RBAC ; ils passaient parce qu'aucun écran ne vérifiait
+de droit.
+
+Deux helpers, dans `apps/core/tests/utils.py`, et le choix n'est pas
+indifférent :
+
+| Helper | Quand | Pourquoi |
+|---|---|---|
+| `grant_module_access(user, "<app>")` | test d'**écran** : seuls les droits comptent | le groupe porte un nom **neutre**, donc `user_role_codes` n'y voit aucun rôle et le **MFA ne se déclenche pas**. `grant_role(user, "comptable")` renverrait le test vers `/mfa/`, et son assertion porterait sur une redirection sans rapport avec ce qu'il croit tester |
+| `grant_role(user, "<rôle>")` | test de **politique**, ou dès qu'un des six mécanismes de §1.2 est en jeu | il donne le **nom** ET les permissions synchronisées |
+
+**Le cas qui tranche, mesuré plutôt que supposé** :
+`tests/ui/test_purchase_config_screens.py` a besoin des deux moitiés à la
+fois. L'écran veut les permissions ; `approve_substitute` passe par
+`decide()`, qui résout l'approbateur sur le nom du rôle. Un groupe au nom
+neutre y fait échouer l'approbation. C'est `grant_role` qu'il faut — et
+`acheteur` n'étant pas soumis au MFA, il n'y a pas de contrepartie.
+
+**La garde** `tests/architecture/test_test_fixtures_grant_real_permissions.py`
+refuse un groupe au nom d'un rôle sans permissions **sans motif écrit**, et
+sa liste de motifs recense les six mécanismes ci-dessus. Elle raisonne par
+fichier et ne suit pas les imports : elle empêche la dette de revenir, elle
+ne la mesure pas. La mesure se prend à l'exécution.
+
 ## 2. Les 13 rôles
 
 Liste confirmée dans `widehalo/config/settings/base.py`
