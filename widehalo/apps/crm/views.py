@@ -7,7 +7,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import cast
+from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -40,6 +40,7 @@ from apps.crm.services.pipeline import move_lead_to_stage
 from apps.crm.services.pipelines import resolve_default_pipeline
 from apps.crm.services.scoping import scope_leads_for_user
 from apps.crm.services.scoring import compute_lead_score, whatsapp_contact_link
+from apps.partners.services.public import get_partner_display_names
 
 COLUMNS = [
     Column(key="reference", label=_("Référence")),
@@ -221,6 +222,24 @@ def lead_detail(request: HttpRequest, lead_id: str) -> HttpResponse:
     )
 
 
+def _prochaines_activites(lead_ids: list[Any]) -> dict[Any, CrmActivity]:
+    """La prochaine activite NON FAITE de chaque opportunite, en une requete.
+
+    Le cahier demande que la carte du pipeline affiche « la prochaine
+    activite ». Une lecture par carte couterait une requete par carte ; ce
+    balayage unique, trie par echeance croissante, laisse la PREMIERE
+    rencontree gagner pour chaque opportunite.
+
+    `due_at` nul est ecarte : une activite sans echeance n'est pas « la
+    prochaine », elle n'en a pas."""
+    prochaines: dict[Any, CrmActivity] = {}
+    for activite in CrmActivity.objects.filter(
+        lead_id__in=lead_ids, done_at__isnull=True, due_at__isnull=False
+    ).order_by("due_at"):
+        prochaines.setdefault(activite.lead_id, activite)
+    return prochaines
+
+
 @login_required
 @screen_permission("crm.view_crmlead")
 def lead_kanban(request: HttpRequest) -> HttpResponse:
@@ -289,17 +308,45 @@ def lead_kanban(request: HttpRequest) -> HttpResponse:
     for lead in leads:
         cards_by_stage.setdefault(str(lead.stage_id), []).append(lead)
 
+    # **Le tiers par son nom, en UNE requete pour tout le tableau** (G-6).
+    # `partner_id` est un `UUIDField`, jamais une cle etrangere — la regle
+    # de couplage n°1 interdit a `crm` de connaitre le modele `Partner`. La
+    # carte du pipeline ne nommait donc pas son client, alors que le cahier
+    # le demande en premier : « cartes affichant client, montant, date de
+    # cloture prevue et prochaine activite ».
+    noms = get_partner_display_names({lead.partner_id for lead in leads})
+    prochaines = _prochaines_activites([lead.id for lead in leads])
+    for lead in leads:
+        lead.partner_display = noms.get(str(lead.partner_id), "")
+        lead.prochaine_activite = prochaines.get(lead.id)
+
     # Chaque colonne connait l'etape SUIVANTE : c'est elle qui rend le
     # depot legal (meme regle que `mrp`, ou seul un depot vers la colonne
     # n+1 soumet le formulaire). Une opportunite ne saute pas d'etape.
     columns = []
     for index, stage in enumerate(stages):
         next_stage = stages[index + 1] if index + 1 < len(stages) else None
+        cartes = cards_by_stage.get(str(stage.id), [])
         columns.append(
             {
                 "stage": stage,
                 "next_stage": next_stage,
-                "cards": cards_by_stage.get(str(stage.id), []),
+                "cards": cartes,
+                # **Le total PONDERE que le cahier demande par colonne.** La
+                # somme brute des montants attendus d'une colonne de debut
+                # de pipeline annonce un chiffre d'affaires qui n'existe
+                # pas ; ponderee par la probabilite, elle dit ce qu'on peut
+                # raisonnablement esperer. Les deux sont affichees : le
+                # brut reste lisible, et l'ecart entre les deux est
+                # precisement l'information.
+                "total_mga": sum((carte.expected_revenue_mga for carte in cartes), Decimal(0)),
+                "total_pondere_mga": sum(
+                    (
+                        carte.expected_revenue_mga * Decimal(carte.probability) / Decimal(100)
+                        for carte in cartes
+                    ),
+                    Decimal(0),
+                ),
             }
         )
 

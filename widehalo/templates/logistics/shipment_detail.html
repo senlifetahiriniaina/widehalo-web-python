@@ -116,4 +116,75 @@
       <c-button variant="primary" type="submit">{% trans "Ouvrir un dossier douanier" %}</c-button>
     </form>
   {% endif %}
+
+  {% comment %}
+    G-5 — le plan de conditionnement. Le calcul existait depuis LOG3 et
+    n'était demandable que par l'API : aucun écran ne le proposait, donc
+    aucun exploitant ne pouvait savoir combien de colis prévoir.
+  {% endcomment %}
+  <h2>{% trans "Plan de conditionnement" %}</h2>
+  {% if packaging_plans %}
+    {% for plan in packaging_plans %}
+      <h3>{{ plan.reference|default:plan.id }}</h3>
+      <p>
+        {% blocktrans with poids=plan.total_weight_kg volume=plan.total_volume_m3 %}Poids total {{ poids }} kg — volume total {{ volume }} m³{% endblocktrans %}
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">{% trans "Contenant" %}</th>
+            <th scope="col" class="col-num">{% trans "Unités" %}</th>
+            <th scope="col" class="col-num">{% trans "Colis" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in plan.lines.all %}
+            <tr>
+              <td>{{ ligne.packaging_type.name }}</td>
+              <td class="col-num">{{ ligne.qty_units }}</td>
+              <td class="col-num">{{ ligne.qty_packages }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucun plan de conditionnement' %}"
+      body="{% trans 'Le plan dit combien de colis prévoir, pour quel poids et quel volume, à partir du conditionnement déclaré au catalogue de chaque article.' %}" />
+  {% endif %}
+
+  {% if perms.logistics.change_logshipment %}
+    {% if packaging_types and variantes %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="compute_packaging">
+        <div class="form-field">
+          <label for="packaging_type_id">{% trans "Type de contenant" %}</label>
+          <select id="packaging_type_id" name="packaging_type_id" required>
+            {% for type_contenant in packaging_types %}
+              <option value="{{ type_contenant.id }}">{{ type_contenant.code }} — {{ type_contenant.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="variant_id">{% trans "Article" %}</label>
+          <select id="variant_id" name="variant_id" required>
+            {% for variante in variantes %}
+              <option value="{{ variante.id }}">{{ variante.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="qty">{% trans "Quantité" %}</label>
+          <input id="qty" type="text" inputmode="decimal" name="qty" required>
+        </div>
+        <c-button variant="primary" type="submit">{% trans "Calculer le plan" %}</c-button>
+      </form>
+    {% else %}
+      <p class="hint">{% trans "Un plan de conditionnement demande au moins un type de contenant et un article vendable au catalogue." %}
+        <a href="{% url 'logistics:config_packaging_types' %}">{% trans "Types de conditionnement" %}</a>
+      </p>
+    {% endif %}
+  {% endif %}
 {% endblock %}

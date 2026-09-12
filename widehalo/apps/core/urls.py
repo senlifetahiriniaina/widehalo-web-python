@@ -6,6 +6,7 @@ from apps.core.views import (
     chatter,
     dashboard,
     pages,
+    presentation,
     quality,
     risk,
     scheduling,
@@ -15,6 +16,15 @@ from apps.core.views import (
 urlpatterns = [
     path("dashboard/", dashboard.dashboard, name="dashboard"),
     path("approvals/", approvals.approvals_page, name="approvals"),
+    # G-6 — la fiche d'un document, chargee au clic sur sa carte de kanban.
+    # Fragment htmx, jamais un ecran autonome : le gabarit est prefixe `_`,
+    # donc hors du budget d'ecrans, et la route n'est citee que par
+    # `components/_kanban.html`.
+    path(
+        "documents/card/<str:model_label>/<uuid:pk>/",
+        presentation.document_card,
+        name="document_card",
+    ),
     path("search/", pages.search_page, name="search"),
     path("search/instant/", pages.instant_search_fragment, name="instant_search"),
     path("documents/", pages.documents_list, name="documents"),

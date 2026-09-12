@@ -62,6 +62,48 @@
     </tbody>
   </table>
 
+  {% comment %}
+    G-5 — l'ordre des arrêts. `suggest_stop_order` est une fonction PURE :
+    elle propose, elle n'applique rien. La séparation vient du service et
+    elle est juste — un ordre de tournée imposé sans relecture par le
+    planificateur serait une décision d'exploitation prise par un
+    algorithme.
+  {% endcomment %}
+  <h3>{% trans "Ordre des arrêts" %}</h3>
+  <p><a href="?suggest=1">{% trans "Proposer un ordre optimisé" %}</a></p>
+  {% if suggestion %}
+    <p class="workflow-banner" role="status">{% trans "Ordre proposé, du plus proche au plus éloigné. Rien n'est modifié tant que vous n'appliquez pas." %}</p>
+    <ol>
+      {% for arret in suggestion %}<li>{{ arret.address }}</li>{% endfor %}
+    </ol>
+    {% if perms.logistics.change_logtrip %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reorder">
+        {% for arret in suggestion %}<input type="hidden" name="stop_ids" value="{{ arret.id }}">{% endfor %}
+        <c-button variant="primary" type="submit">{% trans "Appliquer cet ordre" %}</c-button>
+      </form>
+    {% endif %}
+  {% endif %}
+
+  <h3>{% trans "Coût de carburant" %}</h3>
+  {% if perms.logistics.change_logtrip %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="record_fuel">
+      <div class="form-field">
+        <label for="amount_mga">{% trans "Montant (Ar)" %}</label>
+        <input id="amount_mga" type="text" inputmode="decimal" name="amount_mga" required>
+      </div>
+      <div class="form-field">
+        <label for="note">{% trans "Note" %}</label>
+        <input id="note" type="text" name="note">
+      </div>
+      <c-button type="submit">{% trans "Enregistrer le plein" %}</c-button>
+    </form>
+    <p class="hint">{% trans "Le coût est rattaché au véhicule du trajet : il apparaît sur sa fiche et dans le rapport des coûts de véhicule." %}</p>
+  {% endif %}
+
   <h3>{% trans "Enregistrer une preuve de livraison (RG-LOG-3)" %}</h3>
   {% if perms.logistics.change_logtrip %}
     <form method="post" enctype="multipart/form-data">

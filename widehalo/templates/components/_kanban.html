@@ -58,34 +58,71 @@ pas l'état. Un magasinier doit pouvoir distinguer « en transit » de
   la relecture. `role="region"` et le nom accessible vont avec : une zone
   focalisable sans nom ne dit pas au lecteur d'écran ce qu'on y trouve.
 {% endcomment %}
-<div role="region" aria-label="{% trans 'Tableau par étape' %}" tabindex="0"
-     style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
-  {% for colonne in colonnes_kanban %}
-    <section class="panel" style="min-width:15rem; flex:1 0 15rem;"
-             aria-label="{{ colonne.libelle }}">
-      <div class="panel-head">
-        <h2 style="font-size:1rem; margin:0;">{{ colonne.libelle }}</h2>
-        <span class="badge">{{ colonne.total }}</span>
-      </div>
-      <div class="panel-body">
-        {% for carte in colonne.cartes %}
-          <article class="card" style="margin-bottom:.5rem;">
-            {% if row_url_name %}
-              <a href="{{ carte|reverse_with_pk:row_url_name }}">{{ carte }}</a>
-            {% else %}
-              {{ carte }}
-            {% endif %}
-            <p class="hint" style="margin:.25rem 0 0;">{{ carte.statut_operationnel }}</p>
-          </article>
-        {% empty %}
-          <p class="hint">{% trans "Aucune ligne." %}</p>
-        {% endfor %}
-        {% if colonne.tronquee %}
-          <p class="hint">
-            {% blocktrans with montrees=colonne.cartes|length total=colonne.total %}{{ montrees }} affichées sur {{ total }} — affinez la recherche depuis la vue liste pour voir les autres.{% endblocktrans %}
-          </p>
-        {% endif %}
-      </div>
-    </section>
-  {% endfor %}
+{% comment %} G-6 — la carte dit l'essentiel, le clic ouvre la fiche.
+
+  **La conception vient du commanditaire** : « les informations les plus
+  essentielles pour chaque type d'objet seulement à la première aperçu :
+  sur 2-3 lignes max. Mais chaque objet dans kanban redirige vers un popup
+  avec tous les détails : une fichier modifiable ou non selon le rôle de
+  l'utilisateur en cours. »
+
+  Elle résout aussi un conflit du cahier : la maquette demande quatre
+  champs sur la carte — client, montant, date de clôture, prochaine
+  activité — et le même cahier demande une « vue à densité réduite ».
+  Quatre champs sur 15 rem produisent une bouillie ; deux à trois lignes
+  déclarées par le module, et le reste dans la fiche, tient les deux.
+
+  **Rien n'est construit ici** : `whModal()` et ses classes viennent de
+  `_partner_picker.html`, le chargement du fragment de htmx, et la
+  modifiabilité de `is_write_allowed` (C-4). Une seule modale pour tout le
+  tableau, alimentée par la carte cliquée.
+{% endcomment %}
+<div x-data="whModal()">
+  <div role="region" aria-label="{% trans 'Tableau par étape' %}" tabindex="0"
+       style="display:flex; gap:1rem; align-items:flex-start; overflow-x:auto;">
+    {% for colonne in colonnes_kanban %}
+      <section class="panel" style="min-width:15rem; flex:1 0 15rem;"
+               aria-label="{{ colonne.libelle }}">
+        <div class="panel-head">
+          <h2 style="font-size:1rem; margin:0;">{{ colonne.libelle }}</h2>
+          <span class="badge">{{ colonne.total }}</span>
+        </div>
+        <div class="panel-body">
+          {% for carte in colonne.cartes %}
+            <article class="card" style="margin-bottom:.5rem;">
+              {% if model_label %}
+                <button type="button" class="btn"
+                        style="width:100%; text-align:left;"
+                        @click="show()"
+                        hx-get="{% url 'document_card' model_label=model_label pk=carte.pk %}"
+                        hx-target="#wh-document-card-body" hx-swap="innerHTML">{{ carte }}</button>
+              {% elif row_url_name %}
+                <a href="{{ carte|reverse_with_pk:row_url_name }}">{{ carte }}</a>
+              {% else %}
+                {{ carte }}
+              {% endif %}
+              <p class="hint" style="margin:.25rem 0 0;">{{ carte.statut_operationnel }}</p>
+              {% for ligne in carte.resume_carte %}
+                <p class="hint" style="margin:.125rem 0 0;">{{ ligne.label }} : {% if ligne.valeur %}{{ ligne.valeur }}{% else %}—{% endif %}</p>
+              {% endfor %}
+            </article>
+          {% empty %}
+            <p class="hint">{% trans "Aucune ligne." %}</p>
+          {% endfor %}
+          {% if colonne.tronquee %}
+            <p class="hint">
+              {% blocktrans with montrees=colonne.cartes|length total=colonne.total %}{{ montrees }} affichées sur {{ total }} — affinez la recherche depuis la vue liste pour voir les autres.{% endblocktrans %}
+            </p>
+          {% endif %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+
+  <div class="wh-modal-overlay" x-show="open" x-cloak @click.self="hide()" @keydown.escape.window="hide()">
+    <div class="wh-modal" role="dialog" aria-modal="true" aria-label="{% trans 'Fiche du document' %}">
+      <button type="button" class="wh-modal-close" @click="hide()" aria-label="{% trans 'Fermer' %}">&times;</button>
+      <div id="wh-document-card-body"></div>
+    </div>
+  </div>
 </div>

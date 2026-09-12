@@ -34,10 +34,10 @@ from apps.core.views.presentation import presentation_response
 from apps.core.views.smart_table import Column
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import document_exchange_panel
-from apps.partners.services.public import get_partner_display_names
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.flow_schema_registration import DOCUMENT_ORDER, DOCUMENT_QUOTATION
 from apps.sales.services.invoicing import invoice_order
+from apps.sales.services.next_steps_registration import _enrichir_partenaires
 from apps.sales.services.orders import (
     add_order_line,
     cancel_order,
@@ -75,23 +75,6 @@ def _error_message(exc: Exception) -> str:
     return "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
 
 
-def _enrichir_partenaires(objets: list[Any]) -> None:
-    """Resout le nom des tiers des lignes rendues, EN UNE REQUETE.
-
-    **Ce que l'exploitant voyait avant.** La colonne « Partenaire » rendait
-    `partner_id`, c'est-a-dire un UUID — et comme ce sont des UUIDv7,
-    prefixes par un horodatage, deux commandes du meme jour affichaient les
-    memes quatorze premiers caracteres : la colonne ne distinguait rien.
-
-    `partner_id` est un `UUIDField`, jamais une cle etrangere : la regle de
-    couplage n°1 interdit a `sales` de connaitre le modele `Partner`. Le nom
-    passe donc par la surface publique de `partners`, et EN LOT — un appel
-    par ligne couterait vingt-cinq requetes par page."""
-    noms = get_partner_display_names({objet.partner_id for objet in objets})
-    for objet in objets:
-        objet.partner_display = noms.get(str(objet.partner_id), "")
-
-
 QUOTATION_COLUMNS = [
     Column(key="reference", label=_("Référence")),
     Column(key="state", label=_("Statut")),
@@ -123,6 +106,11 @@ def quotation_list(request: HttpRequest) -> HttpResponse:
         queryset=queryset,
         page_template="sales/quotation_list.html",
         page_context={"row_url_name": "sales:quotation_detail"},
+        # G-6 : la carte de kanban d'un devis porte le nom du client. Sans
+        # ce crochet, elle rendrait une ligne « Client » vide — et le devis
+        # s'ouvre en kanban par defaut, donc l'ecran le plus vu du module
+        # serait celui qui en dit le moins.
+        enrichir=_enrichir_partenaires,
     )
 
 

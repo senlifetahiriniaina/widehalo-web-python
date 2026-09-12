@@ -29,8 +29,10 @@ from apps.core.services.presentation import (
     COLONNE_SANS_SUITE,
     COLONNE_TERMINE,
     Board,
+    LigneResume,
     register_board,
 )
+from apps.partners.services.public import get_partner_display_names
 from apps.sales.models import SalesQuotation
 
 #: Le droit d'ECRITURE de C-1 : les memes codenames que l'API et l'ecran.
@@ -115,6 +117,23 @@ def _quotation_steps(instance: Any, user: User) -> list[NextStep]:
 #: `blocked` a sa propre colonne : une commande bloquee pour encours client
 #: est exactement la ligne qu'un commercial doit traiter, et la noyer dans
 #: « en cours » la rendrait invisible.
+def _enrichir_partenaires(objets: list[Any]) -> None:
+    """Resout le nom des tiers des lignes rendues, EN UNE REQUETE.
+
+    **Ce que l'exploitant voyait avant.** La colonne « Partenaire » rendait
+    `partner_id`, c'est-a-dire un UUID — et comme ce sont des UUIDv7,
+    prefixes par un horodatage, deux commandes du meme jour affichaient les
+    memes quatorze premiers caracteres : la colonne ne distinguait rien.
+
+    `partner_id` est un `UUIDField`, jamais une cle etrangere : la regle de
+    couplage n°1 interdit a `sales` de connaitre le modele `Partner`. Le nom
+    passe donc par la surface publique de `partners`, et EN LOT — un appel
+    par ligne couterait vingt-cinq requetes par page."""
+    noms = get_partner_display_names({objet.partner_id for objet in objets})
+    for objet in objets:
+        objet.partner_display = noms.get(str(objet.partner_id), "")
+
+
 _ORDER_BOARD = Board(
     state_field="state",
     par_etat={
@@ -129,6 +148,19 @@ _ORDER_BOARD = Board(
         "blocked": COLONNE_BLOQUE,
         "cancelled": COLONNE_SANS_SUITE,
     },
+    enrichir=_enrichir_partenaires,
+    resume=(
+        LigneResume(label=_("Client"), attribut="partner_display"),
+        LigneResume(label=_("Montant"), attribut="amount_total_mga", format="mga"),
+    ),
+    fiche=(
+        LigneResume(label=_("Référence"), attribut="reference"),
+        LigneResume(label=_("Client"), attribut="partner_display"),
+        LigneResume(label=_("Commercial"), attribut="salesperson"),
+        LigneResume(label=_("Date"), attribut="date"),
+        LigneResume(label=_("Montant"), attribut="amount_total_mga", format="mga"),
+        LigneResume(label=_("Statut"), attribut="state"),
+    ),
 )
 
 #: Un devis expire n'est pas refuse : il n'a simplement plus de suite. Les
@@ -143,6 +175,19 @@ _QUOTATION_BOARD = Board(
         "declined": COLONNE_SANS_SUITE,
         "expired": COLONNE_SANS_SUITE,
     },
+    enrichir=_enrichir_partenaires,
+    resume=(
+        LigneResume(label=_("Client"), attribut="partner_display"),
+        LigneResume(label=_("Montant"), attribut="amount_total_mga", format="mga"),
+    ),
+    fiche=(
+        LigneResume(label=_("Référence"), attribut="reference"),
+        LigneResume(label=_("Client"), attribut="partner_display"),
+        LigneResume(label=_("Date"), attribut="date"),
+        LigneResume(label=_("Validité"), attribut="validity_date"),
+        LigneResume(label=_("Montant"), attribut="amount_total_mga", format="mga"),
+        LigneResume(label=_("Statut"), attribut="state"),
+    ),
 )
 
 

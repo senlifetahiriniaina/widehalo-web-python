@@ -8,6 +8,11 @@ urlpatterns = [
     path("", views.vehicle_list, name="vehicle_list"),
     path("vehicles/new/", views.vehicle_create, name="vehicle_create"),
     path("vehicles/<uuid:vehicle_id>/", views.vehicle_detail, name="vehicle_detail"),
+    path(
+        "vehicles/document-alerts/",
+        views.vehicle_document_alerts,
+        name="vehicle_document_alerts",
+    ),
     path("drivers/", views.driver_list, name="driver_list"),
     path("trips/", views.trip_list, name="trip_list"),
     path("trips/new/", views.trip_create, name="trip_create"),

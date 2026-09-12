@@ -22,13 +22,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, cast
 
+from django.contrib.auth.decorators import login_required
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from apps.core.models.ui import ScreenPreference
 from apps.core.models.user import User
-from apps.core.services.presentation import COLONNES, Board, board_for
+from apps.core.services.presentation import COLONNES, Board, board_for, lire_lignes
 from apps.core.views.smart_table import EXPORT_FORMATS, Column, apply_search, smart_table_response
 from apps.core.views.tenant_web import resolve_tenant
 
@@ -80,7 +81,12 @@ def _presentation_choisie(request: HttpRequest, *, table_key: str, model_label: 
     return memorisee or _presentation_par_defaut(model_label)
 
 
-def _colonnes_du_tableau(queryset: QuerySet[Any], board: Board) -> list[dict[str, Any]]:
+def _colonnes_du_tableau(
+    queryset: QuerySet[Any],
+    board: Board,
+    *,
+    enrichir: Callable[[list[Any]], None] | None = None,
+) -> list[dict[str, Any]]:
     """Les cinq colonnes, chacune bornee EN BASE.
 
     **Le cahier l.505 : « aucune liste ne charge integralement son jeu de
@@ -110,11 +116,24 @@ def _colonnes_du_tableau(queryset: QuerySet[Any], board: Board) -> list[dict[str
             continue
         sous_ensemble = queryset.filter(**{f"{board.state_field}__in": etats})
         total = sous_ensemble.count()
+        cartes = list(sous_ensemble[:CARTES_PAR_COLONNE])
+        # **Le crochet d'enrichissement sert MAINTENANT le kanban aussi.**
+        # C-4 l'excluait a juste titre : la carte ne rendait que le `__str__`
+        # du document, donc l'appeler aurait pose un appel que rien ne lit.
+        # G-6 change la donnee du probleme — la carte porte desormais deux a
+        # trois lignes declarees, et le nom d'un tiers vit dans un autre
+        # module que la regle de couplage n°1 interdit de joindre. Sans ce
+        # crochet, la ligne « Client » d'une carte serait vide, sans erreur.
+        enrichisseur = board.enrichir or enrichir
+        if enrichisseur is not None and cartes:
+            enrichisseur(cartes)
+        for carte in cartes:
+            carte.resume_carte = lire_lignes(carte, board.resume)
         colonnes.append(
             {
                 "code": code,
                 "libelle": libelle,
-                "cartes": list(sous_ensemble[:CARTES_PAR_COLONNE]),
+                "cartes": cartes,
                 "total": total,
                 "tronquee": total > CARTES_PAR_COLONNE,
             }
@@ -136,13 +155,13 @@ def presentation_response(
 ) -> HttpResponse:
     """Rend l'ecran dans sa presentation courante.
 
-    `enrichir` ne sert QUE la branche liste et export, et c'est une mesure,
-    pas un oubli : la carte du kanban rend `{{ carte }}` — le `__str__` du
-    document — et son statut operationnel, jamais une colonne declaree.
-    Lui passer le crochet poserait un appel que rien ne lit, ce que ce
-    chantier retire depuis le debut. Faire porter au fragment generique un
-    sous-titre par document est un elargissement de C-4, pas de D-1 : c'est
-    signale, pas livre.
+    **`enrichir` sert les trois branches depuis G-6** — liste, export et
+    kanban. C-4 l'excluait du kanban a juste titre : la carte ne rendait que
+    le `__str__` du document, donc l'appeler aurait pose un appel que rien
+    ne lit. Le sous-titre par document, « signale, pas livre » a ce
+    moment-la, est desormais livre : la carte porte deux a trois lignes
+    declarees par son module, et le nom d'un tiers vit dans un autre module
+    que la regle de couplage n°1 interdit de joindre.
 
     En LISTE, delegue entierement a `smart_table_response` : recherche,
     tri, pagination, colonnes masquables et export restent exactement ce
@@ -182,10 +201,13 @@ def presentation_response(
     tableau = board_for(model_label)
     assert tableau is not None
     contexte["colonnes_kanban"] = _colonnes_du_tableau(
-        apply_search(queryset, columns, requete), tableau
+        apply_search(queryset, columns, requete), tableau, enrichir=enrichir
     )
     contexte["row_url_name"] = row_url_name
     contexte["table_key"] = table_key
+    # Le fragment de carte a besoin du libelle de modele pour construire
+    # l'URL de la fiche : il ne peut pas le deviner depuis l'objet rendu.
+    contexte["model_label"] = model_label
     return render(request, page_template, contexte)
 
 
@@ -193,3 +215,79 @@ def is_write_allowed(user: User, codename: str) -> bool:
     """Le kanban ne propose un deplacement qu'a qui peut ecrire — meme
     regle qu'en C-1d et C-4 (1/2)."""
     return bool(user.has_perm(codename))
+
+
+@login_required
+def document_card(request: HttpRequest, model_label: str, pk: str) -> HttpResponse:
+    """G-6 — la fiche d'un document, ouverte au clic sur sa carte.
+
+    **Ce que le commanditaire a demandé, mot pour mot** : « les informations
+    les plus essentielles pour chaque type d'objet seulement à la première
+    aperçu : sur 2-3 lignes max. Mais chaque objet dans kanban redirige vers
+    un popup avec tous les détails : une fichier modifiable ou non selon le
+    rôle de l'utilisateur en cours. »
+
+    **Le contenu est DÉCLARÉ, jamais deviné.** Rendre automatiquement tous
+    les champs concrets d'un modèle exposerait la marge et le coût de
+    revient, que le §9.2 exclut nommément de toute sortie — et le registre
+    des champs sensibles existe précisément parce que l'exhaustivité n'est
+    pas un défaut acceptable. Chaque module déclare donc sa `fiche` à côté
+    de sa projection de colonnes.
+
+    **« Modifiable ou non selon le rôle » se lit sur le droit d'écriture de
+    C-1**, dérivé du modèle : un lecteur voit la fiche et aucune action, un
+    rédacteur voit les suites que C-3 calcule pour lui. Jamais un formulaire
+    affiché puis refusé à l'envoi — le défaut corrigé en C-1d.
+
+    La fiche ne poste rien elle-même : ses boutons postent sur l'écran de
+    détail du document, celui qui porte déjà les branches d'action. Un
+    second chemin d'écriture divergerait du premier à la première
+    évolution.
+    """
+    from django.apps import apps as django_apps
+    from django.core.exceptions import PermissionDenied
+    from django.http import Http404
+    from django.shortcuts import get_object_or_404
+
+    from apps.core.services.document_screens import resolve_document_url
+    from apps.core.services.next_steps import next_steps_for
+    from apps.core.services.presentation import lire_lignes
+
+    tableau = board_for(model_label)
+    if tableau is None:
+        # Un document sans projection n'a ni carte ni fiche : refuser ici
+        # évite qu'une URL forgée ouvre une fiche sur n'importe quel modèle
+        # du produit, y compris ceux qui portent des champs sensibles.
+        raise Http404("Aucun tableau déclaré pour ce document.")
+    try:
+        modele = django_apps.get_model(model_label)
+    except LookupError as exc:
+        raise Http404("Type de document inconnu.") from exc
+
+    utilisateur = cast(User, request.user)
+    meta = modele._meta
+    if not utilisateur.has_perm(f"{meta.app_label}.view_{meta.model_name}"):
+        raise PermissionDenied
+    # `objects` est un `TenantManager` : un document d'une autre société
+    # n'existe pas pour cette requête, et l'identifiant forgé rend 404.
+    instance = get_object_or_404(modele, pk=pk)
+    # Le meme enrichissement que la carte, et pour la meme raison : le nom
+    # d'un tiers vit dans un autre module que la regle de couplage n°1
+    # interdit de joindre. Sans lui, la fiche ouverte au clic sur une carte
+    # qui NOMME son client rendrait une ligne « Client » vide.
+    if tableau.enrichir is not None:
+        tableau.enrichir([instance])
+
+    modifiable = is_write_allowed(utilisateur, f"{meta.app_label}.change_{meta.model_name}")
+    return render(
+        request,
+        "components/_document_card.html",
+        {
+            "document": instance,
+            "titre": str(instance),
+            "lignes": lire_lignes(instance, tableau.fiche),
+            "modifiable": modifiable,
+            "next_steps": next_steps_for(instance, utilisateur) if modifiable else [],
+            "url_fiche": resolve_document_url(model_label, str(instance.pk)),
+        },
+    )

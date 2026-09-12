@@ -31,7 +31,7 @@ reste sa presentation.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -59,13 +59,63 @@ COLONNES: tuple[tuple[str, Any], ...] = (
 _CODES = frozenset(code for code, _libelle in COLONNES)
 
 
+#: Bornes du resume de carte, decidees avec le commanditaire : « les
+#: informations les plus essentielles pour chaque type d'objet seulement a
+#: la premiere apercu : sur 2-3 lignes max ».
+#:
+#: Le plancher compte autant que le plafond. Une carte a UNE ligne ne dit
+#: rien de plus que son titre, et la maquette du cahier — client, montant,
+#: date de cloture, prochaine activite — fait quatre champs sur une carte de
+#: 15 rem, ce qui produit une bouillie que le meme cahier interdit par
+#: ailleurs (« vue a densite reduite »). L'arbitrage est donc borne des deux
+#: cotes, et la garde le verifie.
+RESUME_MIN_LIGNES = 2
+RESUME_MAX_LIGNES = 3
+
+
+@dataclass(frozen=True)
+class LigneResume:
+    """Une ligne affichee : son libelle, ou la lire, comment la formater.
+
+    `format` reprend le vocabulaire de `Column.format` (`"mga"` aujourd'hui)
+    — le meme registre de formateurs sert la liste, l'export, la carte et la
+    fiche, si bien qu'un montant s'ecrit partout de la meme facon."""
+
+    label: Any
+    attribut: str
+    format: str | None = None
+
+
 @dataclass(frozen=True)
 class Board:
-    """La projection d'un document : quel champ porte l'etat, et ou va
-    chaque etat."""
+    """La projection d'un document : quel champ porte l'etat, ou va chaque
+    etat, ce que dit sa carte et ce que montre sa fiche.
+
+    **`resume` et `fiche` sont DECLARES, jamais devines.** Rendre
+    automatiquement tous les champs concrets d'un modele exposerait la marge
+    et le cout de revient, que le §9.2 exclut nommement — et le registre des
+    champs sensibles (`SENSITIVE_FIELDS`) existe precisement parce que
+    l'exhaustivite n'est pas un defaut acceptable. Le module decide donc ce
+    qu'il montre, comme il decide deja ou vont ses etats."""
 
     state_field: str
     par_etat: Mapping[str, str]
+    #: Les 2 a 3 lignes de la carte de kanban.
+    resume: tuple[LigneResume, ...] = ()
+    #: Le contenu de la fiche ouverte au clic. Plus riche que le resume, et
+    #: tout aussi declare.
+    fiche: tuple[LigneResume, ...] = ()
+    #: Comment resoudre, EN LOT, ce que l'objet ne porte pas lui-meme.
+    #:
+    #: **Ce champ vient d'un defaut mesure, pas d'une anticipation.** La
+    #: carte de kanban etait enrichie par le crochet de la VUE de liste ;
+    #: la fiche en popup, servie par une vue generique de `core`, n'avait
+    #: aucun moyen de connaitre ce crochet. Resultat : la carte nommait le
+    #: client, et la fiche ouverte au clic sur cette meme carte rendait une
+    #: ligne « Client » vide. Deux presentations du meme objet qui se
+    #: contredisent — exactement ce que C-4 s'interdit entre la liste et le
+    #: tableau. L'enrichisseur appartient donc au DOCUMENT, pas a l'ecran.
+    enrichir: Callable[[list[Any]], None] | None = None
 
 
 _BOARDS: dict[str, Board] = {}
@@ -77,17 +127,59 @@ def register_board(model_label: str, board: Board) -> None:
     Refuse une colonne inconnue a la DECLARATION plutot qu'a l'affichage :
     une faute de frappe rendrait sinon une colonne fantome que personne ne
     verrait jamais, et les lignes qu'elle porte disparaitraient de
-    l'ecran sans erreur."""
+    l'ecran sans erreur.
+
+    Refuse aussi un resume hors bornes et une fiche vide, au meme moment et
+    pour la meme raison : un tableau declare sans carte rendrait des cartes
+    muettes, et une fiche vide ouvrirait un popup sans contenu. Les deux
+    sont du decor, et le decor se refuse a la declaration."""
     inconnues = sorted(set(board.par_etat.values()) - _CODES)
     if inconnues:
         raise ValueError(
             f"{model_label} projette sur des colonnes inconnues : {inconnues}. "
             f"Colonnes valides : {sorted(_CODES)}."
         )
+    if not RESUME_MIN_LIGNES <= len(board.resume) <= RESUME_MAX_LIGNES:
+        raise ValueError(
+            f"{model_label} declare {len(board.resume)} ligne(s) de resume : il en faut "
+            f"entre {RESUME_MIN_LIGNES} et {RESUME_MAX_LIGNES}."
+        )
+    if not board.fiche:
+        raise ValueError(
+            f"{model_label} declare un tableau sans fiche : le clic sur une carte "
+            f"ouvrirait un popup vide."
+        )
     existant = _BOARDS.get(model_label)
     if existant is not None and existant != board:
         raise ValueError(f"Deux projections declarees pour {model_label}.")
     _BOARDS[model_label] = board
+
+
+def lire_lignes(instance: Any, lignes: tuple[LigneResume, ...]) -> list[dict[str, Any]]:
+    """Rend `lignes` pour cet objet : libelle, valeur formatee.
+
+    Un champ a jeu ferme part par son LIBELLE — meme regle que la cellule de
+    liste et que l'export, mesuree trois fois sur ce depot : une carte qui
+    dirait `draft` la ou la page dit « Brouillon » obligerait le lecteur a
+    tenir la correspondance de tete. Une valeur absente rend une chaine
+    vide, jamais le mot « None »."""
+    import contextlib
+
+    from apps.core.utils.formatting import COLUMN_FORMATTERS
+
+    rendu: list[dict[str, Any]] = []
+    for ligne in lignes:
+        valeur = getattr(instance, ligne.attribut, None)
+        libelle = getattr(instance, f"get_{ligne.attribut}_display", None)
+        if callable(libelle):
+            valeur = libelle()
+        elif ligne.format:
+            formateur = COLUMN_FORMATTERS.get(ligne.format)
+            if formateur is not None:
+                with contextlib.suppress(TypeError, ValueError, ArithmeticError):
+                    valeur = formateur(valeur)
+        rendu.append({"label": ligne.label, "valeur": "" if valeur is None else valeur})
+    return rendu
 
 
 def board_for(model_label: str) -> Board | None:

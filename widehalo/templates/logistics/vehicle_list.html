@@ -14,6 +14,9 @@
     <a href="{% url 'logistics:trip_list' %}">{% trans "Trajets" %}</a>
     <a href="{% url 'logistics:shipment_list' %}">{% trans "Expéditions" %}</a>
     <a href="{% url 'logistics:reports_index' %}">{% trans "Rapports" %}</a>
+    {% if perms.logistics.view_logvehicledocument %}
+      <a href="{% url 'logistics:vehicle_document_alerts' %}">{% trans "Échéances de documents" %}</a>
+    {% endif %}
   </p>
   {% include "components/_smart_table.html" %}
 {% endblock %}

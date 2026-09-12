@@ -21,6 +21,7 @@ from apps.core.services.presentation import (
     COLONNE_SANS_SUITE,
     COLONNE_TERMINE,
     Board,
+    LigneResume,
     register_board,
 )
 
@@ -105,6 +106,19 @@ _INVOICE_BOARD = Board(
         "paid": COLONNE_TERMINE,
         "cancelled": COLONNE_SANS_SUITE,
     },
+    resume=(
+        LigneResume(label=_("Date"), attribut="date"),
+        LigneResume(label=_("Montant"), attribut="total_debit", format="mga"),
+    ),
+    fiche=(
+        LigneResume(label=_("Référence"), attribut="reference"),
+        LigneResume(label=_("Date"), attribut="date"),
+        LigneResume(label=_("Journal"), attribut="journal"),
+        LigneResume(label=_("Période"), attribut="period"),
+        LigneResume(label=_("Montant"), attribut="total_debit", format="mga"),
+        LigneResume(label=_("Statut de la facture"), attribut="invoice_state"),
+        LigneResume(label=_("Statut fiscal"), attribut="fiscal_state"),
+    ),
 )
 
 

@@ -1,0 +1,52 @@
+{% load i18n %}
+{% comment %}
+G-6 — la fiche d'un document, ouverte au clic sur sa carte de kanban.
+
+**La conception vient du commanditaire**, et elle est plus juste que la
+maquette du cahier : la carte porte l'essentiel en deux ou trois lignes,
+tout le reste vit ici. Quatre champs sur une carte de 15 rem produiraient
+une bouillie, alors que le même cahier demande par ailleurs une « vue à
+densité réduite ».
+
+**Modifiable ou non selon le rôle.** Un lecteur voit la fiche et aucune
+action ; un rédacteur voit les suites que C-3 calcule pour lui. Jamais un
+formulaire affiché puis refusé à l'envoi — le défaut corrigé en C-1d.
+
+**Les boutons postent sur l'écran de détail du document**, celui qui porte
+déjà les branches d'action. Un second chemin d'écriture divergerait du
+premier à la première évolution : c'est exactement ce que D-A a payé, avec
+dix boutons qui ne faisaient rien.
+{% endcomment %}
+<h2 id="wh-document-card-titre" style="margin-top:0;">{{ titre }}</h2>
+
+<dl>
+  {% for ligne in lignes %}
+    <dt>{{ ligne.label }}</dt>
+    <dd>{% if ligne.valeur %}{{ ligne.valeur }}{% else %}—{% endif %}</dd>
+  {% endfor %}
+</dl>
+
+{% if modifiable %}
+  {% if next_steps %}
+    <h3>{% trans "Étape suivante" %}</h3>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+      {% for etape in next_steps %}
+        <form method="post" action="{{ url_fiche }}">
+          {% csrf_token %}
+          {% for nom, valeur in etape.champs.items %}
+            <input type="hidden" name="{{ nom }}" value="{{ valeur }}">
+          {% endfor %}
+          <button type="submit" class="btn{% if forloop.first %} btn-primary{% endif %}">{{ etape.label }}</button>
+        </form>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="hint">{% trans "Ce document n'attend plus d'action de votre part." %}</p>
+  {% endif %}
+{% else %}
+  <p class="hint">{% trans "Fiche en lecture seule : votre rôle ne permet pas de modifier ce document." %}</p>
+{% endif %}
+
+{% if url_fiche %}
+  <p><a href="{{ url_fiche }}">{% trans "Ouvrir la fiche complète" %}</a></p>
+{% endif %}

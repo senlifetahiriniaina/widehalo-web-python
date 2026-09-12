@@ -56,12 +56,43 @@
       {% for column in columns %}
         <div style="flex:0 0 16rem;">
           <h2 style="font-size:1rem;">{{ column.stage.name }}</h2>
+          {% comment %} G-6 — les deux totaux que le cahier demande par
+             colonne. La somme brute d'une colonne de debut de pipeline
+             annonce un chiffre d'affaires qui n'existe pas ; ponderee par
+             la probabilite, elle dit ce qu'on peut raisonnablement
+             esperer. L'ecart entre les deux EST l'information, d'ou les
+             deux. {% endcomment %}
+          <p class="hint">
+            {% blocktrans with brut=column.total_mga|mga pondere=column.total_pondere_mga|mga %}{{ brut }} — pondéré : {{ pondere }}{% endblocktrans %}
+          </p>
           <div class="kanban-column" data-col-index="{{ forloop.counter0 }}">
             {% for lead in column.cards %}
               <div class="card" data-lead-id="{{ lead.id }}" style="margin-bottom:.5rem;">
                 <div class="kanban-handle" aria-hidden="true">⠿</div>
                 <p><a href="{% url 'crm:detail' lead_id=lead.id %}">{{ lead.name }}</a></p>
-                <p class="hint">{{ lead.reference }} — {{ lead.expected_revenue_mga|mga }}</p>
+                {% comment %} Les quatre champs de la maquette (§7.3) :
+                   client, montant, date de clôture prévue, prochaine
+                   activité. La carte du pipeline n'en portait aucun des
+                   deux premiers — un commercial ne savait pas de qui était
+                   l'opportunité. {% endcomment %}
+                <p class="hint">
+                  {% if lead.partner_display %}{{ lead.partner_display }}{% else %}{% trans "Client non rattaché" %}{% endif %}
+                  — {{ lead.expected_revenue_mga|mga }}
+                </p>
+                <p class="hint">
+                  {% if lead.expected_close_date %}
+                    {% blocktrans with cloture=lead.expected_close_date %}Clôture prévue : {{ cloture }}{% endblocktrans %}
+                  {% else %}
+                    {% trans "Clôture non datée" %}
+                  {% endif %}
+                </p>
+                <p class="hint">
+                  {% if lead.prochaine_activite %}
+                    {{ lead.prochaine_activite.get_activity_type_display }} — {{ lead.prochaine_activite.due_at }}
+                  {% else %}
+                    {% trans "Aucune activité planifiée" %}
+                  {% endif %}
+                </p>
                 {% if column.next_stage %}
                   {% comment %}
                     Le bouton est le chemin ACCESSIBLE ; le glisser-deposer

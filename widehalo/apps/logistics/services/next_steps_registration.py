@@ -24,6 +24,7 @@ from apps.core.services.presentation import (
     COLONNE_SANS_SUITE,
     COLONNE_TERMINE,
     Board,
+    LigneResume,
     register_board,
 )
 from apps.logistics.models import LogTrip
@@ -87,6 +88,19 @@ _SHIPMENT_BOARD = Board(
         "closed": COLONNE_TERMINE,
         "blocked": COLONNE_BLOQUE,
     },
+    resume=(
+        LigneResume(label=_("Origine"), attribut="origin"),
+        LigneResume(label=_("Destination"), attribut="destination"),
+        LigneResume(label=_("Transporteur"), attribut="carrier"),
+    ),
+    fiche=(
+        LigneResume(label=_("Référence"), attribut="reference"),
+        LigneResume(label=_("Origine"), attribut="origin"),
+        LigneResume(label=_("Destination"), attribut="destination"),
+        LigneResume(label=_("Transporteur"), attribut="carrier"),
+        LigneResume(label=_("Incoterm"), attribut="incoterm"),
+        LigneResume(label=_("État"), attribut="state"),
+    ),
 )
 
 #: `LogTrip` porte DEJA le vocabulaire demande — planifie / en cours /
@@ -100,6 +114,20 @@ _TRIP_BOARD = Board(
         "completed": COLONNE_TERMINE,
         "cancelled": COLONNE_SANS_SUITE,
     },
+    resume=(
+        LigneResume(label=_("Véhicule"), attribut="vehicle"),
+        LigneResume(label=_("Chauffeur"), attribut="driver"),
+        LigneResume(label=_("Date"), attribut="date"),
+    ),
+    fiche=(
+        LigneResume(label=_("Référence"), attribut="reference"),
+        LigneResume(label=_("Véhicule"), attribut="vehicle"),
+        LigneResume(label=_("Chauffeur"), attribut="driver"),
+        LigneResume(label=_("Date"), attribut="date"),
+        LigneResume(label=_("Kilométrage au départ"), attribut="start_odometer_km"),
+        LigneResume(label=_("Kilométrage à l'arrivée"), attribut="end_odometer_km"),
+        LigneResume(label=_("Statut"), attribut="status"),
+    ),
 )
 
 

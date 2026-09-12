@@ -27,6 +27,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.translation import gettext_lazy as _
 
+from apps.catalog.services.public import list_sellable_variants
 from apps.core.identifiers import parse_uuid
 from apps.core.models.user import User
 from apps.core.services.next_steps import next_steps_for
@@ -39,12 +40,15 @@ from apps.logistics.models import (
     LogCustomsFile,
     LogDriver,
     LogHsCode,
+    LogPackagingPlan,
+    LogPackagingType,
     LogServiceProvider,
     LogShipment,
     LogTrip,
     LogTripStop,
     LogTripTemplate,
     LogVehicle,
+    LogVehicleDocument,
 )
 from apps.logistics.services.customs import (
     add_customs_line,
@@ -52,6 +56,7 @@ from apps.logistics.services.customs import (
     create_customs_file,
     mark_customs_file_cleared,
 )
+from apps.logistics.services.packaging import compute_packaging_plan
 from apps.logistics.services.shipments import (
     add_shipment_leg,
     block_shipment,
@@ -73,13 +78,18 @@ from apps.logistics.services.trips import (
     create_trip_template,
     generate_due_trip,
     record_stop_completion,
+    record_trip_fuel_cost,
+    reorder_stops,
     start_trip,
+    suggest_stop_order,
 )
 from apps.logistics.services.vehicles import (
     add_vehicle_document,
     create_driver,
     create_vehicle,
+    notify_document_alert,
     record_vehicle_cost,
+    upcoming_document_alerts,
 )
 
 
@@ -369,17 +379,45 @@ def trip_detail(request: HttpRequest, trip_id: str) -> HttpResponse:
                     signed_by=post.get("signed_by", ""),
                     uploaded_by=cast(User, request.user),
                 )
+            elif action == "record_fuel":
+                # **`record_trip_fuel_cost` n'avait AUCUN appelant** — ni
+                # vue, ni API, ni commande. Le suivi de carburant d'une
+                # tournee etait ecrit, teste, et hors de portee de
+                # l'exploitant.
+                record_trip_fuel_cost(
+                    trip,
+                    amount_mga=Decimal(post.get("amount_mga") or "0"),
+                    note=post.get("note", ""),
+                )
+            elif action == "reorder":
+                # L'ordre APPLIQUE est toujours explicite : la suggestion
+                # ci-dessous ne touche a rien, elle se lit d'abord.
+                reorder_stops(trip, [uuid.UUID(valeur) for valeur in post.getlist("stop_ids")])
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = _error_message(exc)
         else:
             return redirect("logistics:trip_detail", trip_id=trip.id)
+
+    arrets = list(trip.stops.all())
+    suggestion = None
+    if request.GET.get("suggest"):
+        # `suggest_stop_order` est une fonction PURE : elle rend des index,
+        # n'ecrit rien, et c'est a l'ecran de proposer de l'appliquer. La
+        # separation vient du service et elle est juste — un ordre de
+        # tournee impose sans relecture par le planificateur serait une
+        # decision d'exploitation prise par un algorithme.
+        indices = suggest_stop_order(
+            [{"latitude": arret.latitude, "longitude": arret.longitude} for arret in arrets]
+        )
+        suggestion = [arrets[index] for index in indices]
 
     return render(
         request,
         "logistics/trip_detail.html",
         {
             "trip": trip,
-            "stops": trip.stops.all(),
+            "stops": arrets,
+            "suggestion": suggestion,
             "error": error,
             "next_steps": next_steps_for(trip, cast(User, request.user)),
         },
@@ -606,6 +644,25 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
                     partner_id=parse_uuid(post.get("partner_id"), champ=_("partenaire")),
                     amount_mga=Decimal(post["amount_mga"]) if post.get("amount_mga") else None,
                 )
+            elif action == "compute_packaging":
+                # **`compute_packaging_plan` n'avait aucun ecran** : le
+                # calcul existait, personne ne pouvait le demander. La piece
+                # source est l'EXPEDITION — c'est elle qu'on emballe, et la
+                # reference generique du modele l'accepte telle quelle.
+                compute_packaging_plan(
+                    shipment.tenant,
+                    source=shipment,
+                    packaging_type=get_object_or_404(
+                        LogPackagingType, id=post.get("packaging_type_id", "")
+                    ),
+                    lines=[
+                        {"variant_id": variant_id, "qty": qty}
+                        for variant_id, qty in zip(
+                            post.getlist("variant_id"), post.getlist("qty"), strict=False
+                        )
+                        if variant_id and qty
+                    ],
+                )
             else:
                 handler = _SHIPMENT_ACTIONS.get(action)
                 if handler is not None:
@@ -619,6 +676,8 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
                 )
             return redirect("logistics:shipment_detail", shipment_id=shipment.id)
 
+    from django.contrib.contenttypes.models import ContentType
+
     return render(
         request,
         "logistics/shipment_detail.html",
@@ -628,6 +687,12 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
             "legs": shipment.legs.all(),
             "customs_files": shipment.customs_files.all(),
             "carriers": LogServiceProvider.objects.filter(is_active=True),
+            "packaging_types": LogPackagingType.objects.all().order_by("code"),
+            "packaging_plans": LogPackagingPlan.objects.filter(
+                content_type=ContentType.objects.get_for_model(LogShipment),
+                object_id=str(shipment.id),
+            ).prefetch_related("lines"),
+            "variantes": list_sellable_variants(),
             "error": error,
         },
     )
@@ -681,5 +746,56 @@ def customs_file_detail(request: HttpRequest, customs_file_id: str) -> HttpRespo
             "lines": customs_file.lines.all(),
             "hs_codes": LogHsCode.objects.filter(is_active=True),
             "error": error,
+        },
+    )
+
+
+@login_required
+@screen_permission("logistics.view_logvehicledocument")
+def vehicle_document_alerts(request: HttpRequest) -> HttpResponse:
+    """G-5 — les echeances de documents de vehicule, enfin visibles.
+
+    **La liste existait, l'ecran non.** `upcoming_document_alerts` est
+    appelee par la commande de maintenance nocturne, qui NOTIFIE — elle ne
+    montre rien. Un exploitant qui voulait savoir quelles assurances et
+    quelles visites techniques arrivent a echeance n'avait aucun endroit ou
+    regarder : il devait attendre la notification, ou ouvrir les vehicules
+    un par un.
+
+    **Prevenir est un geste explicite ici.** `notify_document_alert` marque
+    le document notifie et ne le renvoie jamais deux fois : depuis cet
+    ecran, l'exploitant prend la main plutot que d'attendre la nuit."""
+    tenant = resolve_tenant(request)
+    erreur = None
+
+    if request.method == "POST":
+        refus = screen_forbidden(request, "logistics.change_logvehicledocument")
+        if refus is not None:
+            return refus
+        try:
+            notify_document_alert(
+                get_object_or_404(
+                    LogVehicleDocument, id=request.POST.get("document_id"), tenant=tenant
+                ),
+                recipient=cast(User, request.user),
+            )
+        except (ValidationError, ValueError) as exc:
+            erreur = _error_message(exc)
+        else:
+            return redirect("logistics:vehicle_document_alerts")
+
+    horizon = request.GET.get("within_days", "30")
+    try:
+        jours = max(1, min(int(horizon), 365))
+    except (TypeError, ValueError):
+        jours = 30
+
+    return render(
+        request,
+        "logistics/vehicle_document_alerts.html",
+        {
+            "documents": upcoming_document_alerts(tenant, within_days=jours),
+            "jours": jours,
+            "error": erreur,
         },
     )

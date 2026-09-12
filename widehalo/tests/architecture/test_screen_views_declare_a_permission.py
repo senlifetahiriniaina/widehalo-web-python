@@ -148,7 +148,16 @@ def test_declared_permissions_exist_and_belong_to_their_module() -> None:
 #: Les prefixes de codename qui designent une ECRITURE. Ecrits ici, jamais
 #: lus d'un registre du code teste — un jeu ferme ne se verifie pas contre
 #: sa propre source (lecon F60).
-_ACTIONS_D_ECRITURE = frozenset({"add", "change", "delete", "validate", "cancel"})
+#:
+#: **`qualify` a ete ajoute en G-4, et c'est une decision, pas un
+#: elargissement de confort.** Qualifier une ligne d'import REMPLACE un
+#: compte ou un tiers provisoire par l'entite reelle et peut ouvrir une
+#: demande d'approbation : c'est une ecriture, et le depot le reconnait
+#: deja en declarant `qualify_accimportrow`/`qualify_accinvoiceimportrow`
+#: comme des permissions a part entiere. La garde a refuse deux vues justes
+#: pour cette seule raison — la troisieme fois qu'elle ne connait qu'une
+#: partie des formes correctes.
+_ACTIONS_D_ECRITURE = frozenset({"add", "change", "delete", "validate", "cancel", "qualify"})
 
 
 def test_every_view_that_writes_also_guards_the_write() -> None:

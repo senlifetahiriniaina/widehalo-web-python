@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n l10n %}
+{% block title %}{% trans "Échéances de documents" %} — WideHalo{% endblock %}
+{% block content %}
+  <c-breadcrumb>
+    <a href="{% url 'logistics:vehicle_list' %}">{% trans "Véhicules" %}</a>
+    <span>/</span> {% trans "Échéances de documents" %}
+  </c-breadcrumb>
+  <div class="page-head">
+    <h1>{% trans "Échéances de documents de véhicule" %}</h1>
+  </div>
+  <p class="hint">{% trans "Assurance, visite technique, carte grise : les documents dont l'échéance approche ou est dépassée, et qui n'ont pas encore été signalés." %}</p>
+  {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+  <form method="get">
+    <div class="form-field">
+      <label for="within_days">{% trans "Horizon (jours)" %}</label>
+      <input id="within_days" type="number" name="within_days" min="1" max="365" value="{{ jours|unlocalize }}">
+    </div>
+    <c-button type="submit">{% trans "Afficher" %}</c-button>
+  </form>
+
+  {% if documents %}
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Véhicule" %}</th>
+          <th scope="col">{% trans "Document" %}</th>
+          <th scope="col">{% trans "Référence" %}</th>
+          <th scope="col">{% trans "Échéance" %}</th>
+          {% if perms.logistics.change_logvehicledocument %}<th scope="col">{% trans "Action" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for document in documents %}
+          <tr>
+            <td><a href="{% url 'logistics:vehicle_detail' vehicle_id=document.vehicle.id %}">{{ document.vehicle.plate_number }}</a></td>
+            <td>{{ document.get_doc_type_display }}</td>
+            <td>{{ document.reference }}</td>
+            <td>{{ document.expiry_date }}</td>
+            {% if perms.logistics.change_logvehicledocument %}
+              <td>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="document_id" value="{{ document.id }}">
+                  <c-button type="submit">{% trans "Marquer signalé" %}</c-button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <c-empty-state
+      title="{% trans 'Aucune échéance dans cet horizon' %}"
+      body="{% trans 'Aucun document de véhicule n’arrive à échéance dans la période choisie, ou tous ont déjà été signalés. Élargissez l’horizon pour voir plus loin.' %}" />
+  {% endif %}
+{% endblock %}

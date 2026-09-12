@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n core_extras %}
+{% load i18n core_extras currency %}
 {% block title %}{{ vehicle.plate_number }} — WideHalo{% endblock %}
 {% block content %}
 <c-breadcrumb>
@@ -55,7 +55,8 @@
       <tr>
         <th>{% trans "Date" %}</th>
         <th>{% trans "Type" %}</th>
-        <th>{% trans "Montant (MGA)" %}</th>
+        <th class="col-num">{% trans "Montant (MGA)" %}</th>
+        <th>{% trans "Note" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -63,7 +64,15 @@
         <tr>
           <td>{{ cost.date }}</td>
           <td><span class="badge {{ cost.cost_type|state_badge_class }}">{{ cost.get_cost_type_display }}</span></td>
-          <td>{{ cost.amount_mga }}</td>
+          <td class="col-num">{{ cost.amount_mga|mga }}</td>
+          {% comment %} G-5 : la note est la SEULE chose qui distingue deux
+             pleins du meme jour sur le meme vehicule. Elle etait saisie —
+             le formulaire ci-dessous la demande depuis LOG7 — et jamais
+             relue : une saisie qui disparait. Et le montant sortait brut
+             (« 85000.0000 ») la ou le reste du produit ecrit
+             « 85 000 Ar », defaut de la meme famille que les quatre
+             colonnes corrigees en D-0. {% endcomment %}
+          <td>{{ cost.note }}</td>
         </tr>
       {% empty %}
         <tr><td colspan="3">{% trans "Aucun coût enregistre." %}</td></tr>
