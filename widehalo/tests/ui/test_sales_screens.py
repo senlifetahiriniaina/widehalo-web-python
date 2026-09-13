@@ -8,11 +8,13 @@ import pytest
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
+from apps.partners.models import PartnerContact
 from apps.partners.services.onboarding import create_partner
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.orders import add_order_line, create_order
 from apps.sales.services.quotations import add_quotation_line, create_quotation
 from django.test import Client
+from django.urls import reverse
 
 pytestmark = pytest.mark.django_db
 
@@ -530,3 +532,49 @@ def test_order_create_with_multiple_lines_in_one_post(sales_screens_setup) -> No
         assert len(lines) == 2
         assert lines[0].unit_price == Decimal("20000")
         assert lines[1].is_custom is True
+
+
+def test_quotation_detail_offers_a_whatsapp_link_when_the_contact_has_a_number(
+    sales_screens_setup,
+) -> None:
+    """SAL-NOTIF1 (§5.5.9) — `build_whatsapp_link` existait depuis S7 sans
+    aucun appelant : aucun tiers ne portait de numero. Le contact principal
+    en porte un desormais, et la fiche du devis compose enfin le lien que
+    le commercial envoie lui-meme."""
+    client, tenant, _user, _quotation, _order = sales_screens_setup
+    with use_tenant(tenant.id):
+        tiers = create_partner(tenant=tenant, name="Joignable SARL", roles=["client"])
+        PartnerContact.objects.create(
+            tenant=tenant,
+            partner=tiers,
+            full_name="Hery",
+            phone="+261 34 12 345 67",
+            is_primary=True,
+        )
+        devis = create_quotation(
+            tenant=tenant, partner_id=tiers.id, date=dt.date.today(), reference="DEV-WA-0001"
+        )
+
+    reponse = client.get(reverse("sales:quotation_detail", kwargs={"quotation_id": devis.id}))
+    assert reponse.status_code == 200
+    contenu = reponse.content.decode()
+    assert "Envoyer par WhatsApp" in contenu
+    assert "https://wa.me/261341234567?text=Bonjour%2C%20voici%20votre%20devis%20DEV-WA-0001" in (
+        contenu
+    ), "le lien WhatsApp n'est pas compose depuis le numero du contact principal"
+
+
+def test_quotation_detail_offers_no_whatsapp_link_without_a_number(sales_screens_setup) -> None:
+    """Jamais un lien casse : sans numero, rien n'est propose."""
+    client, tenant, _user, _quotation, _order = sales_screens_setup
+    with use_tenant(tenant.id):
+        tiers = create_partner(tenant=tenant, name="Injoignable SARL", roles=["client"])
+        devis = create_quotation(
+            tenant=tenant, partner_id=tiers.id, date=dt.date.today(), reference="DEV-WA-0002"
+        )
+
+    contenu = client.get(
+        reverse("sales:quotation_detail", kwargs={"quotation_id": devis.id})
+    ).content.decode()
+    assert "wa.me" not in contenu
+    assert "Envoyer par WhatsApp" not in contenu

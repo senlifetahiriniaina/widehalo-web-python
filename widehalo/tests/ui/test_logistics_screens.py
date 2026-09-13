@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 import pytest
+from apps.core.models.risk import RiskItem
 from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.services import mfa as mfa_service
@@ -14,11 +16,15 @@ from apps.logistics.models import (
     LogServiceProvider,
     LogVehicle,
 )
+from apps.logistics.services.ai_anomaly_registration import OPEN_TOO_LONG_DAYS
+from apps.logistics.services.customs import create_customs_file
 from apps.logistics.services.shipments import create_shipment
 from apps.logistics.services.trips import create_trip
 from apps.logistics.tests.factories import LogDriverFactory, LogVehicleFactory
+from apps.sales.services.orders import create_order
 from django.contrib.auth.models import Group
 from django.test import Client
+from django.urls import reverse
 from django_otp.oath import totp
 
 pytestmark = pytest.mark.django_db
@@ -386,3 +392,76 @@ def test_settings_hub_links_to_logistics_config(logistics_screens_setup) -> None
     response = admin_client.get("/settings/")
     assert response.status_code == 200
     assert b"/logistics/config/" in response.content
+
+
+def test_shipment_detail_names_the_orders_it_carries(logistics_screens_setup) -> None:
+    """`LogShipment.sales_order_ids` etait ecrit par l'API depuis LOG1 et
+    rendu sur AUCUN ecran ; les deux `get_order_reference` ecrits pour le
+    resoudre n'avaient aucun appelant. La fiche nomme enfin la commande,
+    et y mene."""
+    client, tenant, *_ = logistics_screens_setup
+    with use_tenant(tenant.id):
+        commande = create_order(
+            tenant=tenant, partner_id=uuid.uuid4(), date=dt.date.today(), reference="CMD-LOG-0001"
+        )
+        expedition = create_shipment(
+            tenant, origin="Antananarivo", destination="Toamasina", sales_order_ids=[commande.id]
+        )
+
+    contenu = client.get(
+        reverse("logistics:shipment_detail", kwargs={"shipment_id": expedition.id})
+    ).content.decode()
+    assert "Commandes liées" in contenu
+    assert "CMD-LOG-0001" in contenu, "la reference de la commande transportee n'est pas rendue"
+    assert reverse("sales:order_detail", kwargs={"order_id": commande.id}) in contenu, (
+        "la commande n'est pas atteignable depuis l'expedition"
+    )
+
+
+def test_customs_file_detail_flags_an_old_open_file_as_a_tracked_risk(
+    logistics_screens_setup,
+) -> None:
+    """INT3 — `flag_customs_file_risk` demandait « une vue/action manuelle »
+    et n'en avait aucune : l'anomalie DETECTAIT, personne ne pouvait
+    materialiser. L'effet se lit en base, la ou il est ecrit."""
+    client, tenant, *_, shipment = logistics_screens_setup
+    with use_tenant(tenant.id):
+        dossier = create_customs_file(
+            tenant,
+            shipment=shipment,
+            opened_at=dt.date.today() - dt.timedelta(days=OPEN_TOO_LONG_DAYS + 1),
+        )
+    url = reverse("logistics:customs_file_detail", kwargs={"customs_file_id": dossier.id})
+
+    fiche = client.get(url)
+    assert fiche.status_code == 200
+    assert "Signaler comme risque" in fiche.content.decode()
+    assert "Aucun risque suivi" in fiche.content.decode()
+
+    reponse = client.post(
+        url, {"action": "flag_risk", "mitigation_plan": "Relancer le transitaire"}
+    )
+    assert reponse.status_code == 302
+    with use_tenant(tenant.id):
+        risque = RiskItem.objects.get(object_id=str(dossier.id))
+        assert risque.mitigation_plan == "Relancer le transitaire"
+
+    contenu = client.get(url).content.decode()
+    assert "Relancer le transitaire" in contenu, "le risque signale n'est pas rendu sur la fiche"
+
+
+def test_customs_file_detail_refuses_to_flag_a_recent_file(logistics_screens_setup) -> None:
+    """Le cas NORMAL — un dossier ouvert recemment — n'est pas un risque,
+    et le refus le dit plutot que de creer du bruit."""
+    client, tenant, *_, shipment = logistics_screens_setup
+    with use_tenant(tenant.id):
+        dossier = create_customs_file(tenant, shipment=shipment)
+    url = reverse("logistics:customs_file_detail", kwargs={"customs_file_id": dossier.id})
+
+    reponse = client.post(url, {"action": "flag_risk"})
+    assert reponse.status_code == 200
+    # L'apostrophe est echappee par le gabarit (`&#x27;`) : on cherche le
+    # fragment qui n'en porte pas.
+    assert "pas à risque : il est ouvert depuis moins de" in reponse.content.decode()
+    with use_tenant(tenant.id):
+        assert not RiskItem.objects.filter(object_id=str(dossier.id)).exists()

@@ -20,11 +20,6 @@ if TYPE_CHECKING:
     from apps.core.models.tenant import Tenant
 
 
-def get_quotation_reference(quotation_id: Any) -> str:
-    quotation = SalesQuotation.objects.filter(id=quotation_id).first()
-    return quotation.reference if quotation is not None else ""
-
-
 def get_order_reference(order_id: Any) -> str:
     order = SalesOrder.objects.filter(id=order_id).first()
     return order.reference if order is not None else ""
@@ -49,7 +44,16 @@ def get_margin_summary(*, role_codes: set[str]) -> dict[str, Decimal] | None:
     lignes si `role_codes` n'y donne pas droit, auquel cas cette fonction
     renvoie `None` plutot qu'un cout de revient invente a zero (le socle de
     simulation doit alors se rabattre sur `revenue_report` seul pour la
-    marge — cf. `apps.simulation.services.baseline`)."""
+    marge — cf. `apps.simulation.services.baseline`).
+
+    **Sans appelant au 13/09 (H-2), et c'est ecrit plutot que tu.** Le
+    consommateur annonce — `simulation.services.baseline` — ne lit que
+    `get_revenue_summary` : le socle de simulation ne calcule aucune marge
+    a ce jour, et `apps/simulation/module.py` cite cette fonction comme un
+    gap DECLARE, pas consomme. La supprimer obligerait a reecrire cette
+    declaration ; inventer un calcul de marge dans `simulation` pour la
+    seule raison de lui donner un appelant serait de la decoration. Elle
+    attend le calcul qui la lira."""
     from apps.sales.services.reports import margin_report
 
     rows = margin_report(role_codes=role_codes)
@@ -72,7 +76,17 @@ def get_delivered_qty_for_order(order_id: Any) -> Decimal | None:
     `mrp.services.public.get_order_produced_qty`/`get_supplier_score` : un
     appelant qui recoit `None` doit pouvoir distinguer "commande introuvable"
     de "commande existante mais rien livre" (`Decimal(0)`, une commande
-    existante sans aucune ligne livree)."""
+    existante sans aucune ligne livree).
+
+    **Sans appelant au 13/09 (H-2), et c'est ecrit plutot que tu.** Le
+    consommateur qui l'a demandee — `stocks.services.consistency` — a
+    ecrit, dans sa propre docstring, POURQUOI il ne l'appelle pas : le
+    stock ne garde aucune trace de l'ordre de fabrication qui a produit
+    une unite livree, et une correlation approximative laisserait croire
+    a une precision qu'elle n'a pas. La fonction est la jambe « livre au
+    client » d'une tracabilite dont l'autre jambe n'existe pas encore ;
+    elle reste, avec ses tests, pour le jour ou `StkMove.source_document`
+    saura designer une livraison."""
     if not SalesOrder.objects.filter(id=order_id).exists():
         return None
     total = SalesOrderLine.objects.filter(order_id=order_id).aggregate(total=Sum("qty_delivered"))[

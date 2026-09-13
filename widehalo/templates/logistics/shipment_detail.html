@@ -37,6 +37,17 @@
   <p>{% trans "Coût de fret" %}: {{ shipment.freight_cost_mga }} MGA</p>
   {% if shipment.freight_billed_to_customer_mga %}<p>{% trans "Refacture au client" %}: {{ shipment.freight_billed_to_customer_mga }} MGA</p>{% endif %}
 
+  <h2>{% trans "Commandes liées" %}</h2>
+  <ul>
+    {% for commande in commandes_liees %}
+      <li>{{ commande.type }} —
+        {% if commande.reference %}{% if commande.url %}<a href="{{ commande.url }}">{{ commande.reference }}</a>{% else %}{{ commande.reference }}{% endif %}
+        {% else %}<span class="hint">{% trans "commande introuvable" %}</span>{% endif %}</li>
+    {% empty %}
+      <li>{% trans "Aucune commande liée." %}</li>
+    {% endfor %}
+  </ul>
+
   <h3>{% trans "Refacturer le fret au client (LOG-REFACT1)" %}</h3>
   {% if perms.logistics.change_logshipment %}
     <form method="post">

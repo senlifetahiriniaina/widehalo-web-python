@@ -26,6 +26,7 @@ from apps.core.models.tenant import Tenant
 from apps.core.models.user import User
 from apps.core.tests.utils import grant_role, use_tenant
 from apps.logistics.models import LogServiceProvider
+from apps.logistics.services.trips import create_trip, record_stop_completion
 from apps.logistics.tests.factories import LogDriverFactory, LogVehicleFactory
 
 pytestmark = pytest.mark.django_db
@@ -523,3 +524,61 @@ def test_carrier_webhook_accepts_valid_signature_and_rejects_invalid(api_logisti
         HTTP_X_SIGNATURE="not-the-right-signature",
     )
     assert invalid_response.status_code == 403
+
+
+def test_a_completed_stop_position_is_masked_outside_work_hours_on_the_api(
+    api_logistics,
+) -> None:
+    """LOG-GEO1 — `get_stop_location` masque la position hors heures de
+    travail depuis LOG1, et n'avait AUCUN appelant : l'API servait la
+    position brute, donc la regle n'existait pour personne. Un arret non
+    encore visite garde ses coordonnees PLANIFIEES (la donnee du
+    dispatcheur, pas celle du chauffeur)."""
+    tenant, user, vehicle, driver = api_logistics
+    client = Client()
+    token = _access_token(client, user.email, "Str0ngPassw0rd!23")
+    headers = _headers(token, str(tenant.id))
+    with use_tenant(tenant.id):
+        trip = create_trip(
+            tenant,
+            vehicle=vehicle,
+            driver=driver,
+            date=dt.date.today(),
+            stops=[
+                {
+                    "address": "Client B",
+                    "type": "dropoff",
+                    "latitude": Decimal("-18.9"),
+                    "longitude": Decimal("47.5"),
+                }
+            ],
+        )
+        stop = trip.stops.get()
+    url = f"/api/v1/logistics/trips/{trip.id}"
+
+    planifie = client.get(url, **headers).json()["stops"][0]
+    assert planifie["latitude"] is not None, (
+        "les coordonnees planifiees d'un arret non visite doivent rester lisibles"
+    )
+
+    # 22 h a Antananarivo (UTC+3) : hors de la fenetre de travail [6 h, 20 h).
+    with use_tenant(tenant.id):
+        record_stop_completion(
+            stop,
+            actual_time=dt.datetime(2026, 1, 15, 19, 0, tzinfo=dt.UTC),
+            latitude=Decimal("-18.91"),
+            longitude=Decimal("47.52"),
+        )
+    nuit = client.get(url, **headers).json()["stops"][0]
+    assert nuit["latitude"] is None and nuit["longitude"] is None, (
+        "la position du chauffeur hors heures de travail est servie brute par l'API"
+    )
+    assert nuit["actual_time"], "l'arret doit rester visiblement termine"
+
+    # 10 h a Antananarivo : dans la fenetre — la position se lit.
+    with use_tenant(tenant.id):
+        stop.actual_time = dt.datetime(2026, 1, 15, 7, 0, tzinfo=dt.UTC)
+        stop.save(update_fields=["actual_time"])
+    jour = client.get(url, **headers).json()["stops"][0]
+    assert Decimal(str(jour["latitude"])) == Decimal("-18.91")
+    assert Decimal(str(jour["longitude"])) == Decimal("47.52")

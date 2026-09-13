@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal, InvalidOperation
-from typing import cast
+from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -29,7 +29,9 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.catalog.services.public import list_sellable_variants
 from apps.core.identifiers import parse_uuid
+from apps.core.models.risk import RiskItem
 from apps.core.models.user import User
+from apps.core.services.document_screens import resolve_document_url
 from apps.core.services.next_steps import next_steps_for
 from apps.core.services.permissions import screen_forbidden, screen_permission
 from apps.core.services.workflow import TransitionPermissionError
@@ -50,10 +52,12 @@ from apps.logistics.models import (
     LogVehicle,
     LogVehicleDocument,
 )
+from apps.logistics.services.ai_anomaly_registration import OPEN_TOO_LONG_DAYS
 from apps.logistics.services.customs import (
     add_customs_line,
     close_customs_file,
     create_customs_file,
+    flag_customs_file_risk,
     mark_customs_file_cleared,
 )
 from apps.logistics.services.packaging import compute_packaging_plan
@@ -91,6 +95,8 @@ from apps.logistics.services.vehicles import (
     record_vehicle_cost,
     upcoming_document_alerts,
 )
+from apps.purchase.services.public import get_order_reference as reference_commande_achat
+from apps.sales.services.public import get_order_reference as reference_commande_vente
 
 
 def _error_message(exc: Exception) -> str:
@@ -601,6 +607,37 @@ def shipment_create(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _commandes_liees(shipment: LogShipment) -> list[dict[str, Any]]:
+    """Les commandes que l'expedition transporte, par leur REFERENCE.
+
+    `LogShipment.sales_order_ids`/`purchase_order_ids` sont des listes
+    d'UUID nus (regle de couplage n°1) : ecrites par l'API depuis LOG1,
+    elles n'etaient rendues sur AUCUN ecran — et les deux resolveurs
+    `get_order_reference` de `sales` et de `purchase`, ecrits pour cet
+    usage precis (leur docstring le dit), n'avaient aucun appelant. Le
+    lien retour passe par le registre des ecrans de pieces (T8), jamais
+    par un `reverse` en dur d'un autre module ; `purchase` n'y declare
+    pas encore d'ecran, sa reference se lit sans lien."""
+    lignes: list[dict[str, Any]] = []
+    for order_id in shipment.sales_order_ids:
+        lignes.append(
+            {
+                "type": _("Vente"),
+                "reference": reference_commande_vente(order_id),
+                "url": resolve_document_url("sales.SalesOrder", order_id),
+            }
+        )
+    for order_id in shipment.purchase_order_ids:
+        lignes.append(
+            {
+                "type": _("Achat"),
+                "reference": reference_commande_achat(order_id),
+                "url": resolve_document_url("purchase.PurOrder", order_id),
+            }
+        )
+    return lignes
+
+
 @login_required
 @screen_permission("logistics.view_logshipment")
 def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
@@ -684,6 +721,7 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
         {
             "next_steps": next_steps_for(shipment, user),
             "shipment": shipment,
+            "commandes_liees": _commandes_liees(shipment),
             "legs": shipment.legs.all(),
             "customs_files": shipment.customs_files.all(),
             "carriers": LogServiceProvider.objects.filter(is_active=True),
@@ -698,10 +736,24 @@ def shipment_detail(request: HttpRequest, shipment_id: str) -> HttpResponse:
     )
 
 
+def _risques_du_dossier(customs_file: LogCustomsFile) -> list[RiskItem]:
+    """Les risques suivis rattaches a ce dossier — pour que l'exploitant
+    voie ce qu'il vient de signaler, et ne le signale pas deux fois."""
+    from django.contrib.contenttypes.models import ContentType
+
+    return list(
+        RiskItem.objects.filter(
+            content_type=ContentType.objects.get_for_model(LogCustomsFile),
+            object_id=str(customs_file.id),
+        ).order_by("-created_at")
+    )
+
+
 @login_required
 @screen_permission("logistics.view_logcustomsfile")
 def customs_file_detail(request: HttpRequest, customs_file_id: str) -> HttpResponse:
     customs_file = get_object_or_404(LogCustomsFile, id=customs_file_id)
+    user = cast(User, request.user)
     error = None
 
     if request.method == "POST":
@@ -733,6 +785,24 @@ def customs_file_detail(request: HttpRequest, customs_file_id: str) -> HttpRespo
                 mark_customs_file_cleared(customs_file)
             elif action == "close":
                 close_customs_file(customs_file)
+            elif action == "flag_risk":
+                # INT3 — `flag_customs_file_risk` demandait un « point
+                # d'entree explicite (vue/action manuelle) » et n'en avait
+                # aucun : l'anomalie deterministe DETECTAIT le dossier a
+                # risque, personne ne pouvait le MATERIALISER en risque
+                # suivi (H-2, 13/09). Le cas normal — un dossier recent —
+                # rend `None`, et le refus le dit.
+                risque = flag_customs_file_risk(
+                    customs_file, owner=user, mitigation_plan=post.get("mitigation_plan", "")
+                )
+                if risque is None:
+                    raise ValidationError(
+                        _(
+                            "Ce dossier n'est pas à risque : il est ouvert depuis moins de "
+                            "%(jours)s jours."
+                        )
+                        % {"jours": OPEN_TOO_LONG_DAYS}
+                    )
         except (ValidationError, InvalidOperation, ValueError) as exc:
             error = _error_message(exc)
         else:
@@ -744,6 +814,7 @@ def customs_file_detail(request: HttpRequest, customs_file_id: str) -> HttpRespo
         {
             "customs_file": customs_file,
             "lines": customs_file.lines.all(),
+            "risques": _risques_du_dossier(customs_file),
             "hs_codes": LogHsCode.objects.filter(is_active=True),
             "error": error,
         },

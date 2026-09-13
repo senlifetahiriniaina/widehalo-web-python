@@ -19,7 +19,7 @@ from apps.core.services.entity_resolution import (
     ResolutionResult,
     normalize_name,
 )
-from apps.partners.models import Partner
+from apps.partners.models import Partner, PartnerContact
 from apps.partners.services import defaults as _defaults
 
 # Constantes de role republiees pour les modules appelants (jamais un
@@ -58,6 +58,19 @@ def is_over_credit_limit(partner_id: Any, outstanding_amount_mga: Decimal) -> bo
 def get_partner_display_name(partner_id: Any) -> str:
     partner = Partner.objects.filter(id=partner_id).first()
     return partner.name if partner is not None else ""
+
+
+def get_partner_phone(partner_id: Any) -> str:
+    """Le numero de telephone du tiers — lu sur son contact PRINCIPAL, a
+    defaut sur le premier contact qui en porte un. `Partner` n'a aucun
+    champ telephone ; c'est `PartnerContact.phone` qui le porte.
+
+    Chaine vide, jamais une exception, si le tiers ou le numero n'existe
+    pas : l'appelant (le lien WhatsApp du devis, SAL-NOTIF1) n'affiche
+    alors simplement rien plutot qu'un lien casse."""
+    contacts = PartnerContact.objects.filter(partner_id=partner_id).exclude(phone="")
+    contact = contacts.filter(is_primary=True).first() or contacts.first()
+    return contact.phone if contact is not None else ""
 
 
 def get_partner_display_names(partner_ids: Iterable[Any]) -> dict[str, str]:

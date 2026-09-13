@@ -81,6 +81,7 @@ from apps.logistics.services.trips import (
     close_trip,
     create_trip,
     create_trip_template,
+    get_stop_location,
     record_stop_completion,
     reorder_stops,
     start_trip,
@@ -333,13 +334,24 @@ class TripTemplateIn(Schema):
 
 
 def _serialize_trip_stop(stop: LogTripStop) -> dict[str, Any]:
+    # LOG-GEO1 — la position du CHAUFFEUR est masquee hors heures de
+    # travail, a la lecture. `get_stop_location` tenait cette regle depuis
+    # LOG1 et n'avait AUCUN appelant : l'API servait la position brute,
+    # donc la regle n'existait pour personne (H-2, 13/09). Un arret non
+    # encore visite garde ses coordonnees PLANIFIEES — la donnee du
+    # dispatcheur, pas celle du chauffeur ; c'est a la completion qu'elles
+    # deviennent la position enregistree.
+    if stop.actual_time is None:
+        position = (stop.latitude, stop.longitude)
+    else:
+        position = get_stop_location(stop) or (None, None)
     return {
         "id": str(stop.id),
         "sequence": stop.sequence,
         "type": stop.type,
         "address": stop.address,
-        "latitude": stop.latitude,
-        "longitude": stop.longitude,
+        "latitude": position[0],
+        "longitude": position[1],
         "planned_time": stop.planned_time,
         "actual_time": stop.actual_time,
         "status": stop.status,

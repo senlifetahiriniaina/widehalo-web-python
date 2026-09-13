@@ -31,6 +31,10 @@
   <p>{% trans "Partenaire" %}:
     {% if quotation.partner_display %}{{ quotation.partner_display }}
     {% else %}<span class="hint">{% trans "tiers introuvable" %}</span>{% endif %}</p>
+  {% if whatsapp_link %}
+    {% comment %}SAL-NOTIF1 — lien manuel : le commercial l'envoie lui-même, rien ne part tout seul.{% endcomment %}
+    <p><a href="{{ whatsapp_link }}" target="_blank" rel="noopener">{% trans "Envoyer par WhatsApp" %}</a></p>
+  {% endif %}
   {% comment %}
     L17 — conditionne par le REGIME (`tenant_is_vat_liable`, pose par le
     processeur de contexte de `core`), jamais par le montant de TVA.

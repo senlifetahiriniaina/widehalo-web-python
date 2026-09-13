@@ -131,7 +131,16 @@ def list_shipments_for_purchase_order(purchase_order_id: Any) -> list[dict[str, 
 def get_shipment_reference(shipment_id: Any) -> str:
     """Retourne une chaine vide, jamais une exception, si l'expedition
     n'existe pas — meme discipline que `purchase.services.public.
-    get_order_reference`."""
+    get_order_reference`.
+
+    **Sans appelant au 13/09 (H-2), et c'est ecrit plutot que tu.** Le
+    consommateur annonce est `financing` (`FinCredocDossier.log_shipment_id`,
+    un UUID nu) — mais sa chronologie resout les expeditions par la
+    commande d'achat (`list_shipments_for_purchase_order`), qui rend deja
+    la reference, et aucun ecran de `financing` ne montre `log_shipment_id`.
+    La fonction attend l'ecran qui affichera ce champ ; la supprimer
+    romprait la symetrie avec les deux `get_order_reference` que la fiche
+    d'expedition consomme desormais."""
     shipment = LogShipment.objects.filter(id=shipment_id).first()
     return shipment.reference if shipment is not None else ""
 

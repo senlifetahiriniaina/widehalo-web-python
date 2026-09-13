@@ -26,6 +26,23 @@
   {% if customs_file.cleared_at %}<p>{% trans "Dédouané le" %}: {{ customs_file.cleared_at }}</p>{% endif %}
   {% if customs_file.closed_at %}<p>{% trans "Clôturé le" %}: {{ customs_file.closed_at }}</p>{% endif %}
 
+  <h2>{% trans "Risques suivis" %}</h2>
+  <ul>
+    {% for risque in risques %}
+      <li>{% trans "Score" %} {{ risque.score }} — {{ risque.get_status_display }}{% if risque.mitigation_plan %} — {{ risque.mitigation_plan }}{% endif %}</li>
+    {% empty %}
+      <li>{% trans "Aucun risque suivi pour ce dossier." %}</li>
+    {% endfor %}
+  </ul>
+  {% if customs_file.state == "open" and perms.logistics.change_logcustomsfile %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="flag_risk">
+      <input type="text" name="mitigation_plan" placeholder="{% trans 'Plan de traitement (optionnel)' %}">
+      <c-button variant="danger" type="submit">{% trans "Signaler comme risque" %}</c-button>
+    </form>
+  {% endif %}
+
   <h2>{% trans "Lignes (RG-LOG-6)" %}</h2>
   <table class="smart-table">
     <thead>

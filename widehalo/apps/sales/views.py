@@ -17,6 +17,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.formats import number_format
 from django.utils.translation import gettext_lazy as _
 
 from apps.accounting.services.public import list_payment_terms
@@ -34,10 +35,12 @@ from apps.core.views.presentation import presentation_response
 from apps.core.views.smart_table import Column
 from apps.core.views.tenant_web import resolve_tenant
 from apps.flows.services.public import document_exchange_panel
+from apps.partners.services.public import get_partner_phone
 from apps.sales.models import SalesOrder, SalesQuotation
 from apps.sales.services.flow_schema_registration import DOCUMENT_ORDER, DOCUMENT_QUOTATION
 from apps.sales.services.invoicing import invoice_order
 from apps.sales.services.next_steps_registration import _enrichir_partenaires
+from apps.sales.services.notifications import build_whatsapp_link
 from apps.sales.services.orders import (
     add_order_line,
     cancel_order,
@@ -244,6 +247,31 @@ _QUOTATION_ACTIONS = {
 }
 
 
+def _lien_whatsapp(quotation: SalesQuotation) -> str | None:
+    """SAL-NOTIF1 (§5.5.9) — le lien `wa.me` pre-rempli que le commercial
+    envoie LUI-MEME au client ; aucun envoi automatique.
+
+    `build_whatsapp_link` existait depuis S7 sans aucun appelant : sa
+    docstring expliquait qu'aucun tiers ne portait de numero. Le contact
+    principal en porte un depuis, et `partners` l'expose — le lien a enfin
+    de quoi se composer. Aucun lien sans reference : un brouillon ne
+    s'envoie pas, et un message « voici votre devis » sans numero de piece
+    ne se comprend pas."""
+    if not quotation.reference:
+        return None
+    telephone = get_partner_phone(quotation.partner_id)
+    if not telephone:
+        return None
+    message = _(
+        "Bonjour, voici votre devis %(reference)s d'un montant de %(montant)s %(devise)s."
+    ) % {
+        "reference": quotation.reference,
+        "montant": number_format(quotation.amount_total, decimal_pos=0, force_grouping=True),
+        "devise": quotation.currency,
+    }
+    return build_whatsapp_link(telephone, str(message))
+
+
 @login_required
 @screen_permission("sales.view_salesquotation")
 def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
@@ -289,6 +317,7 @@ def quotation_detail(request: HttpRequest, quotation_id: str) -> HttpResponse:
         {
             "next_steps": next_steps_for(quotation, user),
             "quotation": quotation,
+            "whatsapp_link": _lien_whatsapp(quotation),
             "lines": quotation.lines.all(),
             "can_see_margin": _can_see_margin(user),
             "sellable_variants": list_sellable_variants(),
