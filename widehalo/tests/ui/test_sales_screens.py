@@ -49,11 +49,18 @@ def test_quotation_list_screen_renders(sales_screens_setup) -> None:
 
 
 def test_quotation_create_screen(sales_screens_setup) -> None:
-    client, *_ = sales_screens_setup
+    """H-2b : un POST de creation se prouve en relisant la base, jamais par
+    sa seule redirection — un 302 vers une liste vide est un 302."""
+    client, tenant, *_ = sales_screens_setup
+    partenaire = uuid.uuid4()
     response = client.post(
-        "/sales/new/", {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())}
+        "/sales/new/", {"partner_id": str(partenaire), "date": str(dt.date.today())}
     )
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        assert SalesQuotation.objects.filter(partner_id=partenaire).exists(), (
+            "le devis n'a pas ete cree"
+        )
 
 
 def test_quotation_create_screen_embeds_partner_picker(sales_screens_setup) -> None:
@@ -126,11 +133,17 @@ def test_order_list_screen_renders_and_filters_by_state(sales_screens_setup) -> 
 
 
 def test_order_create_screen(sales_screens_setup) -> None:
-    client, *_ = sales_screens_setup
+    """H-2b : meme discipline que le devis — la commande se relit en base."""
+    client, tenant, *_ = sales_screens_setup
+    partenaire = uuid.uuid4()
     response = client.post(
-        "/sales/orders/new/", {"partner_id": str(uuid.uuid4()), "date": str(dt.date.today())}
+        "/sales/orders/new/", {"partner_id": str(partenaire), "date": str(dt.date.today())}
     )
     assert response.status_code == 302
+    with use_tenant(tenant.id):
+        assert SalesOrder.objects.filter(partner_id=partenaire).exists(), (
+            "la commande n'a pas ete creee"
+        )
 
 
 def test_order_create_screen_embeds_partner_picker(sales_screens_setup) -> None:
@@ -294,15 +307,23 @@ def test_margin_column_hidden_for_plain_commercial_screen(sales_screens_setup) -
 
 
 def test_reports_index_renders(sales_screens_setup) -> None:
+    """H-2b : les rapports proposes, et non le seul statut 200."""
     client, *_ = sales_screens_setup
     response = client.get("/sales/reports/")
     assert response.status_code == 200
+    contenu = response.content.decode()
+    for rapport in ("Chiffre d'affaires (SAL-CA)", "Analyse de marge (SAL-MARGE)"):
+        assert rapport.replace("'", "&#x27;") in contenu or rapport in contenu, (
+            f"Rapport « {rapport} » absent de l'index des ventes"
+        )
 
 
 def test_config_recurrences_screen_renders(sales_screens_setup) -> None:
+    """H-2b : l'ecran des recurrences annonce ce qu'il configure."""
     client, *_ = sales_screens_setup
     response = client.get("/sales/config/recurrences/")
     assert response.status_code == 200
+    assert "Commande gabarit" in response.content.decode()
 
 
 def test_quotation_create_screen_renders_reference_payment_term_and_incoterm_fields(

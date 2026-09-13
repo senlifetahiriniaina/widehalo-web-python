@@ -114,6 +114,9 @@ def test_trip_list_and_create_screens(logistics_screens_setup) -> None:
 
     response = client.get("/logistics/trips/")
     assert response.status_code == 200
+    # H-2b : la liste annonce ce qu'elle est et ce qu'elle permet.
+    assert "Trajets" in response.content.decode()
+    assert "Nouveau trajet" in response.content.decode()
 
     response = client.post(
         "/logistics/trips/new/",
@@ -150,6 +153,9 @@ def test_trip_template_list_screen_create(logistics_screens_setup) -> None:
 
     response = client.get("/logistics/trip-templates/")
     assert response.status_code == 200
+    # H-2b : le gabarit cree doit reparaitre dans la liste — verifie en fin
+    # de test, apres le POST ; ici l'ecran s'annonce.
+    assert "Gabarits de tourn" in response.content.decode()
 
     response = client.post(
         "/logistics/trip-templates/",
@@ -257,6 +263,15 @@ def test_customs_file_detail_add_line_mark_cleared_and_close(logistics_screens_s
     )
     assert response.status_code == 302
 
+    # H-2b : `customs_file_detail.html` n'etait RENDU par aucun test — ce
+    # test ne faisait que POSTer et relire la base. On ouvre enfin la
+    # fiche, et on y cherche la ligne qui vient d'etre ajoutee.
+    fiche = client.get(customs_file_url)
+    assert fiche.status_code == 200
+    assert "T-shirts en coton" in fiche.content.decode(), (
+        "la ligne du dossier douanier n'est pas rendue sur sa fiche"
+    )
+
     response = client.post(customs_file_url, {"action": "mark_cleared"})
     assert response.status_code == 302
 
@@ -278,6 +293,8 @@ def test_config_screens_render_and_create(logistics_screens_setup) -> None:
 
     response = client.get("/logistics/config/")
     assert response.status_code == 200
+    # H-2b : un hub vide rend 200 ; on verifie ses tuiles.
+    assert "Configuration Logistique" in response.content.decode()
 
     response = client.get("/logistics/config/packaging-types/")
     assert response.status_code == 200
@@ -286,6 +303,9 @@ def test_config_screens_render_and_create(logistics_screens_setup) -> None:
         {"code": "CTN-UI", "name": "Carton UI", "tare_weight_kg": "1"},
     )
     assert response.status_code == 302
+    assert "Carton UI" in client.get("/logistics/config/packaging-types/").content.decode(), (
+        "le type d'emballage cree ne reparait pas dans la liste"
+    )
 
     response = client.get("/logistics/config/service-providers/")
     assert response.status_code == 200
@@ -324,6 +344,8 @@ def test_reports_screen_and_downloads(logistics_screens_setup) -> None:
 
     response = client.get("/logistics/reports/")
     assert response.status_code == 200
+    # H-2b : l'index des rapports s'annonce.
+    assert "Rapports Logistique" in response.content.decode()
 
     response = client.get("/logistics/reports/vehicle-costs/")
     assert response.status_code == 200

@@ -51,18 +51,10 @@ FICHIERS = (
 #: Dette declaree au 11/09/2026, apres la correction de neuf tests muets.
 #: Chaque entree est un test qui n'assere encore qu'un code de statut. Cette
 #: liste doit RETRECIR ; elle ne peut jamais s'allonger.
-DETTE: frozenset[str] = frozenset(
-    {
-        "ui/test_sales_screens.py::test_quotation_create_screen",
-        "ui/test_sales_screens.py::test_order_create_screen",
-        "ui/test_sales_screens.py::test_reports_index_renders",
-        "ui/test_sales_screens.py::test_config_recurrences_screen_renders",
-        "ui/test_logistics_screens.py::test_trip_list_and_create_screens",
-        "ui/test_logistics_screens.py::test_trip_template_list_screen_create",
-        "ui/test_logistics_screens.py::test_config_screens_render_and_create",
-        "ui/test_logistics_screens.py::test_reports_screen_and_downloads",
-    }
-)
+#: VIDE depuis H-2b (13/09) : les 14 tests muets mesures sur les huit
+#: fichiers ont tous recu une assertion de contenu. Une entree neuve ici
+#: serait une regression, pas une dette.
+DETTE: frozenset[str] = frozenset()
 
 
 def _tests_muets() -> set[str]:
