@@ -55,6 +55,26 @@
           {% else %}
             <p class="hint">{% trans "Aucun document de vente pour ce tiers." %}</p>
           {% endif %}
+
+          {% comment %}
+            A4 (PT4) — les factures du tiers. Les deux listes existaient
+            dans accounting.services.public depuis PT4 sans aucun
+            appelant : la fiche montrait devis et commandes, jamais ce qui
+            a ete facture.
+          {% endcomment %}
+          <h2 style="font-size:1rem;">{% trans "Dernières factures" %}</h2>
+          {% if commercial_summary.recent_customer_invoices or commercial_summary.recent_supplier_invoices %}
+            <ul>
+              {% for row in commercial_summary.recent_customer_invoices %}
+                <li>{% trans "Facture client" %} {{ row.reference }} — {{ row.date }} — {{ row.invoice_state }} — {{ row.total_debit }} MGA</li>
+              {% endfor %}
+              {% for row in commercial_summary.recent_supplier_invoices %}
+                <li>{% trans "Facture fournisseur" %} {{ row.reference }} — {{ row.date }} — {{ row.invoice_state }} — {{ row.total_debit }} MGA</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="hint">{% trans "Aucune facture pour ce tiers." %}</p>
+          {% endif %}
         </div>
       </section>
 

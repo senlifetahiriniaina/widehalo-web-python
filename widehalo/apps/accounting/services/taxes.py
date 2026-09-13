@@ -40,7 +40,19 @@ def vat_applicable(tenant: Tenant) -> bool:
 
 def applicable_taxes(tenant: Tenant, *, tax_type: str = AccTax.TYPE_SALE) -> list[AccTax]:
     """Liste des taxes utilisables par ce tenant — vide pour un tenant non
-    assujetti, quelle que soit la configuration de taxes existante."""
+    assujetti, quelle que soit la configuration de taxes existante.
+
+    **Aucun appelant de production au 13/09 (A4), et gardee quand meme.**
+    Le triage des chaines inertes proposait « appelant ou suppression ».
+    Ni l'un ni l'autre ici, et la raison est mesuree : quatre assertions de
+    `test_taxes_and_terms.py` tiennent la clause « aucune AccTax n'est
+    PROPOSEE » de RG-ACC-5 contre CETTE fonction — c'est l'implementation
+    de reference que les tests opposent au regime fiscal. `sales` et le POS
+    passent par `public.get_default_sale_tax`/`get_sale_tax`, qui portent
+    la meme garde (ajoutee en L5 apres que les deux surfaces se sont
+    contredites). Supprimer la reference pour satisfaire une doctrine
+    effacerait une garantie reglementaire testee ; lui forger un appelant
+    serait de la decoration. Elle reste, avec ce motif."""
     if not vat_applicable(tenant):
         return []
     return list(AccTax.objects.filter(tenant=tenant, type=tax_type))

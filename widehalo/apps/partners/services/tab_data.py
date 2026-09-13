@@ -10,7 +10,9 @@ from typing import Any
 
 from apps.accounting.services.public import (
     get_partner_account_balance,
+    list_customer_invoices_for_partner,
     list_ledger_entries_for_partner,
+    list_supplier_invoices_for_partner,
 )
 from apps.catalog.services.public import list_supplier_products
 from apps.financing.services.public import (
@@ -64,6 +66,17 @@ def build_commercial_summary(partner: Partner) -> dict[str, Any]:
             partner.id, limit=RECENT_SALES_DOCUMENT_COUNT
         ),
         "recent_orders": list_sales_orders(partner.id, limit=RECENT_SALES_DOCUMENT_COUNT),
+        # A4 (PT4) — les deux listes de factures existaient dans
+        # `accounting.services.public` depuis le chantier PT4 et n'avaient
+        # AUCUN appelant : la fiche montrait devis et commandes, jamais ce
+        # qui a ete facture. `partners` declare `accounting` : c'est leur
+        # place legitime, et c'est ce que CRM-2 appelle « les documents ».
+        "recent_customer_invoices": list_customer_invoices_for_partner(
+            partner.id, limit=RECENT_SALES_DOCUMENT_COUNT
+        ),
+        "recent_supplier_invoices": list_supplier_invoices_for_partner(
+            partner.id, limit=RECENT_SALES_DOCUMENT_COUNT
+        ),
     }
 
 

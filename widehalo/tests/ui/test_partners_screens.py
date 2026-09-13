@@ -152,3 +152,58 @@ def test_partner_edit_forbidden_without_change_permission() -> None:
         {"name": "Should Not Change", "roles": ["client"], "credit_limit_mga": "1"},
     )
     assert response.status_code == 403
+
+
+def test_partner_detail_shows_the_partner_invoices() -> None:
+    """A4 (PT4) — `list_customer_invoices_for_partner` et sa jumelle
+    fournisseur existaient dans `accounting.services.public` depuis le
+    chantier PT4 sans AUCUN appelant. La fiche tiers montrait devis et
+    commandes, jamais ce qui a ete facture — alors que CRM-2 exige « les
+    documents » sans navigation supplementaire, et que `partners` declare
+    `accounting` : la place etait libre et legitime."""
+    import datetime as dt
+
+    from apps.accounting.models import AccFiscalYear, AccJournal, AccMove, AccPeriod
+
+    tenant = Tenant.objects.create(code="UI-PT4", name="UI Partner Invoices Tenant")
+    user = User.objects.create_user(email="ui-pt4@example.com", password="Str0ngPassw0rd!23")
+    client = _login_with_tenant(tenant, user)
+
+    with use_tenant(tenant.id):
+        tiers = create_partner(tenant=tenant, name="Facturee SARL", roles=["client"])
+        exercice = AccFiscalYear.objects.create(
+            tenant=tenant,
+            code="FY2026",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 12, 31),
+        )
+        periode = AccPeriod.objects.create(
+            tenant=tenant,
+            fiscal_year=exercice,
+            code="2026-01",
+            date_start=dt.date(2026, 1, 1),
+            date_end=dt.date(2026, 1, 31),
+        )
+        journal = AccJournal.objects.create(
+            tenant=tenant,
+            code="VTE",
+            name="Ventes",
+            type=AccJournal.TYPE_SALE,
+            sequence_prefix="VTE",
+        )
+        AccMove.objects.create(
+            tenant=tenant,
+            journal=journal,
+            period=periode,
+            date=dt.date(2026, 1, 20),
+            partner_id=tiers.id,
+            move_type=AccMove.TYPE_CUSTOMER_INVOICE,
+            reference="FAC-PT4-0001",
+            total_debit=Decimal("250000"),
+        )
+
+    reponse = client.get(f"/partners/{tiers.id}/")
+    assert reponse.status_code == 200
+    contenu = reponse.content.decode()
+    assert "Dernières factures" in contenu
+    assert "FAC-PT4-0001" in contenu, "la facture du tiers n'est pas rendue sur sa fiche"

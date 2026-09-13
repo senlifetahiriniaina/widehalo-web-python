@@ -1542,7 +1542,15 @@ def list_accounts_for_warehouse(tenant: Tenant) -> list[dict[str, Any]]:
     INCLUANT les comptes désactivés (une écriture historique doit rester
     rattachable à son compte même si celui-ci a depuis été désactivé —
     contrairement à `list_accounts` ci-dessus, pensé pour un sélecteur de
-    saisie qui ne doit proposer que des comptes actifs)."""
+    saisie qui ne doit proposer que des comptes actifs).
+
+    **Sans appelant au 13/09 (A4), et c'est ecrit plutot que tu.** C'est
+    une surface de la famille `list_*_for_warehouse` : son consommateur est
+    l'entrepot d'`analytics` (`FACT_SPECS`), qui n'a pas encore de fait
+    « compte ». La supprimer casserait le patron que les sept autres
+    surfaces de cette famille suivent ; lui inventer un fait pour la seule
+    raison de lui donner un appelant serait de la decoration. Elle attend
+    donc le fait qui la lira, et la garde des chaines inertes la connait."""
     return [
         {
             "account_id": row["id"],
@@ -1604,7 +1612,16 @@ def get_stock_account_balance(tenant: Tenant, *, at_date: dt.date) -> Decimal:
     n'est resolvable : c'est un defaut de parametrage du tenant, pas une
     erreur de programmation, et la meme discipline que le reste de ce
     module (`create_stock_movement_entry_from_source` renvoie `None` dans
-    ce cas plutot que de lever)."""
+    ce cas plutot que de lever).
+
+    **Sans appelant au 13/09 (A4), et c'est ecrit plutot que tu.** STK-12
+    rapproche ce solde de la valeur de stock REJOUEE ; le rejeu vit dans
+    `stocks.services.valuation_replay`, et `stocks` ne declare pas
+    `accounting`. Le rapprochement ne peut donc naitre que dans un ecran
+    transverse ou dans `accounting`, et aucun des deux n'existe encore. La
+    fonction est la moitie comptable d'un rapprochement dont l'autre moitie
+    attend son ecran — la supprimer ferait perdre la seule lecture du compte
+    de stock resolue par ROLE et non par type."""
     account = resolve_default_account(tenant, AccTenantDefaultAccount.ROLE_STOCK)
     if account is None:
         return Decimal(0)
